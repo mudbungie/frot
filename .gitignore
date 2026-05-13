@@ -1,3 +1,7 @@
 /target
 **/*.rs.bk
 Cargo.lock.bak
+.balls/local
+.balls-worktrees
+.balls/tasks
+.balls/worktree
