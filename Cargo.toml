@@ -1,0 +1,18 @@
+[package]
+name = "frot"
+version = "0.0.0"
+edition = "2021"
+description = "Take an impression of a web page — structure, text, accessibility tree — without rendering or executing it."
+repository = "https://github.com/mudbungie/frot"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[[bin]]
+name = "frot"
+path = "src/main.rs"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
