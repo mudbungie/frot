@@ -10,55 +10,76 @@ The available options force a binary choice: too little (curl + regex, hope the 
 
 `frottage` is an impression technique: press a surface against paper, rub graphite or charcoal across it, and capture the topology — outlines, raised features, structure — **without altering the original**. Archaeologists use it for inscriptions. Artists use it for surface texture. The metaphor maps to this tool with uncanny precision:
 
-- No JS execution → no state mutation, no side effects, no interaction with the page beyond reading.
-- Output is a *structural impression* (DOM, text, AX tree), not a faithful pixel render.
+- No interaction with the origin beyond reading. When JS is enabled, it runs against our local DOM copy; we don't submit forms or fire mutating requests back.
+- Output is a *structural impression* (DOM, text, AX tree, optionally geometry), not a faithful pixel render.
 - The technique is fast, deterministic, and non-destructive.
 
-The name scales with scope: even when we eventually add layout and JS, we're still taking impressions. We're not building a browser; we're building a way to lift the structure off a page.
+The name scales with scope. Even when JS is in play, we're still taking an impression of what the page becomes — not driving it.
 
 ## Principles
 
-1. **Stateless interface.** A request is `(url, parameters) → outputs`. No sessions, no cookies-by-default, no hidden state. Calls are cacheable, reproducible, parallelizable.
+1. **Stateless per process.** A single invocation is `(url, flags) → one output`. State *within* a call (redirects, JS event loop, etc.) is fine; nothing persists across calls. Calls are cacheable, reproducible, parallelizable.
 2. **Single static binary.** No container, no runtime deps, no Chromium install. Drop on a machine, run.
 3. **Minimal footprint.** Optimize for binary size, startup time, and memory floor. The interesting envelope is "smaller than a curl wrapper, more useful than one."
 4. **Machine-first output.** Every output format is designed to be parsed, not displayed. AX tree is a first-class citizen, not an afterthought.
-5. **Honest capability signals.** When a page can't be rendered faithfully at the current scope, return a clear, structured `needs-X` signal. Never silently produce a degraded result that looks complete.
+5. **Honest capability signals.** When a page can't be rendered faithfully under the current capability recipe, return a clear, structured `needs-X` signal. Never silently produce a degraded result that looks complete.
 6. **Elegance over completeness.** It's better to do less, well, with a clean boundary, than to half-implement the whole web. Where compromise is forced, push back.
 7. **Testability is non-negotiable.** Every capability ships with golden-fixture tests against pinned real-world pages. If it can't be tested, it isn't built.
+
+## The model
+
+frot is composed of two orthogonal axes:
+
+- **Capability flags** describe *what to do* before producing output. They are transformations on the document:
+  - `--css` — parse and apply stylesheets, annotating the DOM with computed styles. Visibility (`display:none`, `visibility:hidden`) and generated content propagate to all subsequent outputs.
+  - `--js` — execute scripts against the current DOM. JS mutates the DOM the way it does in a real engine, within bounded, stateless execution semantics.
+- **The output flag** picks *what to return*. Exactly one of: `dom`, `text`, `ax`, `links`, `forms`, `bboxes`, `meta`.
+
+```
+frot <url> [--css] [--js] --out <view>
+```
+
+The caller composes a recipe of capabilities; frot returns one output reflecting the document under that recipe. Internally, capabilities are composable functions over a shared artifact (DOM + side tables); they are not a strict pipeline. JS can run without CSS, and the DOM that downstream readers see is the DOM as the chosen capabilities have left it.
+
+Layout (block / inline / flex) is a *derivation*, not a capability. There is no `--layout` flag. Layout runs implicitly when something needs geometry — an output like `bboxes`, or a JS script reading `offsetWidth`. Outside that, it is skipped entirely.
+
+When the recipe is insufficient — e.g. the page is an empty SPA shell and `--js` is off — frot emits a structured `needs-X` signal rather than a misleadingly thin output.
 
 ## The scope arc
 
 frot is built in phases. Each phase delivers a usable tool; later phases extend the capability envelope without changing the interface.
 
-### Phase 0 — Fetch + parse
+### Phase 0 — Fetch + parse + envelope
 
 - HTTP/1.1 + HTTP/2 client with sane defaults (redirects, content-encoding, character set detection).
 - HTML5 parsing (via `html5ever`).
-- Stable output: raw HTML, parsed DOM, final URL, response metadata.
+- CLI surface and the machine-first output envelope. Outputs at this phase: `dom`, `text` (raw, source-order, no visibility filter), `links`, `forms`, `meta`.
 - Realistic browser-ish User-Agent and TLS defaults; not anti-bot-grade, but not obviously a bot either.
+- The envelope shape, the `needs-X` signal shape, and the error taxonomy are load-bearing and do not change in later phases.
 
-### Phase 1 — Semantic impressions
+### Phase 1 — Semantic impression
 
-- **AX tree** from semantic HTML + ARIA, computed without layout. The headline output.
-- Readable text extraction, structure-preserving.
-- Link and form extraction, structured.
-- `needs-js` detector: heuristic signal that the page is an SPA shell and the impression is empty.
+- AX tree from semantic HTML + ARIA, computed without styling. The headline output: `--out ax`.
+- The `needs-X` taxonomy lands here; `needs-js` is its first inhabitant — a heuristic signal that the page is an SPA shell and the impression under the current recipe is empty.
 
-### Phase 2 — CSS-aware extraction
+### Phase 2 — CSS application
 
+- `--css` capability flag.
 - Parse and apply CSS (via `cssparser` / `selectors`) for visibility and content semantics: `display:none`, `visibility:hidden`, pseudo-content, generated lists.
-- Text output reflects what's *visible*, not what's in the markup.
-- Still no layout. Still no JS.
+- Subsequent outputs (text, AX) reflect what's *visible*, not what's in the markup.
 
-### Phase 3 — Layout (partial)
+### Phase 3 — Layout (on-demand)
 
 - Block flow, inline flow, basic flex. Enough to compute reading order and reasonable bounding boxes for elements.
-- Not pixel-perfect; serves AX tree refinement and reading-order computation, not screenshots.
+- New output: `--out bboxes`. AX reading order is refined against layout when layout has been computed.
+- Triggered implicitly by output demand or by JS reading geometry; not a flag.
 
-### Phase 4 — JavaScript (cautious)
+### Phase 4 — JavaScript
 
-- A JS engine with a shimmed, partial DOM. Scope: enough to handle hydration of SSR'd content that progressively enhances after load. Not a full SPA host.
-- Sites that exceed the shim get the `needs-js` signal, same as before. The boundary moves; it doesn't disappear.
+- `--js` capability flag with a shimmed, partial DOM.
+- Bounded execution: a small event-loop / wall-clock budget, no persistence (localStorage / IndexedDB), no timers firing past load, network reads (fetch / XHR) either denied or served once-then-frozen.
+- Engine choice (Boa, `rquickjs`, or other) deferred until first claim.
+- Sites that exceed the shim get `needs-js`, same as before. The boundary moves; it doesn't disappear.
 
 ### Phase 5+ — TBD
 
@@ -81,4 +102,4 @@ Resist three temptations specifically:
 
 ## What success looks like
 
-A 5–15 MB static binary that returns a faithful structural impression of a web page in single-digit milliseconds, exposes a clean AX-tree output that LLM agents prefer over raw DOM, fails honestly when the page demands more, and has a roadmap that can be ignored without the tool feeling incomplete.
+A 5–15 MB static binary that returns a faithful structural impression of a web page in single-digit milliseconds at the lower capability tiers (sub-second once JS is in play), exposes a clean AX-tree output that LLM agents prefer over raw DOM, fails honestly when the page demands more, and has a roadmap that can be ignored without the tool feeling incomplete.
