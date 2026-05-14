@@ -6,6 +6,7 @@
 pub mod cli;
 pub mod dom;
 pub mod envelope;
+pub mod fetch;
 pub mod views;
 
 /// Run the CLI against an argv slice. Returns the process exit code.

@@ -21,6 +21,12 @@ serde_json = { version = "1", features = ["preserve_order"] }
 html5ever = "0.39"
 markup5ever_rcdom = "0.39"
 url = "2"
+ureq = { version = "3", default-features = false, features = ["rustls", "gzip", "brotli"] }
+encoding_rs = "0.8"
+
+[dev-dependencies]
+mockito = "1"
+rustls = { version = "0.23", default-features = false }
 
 [profile.release]
 lto = "fat"
