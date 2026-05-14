@@ -4,6 +4,7 @@
 //! the DOM facade, the views, the HTTP fetcher, and a top-level [`run`] entry
 //! point that the binary delegates to.
 
+pub mod ax;
 pub mod cli;
 pub mod dom;
 pub mod envelope;
