@@ -3,5 +3,6 @@
 //! Each view stays independent and side-effect-free.
 
 pub mod dom;
+pub mod forms;
 pub mod links;
 pub mod text;
