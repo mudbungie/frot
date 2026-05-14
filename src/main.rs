@@ -1,7 +1,6 @@
-// frot — take an impression of a web page.
-// See VISION.md. This is a placeholder until Phase 0 lands.
+use std::process::ExitCode;
 
-fn main() {
-    eprintln!("frot: pre-alpha. See VISION.md.");
-    std::process::exit(2);
+fn main() -> ExitCode {
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    ExitCode::from(frot::run(&argv))
 }
