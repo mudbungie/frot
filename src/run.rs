@@ -11,6 +11,7 @@ use crate::cli;
 use crate::dom::Document;
 use crate::envelope::{kinds, Envelope, ErrorInfo, StatusKind, UrlBlock, View};
 use crate::fetch::{self, FetchResult};
+use crate::needs;
 use crate::views;
 use serde_json::Value;
 
@@ -49,6 +50,10 @@ fn build_envelope(args: &cli::Args) -> Envelope {
         Ok(fetched) => {
             let url = UrlBlock::resolved(&args.url, &fetched.final_url);
             let doc = Document::parse(&fetched.body);
+            let needs = needs::detect(args.out, &doc);
+            if !needs.is_empty() {
+                return Envelope::needs(url, args.out, needs, None);
+            }
             match build_payload(args.out, &doc, &fetched) {
                 Ok(payload) => Envelope::ok(url, args.out, payload),
                 Err(e) => Envelope::error(url, args.out, e),

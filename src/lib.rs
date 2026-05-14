@@ -8,6 +8,7 @@ pub mod cli;
 pub mod dom;
 pub mod envelope;
 pub mod fetch;
+pub mod needs;
 pub mod run;
 pub mod views;
 

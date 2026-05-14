@@ -174,6 +174,25 @@ fn end_to_end_meta_extracts_title() {
 }
 
 #[test]
+fn empty_spa_shell_yields_needs_envelope_with_js() {
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_body(
+            "<html><head><script src='app.js'></script></head><body><div id='root'></div></body></html>",
+        )
+        .create();
+    let url = server.url();
+    let (code, out, _) = run_capture(&[&url, "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    assert_eq!(v["status"], "needs");
+    assert_eq!(v["needs"], serde_json::json!(["js"]));
+    assert!(v.get("out").map(|x| x.is_null()).unwrap_or(true));
+}
+
+#[test]
 fn envelope_records_both_requested_and_final_urls() {
     let mut server = mockito::Server::new();
     let _m1 = server
