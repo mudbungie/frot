@@ -4,6 +4,7 @@
 //! and a top-level [`run`] entry point that the binary delegates to.
 
 pub mod cli;
+pub mod dom;
 pub mod envelope;
 
 /// Run the CLI against an argv slice. Returns the process exit code.
