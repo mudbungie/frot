@@ -5,4 +5,5 @@
 pub mod dom;
 pub mod forms;
 pub mod links;
+pub mod meta;
 pub mod text;
