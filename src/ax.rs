@@ -3,6 +3,8 @@
 
 pub mod name;
 pub mod role;
+pub mod tree;
 
 pub use name::accessible_name;
 pub use role::{level, role};
+pub use tree::ax_tree;

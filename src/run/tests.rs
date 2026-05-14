@@ -59,22 +59,22 @@ fn invalid_url_emits_error_envelope_and_exits_one() {
 }
 
 #[test]
-fn ax_view_not_implemented_returns_error_envelope() {
-    // Use mockito so the fetch succeeds before we hit the unsupported view.
+fn ax_view_emits_ok_envelope_with_tree() {
     let mut server = mockito::Server::new();
     let _m = server
         .mock("GET", "/")
         .with_status(200)
-        .with_body("<p>hi</p>")
+        .with_body("<h1>Hello</h1>")
         .create();
     let url = server.url();
     let (code, out, _) = run_capture(&[&url, "--out", "ax"]);
-    assert_eq!(code, 1);
+    assert_eq!(code, 0);
     let v = parse_envelope(&out);
-    assert_eq!(v["status"], "error");
+    assert_eq!(v["status"], "ok");
     assert_eq!(v["view"], "ax");
-    assert_eq!(v["error"]["kind"], "internal");
-    assert!(v["error"]["message"].as_str().unwrap().contains("ax"));
+    let arr = v["out"].as_array().expect("out is array");
+    let has_heading = arr.iter().any(|n| n["role"] == "heading");
+    assert!(has_heading, "expected a heading in {:?}", arr);
 }
 
 #[test]

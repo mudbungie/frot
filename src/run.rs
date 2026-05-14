@@ -7,6 +7,7 @@
 
 use std::io::Write;
 
+use crate::ax;
 use crate::cli;
 use crate::dom::Document;
 use crate::envelope::{kinds, Envelope, ErrorInfo, StatusKind, UrlBlock, View};
@@ -70,12 +71,10 @@ fn build_payload(view: View, doc: &Document, fetched: &FetchResult) -> Result<Va
         View::Links => Ok(views::links::links(doc, page_url)),
         View::Forms => Ok(views::forms::forms(doc, page_url)),
         View::Meta => Ok(views::meta::meta(doc, page_url)),
-        View::Ax | View::Bboxes => Err(ErrorInfo::new(
+        View::Ax => Ok(ax::ax_tree(doc)),
+        View::Bboxes => Err(ErrorInfo::new(
             kinds::INTERNAL,
-            format!(
-                "--out {} is not implemented in this build",
-                view.as_str()
-            ),
+            "--out bboxes lands with the Phase-3 layout capability".to_string(),
         )),
     }
 }
