@@ -14,7 +14,7 @@ mod selparse;
 
 use crate::dom::{Document, NodeId, NodeKind};
 
-pub use cascade::compute;
+pub use cascade::{compute, compute_with};
 
 /// Concatenated text of `id`'s subtree as the accessible-name algorithm sees
 /// it under `--css`: `display:none` subtrees are dropped and `::before` /

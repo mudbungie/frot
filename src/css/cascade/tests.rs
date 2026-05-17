@@ -128,3 +128,16 @@ fn non_elements_get_default_style() {
     }
     assert!(!s.display_none(first_tag(&doc, "p")));
 }
+
+#[test]
+fn external_sheets_cascade_before_style_elements() {
+    use crate::css::compute_with;
+    // an external sheet alone hides the element.
+    let doc = Document::parse("<p>x</p>");
+    let s = compute_with(&doc, &["p{display:none}".to_string()]);
+    assert!(s.display_none(first_tag(&doc, "p")));
+    // a later <style> rule of equal specificity wins over the external one.
+    let doc = Document::parse("<style>p{display:block}</style><p>x</p>");
+    let s = compute_with(&doc, &["p{display:none}".to_string()]);
+    assert!(!s.display_none(first_tag(&doc, "p")));
+}

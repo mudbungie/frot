@@ -22,14 +22,15 @@ Every successful run emits the same envelope shape — `frot`, `url`, `view`, `s
 
 The capability recipe is orthogonal to the view: it picks what to do to the document before producing output.
 
-- `--css` — parse `<style>` and inline `style=` CSS; `display:none` and
-  inherited `visibility` filter the `text` and `ax` views, and
-  `::before`/`::after` generated content is folded into them
+- `--css` — parse `<style>`, inline `style=`, and external
+  `<link rel=stylesheet>` CSS; `display:none` and inherited `visibility`
+  filter the `text` and `ax` views, and `::before`/`::after` generated
+  content is folded into them
 - `--js` (Phase 4) — execute scripts against a partial DOM under bounded execution
 
 `--js` is not yet implemented. When a page can't be rendered faithfully under the current recipe — e.g. an empty SPA shell with `--js` off — frot will emit a `needs-X` envelope rather than a silently degraded `out`.
 
-The `--css` engine is a deliberately small subset (type/`.class`/`#id`/`*`/`[attr]` selectors, descendant and child combinators, `::before`/`::after`). It does not evaluate `@media`/`@supports` or fetch external `<link>` stylesheets, and it computes no layout — visibility and generated content only.
+The `--css` engine is a deliberately small subset (type/`.class`/`#id`/`*`/`[attr]` selectors, descendant and child combinators, `::before`/`::after`). External `<link rel=stylesheet>` sheets are fetched best-effort — a failed fetch is skipped, not fatal. It does not evaluate `@media`/`@supports` and computes no layout — visibility and generated content only.
 
 ## Status
 

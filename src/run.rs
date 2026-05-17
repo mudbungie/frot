@@ -9,12 +9,13 @@ use std::io::Write;
 
 use crate::ax;
 use crate::cli;
-use crate::dom::Document;
+use crate::dom::{Document, NodeKind, WalkEvent};
 use crate::envelope::{kinds, Envelope, ErrorInfo, StatusKind, UrlBlock, View};
 use crate::fetch::{self, FetchResult};
 use crate::needs;
 use crate::views;
 use serde_json::Value;
+use url::Url;
 
 pub fn run(argv: &[String]) -> u8 {
     run_io(argv, &mut std::io::stdout(), &mut std::io::stderr())
@@ -55,7 +56,10 @@ fn build_envelope(args: &cli::Args) -> Envelope {
             if !needs.is_empty() {
                 return Envelope::needs(url, args.out, needs, None);
             }
-            let styles = args.css.then(|| crate::css::compute(&doc));
+            let styles = args.css.then(|| {
+                let external = external_css(&doc, &fetched.final_url);
+                crate::css::compute_with(&doc, &external)
+            });
             match build_payload(args.out, &doc, &fetched, styles.as_ref()) {
                 Ok(payload) => Envelope::ok(url, args.out, payload),
                 Err(e) => Envelope::error(url, args.out, e),
@@ -83,6 +87,41 @@ fn build_payload(
             "--out bboxes lands with the Phase-3 layout capability".to_string(),
         )),
     }
+}
+
+/// Absolute URLs of `<link rel="stylesheet">` hrefs, resolved against the
+/// page's final URL. Non-stylesheet links, empty hrefs, and hrefs that fail
+/// to resolve are dropped.
+fn external_hrefs(doc: &Document, base: &str) -> Vec<String> {
+    let base_url = Url::parse(base).ok();
+    let mut out = Vec::new();
+    doc.walk(None, &mut |ev, e| {
+        if let WalkEvent::Enter(_) = ev {
+            if let NodeKind::Element(el) = &e.kind {
+                let is_sheet = el.name == "link"
+                    && el.attr("rel").is_some_and(|r| {
+                        r.split_whitespace().any(|t| t.eq_ignore_ascii_case("stylesheet"))
+                    });
+                if is_sheet {
+                    if let Some(h) = el.attr("href").filter(|s| !s.is_empty()) {
+                        if let Some(u) = base_url.as_ref().and_then(|b| b.join(h).ok()) {
+                            out.push(u.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    });
+    out
+}
+
+/// Fetch each external stylesheet best-effort: CSS is non-critical, so a
+/// failed fetch is silently skipped rather than failing the run.
+fn external_css(doc: &Document, base: &str) -> Vec<String> {
+    external_hrefs(doc, base)
+        .into_iter()
+        .filter_map(|u| fetch::fetch(&u).ok().map(|r| r.body))
+        .collect()
 }
 
 #[cfg(test)]

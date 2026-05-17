@@ -227,3 +227,50 @@ fn css_flag_applies_visibility_to_text_view() {
     let v = parse_envelope(&out);
     assert_eq!(v["out"], "shown");
 }
+
+#[test]
+fn external_hrefs_resolves_only_stylesheet_links() {
+    let doc = crate::dom::Document::parse(
+        "<link rel='stylesheet' href='/a.css'>\
+         <link rel='icon' href='/favicon.ico'>\
+         <link rel='stylesheet'>\
+         <link rel='stylesheet' href=''>\
+         <link rel='Stylesheet preload' href='b.css'>",
+    );
+    let got = external_hrefs(&doc, "http://example.com/dir/page");
+    assert_eq!(
+        got,
+        vec![
+            "http://example.com/a.css".to_string(),
+            "http://example.com/dir/b.css".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn external_hrefs_empty_when_base_unparseable() {
+    let doc = crate::dom::Document::parse("<link rel='stylesheet' href='/a.css'>");
+    assert!(external_hrefs(&doc, "not a url").is_empty());
+}
+
+#[test]
+fn css_fetches_external_stylesheets_best_effort() {
+    let mut server = mockito::Server::new();
+    let dead = "http://127.0.0.1:1/dead.css";
+    let body = format!(
+        "<link rel=stylesheet href=\"/s.css\">\
+         <link rel=stylesheet href=\"{dead}\">\
+         <p>shown</p><p class=hide>secret</p>"
+    );
+    let _page = server.mock("GET", "/").with_status(200).with_body(body).create();
+    let _sheet = server
+        .mock("GET", "/s.css")
+        .with_status(200)
+        .with_body(".hide{display:none}")
+        .create();
+    let url = server.url();
+    let (code, out, _) = run_capture(&[&url, "--css", "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    assert_eq!(v["out"], "shown");
+}

@@ -30,11 +30,18 @@ impl Applied {
 }
 
 pub fn compute(doc: &Document) -> Styles {
-    let sheets: Vec<Stylesheet> = doc
-        .find_by_tag("style")
-        .into_iter()
-        .map(|id| Stylesheet::parse(&doc.text_content(id)))
-        .collect();
+    compute_with(doc, &[])
+}
+
+/// Like [`compute`], but `external` raw CSS texts (fetched `<link>`
+/// stylesheets) cascade ahead of the document's own `<style>` rules.
+pub fn compute_with(doc: &Document, external: &[String]) -> Styles {
+    let mut sheets: Vec<Stylesheet> = external.iter().map(|s| Stylesheet::parse(s)).collect();
+    sheets.extend(
+        doc.find_by_tag("style")
+            .into_iter()
+            .map(|id| Stylesheet::parse(&doc.text_content(id))),
+    );
     let mut nodes = vec![ComputedStyle::default(); doc.len()];
     let mut ancestors: Vec<&Element> = Vec::new();
     for &root in doc.roots() {
