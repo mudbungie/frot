@@ -10,7 +10,13 @@ fn first_element(d: &Document, tag: &str) -> NodeId {
 
 fn name(html: &str, tag: &str) -> Option<String> {
     let d = doc(html);
-    accessible_name(&d, first_element(&d, tag))
+    accessible_name(&d, first_element(&d, tag), None)
+}
+
+fn name_css(html: &str, tag: &str) -> Option<String> {
+    let d = doc(html);
+    let s = crate::css::compute(&d);
+    accessible_name(&d, first_element(&d, tag), Some(&s))
 }
 
 #[test]
@@ -19,7 +25,7 @@ fn text_node_has_no_name() {
     // grab the text node id under <p>
     let p = first_element(&d, "p");
     let text_child = d.node(p).children[0];
-    assert_eq!(accessible_name(&d, text_child), None);
+    assert_eq!(accessible_name(&d, text_child, None), None);
 }
 
 #[test]
@@ -199,4 +205,20 @@ fn empty_button_has_no_name() {
 fn label_for_mismatch_falls_through() {
     let html = "<label for='other'>Search</label><input id='q'>";
     assert_eq!(name(html, "input"), None);
+}
+
+#[test]
+fn css_generated_content_included_in_name() {
+    assert_eq!(
+        name_css("<style>h1::before{content:'§ '}</style><h1>Title</h1>", "h1"),
+        Some("§ Title".into())
+    );
+}
+
+#[test]
+fn css_display_none_subtree_excluded_from_name() {
+    assert_eq!(
+        name_css("<h1>Vis<span style='display:none'>Gone</span></h1>", "h1"),
+        Some("Vis".into())
+    );
 }

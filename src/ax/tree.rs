@@ -9,20 +9,21 @@
 //! and `<noscript>` are skipped entirely.
 
 use crate::ax;
+use crate::css::{Styles, Visibility};
 use crate::dom::{Document, NodeId, NodeKind};
 use serde_json::{json, Value};
 
 const SKIP_TAGS: &[&str] = &["script", "style", "template", "noscript"];
 
-pub fn ax_tree(doc: &Document) -> Value {
+pub fn ax_tree(doc: &Document, styles: Option<&Styles>) -> Value {
     let mut nodes = Vec::new();
     for &root in doc.roots() {
-        nodes.extend(build(doc, root));
+        nodes.extend(build(doc, root, styles));
     }
     Value::Array(nodes)
 }
 
-fn build(doc: &Document, id: NodeId) -> Vec<Value> {
+fn build(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Vec<Value> {
     let entry = doc.node(id);
     let NodeKind::Element(el) = &entry.kind else {
         return Vec::new();
@@ -30,14 +31,23 @@ fn build(doc: &Document, id: NodeId) -> Vec<Value> {
     if SKIP_TAGS.contains(&el.name.as_str()) {
         return Vec::new();
     }
+    if styles.is_some_and(|s| s.display_none(id)) {
+        return Vec::new();
+    }
     let mut children = Vec::new();
     for &c in &entry.children {
-        children.extend(build(doc, c));
+        children.extend(build(doc, c, styles));
+    }
+    if styles.is_some_and(|s| s.visibility(id) == Visibility::Hidden) {
+        // `visibility:hidden` removes this element's own node but a
+        // `visibility:visible` descendant still surfaces (it built its
+        // own node above), so promote the collected children.
+        return children;
     }
     match ax::role(el) {
         None | Some("generic") | Some("presentation") | Some("none") => children,
         Some(role_name) => {
-            let name = ax::accessible_name(doc, id);
+            let name = ax::accessible_name(doc, id, styles);
             let mut obj = serde_json::Map::new();
             obj.insert("role".into(), Value::String(role_name.to_string()));
             obj.insert(

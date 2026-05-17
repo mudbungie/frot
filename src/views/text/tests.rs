@@ -1,7 +1,13 @@
 use super::*;
 
 fn t(html: &str) -> String {
-    text(&Document::parse(html))
+    text(&Document::parse(html), None)
+}
+
+fn t_css(html: &str) -> String {
+    let doc = Document::parse(html);
+    let s = crate::css::compute(&doc);
+    text(&doc, Some(&s))
 }
 
 #[test]
@@ -130,4 +136,40 @@ fn leading_whitespace_in_inline_at_doc_start_dropped() {
 fn trailing_whitespace_from_pre_is_trimmed() {
     let got = t("<pre>hello </pre>");
     assert_eq!(got, "hello");
+}
+
+#[test]
+fn css_display_none_removes_subtree() {
+    assert_eq!(
+        t_css("<p>keep</p><p style='display:none'>gone<span>x</span></p>"),
+        "keep"
+    );
+}
+
+#[test]
+fn css_visibility_hidden_drops_own_text_but_visible_child_returns() {
+    let got = t_css(
+        "<div style='visibility:hidden'>hide\
+         <span style='visibility:visible'>show</span></div>",
+    );
+    assert!(!got.contains("hide"), "got {got:?}");
+    assert!(got.contains("show"), "got {got:?}");
+}
+
+#[test]
+fn css_generated_content_is_emitted_inline() {
+    let got = t_css("<style>a::before{content:'» '}a::after{content:' «'}</style><a>link</a>");
+    assert_eq!(got, "» link «");
+}
+
+#[test]
+fn css_hidden_element_suppresses_its_generated_content_and_text() {
+    let got = t_css("<style>p::before{content:'X'}</style><p style='visibility:hidden'>y</p>");
+    assert_eq!(got, "");
+}
+
+#[test]
+fn css_with_no_rules_matches_raw_extraction() {
+    let html = "<div><p>a</p><p>b</p></div>";
+    assert_eq!(t_css(html), t(html));
 }

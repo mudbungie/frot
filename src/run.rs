@@ -55,7 +55,8 @@ fn build_envelope(args: &cli::Args) -> Envelope {
             if !needs.is_empty() {
                 return Envelope::needs(url, args.out, needs, None);
             }
-            match build_payload(args.out, &doc, &fetched) {
+            let styles = args.css.then(|| crate::css::compute(&doc));
+            match build_payload(args.out, &doc, &fetched, styles.as_ref()) {
                 Ok(payload) => Envelope::ok(url, args.out, payload),
                 Err(e) => Envelope::error(url, args.out, e),
             }
@@ -63,15 +64,20 @@ fn build_envelope(args: &cli::Args) -> Envelope {
     }
 }
 
-fn build_payload(view: View, doc: &Document, fetched: &FetchResult) -> Result<Value, ErrorInfo> {
+fn build_payload(
+    view: View,
+    doc: &Document,
+    fetched: &FetchResult,
+    styles: Option<&crate::css::Styles>,
+) -> Result<Value, ErrorInfo> {
     let page_url = fetched.final_url.as_str();
     match view {
         View::Dom => Ok(views::dom::dom_json(doc)),
-        View::Text => Ok(Value::String(views::text::text(doc))),
+        View::Text => Ok(Value::String(views::text::text(doc, styles))),
         View::Links => Ok(views::links::links(doc, page_url)),
         View::Forms => Ok(views::forms::forms(doc, page_url)),
         View::Meta => Ok(views::meta::meta(doc, page_url)),
-        View::Ax => Ok(ax::ax_tree(doc)),
+        View::Ax => Ok(ax::ax_tree(doc, styles)),
         View::Bboxes => Err(ErrorInfo::new(
             kinds::INTERNAL,
             "--out bboxes lands with the Phase-3 layout capability".to_string(),

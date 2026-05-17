@@ -13,7 +13,7 @@ Each invocation returns exactly one view, selected with `--out`:
 - `links` — every `<a>`, `<area>`, and `<link>`, with absolute hrefs and `rel` tokens
 - `forms` — `<form>` actions, methods, enctypes, and structured field lists
 - `meta` — `<title>`, `<html lang>`, charset, canonical link, and `<meta>` entries
-- `ax` — accessibility tree (planned for Phase 1)
+- `ax` — accessibility tree (roles, accessible names, levels)
 - `bboxes` — element geometry (planned for Phase 3, when layout lands)
 
 Every successful run emits the same envelope shape — `frot`, `url`, `view`, `status`, plus `out` (for `ok`), `needs` (for `needs`), or `error` (for `error`). The shape does not change as new capabilities ship.
@@ -22,14 +22,18 @@ Every successful run emits the same envelope shape — `frot`, `url`, `view`, `s
 
 The capability recipe is orthogonal to the view: it picks what to do to the document before producing output.
 
-- `--css` (Phase 2) — parse stylesheets, propagate visibility and generated content
+- `--css` — parse `<style>` and inline `style=` CSS; `display:none` and
+  inherited `visibility` filter the `text` and `ax` views, and
+  `::before`/`::after` generated content is folded into them
 - `--js` (Phase 4) — execute scripts against a partial DOM under bounded execution
 
-Phase 0 ships neither flag. When a page can't be rendered faithfully under the current recipe — e.g. an empty SPA shell with `--js` off — frot will emit a `needs-X` envelope rather than a silently degraded `out`.
+`--js` is not yet implemented. When a page can't be rendered faithfully under the current recipe — e.g. an empty SPA shell with `--js` off — frot will emit a `needs-X` envelope rather than a silently degraded `out`.
+
+The `--css` engine is a deliberately small subset (type/`.class`/`#id`/`*`/`[attr]` selectors, descendant and child combinators, `::before`/`::after`). It does not evaluate `@media`/`@supports` or fetch external `<link>` stylesheets, and it computes no layout — visibility and generated content only.
 
 ## Status
 
-Phase 0 has landed: fetch + parse, the output envelope, and the `dom`/`text`/`links`/`forms`/`meta` views. Phase 1 (the `ax` view and the `needs-X` taxonomy) is queued; run `bl ready` for the live picture.
+Phases 0–2 have landed: fetch + parse and the output envelope; the `dom`/`text`/`links`/`forms`/`meta`/`ax` views; the `needs-X` taxonomy; and the `--css` capability. Phase 3 (on-demand layout + `bboxes`) and Phase 4 (`--js`) are next; run `bl ready` for the live picture.
 
 ## Usage
 

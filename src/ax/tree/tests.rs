@@ -1,7 +1,13 @@
 use super::*;
 
 fn tree(html: &str) -> Value {
-    ax_tree(&Document::parse(html))
+    ax_tree(&Document::parse(html), None)
+}
+
+fn tree_css(html: &str) -> Value {
+    let doc = Document::parse(html);
+    let s = crate::css::compute(&doc);
+    ax_tree(&doc, Some(&s))
 }
 
 fn find_first<'a>(v: &'a Value, role: &str) -> Option<&'a Value> {
@@ -177,4 +183,30 @@ fn doctype_is_skipped_entirely() {
     let v = tree("<!doctype html><html><body><h1>Hi</h1></body></html>");
     let h = find_first(&v, "heading").unwrap();
     assert_eq!(h["name"], "Hi");
+}
+
+#[test]
+fn css_display_none_drops_node_and_subtree() {
+    let v = tree_css("<main style='display:none'><h1>Hidden</h1></main><h2>Shown</h2>");
+    let h = find_first(&v, "heading").expect("the visible heading");
+    assert_eq!(h["name"], "Shown");
+    assert!(find_first(&v, "main").is_none());
+}
+
+#[test]
+fn css_visibility_hidden_promotes_visible_children() {
+    let v = tree_css(
+        "<section style='visibility:hidden'>\
+         <h1 style='visibility:visible'>Hi</h1></section>",
+    );
+    let h = find_first(&v, "heading").expect("heading surfaces");
+    assert_eq!(h["name"], "Hi");
+    assert!(find_first(&v, "region").is_none());
+}
+
+#[test]
+fn css_generated_content_joins_accessible_name() {
+    let v = tree_css("<style>button::before{content:'★ '}</style><button>Star</button>");
+    let b = find_first(&v, "button").expect("button node");
+    assert_eq!(b["name"], "★ Star");
 }

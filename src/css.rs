@@ -12,9 +12,41 @@ mod parse;
 mod selector;
 mod selparse;
 
-use crate::dom::NodeId;
+use crate::dom::{Document, NodeId, NodeKind};
 
 pub use cascade::compute;
+
+/// Concatenated text of `id`'s subtree as the accessible-name algorithm sees
+/// it under `--css`: `display:none` subtrees are dropped and `::before` /
+/// `::after` generated content is included. With no rule affecting the
+/// subtree this is exactly [`Document::text_content`].
+pub fn rendered_subtree_text(doc: &Document, id: NodeId, styles: &Styles) -> String {
+    let mut out = String::new();
+    collect_text(doc, id, styles, &mut out);
+    out
+}
+
+fn collect_text(doc: &Document, id: NodeId, styles: &Styles, out: &mut String) {
+    let entry = doc.node(id);
+    match &entry.kind {
+        NodeKind::Element(_) => {
+            if styles.display_none(id) {
+                return;
+            }
+            if let Some(b) = styles.before(id) {
+                out.push_str(b);
+            }
+            for &c in &entry.children {
+                collect_text(doc, c, styles, out);
+            }
+            if let Some(a) = styles.after(id) {
+                out.push_str(a);
+            }
+        }
+        NodeKind::Text(t) => out.push_str(t),
+        NodeKind::Comment(_) | NodeKind::Doctype => {}
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Visibility {

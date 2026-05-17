@@ -1,14 +1,18 @@
 //! `--out text`: source-order text extraction.
 //!
-//! Phase 0 rules:
-//! - No visibility filter (that arrives with `--css`).
+//! Rules:
 //! - Whitespace collapses per the HTML serializer (runs of whitespace fold
 //!   to a single space) **outside** `<pre>`.
 //! - `<pre>` content is preserved verbatim.
 //! - Subtrees under `<script>`, `<style>`, `<template>`, `<noscript>`, `<iframe>`,
 //!   `<svg>`, and `<math>` are skipped.
 //! - Block-level boundaries become newlines; `<br>` becomes a newline.
+//! - With `--css` (a [`Styles`] table is passed): `display:none` subtrees are
+//!   dropped, an element's own text is suppressed when its computed
+//!   `visibility` is hidden (a `visibility:visible` descendant reappears),
+//!   and `::before`/`::after` generated content is emitted as inline text.
 
+use crate::css::{Styles, Visibility};
 use crate::dom::{Document, NodeId, NodeKind};
 
 const SKIP_TAGS: &[&str] = &[
@@ -107,17 +111,31 @@ impl State {
     }
 }
 
-fn emit(doc: &Document, id: NodeId, state: &mut State) {
+fn visible(styles: Option<&Styles>, id: NodeId) -> bool {
+    styles.is_none_or(|s| s.visibility(id) == Visibility::Visible)
+}
+
+fn emit(
+    doc: &Document,
+    id: NodeId,
+    state: &mut State,
+    styles: Option<&Styles>,
+    parent_visible: bool,
+) {
     let entry = doc.node(id);
     match &entry.kind {
         NodeKind::Element(el) => {
             if is_skip(&el.name) {
                 return;
             }
+            if styles.is_some_and(|s| s.display_none(id)) {
+                return;
+            }
             if el.name == "br" {
                 state.push_newline();
                 return;
             }
+            let vis = visible(styles, id);
             let pre = el.name == "pre";
             let block = is_block(&el.name);
             if block {
@@ -126,8 +144,18 @@ fn emit(doc: &Document, id: NodeId, state: &mut State) {
             if pre {
                 state.pre_depth += 1;
             }
+            if vis {
+                if let Some(b) = styles.and_then(|s| s.before(id)) {
+                    state.push_text(b);
+                }
+            }
             for &c in &entry.children {
-                emit(doc, c, state);
+                emit(doc, c, state, styles, vis);
+            }
+            if vis {
+                if let Some(a) = styles.and_then(|s| s.after(id)) {
+                    state.push_text(a);
+                }
             }
             if pre {
                 state.pre_depth -= 1;
@@ -136,16 +164,21 @@ fn emit(doc: &Document, id: NodeId, state: &mut State) {
                 state.block_break();
             }
         }
-        NodeKind::Text(t) => state.push_text(t),
+        NodeKind::Text(t) => {
+            if parent_visible {
+                state.push_text(t);
+            }
+        }
         NodeKind::Comment(_) | NodeKind::Doctype => {}
     }
 }
 
-/// Source-order text extraction.
-pub fn text(doc: &Document) -> String {
+/// Source-order text extraction. With `Some(styles)`, CSS visibility and
+/// generated content are applied; with `None`, raw source-order markup text.
+pub fn text(doc: &Document, styles: Option<&Styles>) -> String {
     let mut state = State::new();
     for &root in doc.roots() {
-        emit(doc, root, &mut state);
+        emit(doc, root, &mut state, styles, true);
     }
     state.finish()
 }

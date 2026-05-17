@@ -212,3 +212,18 @@ fn envelope_records_both_requested_and_final_urls() {
     assert_eq!(v["url"]["requested"], start);
     assert!(v["url"]["final"].as_str().unwrap().ends_with("/landed"));
 }
+
+#[test]
+fn css_flag_applies_visibility_to_text_view() {
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_body("<style>.x{display:none}</style><p>shown</p><p class=x>hidden</p>")
+        .create();
+    let url = server.url();
+    let (code, out, _) = run_capture(&[&url, "--css", "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    assert_eq!(v["out"], "shown");
+}

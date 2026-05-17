@@ -26,3 +26,14 @@ fn accessors_expose_the_computed_table() {
     // an untouched element carries the default ComputedStyle.
     assert_eq!(s.get(id("s")), &ComputedStyle::default());
 }
+
+#[test]
+fn rendered_subtree_text_applies_display_none_and_generated_content() {
+    let doc = Document::parse(
+        "<style>p::before{content:'['}p::after{content:']'}q{display:none}</style>\
+         <div><!--c--><p>hi</p><q>skip</q>tail</div>",
+    );
+    let s = compute(&doc);
+    let div = *doc.find_by_tag("div").first().unwrap();
+    assert_eq!(rendered_subtree_text(&doc, div, &s), "[hi]tail");
+}
