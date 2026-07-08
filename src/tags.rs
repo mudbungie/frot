@@ -8,10 +8,10 @@
 
 /// Block-level HTML tag names — the authoritative shared set (see module docs).
 pub const BLOCK_TAGS: &[&str] = &[
-    "address", "article", "aside", "blockquote", "dd", "dialog", "div", "dl",
-    "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2",
-    "h3", "h4", "h5", "h6", "header", "hr", "li", "main", "nav", "ol", "p",
-    "pre", "section", "table", "tr", "td", "th", "ul",
+    "address", "article", "aside", "blockquote", "body", "dd", "dialog", "div",
+    "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1",
+    "h2", "h3", "h4", "h5", "h6", "header", "hr", "html", "li", "main", "nav",
+    "ol", "p", "pre", "section", "table", "tr", "td", "th", "ul",
 ];
 
 /// Whether `name` is a block-level tag per [`BLOCK_TAGS`].

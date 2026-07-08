@@ -3,16 +3,22 @@
 //! pattern: a `Vec` parallel to the arena, consulted by geometry-hungry views,
 //! never mutating the DOM (`docs/design/layout.md` §1).
 //!
-//! This module is the box-tree *scaffold* (design §8.2 subtask 2): it derives
-//! which elements generate a box and stores placeholder rects. Real geometry
-//! is filled by later subtasks — block flow (3.3), inline flow (3.4), flex
-//! (3.5). The box *kind* is never stored: it is
+//! This module computes **block flow geometry** (design §8.2 subtask 3, §§1–6):
+//! normal-flow block boxes are stacked vertically, each the full width of its
+//! containing block at its container's left edge, with height flowing bottom-up
+//! from content. Inline fragment rects and multi-line wrapping are subtask 3.4;
+//! flex is 3.5. The box *kind* is never stored: it is
 //! [`Styles::display`](crate::css::Styles::display), the single source of
 //! truth (grid/table/… coercion to the seven
 //! [`Display`](crate::css::Display) variants already happened in the cascade),
-//! and later geometry subtasks branch on it.
+//! and geometry branches on it.
+//!
+//! frot parses no CSS `width`/`height`/margin/padding (design §6), so in normal
+//! flow every block box is the containing-block width at x = its container's
+//! left; for the whole in-flow tree that is `w = viewport_w`, `x = 0`. The real
+//! work is therefore vertical stacking by content height.
 
-use crate::css::Styles;
+use crate::css::{Display, Styles};
 use crate::dom::{Document, NodeId, NodeKind};
 
 /// Viewport width in px — hard-coded, not configurable (design §4). Load-bearing
@@ -20,6 +26,11 @@ use crate::dom::{Document, NodeId, NodeKind};
 /// the eventual `compute` call site passes it as `viewport_w`. There is no
 /// `--viewport` flag (design §4, OQ-2).
 pub const VIEWPORT_WIDTH: i32 = 1280;
+
+/// One line box's height in px: font-size 16px × line-height 1.25 (design §6).
+/// The single-line leaf-height unit used by [`inline_content_height`]; subtask
+/// 3.4 adds the glyph-advance constant and multi-line wrapping.
+const LINE_HEIGHT: i32 = 20;
 
 /// Element tags that generate no visual box; their whole subtree is skipped in
 /// the box tree. This is a layout-specific concern, deliberately distinct from
@@ -65,34 +76,135 @@ impl Layout {
     }
 }
 
-/// Build the box-tree scaffold: walk the render tree from [`Document::roots`],
-/// giving every rendered element a placeholder [`Rect::ZERO`] and every other
-/// node `None`. **Geometry is filled by later subtasks** — block flow (3.3),
-/// inline flow (3.4), flex (3.5); `viewport_w` is threaded through for them and
-/// is not read here. The box *kind* is not stored — it is
-/// [`Styles::display`](Styles::display), consulted by those subtasks.
+/// Compute the layout table. The initial containing block is the viewport
+/// (width `viewport_w`, origin `(0, 0)`, design §4); [`Document::roots`] are its
+/// in-flow block children, stacked from `y = 0`. Every rendered block-level
+/// element gets real geometry ([`place`]/[`layout_block`]); every other
+/// rendered element keeps a placeholder [`Rect::ZERO`] (inline fragments are
+/// subtask 3.4, flex 3.5); non-rendered/`display:none`/non-element nodes get
+/// `None`.
 pub fn compute(doc: &Document, styles: &Styles, viewport_w: i32) -> Layout {
-    let _ = viewport_w; // threaded for geometry (3.3/3.4/3.5); unused in the scaffold
     let mut boxes = vec![None; doc.len()];
+    let mut cursor = 0;
     for &root in doc.roots() {
-        walk(doc, root, styles, &mut boxes);
+        cursor += place(doc, root, styles, 0, cursor, viewport_w, &mut boxes);
     }
     Layout { boxes }
 }
 
-/// An element generates a box iff it is rendered: not `display:none` and not a
-/// [`NON_RENDERED_TAGS`] element. A skipped element's subtree is not walked, so
-/// it stays `None`; non-element nodes generate nothing and are not recursed.
-fn walk(doc: &Document, id: NodeId, styles: &Styles, boxes: &mut [Option<Rect>]) {
+/// Place node `id` as an in-flow child of a block container whose content box
+/// begins at `(x, y)` with width `w`, returning the block-flow height it
+/// contributes. A rendered **block-level** child lays out via [`layout_block`]
+/// (its height). Any other node — non-element, non-rendered, `display:none`, or
+/// a non-block box (inline/inline-block/flex; §1 anonymous-box promotion is
+/// "transient", out of scope here) — contributes `0`; a rendered non-block
+/// element still gets its scaffold [`Rect::ZERO`] subtree via [`walk`].
+fn place(
+    doc: &Document,
+    id: NodeId,
+    styles: &Styles,
+    x: i32,
+    y: i32,
+    w: i32,
+    boxes: &mut [Option<Rect>],
+) -> i32 {
+    if !is_rendered_element(doc, id, styles) {
+        return 0;
+    }
+    if matches!(styles.display(id), Display::Block | Display::ListItem) {
+        layout_block(doc, id, styles, x, y, w, boxes)
+    } else {
+        walk(doc, id, styles, boxes);
+        0
+    }
+}
+
+/// Lay out block box `id` at `(x, y)` with width `w`, store its rect, and
+/// return its content height. A container **with block-level children** stacks
+/// them: each at `x`/`w` and the running cursor, height = the cursor advance
+/// (sum of child heights). A container establishing an **inline formatting
+/// context** (no block-level child box) takes its height from
+/// [`inline_content_height`]; its inline/text descendants keep [`Rect::ZERO`].
+fn layout_block(
+    doc: &Document,
+    id: NodeId,
+    styles: &Styles,
+    x: i32,
+    y: i32,
+    w: i32,
+    boxes: &mut [Option<Rect>],
+) -> i32 {
     let entry = doc.node(id);
-    let NodeKind::Element(el) = &entry.kind else {
-        return;
+    let has_block = entry.children.iter().any(|&c| is_block_box(doc, c, styles));
+    let h = if has_block {
+        let mut cursor = y;
+        for &c in &entry.children {
+            cursor += place(doc, c, styles, x, cursor, w, boxes);
+        }
+        cursor - y
+    } else {
+        for &c in &entry.children {
+            walk(doc, c, styles, boxes);
+        }
+        inline_content_height(doc, styles, id, w)
     };
-    if styles.display_none(id) || NON_RENDERED_TAGS.contains(&el.name.as_str()) {
+    boxes[id as usize] = Some(Rect { x, y, w, h });
+    h
+}
+
+/// Height of a block establishing an inline formatting context — the 3.3↔3.4
+/// seam. **3.3:** a single line ([`LINE_HEIGHT`]) when the block has rendered
+/// text (non-whitespace, not under `display:none` or a [`NON_RENDERED_TAGS`]
+/// element), else `0`. **3.4 replaces only this body** with greedy
+/// word-wrapping against `width_px` (unused here, threaded for that).
+fn inline_content_height(doc: &Document, styles: &Styles, block_id: NodeId, width_px: i32) -> i32 {
+    let _ = width_px;
+    if has_rendered_text(doc, block_id, styles) {
+        LINE_HEIGHT
+    } else {
+        0
+    }
+}
+
+/// Whether `id`'s subtree contains rendered non-whitespace text: any text node
+/// not under a `display:none` or [`NON_RENDERED_TAGS`] element.
+fn has_rendered_text(doc: &Document, id: NodeId, styles: &Styles) -> bool {
+    let entry = doc.node(id);
+    match &entry.kind {
+        NodeKind::Text(t) => t.chars().any(|c| !c.is_whitespace()),
+        NodeKind::Element(_) => {
+            is_rendered_element(doc, id, styles)
+                && entry.children.iter().any(|&c| has_rendered_text(doc, c, styles))
+        }
+        _ => false,
+    }
+}
+
+/// Whether `id` is a rendered block-level box: a rendered element whose computed
+/// display is `Block` or `ListItem`.
+fn is_block_box(doc: &Document, id: NodeId, styles: &Styles) -> bool {
+    is_rendered_element(doc, id, styles)
+        && matches!(styles.display(id), Display::Block | Display::ListItem)
+}
+
+/// Whether `id` is an element that generates a box: not `display:none` and not
+/// a [`NON_RENDERED_TAGS`] element. The shared render-tree predicate.
+fn is_rendered_element(doc: &Document, id: NodeId, styles: &Styles) -> bool {
+    let NodeKind::Element(el) = &doc.node(id).kind else {
+        return false;
+    };
+    !styles.display_none(id) && !NON_RENDERED_TAGS.contains(&el.name.as_str())
+}
+
+/// Give rendered element `id` a placeholder [`Rect::ZERO`] and recurse. Used for
+/// non-block subtrees whose geometry is filled by 3.4/3.5; skipped elements'
+/// subtrees are not walked, so they stay `None`.
+fn walk(doc: &Document, id: NodeId, styles: &Styles, boxes: &mut [Option<Rect>]) {
+    if !is_rendered_element(doc, id, styles) {
         return;
     }
     boxes[id as usize] = Some(Rect::ZERO);
-    for &c in &entry.children {
+    for &c in &doc.node(id).children {
         walk(doc, c, styles, boxes);
     }
 }
