@@ -68,7 +68,8 @@ fn anchor_with_href_yields_link_with_text() {
 fn anchor_without_href_collapses_to_children() {
     let v = tree("<a><strong>Important</strong></a>");
     let s = find_first(&v, "strong").unwrap();
-    assert_eq!(s["name"], "Important");
+    // strong is not a name-from-contents role, so it carries no name.
+    assert_eq!(s["name"], Value::Null);
     assert!(find_first(&v, "link").is_none());
 }
 
@@ -140,7 +141,9 @@ fn list_with_items() {
     let items = l["children"].as_array().unwrap();
     assert_eq!(items.len(), 2);
     assert_eq!(items[0]["role"], "listitem");
-    assert_eq!(items[1]["name"], "b");
+    // listitem is a container role: not named from its contents.
+    assert_eq!(items[1]["role"], "listitem");
+    assert_eq!(items[1]["name"], Value::Null);
 }
 
 #[test]

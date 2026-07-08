@@ -222,3 +222,56 @@ fn css_display_none_subtree_excluded_from_name() {
         Some("Vis".into())
     );
 }
+
+// --- name-from-contents role gating (bl-a864) -------------------------------
+// Container roles must NOT be named from their subtree text; only roles in the
+// WAI-ARIA "Name From: contents" set take the subtree-text fallback.
+
+#[test]
+fn paragraph_is_not_named_from_contents() {
+    // role=paragraph is a container: no native name despite having text.
+    assert_eq!(name("<p>Body copy text</p>", "p"), None);
+}
+
+#[test]
+fn list_is_not_named_from_contents() {
+    // role=list is a container: subtree text is not its name.
+    assert_eq!(name("<ul><li>One</li><li>Two</li></ul>", "ul"), None);
+}
+
+#[test]
+fn listitem_is_not_named_from_contents() {
+    assert_eq!(name("<ul><li>One</li></ul>", "li"), None);
+}
+
+#[test]
+fn table_is_not_named_from_contents() {
+    let html = "<table><tr><td>R1C1</td></tr></table>";
+    assert_eq!(name(html, "table"), None);
+}
+
+#[test]
+fn roleless_element_is_not_named_from_contents() {
+    // <br> has no ARIA role at all: the guard's None arm → no native name.
+    assert_eq!(name("<br>Stray text after break", "br"), None);
+}
+
+#[test]
+fn explicit_role_button_is_named_from_contents() {
+    // Gating is role-based, not tag-based: role=button on a span still names.
+    assert_eq!(name("<span role='button'>Go</span>", "span"), Some("Go".into()));
+}
+
+#[test]
+fn explicit_role_list_suppresses_content_name() {
+    assert_eq!(name("<span role='list'>All the items</span>", "span"), None);
+}
+
+#[test]
+fn container_falls_through_to_title() {
+    // A container with no content name still uses title as last resort.
+    assert_eq!(
+        name("<ul title='Menu'><li>Home</li></ul>", "ul"),
+        Some("Menu".into())
+    );
+}

@@ -9,7 +9,9 @@
 //!    - `<input type=image>` — `alt`
 //!    - other form controls (`<input>`, `<textarea>`, `<select>`) — the matching
 //!      `<label for=…>` or the wrapping `<label>` text content
-//!    - everything else — the element's own text content
+//!    - everything else — the element's own text content, but *only* when the
+//!      element's role is name-from-contents (see [`NAME_FROM_CONTENTS`]);
+//!      containers (table, row, list, paragraph, nav, …) yield no native name
 //! 4. `title`
 //!
 //! Returns the trimmed result, or `None` if nothing produced text. With
@@ -88,8 +90,41 @@ fn native_name(
         "input" => input_name(doc, id, el, styles),
         "textarea" | "select" => control_label_text(doc, id, el, styles),
         "fieldset" => fieldset_legend_text(doc, id, styles),
-        _ => Some(name_text(doc, id, styles)),
+        _ if names_from_contents(el) => Some(name_text(doc, id, styles)),
+        _ => None,
     }
+}
+
+/// Roles whose accessible name is computed from descendant text — the
+/// "Name From: contents" set of WAI-ARIA 1.2 (roles listed with
+/// `nameFrom: contents` in §5.4 Definition of Roles). Only these take the
+/// subtree-text fallback; container roles (`table`, `rowgroup`, `list`,
+/// `listitem`, `paragraph`, `navigation`, `region`, `group`, …) are absent,
+/// so they yield no native name instead of echoing their whole subtree.
+const NAME_FROM_CONTENTS: &[&str] = &[
+    "button",
+    "cell",
+    "checkbox",
+    "columnheader",
+    "gridcell",
+    "heading",
+    "link",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "option",
+    "radio",
+    "row",
+    "rowheader",
+    "switch",
+    "tab",
+    "tooltip",
+    "treeitem",
+];
+
+/// Whether `el`'s effective role is in [`NAME_FROM_CONTENTS`].
+fn names_from_contents(el: &crate::dom::Element) -> bool {
+    matches!(crate::ax::role(el), Some(r) if NAME_FROM_CONTENTS.contains(&r))
 }
 
 fn input_name(
