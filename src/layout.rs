@@ -6,8 +6,9 @@
 //! This module computes **block flow geometry** (design §8.2 subtask 3, §§1–6):
 //! normal-flow block boxes are stacked vertically, each the full width of its
 //! containing block at its container's left edge, with height flowing bottom-up
-//! from content. Inline fragment rects and multi-line wrapping are subtask 3.4;
-//! flex is 3.5. The box *kind* is never stored: it is
+//! from content. Inline fragment rects and multi-line wrapping (subtask 3.4)
+//! live in the [`inline`] submodule, which this module calls to size a block's
+//! inline formatting context; flex is 3.5. The box *kind* is never stored: it is
 //! [`Styles::display`](crate::css::Styles::display), the single source of
 //! truth (grid/table/… coercion to the seven
 //! [`Display`](crate::css::Display) variants already happened in the cascade),
@@ -21,6 +22,8 @@
 use crate::css::{Display, Styles};
 use crate::dom::{Document, NodeId, NodeKind};
 
+mod inline;
+
 /// Viewport width in px — hard-coded, not configurable (design §4). Load-bearing
 /// once geometry lands (inline line-breaks and block widths derive from it);
 /// the eventual `compute` call site passes it as `viewport_w`. There is no
@@ -28,9 +31,15 @@ use crate::dom::{Document, NodeId, NodeKind};
 pub const VIEWPORT_WIDTH: i32 = 1280;
 
 /// One line box's height in px: font-size 16px × line-height 1.25 (design §6).
-/// The single-line leaf-height unit used by [`inline_content_height`]; subtask
-/// 3.4 adds the glyph-advance constant and multi-line wrapping.
+/// The single line-box unit; the [`inline`] flow pass stacks lines by it and
+/// every inline fragment is this tall. A structural estimate, not pixel truth.
 const LINE_HEIGHT: i32 = 20;
+
+/// Average glyph advance in px: ~0.5em at the 16px default font-size (design §6).
+/// No font is loaded, so a word's width is `glyphs * GLYPH_ADVANCE` and a single
+/// inter-word space advances by the same. Used by the [`inline`] flow pass; a
+/// deliberate approximation (design §6), consumed only there.
+const GLYPH_ADVANCE: i32 = 8;
 
 /// Element tags that generate no visual box; their whole subtree is skipped in
 /// the box tree. This is a layout-specific concern, deliberately distinct from
@@ -123,8 +132,10 @@ fn place(
 /// return its content height. A container **with block-level children** stacks
 /// them: each at `x`/`w` and the running cursor, height = the cursor advance
 /// (sum of child heights). A container establishing an **inline formatting
-/// context** (no block-level child box) takes its height from
-/// [`inline_content_height`]; its inline/text descendants keep [`Rect::ZERO`].
+/// context** (no block-level child box) takes its height from [`inline::flow`],
+/// which also fills its inline elements' fragment-union rects; inline elements
+/// with no rendered word, and text nodes, keep the [`Rect::ZERO`] seeded by
+/// [`walk`].
 fn layout_block(
     doc: &Document,
     id: NodeId,
@@ -146,38 +157,10 @@ fn layout_block(
         for &c in &entry.children {
             walk(doc, c, styles, boxes);
         }
-        inline_content_height(doc, styles, id, w)
+        inline::flow(doc, styles, id, y, w, boxes)
     };
     boxes[id as usize] = Some(Rect { x, y, w, h });
     h
-}
-
-/// Height of a block establishing an inline formatting context — the 3.3↔3.4
-/// seam. **3.3:** a single line ([`LINE_HEIGHT`]) when the block has rendered
-/// text (non-whitespace, not under `display:none` or a [`NON_RENDERED_TAGS`]
-/// element), else `0`. **3.4 replaces only this body** with greedy
-/// word-wrapping against `width_px` (unused here, threaded for that).
-fn inline_content_height(doc: &Document, styles: &Styles, block_id: NodeId, width_px: i32) -> i32 {
-    let _ = width_px;
-    if has_rendered_text(doc, block_id, styles) {
-        LINE_HEIGHT
-    } else {
-        0
-    }
-}
-
-/// Whether `id`'s subtree contains rendered non-whitespace text: any text node
-/// not under a `display:none` or [`NON_RENDERED_TAGS`] element.
-fn has_rendered_text(doc: &Document, id: NodeId, styles: &Styles) -> bool {
-    let entry = doc.node(id);
-    match &entry.kind {
-        NodeKind::Text(t) => t.chars().any(|c| !c.is_whitespace()),
-        NodeKind::Element(_) => {
-            is_rendered_element(doc, id, styles)
-                && entry.children.iter().any(|&c| has_rendered_text(doc, c, styles))
-        }
-        _ => false,
-    }
 }
 
 /// Whether `id` is a rendered block-level box: a rendered element whose computed
