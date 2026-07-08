@@ -24,6 +24,19 @@ fn find_first<'a>(v: &'a Value, role: &str) -> Option<&'a Value> {
     None
 }
 
+fn count_role(v: &Value, role: &str) -> usize {
+    let mut n = 0;
+    if let Value::Array(arr) = v {
+        for item in arr {
+            if item["role"] == role {
+                n += 1;
+            }
+            n += count_role(&item["children"], role);
+        }
+    }
+    n
+}
+
 #[test]
 fn empty_document_yields_empty_array() {
     let v = tree("");
@@ -212,4 +225,69 @@ fn css_generated_content_joins_accessible_name() {
     let v = tree_css("<style>button::before{content:'★ '}</style><button>Star</button>");
     let b = find_first(&v, "button").expect("button node");
     assert_eq!(b["name"], "★ Star");
+}
+
+#[test]
+fn layout_table_collapses_scaffolding_surfacing_content() {
+    let v = tree("<table><tr><td><a href='/x'>Home</a></td><td>text</td></tr></table>");
+    assert!(find_first(&v, "table").is_none());
+    assert!(find_first(&v, "rowgroup").is_none());
+    assert!(find_first(&v, "row").is_none());
+    assert!(find_first(&v, "cell").is_none());
+    assert_eq!(find_first(&v, "link").unwrap()["name"], "Home");
+}
+
+#[test]
+fn data_table_with_th_preserves_structure() {
+    let v = tree("<table><tr><th>H</th></tr><tr><td>D</td></tr></table>");
+    assert!(find_first(&v, "table").is_some());
+    assert!(find_first(&v, "row").is_some());
+    assert!(find_first(&v, "cell").is_some());
+    assert!(find_first(&v, "columnheader").is_some());
+}
+
+#[test]
+fn data_table_with_caption_preserves_structure() {
+    let v = tree("<table><caption>Cap</caption><tr><td>D</td></tr></table>");
+    assert!(find_first(&v, "table").is_some());
+    assert!(find_first(&v, "cell").is_some());
+}
+
+#[test]
+fn table_with_summary_attr_preserves_structure() {
+    let v = tree("<table summary='s'><tr><td>D</td></tr></table>");
+    assert!(find_first(&v, "table").is_some());
+}
+
+#[test]
+fn table_with_role_attr_preserves_structure() {
+    let v = tree("<table role='table'><tr><td>D</td></tr></table>");
+    assert!(find_first(&v, "table").is_some());
+    assert!(find_first(&v, "cell").is_some());
+}
+
+#[test]
+fn table_with_aria_label_preserves_structure() {
+    let v = tree("<table aria-label='Prices'><tr><td>D</td></tr></table>");
+    assert!(find_first(&v, "table").is_some());
+}
+
+#[test]
+fn table_with_aria_labelledby_preserves_structure() {
+    let v = tree("<table aria-labelledby='h'><tr><td>D</td></tr></table>");
+    assert!(find_first(&v, "table").is_some());
+}
+
+#[test]
+fn nested_data_table_inside_layout_table() {
+    let v = tree(
+        "<table><tr><td>\
+         <table><tr><th>H</th></tr><tr><td>D</td></tr></table>\
+         </td></tr></table>",
+    );
+    // Outer (layout) collapses; only the inner data table remains, with its
+    // header cell and a single data cell (the outer <td> collapsed away).
+    assert_eq!(count_role(&v, "table"), 1);
+    assert_eq!(count_role(&v, "cell"), 1);
+    assert!(find_first(&v, "columnheader").is_some());
 }
