@@ -41,9 +41,14 @@ impl Layout {
   anonymous block boxes and line boxes; these have no `NodeId` and never appear
   in output, so they live only on the layout algorithm's stack, never in the
   table. The table stores exactly what a view can name: elements.
-- **Reading order is a query, not a stored field** (single source of truth):
-  `child_order(id)` derives a container's visual child sequence from the box
-  tree on demand (§5). No per-node order index.
+- **Reading order is the flex layout's output, not a redundant per-node index**
+  (single source of truth): the CSS `order` value lives once in the cascade
+  (`ComputedStyle::order`); flex layout materializes each container's reordered
+  child sequence during `compute` into a `NodeId`-keyed side table that
+  `child_order(id)` reads (§5). `Layout` retains no `doc`/`styles`, so the
+  sequence is computed at layout time rather than re-derived per query. For any
+  non-flex id (no stored order) `child_order` returns an empty `Vec` — the AX
+  refinement (§5) calls it only for `Flex`/`InlineFlex` nodes.
 
 Layout is a pure function of its inputs, like every other view/capability:
 

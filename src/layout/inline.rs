@@ -52,6 +52,22 @@ pub(super) fn flow(
     line_count * LINE_HEIGHT
 }
 
+/// The max-content inline width of `id`'s subtree: every rendered word on one
+/// (unwrapped) line, with a single `GLYPH_ADVANCE` gap between adjacent words.
+/// `0` when the subtree renders no word. A crude intrinsic size for a flex row
+/// item (`layout.md` §6: structural estimate, not exact item sizing); reuses the
+/// same [`collect`] tokenizer and metrics as [`flow`] (single source of truth).
+pub(super) fn max_content_width(doc: &Document, styles: &Styles, id: NodeId) -> i32 {
+    let mut words = Vec::new();
+    let mut ancestors = Vec::new();
+    for &c in &doc.node(id).children {
+        collect(doc, styles, c, &mut ancestors, &mut words);
+    }
+    let glyphs: i32 = words.iter().map(|w| w.glyphs).sum();
+    let gaps = words.len().saturating_sub(1) as i32;
+    glyphs * GLYPH_ADVANCE + gaps * GLYPH_ADVANCE
+}
+
 /// Walk `id` in source order, appending a [`Word`] per whitespace-separated run
 /// of its rendered text. `ancestors` tracks the enclosing inline-element stack; a
 /// `display:none`/non-rendered element and its whole subtree are skipped, a text

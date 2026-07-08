@@ -11,6 +11,22 @@ fn defaults_are_rendered_visible_and_contentless() {
     assert_eq!(Visibility::default(), Visibility::Visible);
     assert_eq!(cs.before, None);
     assert_eq!(cs.after, None);
+    // Flex defaults: no reorder, row main axis.
+    assert_eq!(cs.order, 0);
+    assert_eq!(cs.flex_direction, FlexDirection::Row);
+    assert_eq!(FlexDirection::default(), FlexDirection::Row);
+}
+
+#[test]
+fn flex_direction_parse_maps_keywords_and_coerces_the_rest() {
+    assert_eq!(FlexDirection::parse("row"), FlexDirection::Row);
+    assert_eq!(FlexDirection::parse("row-reverse"), FlexDirection::RowReverse);
+    assert_eq!(FlexDirection::parse("column"), FlexDirection::Column);
+    assert_eq!(FlexDirection::parse("column-reverse"), FlexDirection::ColumnReverse);
+    // Case-insensitive and trimmed.
+    assert_eq!(FlexDirection::parse("  COLUMN-Reverse "), FlexDirection::ColumnReverse);
+    // Any unknown value coerces to Row.
+    assert_eq!(FlexDirection::parse("wat"), FlexDirection::Row);
 }
 
 #[test]

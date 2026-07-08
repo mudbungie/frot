@@ -22,6 +22,7 @@
 use crate::css::{Display, Styles};
 use crate::dom::{Document, NodeId, NodeKind};
 
+mod flex;
 mod inline;
 
 /// Viewport width in px — hard-coded, not configurable (design §4). Load-bearing
@@ -73,8 +74,14 @@ impl Rect {
 /// (`boxes.len() == doc.len()`). A rendered element carries `Some(Rect)`; a
 /// `display:none` subtree, a non-rendered element, a non-element node, and a
 /// document node carry `None`.
+///
+/// `orders` is the flex layout's other output (design §5): for every flex
+/// container ([`Display::Flex`]/[`Display::InlineFlex`]) it holds that
+/// container's in-flow children in reading order; every other node holds `None`.
+/// It is the single source for the [`child_order`](Layout::child_order) query.
 pub struct Layout {
     boxes: Vec<Option<Rect>>,
+    orders: Vec<Option<Vec<NodeId>>>,
 }
 
 impl Layout {
@@ -82,6 +89,18 @@ impl Layout {
     /// `display:none`/non-rendered/non-element node — see the type docs).
     pub fn rect(&self, id: NodeId) -> Option<Rect> {
         self.boxes[id as usize]
+    }
+
+    /// A flex container's in-flow child elements in flex reading order
+    /// (design §5): its rendered element children sorted by `(order, source
+    /// index)`, reversed for a `row-reverse`/`column-reverse` `flex-direction`.
+    ///
+    /// Defined only for a flex container (`Display::Flex`/`InlineFlex`); the AX
+    /// refinement (3.7) calls it only for such nodes. For **any other id** — a
+    /// non-flex element, a `display:none`/non-element/document node — it returns
+    /// an empty `Vec` (no stored order).
+    pub fn child_order(&self, id: NodeId) -> Vec<NodeId> {
+        self.orders[id as usize].clone().unwrap_or_default()
     }
 }
 
@@ -94,20 +113,23 @@ impl Layout {
 /// `None`.
 pub fn compute(doc: &Document, styles: &Styles, viewport_w: i32) -> Layout {
     let mut boxes = vec![None; doc.len()];
+    let orders = flex::child_orders(doc, styles);
     let mut cursor = 0;
     for &root in doc.roots() {
         cursor += place(doc, root, styles, 0, cursor, viewport_w, &mut boxes);
     }
-    Layout { boxes }
+    Layout { boxes, orders }
 }
 
 /// Place node `id` as an in-flow child of a block container whose content box
 /// begins at `(x, y)` with width `w`, returning the block-flow height it
 /// contributes. A rendered **block-level** child lays out via [`layout_block`]
-/// (its height). Any other node — non-element, non-rendered, `display:none`, or
-/// a non-block box (inline/inline-block/flex; §1 anonymous-box promotion is
-/// "transient", out of scope here) — contributes `0`; a rendered non-block
-/// element still gets its scaffold [`Rect::ZERO`] subtree via [`walk`].
+/// (its height); a rendered **flex container** (`display:flex`) via
+/// [`flex::place_container`] (design §5/§6). Any other node — non-element,
+/// non-rendered, `display:none`, or an inline-level box (inline/inline-block/
+/// inline-flex; §1 anonymous-box promotion is "transient", out of scope here) —
+/// contributes `0`; a rendered inline-level element still gets its scaffold
+/// [`Rect::ZERO`] subtree via [`walk`].
 fn place(
     doc: &Document,
     id: NodeId,
@@ -120,11 +142,13 @@ fn place(
     if !is_rendered_element(doc, id, styles) {
         return 0;
     }
-    if matches!(styles.display(id), Display::Block | Display::ListItem) {
-        layout_block(doc, id, styles, x, y, w, boxes)
-    } else {
-        walk(doc, id, styles, boxes);
-        0
+    match styles.display(id) {
+        Display::Block | Display::ListItem => layout_block(doc, id, styles, x, y, w, boxes),
+        Display::Flex => flex::place_container(doc, id, styles, x, y, w, boxes),
+        _ => {
+            walk(doc, id, styles, boxes);
+            0
+        }
     }
 }
 
@@ -164,10 +188,14 @@ fn layout_block(
 }
 
 /// Whether `id` is a rendered block-level box: a rendered element whose computed
-/// display is `Block` or `ListItem`.
+/// display is `Block`, `ListItem`, or `Flex` (a flex container is block-level and
+/// establishes its own formatting context, so it stacks like a block box).
 fn is_block_box(doc: &Document, id: NodeId, styles: &Styles) -> bool {
     is_rendered_element(doc, id, styles)
-        && matches!(styles.display(id), Display::Block | Display::ListItem)
+        && matches!(
+            styles.display(id),
+            Display::Block | Display::ListItem | Display::Flex
+        )
 }
 
 /// Whether `id` is an element that generates a box: not `display:none` and not

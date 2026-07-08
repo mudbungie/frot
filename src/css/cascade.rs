@@ -8,7 +8,7 @@
 
 use super::parse::{parse_decls, Stylesheet};
 use super::selector::{Pseudo, Specificity};
-use super::{ComputedStyle, Display, Styles, Visibility};
+use super::{ComputedStyle, Display, FlexDirection, Styles, Visibility};
 use crate::dom::{Document, Element, NodeId, NodeKind};
 use crate::tags::is_block;
 
@@ -119,10 +119,29 @@ fn resolve(
     }
     ComputedStyle {
         display: display(&applied, el),
+        order: order_value(&applied),
+        flex_direction: flex_direction(&applied),
         visibility: visibility(&applied, parent_vis),
         before: generated(&applied, Pseudo::Before, el),
         after: generated(&applied, Pseudo::After, el),
     }
+}
+
+/// The winning `order`: the winning declaration parsed as an `i32`; a
+/// non-integer or absent value is `0` (the initial value). Only flex layout
+/// reads it (`layout.md` §5).
+fn order_value(applied: &[Applied]) -> i32 {
+    winner(applied, None, "order")
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+/// The winning `flex-direction`, parsed (and coerced) by [`FlexDirection::parse`];
+/// an absent value is [`FlexDirection::Row`]. Only flex layout reads it.
+fn flex_direction(applied: &[Applied]) -> FlexDirection {
+    winner(applied, None, "flex-direction")
+        .map(FlexDirection::parse)
+        .unwrap_or_default()
 }
 
 /// The winning `display`: a matched author/inline rule (parsed and coerced by

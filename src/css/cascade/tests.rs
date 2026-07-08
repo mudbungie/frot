@@ -1,4 +1,4 @@
-use crate::css::{compute, Display, Styles, Visibility};
+use crate::css::{compute, Display, FlexDirection, Styles, Visibility};
 use crate::dom::Document;
 
 fn styles(html: &str) -> (Document, Styles) {
@@ -154,6 +154,30 @@ fn author_display_rule_overrides_implicit_and_is_coerced() {
     assert_eq!(s.display(first_tag(&doc, "div")), Display::Block);
     // An author rule on an `li` overrides its implicit ListItem.
     assert_eq!(s.display(first_tag(&doc, "li")), Display::Block);
+}
+
+#[test]
+fn order_is_the_winning_integer_else_zero() {
+    let (doc, s) = styles(
+        "<a style='order:3'>x</a><b style='order:-2'>y</b>\
+         <c style='order:nope'>z</c><d>w</d>",
+    );
+    // A winning integer declaration (positive and negative).
+    assert_eq!(s.order(first_tag(&doc, "a")), 3);
+    assert_eq!(s.order(first_tag(&doc, "b")), -2);
+    // A non-integer value is dropped → 0.
+    assert_eq!(s.order(first_tag(&doc, "c")), 0);
+    // Absent → 0 (the initial value).
+    assert_eq!(s.order(first_tag(&doc, "d")), 0);
+}
+
+#[test]
+fn flex_direction_is_the_winning_keyword_else_row() {
+    let (doc, s) = styles("<a style='flex-direction:column'>x</a><b>y</b>");
+    // A winning declaration is parsed by FlexDirection::parse.
+    assert_eq!(s.flex_direction(first_tag(&doc, "a")), FlexDirection::Column);
+    // Absent → Row (the default main axis).
+    assert_eq!(s.flex_direction(first_tag(&doc, "b")), FlexDirection::Row);
 }
 
 #[test]

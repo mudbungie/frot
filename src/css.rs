@@ -55,6 +55,32 @@ pub enum Visibility {
     Hidden,
 }
 
+/// Computed `flex-direction` — the flex container's main axis. Only consumed by
+/// flex layout (reading order and crude main-axis placement, `layout.md` §5/§6).
+/// The default is [`FlexDirection::Row`]; every unrecognised value coerces to it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FlexDirection {
+    #[default]
+    Row,
+    RowReverse,
+    Column,
+    ColumnReverse,
+}
+
+impl FlexDirection {
+    /// Parse an author/inline `flex-direction` value. Case-insensitive and
+    /// trimmed; any unknown/absent value coerces to [`FlexDirection::Row`].
+    pub fn parse(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "row" => FlexDirection::Row,
+            "row-reverse" => FlexDirection::RowReverse,
+            "column" => FlexDirection::Column,
+            "column-reverse" => FlexDirection::ColumnReverse,
+            _ => FlexDirection::Row,
+        }
+    }
+}
+
 /// Computed `display` keyword: one of the seven values Phase 3 layout branches
 /// on. The cascade coerces every other CSS `display` value (`grid`, `table*`,
 /// `contents`, unknown) to [`Display::Block`] once, at compute time, so this
@@ -97,6 +123,12 @@ pub struct ComputedStyle {
     /// element's UA-implicit display by tag. `display:none` is the
     /// [`Display::None`] variant (queried via [`Styles::display_none`]).
     pub display: Display,
+    /// Computed `order` (flex reorder key); default `0`. Only flex layout reads
+    /// it (`layout.md` §5: sort in-flow children by `(order, source index)`).
+    pub order: i32,
+    /// Computed `flex-direction`; default [`FlexDirection::Row`]. Only flex
+    /// layout reads it (main axis + `*-reverse` reading-order flip).
+    pub flex_direction: FlexDirection,
     /// Computed (inherited) visibility.
     pub visibility: Visibility,
     /// `::before` generated content, if a generated box is produced.
@@ -131,6 +163,18 @@ impl Styles {
     /// Computed `display` keyword for `id` (see [`ComputedStyle::display`]).
     pub fn display(&self, id: NodeId) -> Display {
         self.get(id).display
+    }
+
+    /// Computed `order` for `id` (flex reorder key; see
+    /// [`ComputedStyle::order`]).
+    pub fn order(&self, id: NodeId) -> i32 {
+        self.get(id).order
+    }
+
+    /// Computed `flex-direction` for `id` (see
+    /// [`ComputedStyle::flex_direction`]).
+    pub fn flex_direction(&self, id: NodeId) -> FlexDirection {
+        self.get(id).flex_direction
     }
 
     pub fn visibility(&self, id: NodeId) -> Visibility {
