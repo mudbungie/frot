@@ -242,6 +242,8 @@ included — it occupies space and has geometry, though the `ax` view drops it):
 
 ## 8. Decomposition (proposed subtasks for bl-4cb4)
 
+**Status: all eight shipped — Phase 3 landed (2026-07).**
+
 Proposals only — the dispatcher files these; this doc does not run `bl create`.
 Each is self-contained. All inherit bl-4cb4's gate (blocked on the Phase-2.5
 epic bl-2a9e + this design bl-6077).

@@ -68,7 +68,7 @@ frot is built in phases. Each phase delivers a usable tool; later phases extend 
 - Parse and apply CSS for visibility and content semantics: `display:none`, `visibility:hidden`, pseudo-content. Implemented as a small dependency-free subset engine rather than pulling in `cssparser`/`selectors` — the binary-size and dependency-discipline constraints outweighed full CSS fidelity for a narrow visibility/content need. External `<link>` stylesheets are fetched best-effort (failures skipped); `@media`/`@supports` are out of scope; layout (and thus list-marker generation) defers to Phase 3.
 - Subsequent outputs (text, AX) reflect what's *visible*, not what's in the markup.
 
-### Phase 2.5 — Impression fidelity
+### Phase 2.5 — Impression fidelity — **landed**
 
 Debt surfaced by the 2026-07 arch pass; it precedes new capability because it is the honesty principle catching up with the shipped surface:
 
@@ -79,7 +79,7 @@ Debt surfaced by the 2026-07 arch pass; it precedes new capability because it is
 
 The live decomposition of this stage (and everything else) is the `bl` backlog, not this file.
 
-### Phase 3 — Layout (on-demand)
+### Phase 3 — Layout (on-demand) — **landed**
 
 - Block flow, inline flow, basic flex. Enough to compute reading order and reasonable bounding boxes for elements.
 - New output: `--out bboxes`. AX reading order is refined against layout — and since exactly one view runs per call, `--out ax` under `--css` triggers layout itself, so flex `order` / `flex-direction: *-reverse` surface as visual reading order; without `--css` no reorder is possible and layout is skipped, so source order stands.
