@@ -67,10 +67,16 @@ fn build_envelope(args: &cli::Args) -> Envelope {
                 return Envelope::needs(url, args.out, needs, None).with_http(http);
             }
             let styles = compute_styles(args, &doc, &fetched);
-            // Layout is on-demand (`layout.md` §3): only `bboxes` needs geometry,
-            // and it always has a `Styles` (built above), so layout is built iff
-            // the view is `bboxes`.
-            let layout = matches!(args.out, View::Bboxes)
+            // Layout is on-demand (`layout.md` §3): `bboxes` always needs
+            // geometry, and `ax` forces layout under `--css` — flex
+            // `order`/`*-reverse` is the sole source-order↔reading-order
+            // divergence (§3), so without `--css` no reorder is possible and
+            // layout is skipped. Both paths have a `Styles` here (`bboxes`
+            // always, `ax` because `--css` built one), so layout is built iff
+            // the view demands it.
+            let wants_layout =
+                args.out == View::Bboxes || (args.out == View::Ax && args.css);
+            let layout = wants_layout
                 .then(|| styles.as_ref().map(|s| build_layout(s, &doc)))
                 .flatten();
             let payload =
@@ -122,7 +128,7 @@ fn build_payload(
         View::Links => views::links::links(doc, page_url),
         View::Forms => views::forms::forms(doc, page_url),
         View::Meta => views::meta::meta(doc, page_url),
-        View::Ax => ax::ax_tree(doc, styles),
+        View::Ax => ax::ax_tree(doc, styles, layout),
         // `bboxes` always builds both (`compute_styles`/`build_layout` above).
         View::Bboxes => {
             let (layout, styles) = layout
@@ -191,3 +197,6 @@ mod http_tests;
 
 #[cfg(test)]
 mod bboxes_tests;
+
+#[cfg(test)]
+mod ax_tests;

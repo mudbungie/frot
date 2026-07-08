@@ -34,21 +34,49 @@
 //! genuine data table nested inside a layout table keeps its own structure.
 
 use crate::ax;
-use crate::css::{Styles, Visibility};
+use crate::css::{Display, Styles, Visibility};
 use crate::dom::{Document, Element, NodeId, NodeKind};
+use crate::layout::Layout;
 use serde_json::{json, Value};
 
 const SKIP_TAGS: &[&str] = &["script", "style", "template", "noscript"];
 
-pub fn ax_tree(doc: &Document, styles: Option<&Styles>) -> Value {
+pub fn ax_tree(doc: &Document, styles: Option<&Styles>, layout: Option<&Layout>) -> Value {
     let mut nodes = Vec::new();
     for &root in doc.roots() {
-        nodes.extend(build(doc, root, styles, false));
+        nodes.extend(build(doc, root, styles, layout, false));
     }
     Value::Array(nodes)
 }
 
-fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: bool) -> Vec<Value> {
+/// The child `NodeId`s of `id` in AX emission order. Under a computed `Layout`,
+/// a flex container (`Display::Flex`/`InlineFlex`) emits its children in flex
+/// reading order — [`Layout::child_order`], the single reorder primitive from
+/// subtask 3.5 (`layout.md` §5). Every other node, and *every* node when
+/// `layout` is `None` (no `--css`), keeps source order, so `ax` without layout
+/// is bit-for-bit unchanged. Reordering stays within a container: children are
+/// resequenced among siblings, never moved across containers.
+fn ordered_children(
+    doc: &Document,
+    id: NodeId,
+    styles: Option<&Styles>,
+    layout: Option<&Layout>,
+) -> Vec<NodeId> {
+    match (layout, styles) {
+        (Some(l), Some(s)) if matches!(s.display(id), Display::Flex | Display::InlineFlex) => {
+            l.child_order(id)
+        }
+        _ => doc.node(id).children.clone(),
+    }
+}
+
+fn build(
+    doc: &Document,
+    id: NodeId,
+    styles: Option<&Styles>,
+    layout: Option<&Layout>,
+    in_layout_table: bool,
+) -> Vec<Value> {
     let entry = doc.node(id);
     let NodeKind::Element(el) = &entry.kind else {
         return Vec::new();
@@ -62,14 +90,14 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
     // A `<table>` re-classifies the nearest-table context (nesting resets, so a
     // data table inside a layout table keeps its structure); other elements
     // inherit the ancestor flag.
-    let layout = if el.name == "table" {
+    let layout_table = if el.name == "table" {
         is_layout_table(doc, id, el)
     } else {
         in_layout_table
     };
     let mut children = Vec::new();
-    for &c in &entry.children {
-        children.extend(build(doc, c, styles, layout));
+    for c in ordered_children(doc, id, styles, layout) {
+        children.extend(build(doc, c, styles, layout, layout_table));
     }
     if styles.is_some_and(|s| s.visibility(id) == Visibility::Hidden) {
         // `visibility:hidden` removes this element's own node but a
@@ -78,7 +106,7 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
         return children;
     }
     let role = ax::role(el);
-    if layout
+    if layout_table
         && matches!(
             role,
             Some("table" | "rowgroup" | "row" | "cell" | "columnheader" | "rowheader" | "gridcell")
@@ -144,3 +172,6 @@ fn has_header_cell(doc: &Document, id: NodeId) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod order_tests;

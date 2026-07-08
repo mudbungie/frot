@@ -82,7 +82,7 @@ The live decomposition of this stage (and everything else) is the `bl` backlog, 
 ### Phase 3 — Layout (on-demand)
 
 - Block flow, inline flow, basic flex. Enough to compute reading order and reasonable bounding boxes for elements.
-- New output: `--out bboxes`. AX reading order is refined against layout when layout has been computed.
+- New output: `--out bboxes`. AX reading order is refined against layout — and since exactly one view runs per call, `--out ax` under `--css` triggers layout itself, so flex `order` / `flex-direction: *-reverse` surface as visual reading order; without `--css` no reorder is possible and layout is skipped, so source order stands.
 - Triggered implicitly by output demand or by JS reading geometry; not a flag.
 
 ### Phase 4 — JavaScript
