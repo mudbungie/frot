@@ -75,6 +75,9 @@ Debt surfaced by the 2026-07 arch pass; it precedes new capability because it is
 - Surface the HTTP outcome in the envelope (additive `http` block). Today a 404/500/bot-challenge body is reported as an `ok` impression.
 - Reject `--js` with a usage error until Phase 4 implements it; today it parses and silently does nothing.
 - Accessible-name computation restricted to `nameFrom: contents` roles. Today container roles (`table`, `rowgroup`, …) are named from their full subtree text, so ancestor names repeat all descendant content — bloat for the AX view's primary consumer.
+- Layout tables demoted to `presentation` in the AX tree (a DOM-based heuristic, as browsers do): a caption-less, header-less table used for layout should contribute content, not `table`/`row`/`cell` structure noise.
+
+The live decomposition of this stage (and everything else) is the `bl` backlog, not this file.
 
 ### Phase 3 — Layout (on-demand)
 

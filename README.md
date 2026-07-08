@@ -54,8 +54,11 @@ Known sharp edges, tracked in `bl` (run `bl ready` for the live picture):
 - **HTTP status is not in the envelope.** A 404/500 — or a bot-challenge page — currently comes back `status:"ok"` with that page's content as the impression. Until this is fixed, check reachability out of band if it matters.
 - **`--js` is accepted but inert.** It parses and does nothing; it will be a usage error until Phase 4 implements it.
 - **AX names are over-assigned.** Container roles (`table`, `rowgroup`, …) are currently named from their full contents, so ancestor names repeat descendant text. Roles that legitimately name from content (`link`, `heading`, `button`, `cell`, …) are correct.
+- **Layout tables keep full AX structure.** Browsers demote caption-less layout tables to `presentation`; frot doesn't yet, so table-layout sites (e.g. Hacker News) produce deeply nested `table`/`row`/`cell` noise in `ax`.
 
 Next capability phases: Phase 3 (on-demand layout + `bboxes`), then Phase 4 (bounded `--js`).
+
+Docs: `VISION.md` is the why and the roadmap; `ARCHITECTURE.md` is the as-built how (pipeline, contracts, decision log).
 
 ## Building
 
