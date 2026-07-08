@@ -96,14 +96,15 @@ fn validate_url_rejects_garbage() {
 
 #[test]
 fn validate_url_rejects_unsupported_scheme() {
-    let err = validate_url("file:///etc/passwd").unwrap_err();
+    let err = validate_url("ftp://example.com/x").unwrap_err();
     assert_eq!(err.kind, kinds::FETCH_URL);
 }
 
 #[test]
-fn validate_url_accepts_http_and_https() {
+fn validate_url_accepts_http_https_and_file() {
     assert!(validate_url("http://example.com/").is_ok());
     assert!(validate_url("https://example.com/").is_ok());
+    assert!(validate_url("file:///tmp/x.html").is_ok());
 }
 
 #[test]
@@ -114,7 +115,7 @@ fn fetch_invalid_url_returns_url_error() {
 
 #[test]
 fn fetch_unsupported_scheme_returns_url_error() {
-    let err = fetch("file:///etc/passwd").unwrap_err();
+    let err = fetch("ftp://example.com/x").unwrap_err();
     assert_eq!(err.kind, kinds::FETCH_URL);
 }
 
@@ -129,7 +130,7 @@ fn fetch_ok_against_mock_server() {
         .create();
     let url = server.url();
     let r = fetch(&url).unwrap();
-    assert_eq!(r.status, 200);
+    assert_eq!(r.status, Some(200));
     assert_eq!(r.body, "hello");
     assert_eq!(r.charset, "utf-8");
     assert!(r.headers.iter().any(|(n, _)| n.eq_ignore_ascii_case("content-type")));
@@ -145,7 +146,7 @@ fn fetch_404_returns_envelope_ok() {
         .create();
     let url = server.url();
     let r = fetch(&url).unwrap();
-    assert_eq!(r.status, 404);
+    assert_eq!(r.status, Some(404));
     assert_eq!(r.body, "not found");
 }
 
@@ -165,7 +166,7 @@ fn fetch_follows_redirects_and_records_final_url() {
         .create();
     let url = format!("{}/start", server.url());
     let r = fetch(&url).unwrap();
-    assert_eq!(r.status, 200);
+    assert_eq!(r.status, Some(200));
     assert_eq!(r.body, "final");
     assert!(r.final_url.ends_with("/landed"));
 }

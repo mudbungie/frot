@@ -1,8 +1,13 @@
-//! HTTP fetcher: blocking `ureq`-based GET with sane browser-ish defaults.
+//! Document fetcher: blocking `ureq`-based GET with sane browser-ish
+//! defaults, plus `file://` reads for documents the caller already has.
 //!
-//! Returns the final URL (post-redirect), status, headers, decoded body, and
-//! the charset that was used to decode it. Errors map to the canonical
-//! [`crate::envelope::kinds`] taxonomy that the envelope serializer expects.
+//! Returns the final URL (post-redirect), status (`None` for `file://` — no
+//! HTTP response happened), headers, decoded body, and the charset that was
+//! used to decode it. Errors map to the canonical [`crate::envelope::kinds`]
+//! taxonomy that the envelope serializer expects.
+//!
+//! `file://` support means frot can reach local disk: callers passing
+//! untrusted URLs should validate the scheme themselves, same as with curl.
 
 use std::time::Duration;
 
@@ -18,7 +23,8 @@ const MAX_BODY_BYTES: u64 = 16 * 1024 * 1024;
 #[derive(Debug, Clone)]
 pub struct FetchResult {
     pub final_url: String,
-    pub status: u16,
+    /// HTTP status; `None` when no response happened (`file://`).
+    pub status: Option<u16>,
     pub headers: Vec<(String, String)>,
     pub body: String,
     pub charset: String,
@@ -40,7 +46,10 @@ impl FetchError {
 }
 
 pub fn fetch(url: &str) -> Result<FetchResult, FetchError> {
-    validate_url(url)?;
+    let parsed = validate_url(url)?;
+    if parsed.scheme() == "file" {
+        return fetch_file(&parsed);
+    }
     let agent: Agent = Agent::config_builder()
         .user_agent(USER_AGENT)
         .timeout_global(Some(Duration::from_secs(TIMEOUT_SECS)))
@@ -72,23 +81,57 @@ pub fn fetch(url: &str) -> Result<FetchResult, FetchError> {
     let (body, charset) = decode_body(&bytes, content_type.as_deref());
     Ok(FetchResult {
         final_url,
-        status,
+        status: Some(status),
         headers,
         body,
         charset,
     })
 }
 
-fn validate_url(url: &str) -> Result<(), FetchError> {
+/// Read a `file://` document. No response, so no status and no headers;
+/// charset comes from the `<meta>` sniff (or UTF-8), same as a header-less
+/// HTTP response.
+fn fetch_file(url: &url::Url) -> Result<FetchResult, FetchError> {
+    let path = url.to_file_path().map_err(|()| {
+        FetchError::new(kinds::FETCH_URL, format!("not a local file path: {}", url))
+    })?;
+    let len = std::fs::metadata(&path)
+        .map_err(|e| FetchError::new(kinds::FETCH_FILE, format!("{}: {}", path.display(), e)))?
+        .len();
+    check_body_len(len)?;
+    let bytes = std::fs::read(&path)
+        .map_err(|e| FetchError::new(kinds::FETCH_FILE, format!("{}: {}", path.display(), e)))?;
+    let (body, charset) = decode_body(&bytes, None);
+    Ok(FetchResult {
+        final_url: url.to_string(),
+        status: None,
+        headers: Vec::new(),
+        body,
+        charset,
+    })
+}
+
+/// The one body-size rule, shared by both transports.
+pub(crate) fn check_body_len(len: u64) -> Result<(), FetchError> {
+    if len > MAX_BODY_BYTES {
+        return Err(FetchError::new(
+            kinds::FETCH_BODY,
+            format!("body is {} bytes; limit is {}", len, MAX_BODY_BYTES),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_url(url: &str) -> Result<url::Url, FetchError> {
     let parsed = url::Url::parse(url)
         .map_err(|e| FetchError::new(kinds::FETCH_URL, format!("invalid URL: {}", e)))?;
-    if !matches!(parsed.scheme(), "http" | "https") {
+    if !matches!(parsed.scheme(), "http" | "https" | "file") {
         return Err(FetchError::new(
             kinds::FETCH_URL,
             format!("unsupported scheme: {}", parsed.scheme()),
         ));
     }
-    Ok(())
+    Ok(parsed)
 }
 
 fn header_value(headers: &[(String, String)], name: &str) -> Option<String> {
@@ -151,7 +194,7 @@ fn sniff_meta_charset(bytes: &[u8]) -> Option<String> {
     let head_str = String::from_utf8_lossy(head);
     let lower = head_str.to_ascii_lowercase();
     let idx = lower.find("charset=")?;
-    let after = &head_str[idx + "charset=".len()..];
+    let after = head_str[idx + "charset=".len()..].trim_start_matches(['"', '\'']);
     let end = after
         .find(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_')
         .unwrap_or(after.len());
@@ -164,3 +207,6 @@ fn sniff_meta_charset(bytes: &[u8]) -> Option<String> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod file_tests;

@@ -170,6 +170,7 @@ pub mod kinds {
     pub const FETCH_TIMEOUT: &str = "fetch.timeout";
     pub const FETCH_REDIRECT: &str = "fetch.redirect";
     pub const FETCH_BODY: &str = "fetch.body";
+    pub const FETCH_FILE: &str = "fetch.file";
     pub const FETCH_ENCODING: &str = "fetch.encoding";
     pub const PARSE: &str = "parse";
     pub const INTERNAL: &str = "internal";

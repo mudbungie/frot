@@ -91,9 +91,11 @@ fn build_payload(
 
 /// Absolute URLs of `<link rel="stylesheet">` hrefs, resolved against the
 /// page's final URL. Non-stylesheet links, empty hrefs, and hrefs that fail
-/// to resolve are dropped.
+/// to resolve are dropped. A `file:` sheet is kept only when the page itself
+/// is `file:` — remote content must never cause local reads.
 fn external_hrefs(doc: &Document, base: &str) -> Vec<String> {
     let base_url = Url::parse(base).ok();
+    let base_is_file = base_url.as_ref().is_some_and(|b| b.scheme() == "file");
     let mut out = Vec::new();
     doc.walk(None, &mut |ev, e| {
         if let WalkEvent::Enter(_) = ev {
@@ -105,7 +107,9 @@ fn external_hrefs(doc: &Document, base: &str) -> Vec<String> {
                 if is_sheet {
                     if let Some(h) = el.attr("href").filter(|s| !s.is_empty()) {
                         if let Some(u) = base_url.as_ref().and_then(|b| b.join(h).ok()) {
-                            out.push(u.to_string());
+                            if u.scheme() != "file" || base_is_file {
+                                out.push(u.to_string());
+                            }
                         }
                     }
                 }
@@ -126,3 +130,6 @@ fn external_css(doc: &Document, base: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod file_tests;

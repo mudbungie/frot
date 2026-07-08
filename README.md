@@ -20,6 +20,8 @@ $ frot https://a-spa-shell.example --out text
 
 Exit codes: `0` for an `ok` or `needs` envelope, `1` for an `error` envelope (still JSON on stdout), `2` for a usage error (no envelope; message on stderr).
 
+The URL may also be `file://` — take an impression of a document you already have (a saved page, a crawl artifact, a cached fetch) without refetching it. Relative hrefs resolve against the file URL; under `--css` a local page may fetch its remote stylesheets, but a remote page can never read a `file:` one. Note that `file://` reaches local disk: validate schemes yourself before passing untrusted URLs, same as with curl.
+
 ## Output views
 
 Each invocation returns exactly one view, selected with `--out`:
