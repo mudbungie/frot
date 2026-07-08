@@ -10,7 +10,7 @@ use std::io::Write;
 use crate::ax;
 use crate::cli;
 use crate::dom::{Document, NodeKind, WalkEvent};
-use crate::envelope::{Envelope, ErrorInfo, StatusKind, UrlBlock, View};
+use crate::envelope::{Envelope, ErrorInfo, HttpInfo, StatusKind, UrlBlock, View};
 use crate::fetch::{self, FetchResult};
 use crate::needs;
 use crate::views;
@@ -50,18 +50,28 @@ fn build_envelope(args: &cli::Args) -> Envelope {
             Envelope::error(initial_url, args.out, ErrorInfo::new(&e.kind, e.message))
         }
         Ok(fetched) => {
+            let http = fetched.status.map(HttpInfo::new);
             let url = UrlBlock::resolved(&args.url, &fetched.final_url);
+            // A server error (status >= 400) is not an impression: flip to an
+            // error envelope before parsing, still carrying the http block.
+            if let Some(code) = fetched.status.filter(|&c| c >= 400) {
+                let error = ErrorInfo::new(
+                    format!("http.{code}"),
+                    format!("server returned HTTP {code}"),
+                );
+                return Envelope::error(url, args.out, error).with_http(http);
+            }
             let doc = Document::parse(&fetched.body);
             let needs = needs::detect(args.out, &doc);
             if !needs.is_empty() {
-                return Envelope::needs(url, args.out, needs, None);
+                return Envelope::needs(url, args.out, needs, None).with_http(http);
             }
             let styles = args.css.then(|| {
                 let external = external_css(&doc, &fetched.final_url, &args.headers);
                 crate::css::compute_with(&doc, &external)
             });
             let payload = build_payload(args.out, &doc, &fetched, styles.as_ref());
-            Envelope::ok(url, args.out, payload)
+            Envelope::ok(url, args.out, payload).with_http(http)
         }
     }
 }
@@ -137,3 +147,6 @@ mod file_tests;
 
 #[cfg(test)]
 mod header_tests;
+
+#[cfg(test)]
+mod http_tests;

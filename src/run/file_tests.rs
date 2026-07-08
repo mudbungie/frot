@@ -66,6 +66,25 @@ fn file_page_applies_local_stylesheet_under_css() {
 }
 
 #[test]
+fn file_page_omits_http_block() {
+    let dir = tmp_dir("no-http");
+    let page = dir.join("page.html");
+    std::fs::write(&page, "<p>local</p>").unwrap();
+    let (code, out, _) = run_capture(&[&file_url(&page), "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    assert_eq!(v["status"], "ok");
+    assert_eq!(v["out"], "local");
+    // No HTTP response happened, so the http block is absent entirely.
+    assert!(
+        v.get("http").is_none(),
+        "file:// carried an http block: {}",
+        out
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn remote_page_cannot_pull_a_file_stylesheet() {
     let dir = tmp_dir("blocked");
     let sheet = dir.join("hide.css");

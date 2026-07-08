@@ -100,6 +100,21 @@ impl ErrorInfo {
     }
 }
 
+/// HTTP response signal, present whenever a network response was received
+/// (a `file://` read carries none — no response happened). Additive to the
+/// envelope: the envelope `status` still describes the impression operation,
+/// while `http.status` reports the raw transport code the server returned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HttpInfo {
+    pub status: u16,
+}
+
+impl HttpInfo {
+    pub fn new(status: u16) -> Self {
+        Self { status }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Envelope {
     pub frot: String,
@@ -112,6 +127,8 @@ pub struct Envelope {
     pub needs: Option<Vec<NeedsKind>>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub error: Option<ErrorInfo>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub http: Option<HttpInfo>,
 }
 
 impl Envelope {
@@ -124,6 +141,7 @@ impl Envelope {
             out: Some(out),
             needs: None,
             error: None,
+            http: None,
         }
     }
 
@@ -141,6 +159,7 @@ impl Envelope {
             out,
             needs: Some(needs),
             error: None,
+            http: None,
         }
     }
 
@@ -153,7 +172,15 @@ impl Envelope {
             out: None,
             needs: None,
             error: Some(error),
+            http: None,
         }
+    }
+
+    /// Attach an HTTP response signal to any envelope variant. Additive and
+    /// idempotent — `None` leaves the envelope untouched (e.g. `file://`).
+    pub fn with_http(mut self, http: Option<HttpInfo>) -> Self {
+        self.http = http;
+        self
     }
 
     pub fn to_json_string(&self) -> String {
@@ -162,6 +189,9 @@ impl Envelope {
 }
 
 pub mod kinds {
+    // Non-2xx/3xx responses (status >= 400) flip the envelope to `error` with a
+    // dynamic `http.<code>` kind (e.g. `http.404`, `http.500`) built at the call
+    // site; `ErrorInfo.kind` is a `String`, so no const is needed here.
     pub const USAGE: &str = "usage";
     pub const FETCH_URL: &str = "fetch.url";
     pub const FETCH_DNS: &str = "fetch.dns";
