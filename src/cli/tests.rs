@@ -15,7 +15,6 @@ fn url_and_out_only() {
     assert_eq!(a.url, "https://x/");
     assert_eq!(a.out, View::Text);
     assert!(!a.css);
-    assert!(!a.js);
     assert!(a.headers.is_empty());
 }
 
@@ -26,18 +25,40 @@ fn out_equals_form() {
 }
 
 #[test]
-fn css_and_js_flags() {
-    let a = parse(&argv(&["--css", "--js", "https://x/", "--out", "ax"])).unwrap();
+fn css_flag() {
+    let a = parse(&argv(&["--css", "https://x/", "--out", "ax"])).unwrap();
     assert!(a.css);
-    assert!(a.js);
     assert_eq!(a.out, View::Ax);
 }
 
 #[test]
 fn flags_after_url_order_independent() {
-    let a = parse(&argv(&["https://x/", "--css", "--out", "links", "--js"])).unwrap();
-    assert!(a.css && a.js);
+    let a = parse(&argv(&["https://x/", "--css", "--out", "links"])).unwrap();
+    assert!(a.css);
     assert_eq!(a.out, View::Links);
+}
+
+#[test]
+fn js_flag_rejected_as_unimplemented() {
+    assert_eq!(
+        parse(&argv(&["https://x/", "--js", "--out", "text"])),
+        Err(CliError::Unimplemented(JS_UNIMPLEMENTED.into()))
+    );
+    assert!(JS_UNIMPLEMENTED.contains("Phase 4"));
+}
+
+#[test]
+fn bboxes_view_rejected_as_unimplemented() {
+    for form in [
+        argv(&["https://x/", "--out", "bboxes"]),
+        argv(&["https://x/", "--out=bboxes"]),
+    ] {
+        assert_eq!(
+            parse(&form),
+            Err(CliError::Unimplemented(BBOXES_UNIMPLEMENTED.into()))
+        );
+    }
+    assert!(BBOXES_UNIMPLEMENTED.contains("Phase 3"));
 }
 
 #[test]
@@ -95,14 +116,10 @@ fn duplicate_out() {
 }
 
 #[test]
-fn duplicate_css_and_js() {
+fn duplicate_css() {
     assert_eq!(
         parse(&argv(&["--css", "--css", "https://x/", "--out", "text"])),
         Err(CliError::DuplicateFlag("--css".into()))
-    );
-    assert_eq!(
-        parse(&argv(&["--js", "--js", "https://x/", "--out", "text"])),
-        Err(CliError::DuplicateFlag("--js".into()))
     );
 }
 
@@ -132,6 +149,7 @@ fn help_and_version_short_and_long() {
 fn non_help_is_not_help_or_version() {
     assert!(!CliError::NoArgs.is_help_or_version());
     assert!(!CliError::NoUrl.is_help_or_version());
+    assert!(!CliError::Unimplemented("x".into()).is_help_or_version());
 }
 
 #[test]
@@ -149,6 +167,7 @@ fn display_each_error_variant() {
         CliError::NoUrl,
         CliError::NoOut,
         CliError::ExtraPositional("oops".into()),
+        CliError::Unimplemented("--js: nope".into()),
     ];
     for c in cases {
         let s = format!("{}", c);

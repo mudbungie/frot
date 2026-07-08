@@ -10,7 +10,7 @@ use std::io::Write;
 use crate::ax;
 use crate::cli;
 use crate::dom::{Document, NodeKind, WalkEvent};
-use crate::envelope::{kinds, Envelope, ErrorInfo, StatusKind, UrlBlock, View};
+use crate::envelope::{Envelope, ErrorInfo, StatusKind, UrlBlock, View};
 use crate::fetch::{self, FetchResult};
 use crate::needs;
 use crate::views;
@@ -60,10 +60,8 @@ fn build_envelope(args: &cli::Args) -> Envelope {
                 let external = external_css(&doc, &fetched.final_url, &args.headers);
                 crate::css::compute_with(&doc, &external)
             });
-            match build_payload(args.out, &doc, &fetched, styles.as_ref()) {
-                Ok(payload) => Envelope::ok(url, args.out, payload),
-                Err(e) => Envelope::error(url, args.out, e),
-            }
+            let payload = build_payload(args.out, &doc, &fetched, styles.as_ref());
+            Envelope::ok(url, args.out, payload)
         }
     }
 }
@@ -73,19 +71,17 @@ fn build_payload(
     doc: &Document,
     fetched: &FetchResult,
     styles: Option<&crate::css::Styles>,
-) -> Result<Value, ErrorInfo> {
+) -> Value {
     let page_url = fetched.final_url.as_str();
     match view {
-        View::Dom => Ok(views::dom::dom_json(doc)),
-        View::Text => Ok(Value::String(views::text::text(doc, styles))),
-        View::Links => Ok(views::links::links(doc, page_url)),
-        View::Forms => Ok(views::forms::forms(doc, page_url)),
-        View::Meta => Ok(views::meta::meta(doc, page_url)),
-        View::Ax => Ok(ax::ax_tree(doc, styles)),
-        View::Bboxes => Err(ErrorInfo::new(
-            kinds::INTERNAL,
-            "--out bboxes lands with the Phase-3 layout capability".to_string(),
-        )),
+        View::Dom => views::dom::dom_json(doc),
+        View::Text => Value::String(views::text::text(doc, styles)),
+        View::Links => views::links::links(doc, page_url),
+        View::Forms => views::forms::forms(doc, page_url),
+        View::Meta => views::meta::meta(doc, page_url),
+        // `bboxes` is rejected as a usage error in `cli::parse`, so it never
+        // reaches here; it shares the `ax` arm only to keep the match total.
+        View::Ax | View::Bboxes => ax::ax_tree(doc, styles),
     }
 }
 

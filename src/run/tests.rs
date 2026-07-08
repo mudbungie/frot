@@ -78,18 +78,12 @@ fn ax_view_emits_ok_envelope_with_tree() {
 }
 
 #[test]
-fn bboxes_view_not_implemented_returns_error_envelope() {
-    let mut server = mockito::Server::new();
-    let _m = server
-        .mock("GET", "/")
-        .with_status(200)
-        .with_body("<p>hi</p>")
-        .create();
-    let url = server.url();
-    let (code, out, _) = run_capture(&[&url, "--out", "bboxes"]);
-    assert_eq!(code, 1);
-    let v = parse_envelope(&out);
-    assert!(v["error"]["message"].as_str().unwrap().contains("bboxes"));
+fn bboxes_view_is_a_usage_error_with_no_envelope() {
+    let (code, out, err) = run_capture(&["https://x/", "--out", "bboxes"]);
+    assert_eq!(code, 2);
+    assert!(out.is_empty());
+    assert!(err.contains("bboxes"));
+    assert!(err.contains("Phase 3"));
 }
 
 #[test]
