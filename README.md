@@ -7,7 +7,7 @@ Take an impression of a web page — structure, text, accessibility tree — wit
 ## Usage
 
 ```
-frot <url> [--css] [--js] --out <dom|text|ax|links|forms|bboxes|meta>
+frot <url> [-H "Name: value"] [--css] [--js] --out <dom|text|ax|links|forms|bboxes|meta>
 ```
 
 ```console
@@ -42,6 +42,7 @@ The capability recipe is orthogonal to the view: it picks what to do to the docu
 
 - `--css` — parse `<style>`, inline `style=`, and external `<link rel=stylesheet>` CSS; `display:none` and inherited `visibility` filter the `text` and `ax` views, and `::before`/`::after` generated content is folded into them
 - `--js` (Phase 4, **not implemented**) — execute scripts against a partial DOM under bounded execution
+- `-H "Name: value"` / `--header` — send a request header, repeatable, curl-style. A caller-supplied `User-Agent` replaces the default. Headers ride `--css` stylesheet subfetches only when the sheet shares the page's origin — credentials never leak cross-origin. No cookie jar, no sessions: headers are per-call input.
 
 When a page can't be rendered faithfully under the current recipe — e.g. an empty SPA shell with `--js` off — frot emits a `needs` envelope rather than a silently degraded `out`.
 

@@ -1,6 +1,6 @@
 //! Hand-rolled argv parser. clap is avoided for binary-size reasons.
 //!
-//! Surface: `frot <url> [--css] [--js] --out <view>`.
+//! Surface: `frot <url> [-H "Name: value"] [--css] [--js] --out <view>`.
 
 use crate::envelope::View;
 
@@ -10,6 +10,9 @@ pub struct Args {
     pub css: bool,
     pub js: bool,
     pub out: View,
+    /// Request headers, in argv order. Sent with the page request and with
+    /// same-origin `--css` subfetches; see `fetch`.
+    pub headers: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +24,8 @@ pub enum CliError {
     MissingValue(String),
     UnknownView(String),
     DuplicateFlag(String),
+    BadHeader(String),
+    HeadersWithFile,
     NoUrl,
     NoOut,
     ExtraPositional(String),
@@ -32,8 +37,7 @@ impl CliError {
     }
 }
 
-pub const USAGE: &str =
-    "usage: frot <url> [--css] [--js] --out <dom|text|ax|links|forms|bboxes|meta>";
+pub const USAGE: &str = "usage: frot <url> [-H \"Name: value\"] [--css] [--js] --out <dom|text|ax|links|forms|bboxes|meta>";
 
 fn view_list() -> String {
     View::ALL
@@ -55,11 +59,30 @@ impl std::fmt::Display for CliError {
                 write!(f, "unknown view: {} (choose from {})\n{}", s, view_list(), USAGE)
             }
             CliError::DuplicateFlag(s) => write!(f, "duplicate flag: {}\n{}", s, USAGE),
+            CliError::BadHeader(s) => {
+                write!(f, "bad header (want \"Name: value\"): {}\n{}", s, USAGE)
+            }
+            CliError::HeadersWithFile => {
+                write!(f, "-H cannot apply to a file:// URL\n{}", USAGE)
+            }
             CliError::NoUrl => write!(f, "missing <url>\n{}", USAGE),
             CliError::NoOut => write!(f, "missing --out <view>\n{}", USAGE),
             CliError::ExtraPositional(s) => write!(f, "unexpected argument: {}\n{}", s, USAGE),
         }
     }
+}
+
+/// `"Name: value"` → `(Name, value)`. The name must be non-empty and
+/// whitespace-free; the value is trimmed.
+fn parse_header(raw: &str) -> Result<(String, String), CliError> {
+    let (name, value) = raw
+        .split_once(':')
+        .ok_or_else(|| CliError::BadHeader(raw.into()))?;
+    let name = name.trim();
+    if name.is_empty() || name.contains(char::is_whitespace) {
+        return Err(CliError::BadHeader(raw.into()));
+    }
+    Ok((name.to_string(), value.trim().to_string()))
 }
 
 pub fn parse(argv: &[String]) -> Result<Args, CliError> {
@@ -71,6 +94,7 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
     let mut css = false;
     let mut js = false;
     let mut out: Option<View> = None;
+    let mut headers: Vec<(String, String)> = Vec::new();
 
     let mut i = 0;
     while i < argv.len() {
@@ -89,6 +113,16 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
                     return Err(CliError::DuplicateFlag("--js".into()));
                 }
                 js = true;
+            }
+            "-H" | "--header" => {
+                i += 1;
+                let v = argv
+                    .get(i)
+                    .ok_or_else(|| CliError::MissingValue("-H".into()))?;
+                headers.push(parse_header(v)?);
+            }
+            s if s.starts_with("--header=") => {
+                headers.push(parse_header(&s[9..])?);
             }
             "--out" => {
                 if out.is_some() {
@@ -121,169 +155,14 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
 
     let url = url.ok_or(CliError::NoUrl)?;
     let out = out.ok_or(CliError::NoOut)?;
-    Ok(Args { url, css, js, out })
+    // Under the same-origin rule headers could never be sent from a file://
+    // page, and an accepted flag must do something — reject the combination.
+    let is_file = url.get(..5).is_some_and(|p| p.eq_ignore_ascii_case("file:"));
+    if is_file && !headers.is_empty() {
+        return Err(CliError::HeadersWithFile);
+    }
+    Ok(Args { url, css, js, out, headers })
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn argv(parts: &[&str]) -> Vec<String> {
-        parts.iter().map(|s| (*s).to_string()).collect()
-    }
-
-    #[test]
-    fn no_args_is_no_args() {
-        assert_eq!(parse(&[]), Err(CliError::NoArgs));
-    }
-
-    #[test]
-    fn url_and_out_only() {
-        let a = parse(&argv(&["https://x/", "--out", "text"])).unwrap();
-        assert_eq!(a.url, "https://x/");
-        assert_eq!(a.out, View::Text);
-        assert!(!a.css);
-        assert!(!a.js);
-    }
-
-    #[test]
-    fn out_equals_form() {
-        let a = parse(&argv(&["https://x/", "--out=dom"])).unwrap();
-        assert_eq!(a.out, View::Dom);
-    }
-
-    #[test]
-    fn css_and_js_flags() {
-        let a = parse(&argv(&["--css", "--js", "https://x/", "--out", "ax"])).unwrap();
-        assert!(a.css);
-        assert!(a.js);
-        assert_eq!(a.out, View::Ax);
-    }
-
-    #[test]
-    fn flags_after_url_order_independent() {
-        let a = parse(&argv(&["https://x/", "--css", "--out", "links", "--js"])).unwrap();
-        assert!(a.css && a.js);
-        assert_eq!(a.out, View::Links);
-    }
-
-    #[test]
-    fn missing_url() {
-        assert_eq!(parse(&argv(&["--out", "text"])), Err(CliError::NoUrl));
-    }
-
-    #[test]
-    fn missing_out() {
-        assert_eq!(parse(&argv(&["https://x/"])), Err(CliError::NoOut));
-    }
-
-    #[test]
-    fn unknown_view() {
-        assert_eq!(
-            parse(&argv(&["https://x/", "--out", "wat"])),
-            Err(CliError::UnknownView("wat".into()))
-        );
-        assert_eq!(
-            parse(&argv(&["https://x/", "--out=wat"])),
-            Err(CliError::UnknownView("wat".into()))
-        );
-    }
-
-    #[test]
-    fn unknown_flag_long_and_short() {
-        assert_eq!(
-            parse(&argv(&["https://x/", "--out", "text", "--zzz"])),
-            Err(CliError::UnknownFlag("--zzz".into()))
-        );
-        assert_eq!(
-            parse(&argv(&["-x", "https://x/", "--out", "text"])),
-            Err(CliError::UnknownFlag("-x".into()))
-        );
-    }
-
-    #[test]
-    fn missing_value_for_out() {
-        assert_eq!(
-            parse(&argv(&["https://x/", "--out"])),
-            Err(CliError::MissingValue("--out".into()))
-        );
-    }
-
-    #[test]
-    fn duplicate_out() {
-        assert_eq!(
-            parse(&argv(&["https://x/", "--out", "text", "--out", "dom"])),
-            Err(CliError::DuplicateFlag("--out".into()))
-        );
-        assert_eq!(
-            parse(&argv(&["https://x/", "--out=text", "--out=dom"])),
-            Err(CliError::DuplicateFlag("--out".into()))
-        );
-    }
-
-    #[test]
-    fn duplicate_css_and_js() {
-        assert_eq!(
-            parse(&argv(&["--css", "--css", "https://x/", "--out", "text"])),
-            Err(CliError::DuplicateFlag("--css".into()))
-        );
-        assert_eq!(
-            parse(&argv(&["--js", "--js", "https://x/", "--out", "text"])),
-            Err(CliError::DuplicateFlag("--js".into()))
-        );
-    }
-
-    #[test]
-    fn extra_positional_rejected() {
-        assert_eq!(
-            parse(&argv(&["https://x/", "extra", "--out", "text"])),
-            Err(CliError::ExtraPositional("extra".into()))
-        );
-    }
-
-    #[test]
-    fn help_and_version_short_and_long() {
-        for flag in ["-h", "--help"] {
-            let e = parse(&argv(&[flag])).unwrap_err();
-            assert_eq!(e, CliError::Help);
-            assert!(e.is_help_or_version());
-        }
-        for flag in ["-V", "--version"] {
-            let e = parse(&argv(&[flag])).unwrap_err();
-            assert_eq!(e, CliError::Version);
-            assert!(e.is_help_or_version());
-        }
-    }
-
-    #[test]
-    fn non_help_is_not_help_or_version() {
-        assert!(!CliError::NoArgs.is_help_or_version());
-        assert!(!CliError::NoUrl.is_help_or_version());
-    }
-
-    #[test]
-    fn display_each_error_variant() {
-        let cases = [
-            CliError::NoArgs,
-            CliError::Help,
-            CliError::Version,
-            CliError::UnknownFlag("--x".into()),
-            CliError::MissingValue("--out".into()),
-            CliError::UnknownView("zz".into()),
-            CliError::DuplicateFlag("--css".into()),
-            CliError::NoUrl,
-            CliError::NoOut,
-            CliError::ExtraPositional("oops".into()),
-        ];
-        for c in cases {
-            let s = format!("{}", c);
-            assert!(!s.is_empty(), "{:?} rendered empty", c);
-        }
-    }
-
-    #[test]
-    fn lone_hyphen_is_a_url() {
-        let a = parse(&argv(&["-", "--out", "text"])).unwrap();
-        assert_eq!(a.url, "-");
-    }
-}
+mod tests;

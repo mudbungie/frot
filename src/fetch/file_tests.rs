@@ -14,7 +14,7 @@ fn file_url(p: &std::path::Path) -> String {
 fn reads_a_local_html_file() {
     let p = tmp_path("ok.html");
     std::fs::write(&p, "<title>Local</title><p>hi</p>").unwrap();
-    let r = fetch(&file_url(&p)).unwrap();
+    let r = fetch(&file_url(&p), &[]).unwrap();
     assert_eq!(r.status, None);
     assert!(r.headers.is_empty());
     assert_eq!(r.charset, "utf-8");
@@ -30,7 +30,7 @@ fn meta_charset_is_sniffed_from_file_bytes() {
     bytes.push(0xE9); // 'é' in windows-1252; invalid as UTF-8
     bytes.extend_from_slice(b"</p>");
     std::fs::write(&p, &bytes).unwrap();
-    let r = fetch(&file_url(&p)).unwrap();
+    let r = fetch(&file_url(&p), &[]).unwrap();
     assert_eq!(r.charset, "windows-1252");
     assert!(r.body.contains("café"));
     std::fs::remove_file(&p).unwrap();
@@ -39,7 +39,7 @@ fn meta_charset_is_sniffed_from_file_bytes() {
 #[test]
 fn missing_file_is_fetch_file_error() {
     let p = tmp_path("does-not-exist.html");
-    let e = fetch(&file_url(&p)).unwrap_err();
+    let e = fetch(&file_url(&p), &[]).unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_FILE);
 }
 
@@ -47,14 +47,14 @@ fn missing_file_is_fetch_file_error() {
 fn directory_is_fetch_file_error() {
     let p = tmp_path("a-dir");
     std::fs::create_dir_all(&p).unwrap();
-    let e = fetch(&file_url(&p)).unwrap_err();
+    let e = fetch(&file_url(&p), &[]).unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_FILE);
     std::fs::remove_dir(&p).unwrap();
 }
 
 #[test]
 fn file_url_with_remote_host_is_fetch_url_error() {
-    let e = fetch("file://remotehost/etc/hosts").unwrap_err();
+    let e = fetch("file://remotehost/etc/hosts", &[]).unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_URL);
     assert!(e.message.contains("not a local file path"));
 }

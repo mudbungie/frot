@@ -45,19 +45,32 @@ impl FetchError {
     }
 }
 
-pub fn fetch(url: &str) -> Result<FetchResult, FetchError> {
+/// GET `url` with the caller's `headers` attached. A caller-supplied
+/// `User-Agent` replaces the default. `Authorization` is never forwarded
+/// across redirects (ureq's default). `file://` reads ignore `headers` —
+/// the CLI rejects that combination as a usage error before we get here.
+pub fn fetch(url: &str, headers: &[(String, String)]) -> Result<FetchResult, FetchError> {
     let parsed = validate_url(url)?;
     if parsed.scheme() == "file" {
         return fetch_file(&parsed);
     }
+    let is_ua = |n: &str| n.eq_ignore_ascii_case("user-agent");
+    let ua = headers
+        .iter()
+        .find(|(n, _)| is_ua(n))
+        .map_or(USER_AGENT, |(_, v)| v.as_str());
     let agent: Agent = Agent::config_builder()
-        .user_agent(USER_AGENT)
+        .user_agent(ua)
         .timeout_global(Some(Duration::from_secs(TIMEOUT_SECS)))
         .http_status_as_error(false)
         .build()
         .into();
 
-    let mut response = agent.get(url).call().map_err(map_ureq_error)?;
+    let mut request = agent.get(url);
+    for (n, v) in headers.iter().filter(|(n, _)| !is_ua(n)) {
+        request = request.header(n.as_str(), v.as_str());
+    }
+    let mut response = request.call().map_err(map_ureq_error)?;
     let final_url = response.get_uri().to_string();
     let status = response.status().as_u16();
 
@@ -120,6 +133,17 @@ pub(crate) fn check_body_len(len: u64) -> Result<(), FetchError> {
         ));
     }
     Ok(())
+}
+
+/// Whether two URLs share an origin (scheme + host + port, with default
+/// ports normalized). Unparseable input is never same-origin.
+pub fn same_origin(a: &str, b: &str) -> bool {
+    let (Ok(a), Ok(b)) = (url::Url::parse(a), url::Url::parse(b)) else {
+        return false;
+    };
+    a.scheme() == b.scheme()
+        && a.host_str() == b.host_str()
+        && a.port_or_known_default() == b.port_or_known_default()
 }
 
 fn validate_url(url: &str) -> Result<url::Url, FetchError> {
@@ -210,3 +234,6 @@ mod tests;
 
 #[cfg(test)]
 mod file_tests;
+
+#[cfg(test)]
+mod header_tests;

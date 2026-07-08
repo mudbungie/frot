@@ -109,13 +109,13 @@ fn validate_url_accepts_http_https_and_file() {
 
 #[test]
 fn fetch_invalid_url_returns_url_error() {
-    let err = fetch("not a url").unwrap_err();
+    let err = fetch("not a url", &[]).unwrap_err();
     assert_eq!(err.kind, kinds::FETCH_URL);
 }
 
 #[test]
 fn fetch_unsupported_scheme_returns_url_error() {
-    let err = fetch("ftp://example.com/x").unwrap_err();
+    let err = fetch("ftp://example.com/x", &[]).unwrap_err();
     assert_eq!(err.kind, kinds::FETCH_URL);
 }
 
@@ -129,7 +129,7 @@ fn fetch_ok_against_mock_server() {
         .with_body("hello")
         .create();
     let url = server.url();
-    let r = fetch(&url).unwrap();
+    let r = fetch(&url, &[]).unwrap();
     assert_eq!(r.status, Some(200));
     assert_eq!(r.body, "hello");
     assert_eq!(r.charset, "utf-8");
@@ -145,7 +145,7 @@ fn fetch_404_returns_envelope_ok() {
         .with_body("not found")
         .create();
     let url = server.url();
-    let r = fetch(&url).unwrap();
+    let r = fetch(&url, &[]).unwrap();
     assert_eq!(r.status, Some(404));
     assert_eq!(r.body, "not found");
 }
@@ -165,7 +165,7 @@ fn fetch_follows_redirects_and_records_final_url() {
         .with_body("final")
         .create();
     let url = format!("{}/start", server.url());
-    let r = fetch(&url).unwrap();
+    let r = fetch(&url, &[]).unwrap();
     assert_eq!(r.status, Some(200));
     assert_eq!(r.body, "final");
     assert!(r.final_url.ends_with("/landed"));
@@ -174,7 +174,7 @@ fn fetch_follows_redirects_and_records_final_url() {
 #[test]
 fn fetch_to_dead_port_returns_connect_error() {
     // 127.0.0.1:1 should refuse on most systems.
-    let err = fetch("http://127.0.0.1:1/").unwrap_err();
+    let err = fetch("http://127.0.0.1:1/", &[]).unwrap_err();
     assert!(
         err.kind == kinds::FETCH_CONNECT
             || err.kind == kinds::FETCH_TIMEOUT

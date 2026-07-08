@@ -64,6 +64,7 @@ Under `--css`, external `<link rel=stylesheet>` hrefs are resolved against the f
 - **Blocking I/O, no async runtime** — a single-shot process fetching a handful of resources gains nothing from tokio and pays startup + size for it.
 - **RcDom absorbed, not wrapped** — rcdom's `Rc<RefCell<…>>` graph is copied once into the arena so the rest of the crate gets `Copy` node ids, cheap parallel side tables, and no interior mutability.
 - **Views are pure functions** of `(Document, Option<&Styles>)` — capabilities compose by annotation, views by selection. No view knows which capabilities ran.
+- **`-H` header passthrough, same-origin subfetch scope** (bl-f446, decided 2026-07-07) — repeatable curl-parity `-H "Name: value"`; caller's `User-Agent` replaces the default; `--css` sheet subfetches carry the headers only when same-origin with the page (scheme+host+port), else they go anonymous. `Authorization` never rides redirects (ureq default, not overridden). `-H` with `file://` is a usage error — under the same-origin rule the headers could never be sent, and an accepted flag must do something.
 - **`file://` input rides the URL positional** (bl-ce6f, decided 2026-07-07) — no new flags, no bare-path sugar, no stdin (a stream has no base URL). A file read has no HTTP status (`FetchResult.status` is `Option`), no headers, and the same 16 MiB cap. Direction rule: local→remote is allowed (a saved page may fetch its CDN stylesheets under `--css`), remote→local is blocked (an http(s) page's `file:` stylesheet href is skipped — remote content never causes local reads).
 
 ## Known gaps (tracked in bl — run `bl ready`)
@@ -79,6 +80,5 @@ These four are the Phase 2.5 fidelity epic (bl-2a9e), which gates Phase 3 (bl-4c
 
 ## Open questions (decision tasks in bl)
 
-- **Request header passthrough, `-H`** (bl-f446) — no way to fetch anything authenticated today; proposal is curl-parity repeatable `-H`, statelessness preserved.
 - **`NeedsKind::Css` is dormant** — the enum variant exists, nothing emits it. Reserved taxonomy slot, not dead code to delete: a future detector (content invisible without CSS?) inhabits it or Phase 5 review removes it.
 - **Layout viewport convention** — `bboxes` needs a width; settle it in the Phase 3 design doc (bl-6077) before layout code exists.

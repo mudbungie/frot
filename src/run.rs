@@ -45,7 +45,7 @@ pub(crate) fn run_io(argv: &[String], out: &mut dyn Write, err: &mut dyn Write) 
 
 fn build_envelope(args: &cli::Args) -> Envelope {
     let initial_url = UrlBlock::requested(&args.url);
-    match fetch::fetch(&args.url) {
+    match fetch::fetch(&args.url, &args.headers) {
         Err(e) => {
             Envelope::error(initial_url, args.out, ErrorInfo::new(&e.kind, e.message))
         }
@@ -57,7 +57,7 @@ fn build_envelope(args: &cli::Args) -> Envelope {
                 return Envelope::needs(url, args.out, needs, None);
             }
             let styles = args.css.then(|| {
-                let external = external_css(&doc, &fetched.final_url);
+                let external = external_css(&doc, &fetched.final_url, &args.headers);
                 crate::css::compute_with(&doc, &external)
             });
             match build_payload(args.out, &doc, &fetched, styles.as_ref()) {
@@ -120,11 +120,16 @@ fn external_hrefs(doc: &Document, base: &str) -> Vec<String> {
 }
 
 /// Fetch each external stylesheet best-effort: CSS is non-critical, so a
-/// failed fetch is silently skipped rather than failing the run.
-fn external_css(doc: &Document, base: &str) -> Vec<String> {
+/// failed fetch is silently skipped rather than failing the run. The
+/// caller's `-H` headers ride along only when the sheet shares the page's
+/// origin — credentials never leak cross-origin.
+fn external_css(doc: &Document, base: &str, headers: &[(String, String)]) -> Vec<String> {
     external_hrefs(doc, base)
         .into_iter()
-        .filter_map(|u| fetch::fetch(&u).ok().map(|r| r.body))
+        .filter_map(|u| {
+            let h = if fetch::same_origin(&u, base) { headers } else { &[] };
+            fetch::fetch(&u, h).ok().map(|r| r.body)
+        })
         .collect()
 }
 
@@ -133,3 +138,6 @@ mod tests;
 
 #[cfg(test)]
 mod file_tests;
+
+#[cfg(test)]
+mod header_tests;
