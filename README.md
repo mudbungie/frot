@@ -2,7 +2,23 @@
 
 Take an impression of a web page — structure, text, accessibility tree — without rendering or executing it. Like a gravestone rubbing for the web.
 
-`frot` is a stateless, single-binary tool for harness use. You give it a URL, a capability recipe, and one output view; it gives you back a machine-parseable envelope. It starts small (HTML-only impressions of server-rendered pages) and progressively burns down the render tree toward fuller capability.
+`frot` is the curl that renders: a stateless, single-binary CLI (~3.5 MB, no runtime deps) that sits in the gap between `curl` and a headless browser. You give it a URL, a capability recipe, and one output view; it gives you back a machine-parseable JSON envelope. Built for harnesses that need to look at pages programmatically without standing up a browser pool.
+
+## Usage
+
+```
+frot <url> [--css] [--js] --out <dom|text|ax|links|forms|bboxes|meta>
+```
+
+```console
+$ frot https://example.com --out text
+{"frot":"0","url":{"requested":"https://example.com","final":"https://example.com/"},"view":"text","status":"ok","out":"Example Domain\nExample Domain\nThis domain is for use in documentation..."}
+
+$ frot https://a-spa-shell.example --out text
+{"frot":"0","url":{...},"view":"text","status":"needs","needs":["js"]}
+```
+
+Exit codes: `0` for an `ok` or `needs` envelope, `1` for an `error` envelope (still JSON on stdout), `2` for a usage error (no envelope; message on stderr).
 
 ## Output views
 
@@ -14,41 +30,32 @@ Each invocation returns exactly one view, selected with `--out`:
 - `forms` — `<form>` actions, methods, enctypes, and structured field lists
 - `meta` — `<title>`, `<html lang>`, charset, canonical link, and `<meta>` entries
 - `ax` — accessibility tree (roles, accessible names, levels)
-- `bboxes` — element geometry (planned for Phase 3, when layout lands)
+- `bboxes` — element geometry (lands with Phase-3 layout; currently an `error` envelope)
 
-Every successful run emits the same envelope shape — `frot`, `url`, `view`, `status`, plus `out` (for `ok`), `needs` (for `needs`), or `error` (for `error`). The shape does not change as new capabilities ship.
+Every run emits the same envelope shape — `frot`, `url`, `view`, `status`, plus `out` (for `ok`), `needs` (for `needs`), or `error` (for `error`). Fields are only ever added, never renamed.
 
 ## Capability flags
 
 The capability recipe is orthogonal to the view: it picks what to do to the document before producing output.
 
-- `--css` — parse `<style>`, inline `style=`, and external
-  `<link rel=stylesheet>` CSS; `display:none` and inherited `visibility`
-  filter the `text` and `ax` views, and `::before`/`::after` generated
-  content is folded into them
-- `--js` (Phase 4) — execute scripts against a partial DOM under bounded execution
+- `--css` — parse `<style>`, inline `style=`, and external `<link rel=stylesheet>` CSS; `display:none` and inherited `visibility` filter the `text` and `ax` views, and `::before`/`::after` generated content is folded into them
+- `--js` (Phase 4, **not implemented**) — execute scripts against a partial DOM under bounded execution
 
-`--js` is not yet implemented. When a page can't be rendered faithfully under the current recipe — e.g. an empty SPA shell with `--js` off — frot will emit a `needs-X` envelope rather than a silently degraded `out`.
+When a page can't be rendered faithfully under the current recipe — e.g. an empty SPA shell with `--js` off — frot emits a `needs` envelope rather than a silently degraded `out`.
 
-The `--css` engine is a deliberately small subset (type/`.class`/`#id`/`*`/`[attr]` selectors, descendant and child combinators, `::before`/`::after`). External `<link rel=stylesheet>` sheets are fetched best-effort — a failed fetch is skipped, not fatal. It does not evaluate `@media`/`@supports` and computes no layout — visibility and generated content only.
+The `--css` engine is a deliberately small, dependency-free subset (type/`.class`/`#id`/`*`/`[attr]` selectors, descendant and child combinators, `::before`/`::after`). External stylesheets are fetched best-effort — a failed fetch is skipped, not fatal. No `@media`/`@supports`, no layout — visibility and generated content only.
 
-## Status
+## Where it stands
 
-Phases 0–2 have landed: fetch + parse and the output envelope; the `dom`/`text`/`links`/`forms`/`meta`/`ax` views; the `needs-X` taxonomy; and the `--css` capability. Phase 3 (on-demand layout + `bboxes`) and Phase 4 (`--js`) are next; run `bl ready` for the live picture.
+Phases 0–2 have landed and are verified against real pages: fetch (HTTP/1.1+2, redirects, gzip/brotli, charset detection, browser-ish UA) + HTML5 parse; all views except `bboxes`; the `needs-X` taxonomy with the SPA-shell `needs-js` heuristic; and the `--css` capability. Sub-second on real pages; the binary is ~3.5 MB.
 
-## Usage
+Known sharp edges, tracked in `bl` (run `bl ready` for the live picture):
 
-```
-frot <url> [--css] [--js] --out <dom|text|ax|links|forms|bboxes|meta>
-```
+- **HTTP status is not in the envelope.** A 404/500 — or a bot-challenge page — currently comes back `status:"ok"` with that page's content as the impression. Until this is fixed, check reachability out of band if it matters.
+- **`--js` is accepted but inert.** It parses and does nothing; it will be a usage error until Phase 4 implements it.
+- **AX names are over-assigned.** Container roles (`table`, `rowgroup`, …) are currently named from their full contents, so ancestor names repeat descendant text. Roles that legitimately name from content (`link`, `heading`, `button`, `cell`, …) are correct.
 
-Example:
-
-```
-frot https://example.com --out text
-```
-
-Exit codes: `0` for an `ok` or `needs` envelope, `1` for an `error` envelope (still emitted as JSON on stdout), `2` for a usage error (no envelope; message on stderr).
+Next capability phases: Phase 3 (on-demand layout + `bboxes`), then Phase 4 (bounded `--js`).
 
 ## Building
 

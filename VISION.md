@@ -22,7 +22,7 @@ The name scales with scope. Even when JS is in play, we're still taking an impre
 2. **Single static binary.** No container, no runtime deps, no Chromium install. Drop on a machine, run.
 3. **Minimal footprint.** Optimize for binary size, startup time, and memory floor. The interesting envelope is "smaller than a curl wrapper, more useful than one."
 4. **Machine-first output.** Every output format is designed to be parsed, not displayed. AX tree is a first-class citizen, not an afterthought.
-5. **Honest capability signals.** When a page can't be rendered faithfully under the current capability recipe, return a clear, structured `needs-X` signal. Never silently produce a degraded result that looks complete.
+5. **Honest capability signals.** When a page can't be rendered faithfully under the current capability recipe, return a clear, structured `needs-X` signal. Never silently produce a degraded result that looks complete. Honesty covers transport facts too: the HTTP outcome (a 404, a 500, a bot-challenge 403) is part of the impression and must be surfaced in the envelope, never swallowed. A flag that is accepted must do what it says or be rejected.
 6. **Elegance over completeness.** It's better to do less, well, with a clean boundary, than to half-implement the whole web. Where compromise is forced, push back.
 7. **Testability is non-negotiable.** Every capability ships with golden-fixture tests against pinned real-world pages. If it can't be tested, it isn't built.
 
@@ -49,7 +49,7 @@ When the recipe is insufficient — e.g. the page is an empty SPA shell and `--j
 
 frot is built in phases. Each phase delivers a usable tool; later phases extend the capability envelope without changing the interface.
 
-### Phase 0 — Fetch + parse + envelope
+### Phase 0 — Fetch + parse + envelope — **landed**
 
 - HTTP/1.1 + HTTP/2 client with sane defaults (redirects, content-encoding, character set detection).
 - HTML5 parsing (via `html5ever`).
@@ -57,16 +57,24 @@ frot is built in phases. Each phase delivers a usable tool; later phases extend 
 - Realistic browser-ish User-Agent and TLS defaults; not anti-bot-grade, but not obviously a bot either.
 - The envelope shape, the `needs-X` signal shape, and the error taxonomy are load-bearing and do not change in later phases.
 
-### Phase 1 — Semantic impression
+### Phase 1 — Semantic impression — **landed**
 
 - AX tree from semantic HTML + ARIA, computed without styling. The headline output: `--out ax`.
 - The `needs-X` taxonomy lands here; `needs-js` is its first inhabitant — a heuristic signal that the page is an SPA shell and the impression under the current recipe is empty.
 
-### Phase 2 — CSS application
+### Phase 2 — CSS application — **landed**
 
-- `--css` capability flag. **Landed.**
+- `--css` capability flag.
 - Parse and apply CSS for visibility and content semantics: `display:none`, `visibility:hidden`, pseudo-content. Implemented as a small dependency-free subset engine rather than pulling in `cssparser`/`selectors` — the binary-size and dependency-discipline constraints outweighed full CSS fidelity for a narrow visibility/content need. External `<link>` stylesheets are fetched best-effort (failures skipped); `@media`/`@supports` are out of scope; layout (and thus list-marker generation) defers to Phase 3.
 - Subsequent outputs (text, AX) reflect what's *visible*, not what's in the markup.
+
+### Phase 2.5 — Impression fidelity
+
+Debt surfaced by the 2026-07 arch pass; it precedes new capability because it is the honesty principle catching up with the shipped surface:
+
+- Surface the HTTP outcome in the envelope (additive `http` block). Today a 404/500/bot-challenge body is reported as an `ok` impression.
+- Reject `--js` with a usage error until Phase 4 implements it; today it parses and silently does nothing.
+- Accessible-name computation restricted to `nameFrom: contents` roles. Today container roles (`table`, `rowgroup`, …) are named from their full subtree text, so ancestor names repeat all descendant content — bloat for the AX view's primary consumer.
 
 ### Phase 3 — Layout (on-demand)
 
