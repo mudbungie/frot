@@ -14,21 +14,11 @@
 
 use crate::css::{Styles, Visibility};
 use crate::dom::{Document, NodeId, NodeKind};
+use crate::tags::is_block;
 
 const SKIP_TAGS: &[&str] = &[
     "script", "style", "template", "noscript", "iframe", "svg", "math",
 ];
-
-const BLOCK_TAGS: &[&str] = &[
-    "address", "article", "aside", "blockquote", "dd", "dialog", "div", "dl",
-    "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2",
-    "h3", "h4", "h5", "h6", "header", "hr", "li", "main", "nav", "ol", "p",
-    "pre", "section", "table", "tr", "td", "th", "ul",
-];
-
-fn is_block(name: &str) -> bool {
-    BLOCK_TAGS.contains(&name)
-}
 
 fn is_skip(name: &str) -> bool {
     SKIP_TAGS.contains(&name)

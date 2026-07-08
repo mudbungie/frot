@@ -8,8 +8,9 @@
 
 use super::parse::{parse_decls, Stylesheet};
 use super::selector::{Pseudo, Specificity};
-use super::{ComputedStyle, Styles, Visibility};
+use super::{ComputedStyle, Display, Styles, Visibility};
 use crate::dom::{Document, Element, NodeId, NodeKind};
+use crate::tags::is_block;
 
 struct Applied {
     pseudo: Option<Pseudo>,
@@ -117,10 +118,32 @@ fn resolve(
         }
     }
     ComputedStyle {
-        display_none: winner(&applied, None, "display").is_some_and(is_none_kw),
+        display: display(&applied, el),
         visibility: visibility(&applied, parent_vis),
         before: generated(&applied, Pseudo::Before, el),
         after: generated(&applied, Pseudo::After, el),
+    }
+}
+
+/// The winning `display`: a matched author/inline rule (parsed and coerced by
+/// [`Display::parse`]), else the element's UA-implicit display by tag.
+fn display(applied: &[Applied], el: &Element) -> Display {
+    match winner(applied, None, "display") {
+        Some(v) => Display::parse(v),
+        None => implicit_display(&el.name),
+    }
+}
+
+/// UA-implicit `display` when no rule sets it: `li` → list-item, any other
+/// block-level tag ([`is_block`]) → block, everything else → inline. Never
+/// yields `none`.
+fn implicit_display(name: &str) -> Display {
+    if name == "li" {
+        Display::ListItem
+    } else if is_block(name) {
+        Display::Block
+    } else {
+        Display::Inline
     }
 }
 

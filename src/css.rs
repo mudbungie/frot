@@ -55,10 +55,48 @@ pub enum Visibility {
     Hidden,
 }
 
+/// Computed `display` keyword: one of the seven values Phase 3 layout branches
+/// on. The cascade coerces every other CSS `display` value (`grid`, `table*`,
+/// `contents`, unknown) to [`Display::Block`] once, at compute time, so this
+/// enum only ever holds one of these variants. The default is [`Display::Inline`]
+/// (never `None`): non-element and untouched nodes must report as rendered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Display {
+    None,
+    Block,
+    #[default]
+    Inline,
+    InlineBlock,
+    ListItem,
+    Flex,
+    InlineFlex,
+}
+
+impl Display {
+    /// Parse an author/inline `display` value into one of the seven layout
+    /// keywords. Case-insensitive and trimmed. Every other value — `grid`,
+    /// `inline-grid`, `table`, `table-*`, `contents`, unknown — coerces to
+    /// [`Display::Block`] (the layout §2 coercion, applied once here).
+    pub fn parse(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "none" => Display::None,
+            "block" => Display::Block,
+            "inline" => Display::Inline,
+            "inline-block" => Display::InlineBlock,
+            "list-item" => Display::ListItem,
+            "flex" => Display::Flex,
+            "inline-flex" => Display::InlineFlex,
+            _ => Display::Block,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ComputedStyle {
-    /// `display:none` — the element and its subtree are not rendered.
-    pub display_none: bool,
+    /// Computed `display` keyword — the winning author/inline rule, else the
+    /// element's UA-implicit display by tag. `display:none` is the
+    /// [`Display::None`] variant (queried via [`Styles::display_none`]).
+    pub display: Display,
     /// Computed (inherited) visibility.
     pub visibility: Visibility,
     /// `::before` generated content, if a generated box is produced.
@@ -84,9 +122,15 @@ impl Styles {
         &self.nodes[id as usize]
     }
 
-    /// Whether `id`'s subtree is removed from rendered output.
+    /// Whether `id`'s subtree is removed from rendered output — the derived
+    /// query `display == Display::None` (true iff author `display:none`).
     pub fn display_none(&self, id: NodeId) -> bool {
-        self.get(id).display_none
+        self.get(id).display == Display::None
+    }
+
+    /// Computed `display` keyword for `id` (see [`ComputedStyle::display`]).
+    pub fn display(&self, id: NodeId) -> Display {
+        self.get(id).display
     }
 
     pub fn visibility(&self, id: NodeId) -> Visibility {

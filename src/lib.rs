@@ -12,6 +12,7 @@ pub mod envelope;
 pub mod fetch;
 pub mod needs;
 pub mod run;
+pub mod tags;
 pub mod views;
 
 pub use run::run;

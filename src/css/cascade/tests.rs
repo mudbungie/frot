@@ -1,4 +1,4 @@
-use crate::css::{compute, Styles, Visibility};
+use crate::css::{compute, Display, Styles, Visibility};
 use crate::dom::Document;
 
 fn styles(html: &str) -> (Document, Styles) {
@@ -124,9 +124,36 @@ fn non_elements_get_default_style() {
     let (doc, s) = styles("<!doctype html><!--c--><p>text</p>");
     for id in 0..doc.len() as u32 {
         let cs = s.get(id);
-        let _ = (cs.display_none, cs.visibility, &cs.before, &cs.after);
+        let _ = (cs.display, cs.visibility, &cs.before, &cs.after);
     }
     assert!(!s.display_none(first_tag(&doc, "p")));
+}
+
+#[test]
+fn implicit_display_by_tag_when_no_rule_wins() {
+    // No `display` rule: seed from the shared block-tag set. `li` → list-item,
+    // other block tags → block, everything else → inline. Never `none`.
+    let (doc, s) = styles("<ul><li>a</li></ul><div>b</div><span>c</span>");
+    assert_eq!(s.display(first_tag(&doc, "li")), Display::ListItem);
+    assert_eq!(s.display(first_tag(&doc, "ul")), Display::Block);
+    assert_eq!(s.display(first_tag(&doc, "div")), Display::Block);
+    assert_eq!(s.display(first_tag(&doc, "span")), Display::Inline);
+    assert!(!s.display_none(first_tag(&doc, "span")));
+}
+
+#[test]
+fn author_display_rule_overrides_implicit_and_is_coerced() {
+    // A winning author rule is parsed (and coerced) by Display::parse,
+    // overriding the element's UA-implicit display.
+    let (doc, s) = styles(
+        "<style>span{display:inline-flex}div{display:grid}li{display:block}</style>\
+         <span>a</span><div>b</div><ul><li>c</li></ul>",
+    );
+    assert_eq!(s.display(first_tag(&doc, "span")), Display::InlineFlex);
+    // `grid` coerces to Block (§2), applied once in the cascade.
+    assert_eq!(s.display(first_tag(&doc, "div")), Display::Block);
+    // An author rule on an `li` overrides its implicit ListItem.
+    assert_eq!(s.display(first_tag(&doc, "li")), Display::Block);
 }
 
 #[test]
