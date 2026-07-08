@@ -77,14 +77,8 @@ fn ax_view_emits_ok_envelope_with_tree() {
     assert!(has_heading, "expected a heading in {:?}", arr);
 }
 
-#[test]
-fn bboxes_view_is_a_usage_error_with_no_envelope() {
-    let (code, out, err) = run_capture(&["https://x/", "--out", "bboxes"]);
-    assert_eq!(code, 2);
-    assert!(out.is_empty());
-    assert!(err.contains("bboxes"));
-    assert!(err.contains("Phase 3"));
-}
+// `--out bboxes` end-to-end tests live in the sibling `bboxes_tests` module
+// (keeps this file under the 300-line source cap).
 
 #[test]
 fn end_to_end_text_view() {

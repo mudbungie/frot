@@ -43,10 +43,29 @@ pub fn compute_with(doc: &Document, external: &[String]) -> Styles {
             .into_iter()
             .map(|id| Stylesheet::parse(&doc.text_content(id))),
     );
+    cascade(doc, &sheets)
+}
+
+/// UA-implicit `display` plus inline `style=` only — **no** author `<style>`
+/// blocks and **no** external sheets. This is the styles source layout uses
+/// **without** `--css` (`layout.md` §3): `--css` everywhere means "apply author
+/// CSS", so bare layout must ignore `<style>` exactly as it ignores `<link>`
+/// sheets. Shares the [`cascade`] walk with [`compute_with`]; the only
+/// difference is the empty sheet list.
+pub fn compute_bare(doc: &Document) -> Styles {
+    cascade(doc, &[])
+}
+
+/// Cascade `sheets` (already gathered) over every element with full ancestor
+/// context. The single per-element `resolve` walk shared by [`compute_with`]
+/// (author + external sheets) and [`compute_bare`] (empty sheets); inline
+/// `style=` and UA-implicit display are applied by `resolve` regardless of the
+/// sheet list.
+fn cascade(doc: &Document, sheets: &[Stylesheet]) -> Styles {
     let mut nodes = vec![ComputedStyle::default(); doc.len()];
     let mut ancestors: Vec<&Element> = Vec::new();
     for &root in doc.roots() {
-        walk(doc, root, &mut ancestors, &sheets, Visibility::Visible, &mut nodes);
+        walk(doc, root, &mut ancestors, sheets, Visibility::Visible, &mut nodes);
     }
     Styles::from_nodes(nodes)
 }

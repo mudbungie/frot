@@ -66,14 +66,46 @@ fn build_envelope(args: &cli::Args) -> Envelope {
             if !needs.is_empty() {
                 return Envelope::needs(url, args.out, needs, None).with_http(http);
             }
-            let styles = args.css.then(|| {
-                let external = external_css(&doc, &fetched.final_url, &args.headers);
-                crate::css::compute_with(&doc, &external)
-            });
-            let payload = build_payload(args.out, &doc, &fetched, styles.as_ref());
+            let styles = compute_styles(args, &doc, &fetched);
+            // Layout is on-demand (`layout.md` §3): only `bboxes` needs geometry,
+            // and it always has a `Styles` (built above), so layout is built iff
+            // the view is `bboxes`.
+            let layout = matches!(args.out, View::Bboxes)
+                .then(|| styles.as_ref().map(|s| build_layout(s, &doc)))
+                .flatten();
+            let payload =
+                build_payload(args.out, &doc, &fetched, styles.as_ref(), layout.as_ref());
             Envelope::ok(url, args.out, payload).with_http(http)
         }
     }
+}
+
+/// The [`crate::css::Styles`] a view needs. Under `--css`, the full author
+/// cascade (external `<link>` sheets + `<style>` + inline + UA) for every view
+/// that consults styles. Without `--css`, only `bboxes` needs one — layout
+/// needs `display` — sourced *bare* ([`crate::css::compute_bare`]): UA-implicit
+/// display + inline `style=` only, no `<style>`/external, so `--css` keeps its
+/// "apply author CSS" meaning everywhere (`layout.md` §3). Every other view
+/// keeps `None` without `--css`.
+fn compute_styles(
+    args: &cli::Args,
+    doc: &Document,
+    fetched: &FetchResult,
+) -> Option<crate::css::Styles> {
+    if args.css {
+        let external = external_css(doc, &fetched.final_url, &args.headers);
+        Some(crate::css::compute_with(doc, &external))
+    } else if args.out == View::Bboxes {
+        Some(crate::css::compute_bare(doc))
+    } else {
+        None
+    }
+}
+
+/// Compute the layout table for a view that demands geometry, at the fixed
+/// 1280px viewport (`layout.md` §4).
+fn build_layout(styles: &crate::css::Styles, doc: &Document) -> crate::layout::Layout {
+    crate::layout::compute(doc, styles, crate::layout::VIEWPORT_WIDTH)
 }
 
 fn build_payload(
@@ -81,6 +113,7 @@ fn build_payload(
     doc: &Document,
     fetched: &FetchResult,
     styles: Option<&crate::css::Styles>,
+    layout: Option<&crate::layout::Layout>,
 ) -> Value {
     let page_url = fetched.final_url.as_str();
     match view {
@@ -89,9 +122,14 @@ fn build_payload(
         View::Links => views::links::links(doc, page_url),
         View::Forms => views::forms::forms(doc, page_url),
         View::Meta => views::meta::meta(doc, page_url),
-        // `bboxes` is rejected as a usage error in `cli::parse`, so it never
-        // reaches here; it shares the `ax` arm only to keep the match total.
-        View::Ax | View::Bboxes => ax::ax_tree(doc, styles),
+        View::Ax => ax::ax_tree(doc, styles),
+        // `bboxes` always builds both (`compute_styles`/`build_layout` above).
+        View::Bboxes => {
+            let (layout, styles) = layout
+                .zip(styles)
+                .expect("bboxes always builds a layout and styles");
+            views::bboxes::bboxes(doc, layout, styles)
+        }
     }
 }
 
@@ -150,3 +188,6 @@ mod header_tests;
 
 #[cfg(test)]
 mod http_tests;
+
+#[cfg(test)]
+mod bboxes_tests;

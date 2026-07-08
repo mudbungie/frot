@@ -35,8 +35,6 @@ pub enum CliError {
 
 /// `--js` parses but nothing consumes it; reject rather than silently ignore.
 const JS_UNIMPLEMENTED: &str = "--js: not yet implemented — lands with Phase 4";
-/// `bboxes` is a recognized view whose layout capability is not built yet.
-const BBOXES_UNIMPLEMENTED: &str = "--out bboxes: not yet implemented — lands with Phase 3";
 
 impl CliError {
     pub fn is_help_or_version(&self) -> bool {
@@ -157,9 +155,6 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
 
     let url = url.ok_or(CliError::NoUrl)?;
     let out = out.ok_or(CliError::NoOut)?;
-    if out == View::Bboxes {
-        return Err(CliError::Unimplemented(BBOXES_UNIMPLEMENTED.into()));
-    }
     // Under the same-origin rule headers could never be sent from a file://
     // page, and an accepted flag must do something — reject the combination.
     let is_file = url.get(..5).is_some_and(|p| p.eq_ignore_ascii_case("file:"));

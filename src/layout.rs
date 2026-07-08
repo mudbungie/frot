@@ -54,9 +54,9 @@ const NON_RENDERED_TAGS: &[&str] = &[
 
 /// A box, in px, border-box, viewport coordinates with y increasing downward
 /// (design §1). Integer px: sub-pixel precision is meaningless under our
-/// approximate metrics, and machine-first output wants no float noise. Not
-/// `Serialize` yet — nothing serializes a `Rect` until the `bboxes` view (3.6).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// approximate metrics, and machine-first output wants no float noise.
+/// `Serialize` so the `bboxes` view (3.6) emits it as `{"x","y","w","h"}`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct Rect {
     pub x: i32,
     pub y: i32,

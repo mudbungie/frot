@@ -48,17 +48,13 @@ fn js_flag_rejected_as_unimplemented() {
 }
 
 #[test]
-fn bboxes_view_rejected_as_unimplemented() {
+fn bboxes_view_now_parses() {
     for form in [
         argv(&["https://x/", "--out", "bboxes"]),
         argv(&["https://x/", "--out=bboxes"]),
     ] {
-        assert_eq!(
-            parse(&form),
-            Err(CliError::Unimplemented(BBOXES_UNIMPLEMENTED.into()))
-        );
+        assert_eq!(parse(&form).unwrap().out, View::Bboxes);
     }
-    assert!(BBOXES_UNIMPLEMENTED.contains("Phase 3"));
 }
 
 #[test]
