@@ -24,6 +24,24 @@ exactly as it consumes a static one.
 Boa was the pure-Rust contender; rquickjs wins on every load-bearing criterion
 (surveyed 2026-07; the spike, subtask 1, re-validates before code lands):
 
+> **Spike result (2026-07-08, bl-b5df) — non-falsifying; rquickjs confirmed.**
+> The seam landed at `src/js/engine.rs` (rquickjs 0.12, `default-features =
+> false` so no `allocator` feature — the default C allocator, per the caveat
+> below). All four §1 primitives proven by test: `eval`; the wall-clock
+> interrupt handler stops `while(true){}` inside a 20 ms budget; the
+> `set_memory_limit` cap throws on a 256 MiB allocation under an 8 MiB heap
+> (the caveat holds — the limit **is** enforced on the default allocator); and
+> the host-driven job queue drains a `Promise.then` microtask. A real
+> `react.production.min.js` UMD bundle parses and runs (`React.createElement`/
+> `useState` become functions), needing only a `self` → global alias (subtask
+> 8). **Static musl build proven:** `x86_64-unknown-linux-musl` links a fully
+> static, stripped binary and the engine test suite passes when run under it —
+> vendored quickjs-ng C via `cc`, no cmake/bindgen/system dep (build host needs
+> the `musl-tools` cross-cc `x86_64-linux-musl-gcc`; note for CI/subtask 10).
+> **Binary delta (corrected):** the reachable-code delta is **+1.18 MiB → 4.59
+> MiB** total (the ~+0.8 MB / 4.3 MiB estimate below undercounted `Context::full`
+> intrinsics), still comfortably inside the 5–15 MB VISION envelope.
+
 - **Bounding primitives exist — this is the disqualifier.** rquickjs's sync
   `Runtime` has `set_interrupt_handler` (periodic callback → wall-clock
   budget), `set_memory_limit`, `set_max_stack_size`, and a host-driven job

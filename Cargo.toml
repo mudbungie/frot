@@ -23,6 +23,10 @@ markup5ever_rcdom = "0.39"
 url = "2"
 ureq = { version = "3", default-features = false, features = ["rustls", "gzip", "brotli"] }
 encoding_rs = "0.8"
+# --js engine (Phase 4). Vendored quickjs-ng C compiled by `cc` with
+# pregenerated bindings — no bindgen, no cmake, no system dep. Kept behind
+# `src/js/engine.rs`; no rquickjs type leaks past that module.
+rquickjs = { version = "0.12", default-features = false }
 
 [dev-dependencies]
 mockito = "1"
