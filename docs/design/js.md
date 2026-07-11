@@ -222,7 +222,10 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
 ## 8. Geometry reads — the third layout trigger
 
 VISION names JS as the third layout trigger. `offsetWidth`/`offsetHeight`/
-`getBoundingClientRect`/`getComputedStyle` route through one geometry syscall:
+`offsetTop`/`offsetLeft`/`getBoundingClientRect`/`getComputedStyle` route
+through two narrow geometry syscalls — a box read (`__frot_rect`, one `[x,y,w,h]`
+the prelude shapes into every `DOMRect`/`offset*`) and a computed-style read
+(`__frot_computed_style`) — both served from the per-generation cache:
 
 - On demand it computes `Styles` + `Layout` for the **current generation** —
   authored CSS under `--css`, `css::compute_bare` without it (the same rule

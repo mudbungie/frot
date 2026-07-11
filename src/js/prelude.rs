@@ -8,8 +8,10 @@
 //! Rust syscall closures it calls are covered directly in `syscall::tests`.
 //!
 //! This is the **core** prelude: `Node`/`Element`/`Document`, `querySelector`,
-//! `innerHTML`/`textContent`, and `console`. The event loop, timers, `fetch`,
-//! storage and `navigator`/`location` breadth arrive with subtasks 4.5–4.8.
+//! `innerHTML`/`textContent`, `console`, and the geometry facade
+//! (`getBoundingClientRect`/`offset*`/`getComputedStyle`, js.md §8). The event
+//! loop, timers, `fetch`, storage and `navigator`/`location` breadth arrive
+//! with subtasks 4.5–4.8.
 
 /// The concatenated prelude source. Each module is an IIFE over `globalThis`,
 /// so order is irrelevant and nothing leaks but the intended globals.
@@ -17,4 +19,6 @@ pub const SOURCE: &str = concat!(
     include_str!("prelude/console.js"),
     "\n",
     include_str!("prelude/dom.js"),
+    "\n",
+    include_str!("prelude/geometry.js"),
 );

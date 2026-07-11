@@ -10,6 +10,7 @@
 //! escapes `src/js/`, mirroring how no `markup5ever` type leaks past `dom.rs`.
 
 pub mod engine;
+mod geometry;
 mod prelude;
 mod syscall;
 
@@ -20,6 +21,7 @@ use crate::dom::Document;
 use engine::Engine;
 
 pub use engine::EvalError;
+pub use geometry::StyleSource;
 pub use syscall::Log;
 
 /// A JS execution session bound to one document. It owns the engine, shares the
@@ -34,12 +36,15 @@ pub struct Session {
 
 impl Session {
     /// Bind `doc` to a fresh engine, install the syscall table, and load the
-    /// prelude.
-    pub fn new(doc: Document) -> Self {
+    /// prelude. `styles` is the geometry cache's styling policy (js.md §8): the
+    /// pipeline passes [`StyleSource::Authored`] under `--css`, else
+    /// [`StyleSource::Bare`].
+    pub fn new(doc: Document, styles: StyleSource) -> Self {
         let engine = Engine::new();
         let doc = Rc::new(RefCell::new(doc));
         let console = Rc::new(RefCell::new(Vec::new()));
-        syscall::install(&engine, doc.clone(), console.clone());
+        let geo = Rc::new(RefCell::new(geometry::Geometry::new(styles)));
+        syscall::install(&engine, doc.clone(), console.clone(), geo);
         Session {
             engine,
             doc,

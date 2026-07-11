@@ -2,11 +2,11 @@
 //! console) is wired over the syscalls. Prelude JS lines are not `llvm-cov`
 //! visible; these guard the facade until the golden fixture suite (4.9) owns it.
 
-use super::Session;
+use super::{Session, StyleSource};
 use crate::dom::Document;
 
 fn sess(html: &str) -> Session {
-    Session::new(Document::parse(html))
+    Session::new(Document::parse(html), StyleSource::Bare)
 }
 
 #[test]
@@ -36,6 +36,23 @@ fn innerhtml_and_construction_mutate_the_shared_arena() {
     assert!(s.eval("document.body.textContent").unwrap().contains("one"));
     // innerHTML round-trips through the arena serializer.
     assert_eq!(s.eval("document.querySelector('#host').innerHTML").unwrap(), "<p>one</p><p>two</p>");
+}
+
+#[test]
+fn geometry_facade_exposes_rects_offsets_and_computed_style() {
+    let s = sess("<html><body><div id='a'>hi</div><div id='b' style='display:none'>x</div></body></html>");
+    // getBoundingClientRect shapes the [x,y,w,h] syscall into a DOMRect.
+    assert_eq!(s.eval("document.querySelector('#a').getBoundingClientRect().width").unwrap(), "1280");
+    assert_eq!(s.eval("document.querySelector('#a').getBoundingClientRect().bottom").unwrap(), "20");
+    // offset* read the same box; a display:none element is all-zero.
+    assert_eq!(s.eval("document.querySelector('#a').offsetHeight").unwrap(), "20");
+    assert_eq!(s.eval("document.querySelector('#b').offsetWidth").unwrap(), "0");
+    // getComputedStyle exposes the §8 subset (camelCase + getPropertyValue).
+    assert_eq!(s.eval("getComputedStyle(document.querySelector('#b')).display").unwrap(), "none");
+    assert_eq!(
+        s.eval("getComputedStyle(document.querySelector('#a')).getPropertyValue('display')").unwrap(),
+        "block"
+    );
 }
 
 #[test]

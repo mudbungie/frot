@@ -15,6 +15,7 @@ use std::rc::Rc;
 use rquickjs::{Ctx, Exception, Function};
 
 use super::engine::Engine;
+use super::geometry::SharedGeometry;
 use crate::css::query_all;
 use crate::dom::{Document, NodeKind};
 
@@ -35,7 +36,7 @@ pub type Console = Rc<RefCell<Vec<Log>>>;
 /// Register the whole syscall table on `engine`'s realm, then evaluate the
 /// prelude that builds the web-facing API on top of it. Closures capture clones
 /// of `doc`/`console`; nothing global.
-pub fn install(engine: &Engine, doc: SharedDoc, console: Console) {
+pub fn install(engine: &Engine, doc: SharedDoc, console: Console, geo: SharedGeometry) {
     engine
         .context()
         .with(|ctx| -> rquickjs::Result<()> {
@@ -43,6 +44,7 @@ pub fn install(engine: &Engine, doc: SharedDoc, console: Console) {
             reads(&ctx, &g, &doc)?;
             mutations(&ctx, &g, &doc)?;
             query_and_console(&ctx, &g, &doc, &console)?;
+            geometry(&ctx, &g, &doc, &geo)?;
             Ok(())
         })
         .expect("install frot syscall table");
@@ -160,6 +162,27 @@ fn query_and_console<'js>(
     bind!(ctx, g, "__frot_console", {
         let c = console.clone();
         move |level: String, text: String| c.borrow_mut().push(Log { level, text })
+    });
+    Ok(())
+}
+
+/// Geometry syscalls (js.md §8): the box read and the computed-style subset,
+/// both routed through the per-generation [`SharedGeometry`] cache. Each is
+/// total over any `NodeId` — a box-less node yields the all-zero rect, an
+/// unknown property `""` (the totality tested in `super::geometry::tests`).
+fn geometry<'js>(
+    ctx: &Ctx<'js>,
+    g: &rquickjs::Object<'js>,
+    doc: &SharedDoc,
+    geo: &SharedGeometry,
+) -> rquickjs::Result<()> {
+    bind!(ctx, g, "__frot_rect", {
+        let (d, ge) = (doc.clone(), geo.clone());
+        move |id: u32| ge.borrow_mut().rect(&d.borrow(), id)
+    });
+    bind!(ctx, g, "__frot_computed_style", {
+        let (d, ge) = (doc.clone(), geo.clone());
+        move |id: u32, prop: String| ge.borrow_mut().computed(&d.borrow(), id, &prop)
     });
     Ok(())
 }
