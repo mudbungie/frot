@@ -56,6 +56,10 @@ pub enum WalkEvent {
 pub struct Document {
     nodes: Vec<NodeEntry>,
     roots: Vec<NodeId>,
+    /// Bumped by every §2 mutation op (see [`mutate`]). Per-generation
+    /// `Styles`/`Layout` caches downstream invalidate when it changes; a freshly
+    /// parsed document sits at generation 0.
+    generation: u64,
 }
 
 impl Document {
@@ -172,6 +176,8 @@ fn node_data_to_kind(data: &NodeData) -> NodeKind {
         }
     }
 }
+
+mod mutate;
 
 #[cfg(test)]
 mod tests;
