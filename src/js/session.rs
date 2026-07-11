@@ -25,6 +25,9 @@ pub struct Session {
     console: syscall::Console,
     denials: syscall::Denials,
     subfetch: subfetch::SharedSubfetch,
+    /// The final page URL — the base an inline `type="module"` script's imports
+    /// resolve against (js.md §4.1); external modules use their own fetched URL.
+    page_url: String,
 }
 
 impl Session {
@@ -49,6 +52,10 @@ impl Session {
         // headers same-origin; both live in `env`, so build it before install
         // moves `env` into the environment shims.
         let subfetch = Rc::new(RefCell::new(subfetch::Subfetch::new(&env.url, env.headers.clone())));
+        // The ES-module resolver/loader (js.md §4.1/§6) rides the same §6 cache as
+        // fetch/XHR/external-src, installed before any module evaluates.
+        super::loader::install(&engine, &subfetch);
+        let page_url = env.url.clone();
         syscall::install(
             &engine,
             doc.clone(),
@@ -64,6 +71,7 @@ impl Session {
             console,
             denials,
             subfetch,
+            page_url,
         }
     }
 
@@ -77,6 +85,19 @@ impl Session {
     /// microtasks — the [`super::run`] path's one execution primitive.
     pub fn run_task(&self, src: &str) -> Result<String, EvalError> {
         self.engine.eval_armed(src)
+    }
+
+    /// Evaluate `src` as an ES module named `name` (its URL) inside the armed
+    /// deadline (§5), draining microtasks — the [`super::run`] path's module
+    /// primitive. Imports resolve/load through the §6 loader; failures surface as
+    /// [`EvalError`] exactly like [`run_task`](Self::run_task).
+    pub fn run_module(&self, name: &str, src: &str) -> Result<String, EvalError> {
+        self.engine.eval_module(name, src)
+    }
+
+    /// The final page URL — an inline module script's import base (js.md §4.1).
+    pub(super) fn page_url(&self) -> &str {
+        &self.page_url
     }
 
     /// Evaluate with a fresh per-call budget (the facade smoke surface used by

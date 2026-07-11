@@ -144,13 +144,20 @@ during parse. So:
 1. **Script discovery:** all `<script>` elements in document order. Classic
    scripts (no `type`, or a JS MIME) and `type="module"` run; `nomodule` and
    non-JS types are skipped. External `src` is fetched under the §6 policy and
-   executed as a classic script. *Module `import` resolution is deferred* — a
-   follow-up (bl-1b98), not the first cut: rquickjs's module loader is gated
-   behind its `loader` feature, which pulls in the `relative-path` crate, a new
-   dependency outside `~/AGENTS.md`'s no-new-deps posture (OQ-4's own escape
-   hatch — see §13). Until then a `type="module"` script runs as a classic
-   script: module-syntax-free module code works, but a bare `import`/`export`
-   throws (counted, §10) and yields the honest `needs-js` signal.
+   executed — a classic script as a classic script, a `type="module"` script as
+   a real ES module. **Module `import` resolution is built (bl-1b98)**: rquickjs's
+   module loader (`Runtime::set_loader`/`Resolver`/`Loader`, gated behind the
+   crate's `loader` feature — the sole reason the `relative-path` dep rides in,
+   approved 2026-07-10; §1 decision log) resolves specifiers and loads source
+   through the *same* §6 subfetch cache. A `type="module"` script — inline (its
+   body is the module source, imports resolving against the page URL) or external
+   (imports resolving against its own fetched URL) — is evaluated as a module:
+   relative/absolute-URL specifiers resolve and load through subfetch; a **bare**
+   specifier has no import map, so it is unresolvable exactly as in a browser
+   without one and fails as a counted §10 error, sibling scripts continuing. A
+   failed/refused/non-2xx module fetch is likewise one counted error. Module
+   evaluation is async by spec — top-level `await` and dynamic `import()` settle
+   through the §5 microtask drain / settle loop under the one wall-clock deadline.
 2. **Order:** source order, one queue. `defer` semantics *are* "after parse,
    in source order", and `async`'s any-order license makes source order a
    legal schedule — so one rule covers all three script modes, no scheduler.
@@ -367,9 +374,10 @@ the falsifiable check on §1.
 6. **Subfetch: fetch/XHR + modules** — once-then-frozen cache, GET-only,
    same-origin header rules, `SUBFETCH_MAX`; external `<script src>` execution.
    *As built (bl-00ba):* classic-script pages landed; unhandled-rejection
-   counting wired (§10). **ES module `import` resolution split to a follow-up
-   (bl-1b98)** — it needs rquickjs's `loader` feature (new `relative-path`
-   dep), OQ-4's escape hatch. *Dep: 5.*
+   counting wired (§10). **ES module `import` resolution landed as its follow-up
+   (bl-1b98)** — rquickjs's `loader` feature (the approved `relative-path` dep)
+   drives a `Resolver`/`Loader` over the same §6 cache; `type="module"` scripts
+   evaluate as real modules (§4.1). *Dep: 5.*
 7. **Geometry syscalls** — per-generation Styles/Layout cache,
    `getBoundingClientRect`/`offset*`/`getComputedStyle` subset (§8). *Dep: 3;
    layout exists since Phase 3.*
@@ -403,12 +411,16 @@ the falsifiable check on §1.
 - **OQ-4 — ES modules in the first cut?** Recommended: **yes** (subtask 6) —
   the 2026 web is module-first; skipping them guts coverage. If the spike
   shows module loading is disproportionately heavy, demote to a follow-up and
-  let classic-script pages land first. **Resolved (bl-00ba): demoted.** Not the
-  spike but the implementation surfaced the cost: rquickjs's `Runtime::
-  set_loader`/`Resolver`/`Loader` (the only way `import` resolution rides the
-  subfetch path) live behind the crate's `loader` feature, which adds the
-  `relative-path` dependency. That trips the escape hatch's "new deps" clause
-  and `~/AGENTS.md`'s no-new-deps rule, so classic-script pages (inline +
-  external `<script src>` + `fetch`/XHR) landed first and module `import`
-  resolution is filed as bl-1b98. A `type="module"` script still runs, as a
-  classic script (§4).
+  let classic-script pages land first. **Resolved: demoted in 4.6 (bl-00ba),
+  then landed in bl-1b98.** The implementation surfaced the cost: rquickjs's
+  `Runtime::set_loader`/`Resolver`/`Loader` (the only way `import` resolution
+  rides the subfetch path) live behind the crate's `loader` feature, which adds
+  the `relative-path` dependency — tripping the escape hatch's "new deps" clause
+  and `~/AGENTS.md`'s no-new-deps rule. So classic-script pages (inline +
+  external `<script src>` + `fetch`/XHR) landed first (bl-00ba), and module
+  `import` resolution was filed as bl-1b98. **The `relative-path` dep was
+  approved (Mark, 2026-07-10) and bl-1b98 landed it:** the `loader` feature adds
+  exactly `relative-path` and nothing else; a `Resolver`/`Loader` pair over the
+  §6 subfetch cache now resolves and links module graphs, so `type="module"`
+  scripts evaluate as real modules (§4.1) with bare specifiers spec-legally
+  unresolvable (no import map) and failed fetches counted (§10).

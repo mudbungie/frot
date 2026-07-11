@@ -14,5 +14,10 @@ never touch the live network. Pins are exact; do not float them.
 
 React 17 (classic `ReactDOM.render`, not the React 18 `createRoot`/scheduler
 path) and the Vue 3 *global* build (compiler included, UMD, no module graph) and
-jQuery's full UMD build are all classic scripts — none is a module-graph build,
-so the ES-module-import demotion (`js.md` §4.1 / bl-1b98) does not apply.
+jQuery's full UMD build are all classic scripts — none is a module-graph build.
+
+## Hand-authored fixtures
+
+| File | Purpose |
+| --- | --- |
+| `esm-greeter.mjs` | A tiny, framework-free ES module the golden suite's module page imports by relative URL — exercises the as-built ESM path (resolver + loader over the §6 subfetch cache, live module linking; `js.md` §4.1/§6, bl-1b98). Data, not a dependency; hand-authored, so it carries no upstream version. |

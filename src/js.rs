@@ -11,6 +11,7 @@
 
 pub mod engine;
 mod geometry;
+mod loader;
 mod prelude;
 mod session;
 mod subfetch;
@@ -94,30 +95,51 @@ fn run_script_queue(session: &Session, report: &mut Report) {
         };
         done.push(id);
         match script {
-            // External `src`: fetched under the §6 subfetch policy, then run.
-            Script::External(src) => run_external(session, &src, report),
+            // External `src`: fetched under the §6 subfetch policy, then run as a
+            // classic script or evaluated as a module (§4.1).
+            Script::External { module, src } => run_external(session, module, &src, report),
             // Non-JS `type` / `nomodule`: not for us (§4.1), skipped silently.
             Script::Skip => {}
-            Script::Inline(body) => run_script(session, &body, report),
+            // Inline classic body, or an inline module whose imports resolve
+            // against the page URL (js.md §4.1).
+            Script::Inline { module: false, body } => run_script(session, &body, report),
+            Script::Inline { module: true, body } => {
+                run_module(session, session.page_url(), &body, report)
+            }
         }
     }
 }
 
 /// Fetch an external `src` under §6 and run its body. A failed or non-2xx fetch
 /// leaves nothing to run, so the script is skipped-and-counted (§4.2) like a
-/// failed stylesheet; a 2xx (or `file://`) body runs as a classic script.
-fn run_external(session: &Session, src: &str, report: &mut Report) {
+/// failed stylesheet; a 2xx (or `file://`) body runs as a classic script, or —
+/// for `type="module"` — as a module named by its own fetched URL, so its
+/// imports resolve against it (§4.1).
+fn run_external(session: &Session, module: bool, src: &str, report: &mut Report) {
     match session.subfetch(src) {
+        subfetch::Outcome::Got(f) if f.ok && module => run_module(session, &f.url, &f.body, report),
         subfetch::Outcome::Got(f) if f.ok => run_script(session, &f.body, report),
         _ => report.errors += 1,
     }
 }
 
-/// Evaluate one script body under the run's deadline, tallying it per §5: a
-/// throw counts an error, a budget trip additionally clears `settled`.
+/// Evaluate one classic script body under the run's deadline, tallying it (§5).
 fn run_script(session: &Session, body: &str, report: &mut Report) {
+    tally(report, session.run_task(body));
+}
+
+/// Evaluate one ES module (`name` = its URL, the import base, js.md §4.1) under
+/// the run's deadline, tallying it (§5). An unresolvable specifier or failed
+/// module fetch throws and is counted here; sibling scripts continue.
+fn run_module(session: &Session, name: &str, body: &str, report: &mut Report) {
+    tally(report, session.run_module(name, body));
+}
+
+/// Fold one script/module evaluation into the report per §5: it ran (`scripts`);
+/// a throw counts an error; a budget trip additionally clears `settled`.
+fn tally(report: &mut Report, result: Result<String, EvalError>) {
     report.scripts += 1;
-    match session.run_task(body) {
+    match result {
         Ok(_) => {}
         Err(EvalError::Exception(_)) => report.errors += 1,
         Err(EvalError::Budget) => {
@@ -164,12 +186,15 @@ fn drive(session: &Session, src: &str, report: &mut Report) -> Option<i64> {
     }
 }
 
-/// A discovered `<script>`, classified for execution (§4.1).
+/// A discovered `<script>`, classified for execution (§4.1). `module` marks a
+/// `type="module"` script: it is evaluated as a real ES module (imports resolve
+/// through the §6 loader) rather than run as a classic script.
 enum Script {
-    /// Inline classic/module body to evaluate.
-    Inline(String),
-    /// External `src` (the attribute value) — fetched under §6, then run (§4.2).
-    External(String),
+    /// Inline body to evaluate — as a module when `module`, else a classic script.
+    Inline { module: bool, body: String },
+    /// External `src` (the attribute value) — fetched under §6, then run as a
+    /// classic script or, when `module`, evaluated as a module (§4.2).
+    External { module: bool, src: String },
     /// Non-JS `type` or `nomodule`: intentionally not run, not counted.
     Skip,
 }
@@ -194,10 +219,17 @@ fn classify(doc: &Document, id: NodeId) -> Script {
     if el.attr("nomodule").is_some() || !is_js_type(el.attr("type")) {
         Script::Skip
     } else if let Some(src) = el.attr("src").filter(|s| !s.is_empty()) {
-        Script::External(src.to_string())
+        Script::External { module: is_module(el.attr("type")), src: src.to_string() }
     } else {
-        Script::Inline(doc.text_content(id))
+        Script::Inline { module: is_module(el.attr("type")), body: doc.text_content(id) }
     }
+}
+
+/// Whether a `<script type>` selects ES-module evaluation (§4.1) — the exact
+/// `"module"` keyword (case-insensitive), the one type that is not a classic
+/// script.
+fn is_module(t: Option<&str>) -> bool {
+    t.is_some_and(|s| s.trim().eq_ignore_ascii_case("module"))
 }
 
 /// Whether a `<script type>` names JavaScript (or a module) and so runs (§4.1);
