@@ -3,8 +3,10 @@
 //! Proves the four bounding primitives `docs/design/js.md` §1 requires of the
 //! engine: `eval`, a wall-clock interrupt hook (`EXEC_BUDGET_MS`), a memory
 //! cap (`JS_MEM_LIMIT`), and a host-driven microtask queue. Everything the
-//! rest of Phase 4 builds sits behind this narrow surface; no `rquickjs` type
-//! escapes it.
+//! rest of Phase 4 builds sits behind this narrow surface. The binding layer
+//! (`js::syscall`) reaches the realm through [`Engine::context`]; no `rquickjs`
+//! type escapes `src/js/` (js.md §1), mirroring how no `markup5ever` type leaks
+//! past `dom.rs`.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -69,6 +71,12 @@ impl Engine {
             deadline,
             tripped,
         }
+    }
+
+    /// The engine's realm, for the binding layer to install host functions on
+    /// (`js::syscall`). rquickjs types stay inside `src/js/` (js.md §1).
+    pub fn context(&self) -> &Context {
+        &self.ctx
     }
 
     /// Evaluate a script, drain the microtask queue, and return the result

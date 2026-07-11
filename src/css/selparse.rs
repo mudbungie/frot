@@ -11,6 +11,34 @@ pub fn parse_selector_list(s: &str) -> Vec<Selector> {
         .collect()
 }
 
+/// Parse a selector list for `querySelector` (js.md §3). Unlike
+/// [`parse_selector_list`], which silently drops unparseable selectors, this
+/// returns `None` if **any** selector fails to parse or is unqueryable — a
+/// compound carrying an unsupported simple (`:hover`, `:nth-child(…)`) or a
+/// pseudo-element (`::before` matches no real element). The caller turns `None`
+/// into a thrown, counted error rather than a silent empty match.
+pub fn parse_query(list: &str) -> Option<Vec<Selector>> {
+    // `split_top` always yields at least one part; an unparseable one returns
+    // via `?`, so a normal exit means every part parsed and `out` is non-empty.
+    let mut out = Vec::new();
+    for part in split_top(list, ',') {
+        let sel = parse_selector(part.trim())?;
+        if !is_queryable(&sel) {
+            return None;
+        }
+        out.push(sel);
+    }
+    Some(out)
+}
+
+/// A selector is queryable iff no compound carries a pseudo-element or an
+/// [`Simple::Unsupported`] marker.
+fn is_queryable(sel: &Selector) -> bool {
+    sel.parts.iter().all(|(_, c)| {
+        c.pseudo.is_none() && !c.simples.iter().any(|s| matches!(s, Simple::Unsupported))
+    })
+}
+
 /// Split on `sep` at bracket/paren depth 0 and outside quotes.
 pub fn split_top(s: &str, sep: char) -> Vec<String> {
     let mut out = Vec::new();
