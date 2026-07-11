@@ -169,13 +169,26 @@ during parse. So:
 6. **`<noscript>` flips.** Under `--js` its content must not render: the
    cascade treats `noscript` as UA-implicit `display:none` (author-overridable)
    when the js capability ran — the single-source-of-truth home for display
-   semantics. *As built:* this is where every style-consuming path reads the
-   flip, but it is currently observationally inert, because the structural
-   views already suppress `<noscript>` unconditionally regardless of `--js`
-   (`text`/`ax` list it in `SKIP_TAGS`; `layout`/`bboxes` in `NON_RENDERED_TAGS`).
-   Views that surface it today (`links`, `forms`, raw `dom`) don't consult the
-   cascade, so they are unaffected by the flip; unifying noscript suppression
-   across all views is left to the 4.9/4.10 fidelity pass.
+   semantics, and browser-accurate (scripting hides `<noscript>`).
+   **Resolved (4.10): the flip is the semantic home and stays; the views'
+   structural suppression is an equivalent fast path, not collapsed into it.**
+   The flip is *not* observationally inert: it is exactly what a page script
+   reading `getComputedStyle(noscriptEl).display` observes — `"none"` when
+   `--js` ran, versus `"inline"` (noscript is not a block tag) without it. Its
+   live consumer is the geometry path (`src/js/geometry.rs` computes styles with
+   `js = true`, since geometry only exists inside a JS session, §8). Separately,
+   the structural views suppress `<noscript>` **unconditionally, regardless of
+   `--js`** — `text`/`ax` via `SKIP_TAGS`, `layout`/`bboxes` via
+   `NON_RENDERED_TAGS` — which is frot's denoising policy (noscript fallback is
+   "enable JS" boilerplate, noise in a structural impression). That policy
+   *agrees with* the cascade flip when JS ran, so it is an equivalent fast path
+   there. It was considered and deliberately **not** replaced by having the views
+   consult the cascade: that would make `<noscript>` render *without* `--js` (a
+   regression from the denoising default a real no-JS browser wouldn't share) and
+   force `text`/`ax` to consult a `Styles` table they don't build without
+   `--css` — added mechanism and behavior risk for zero gain. Views that surface
+   `<noscript>` structurally today (`links`, `forms`, raw `dom`) list its
+   contents regardless of the cascade, by the same policy-vs-semantics split.
 
 ## 5. Bounded execution — the event loop
 

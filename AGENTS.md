@@ -15,9 +15,9 @@ A stateless, single-binary tool that takes structural impressions of web pages. 
 
 ## Workflow
 
-Task tracking is `bl` (see `bl skill`). All edits happen in `bl claim`-created worktrees; never edit `main` directly. Standard flow: `bl claim` → work in worktree → `bl review -m` → `cd` to repo root → `bl close -m`.
+Task tracking is `bl` (see `bl --skill`). One agent takes a task all the way through — there is no separate review step or reviewer. All edits happen in `bl claim`-created worktrees; never edit `main` directly. Standard flow: `bl claim` (prints the worktree) → work in the worktree → `cd` to repo root → `bl close -m "<message>"`.
 
-Tests must pass before `bl review`. The squash captures the worktree state at review time; a broken worktree squashes broken commits.
+`bl close` is the sole delivery and gate: it folds `main` in, runs the repo's `pre-commit` hook (100% coverage, ≤300-line files, clippy), then squashes the worktree diff to `main` and tears the worktree down — all in one move. A hook failure aborts the close and leaves the task claimed for the fix, so tests must pass in the worktree before closing.
 
 ## Build
 

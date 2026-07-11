@@ -85,12 +85,13 @@ The live decomposition of this stage (and everything else) is the `bl` backlog, 
 - New output: `--out bboxes`. AX reading order is refined against layout — and since exactly one view runs per call, `--out ax` under `--css` triggers layout itself, so flex `order` / `flex-direction: *-reverse` surface as visual reading order; without `--css` no reorder is possible and layout is skipped, so source order stands.
 - Triggered implicitly by output demand or by JS reading geometry; not a flag.
 
-### Phase 4 — JavaScript
+### Phase 4 — JavaScript — **landed**
 
-- `--js` capability flag with a shimmed, partial DOM.
-- Bounded execution: a small event-loop / wall-clock budget, no persistence (localStorage / IndexedDB), no timers firing past load, network reads (fetch / XHR) either denied or served once-then-frozen.
-- Engine choice (Boa, `rquickjs`, or other) deferred until first claim.
-- Sites that exceed the shim get `needs-js`, same as before. The boundary moves; it doesn't disappear.
+- `--js` capability flag. Page scripts run against the *real* arena (not a shimmed copy) through a narrow host-syscall table plus a JS prelude — the one capability that mutates the DOM, run first so the rest of the pipeline consumes the post-JS document. Design: `docs/design/js.md`.
+- Bounded execution as promised: a virtual-clock event loop under a single wall-clock deadline (1 s, covering script *and* network time), no timers firing past load (a 10 s virtual horizon self-terminates `setInterval`/`requestAnimationFrame`), a 64 MiB engine heap, no persistence (`localStorage`/`sessionStorage`/`cookie` in-memory + born-empty, `indexedDB` absent), and `fetch`/XHR served GET-only once-then-frozen.
+- Engine chosen at first claim: **`rquickjs`** (Rust bindings to the maintained quickjs-ng fork) over Boa — Boa cannot *bound* untrusted execution (no interrupt hook, no memory limit), which was disqualifying. Vendored C via `cc`, static musl holds, +1.18 MiB. The engine sits behind a swappable seam (`src/js/engine.rs`); Boa remains the documented fallback.
+- Sites that exceed the shim get `needs-js`, same as before — the post-JS document is re-tested, so `needs-js` now means "needs more JS than the shim gives." The boundary moved; it did not disappear. Partial runs are additionally reported through an envelope `js:{scripts, errors, settled}` block.
+- **Non-goals held honest (`docs/design/js.md` §11).** No interaction (no synthetic clicks/input/scroll — the only events dispatched are the `DOMContentLoaded`/`load` lifecycle pair), no navigation, no persistence, no iframes/workers/WASM/canvas rendering, not a stealth runtime. **ES-module `import` resolution did not ship** — it needs a new dependency (`rquickjs`'s `loader` feature → the `relative-path` crate) held to the no-new-deps posture, so it is filed as a follow-up (`bl-1b98`); a `type="module"` script runs as a classic script until then.
 
 ### Phase 5+ — TBD
 

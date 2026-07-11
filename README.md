@@ -2,7 +2,7 @@
 
 Take an impression of a web page — structure, text, accessibility tree — without rendering or executing it. Like a gravestone rubbing for the web.
 
-`frot` is the curl that renders: a stateless, single-binary CLI (~3.5 MB, no runtime deps) that sits in the gap between `curl` and a headless browser. You give it a URL, a capability recipe, and one output view; it gives you back a machine-parseable JSON envelope. Built for harnesses that need to look at pages programmatically without standing up a browser pool.
+`frot` is the curl that renders: a stateless, single-binary CLI (~4.6 MB, no runtime deps — the embedded JS engine is compiled in unconditionally) that sits in the gap between `curl` and a headless browser. You give it a URL, a capability recipe, and one output view; it gives you back a machine-parseable JSON envelope. Built for harnesses that need to look at pages programmatically without standing up a browser pool.
 
 ## Usage
 
@@ -41,7 +41,7 @@ Every run emits the same envelope shape — `frot`, `url`, `view`, `status`, plu
 The capability recipe is orthogonal to the view: it picks what to do to the document before producing output.
 
 - `--css` — parse `<style>`, inline `style=`, and external `<link rel=stylesheet>` CSS; `display:none` and inherited `visibility` filter the `text` and `ax` views, and `::before`/`::after` generated content is folded into them
-- `--js` (Phase 4, **not implemented** — currently rejected as a usage error) — execute scripts against a partial DOM under bounded execution
+- `--js` — execute the page's scripts in an embedded engine (`rquickjs`/quickjs-ng) against the *real* DOM, then let the rest of the pipeline consume the post-JS document. Execution is bounded: a virtual-clock event loop (timers/`requestAnimationFrame` self-terminate at a 10 s virtual horizon — no timers past load), a 1 s wall-clock budget covering script *and* network time, and a 64 MiB engine heap. Network reads (`fetch`/`XMLHttpRequest`) are GET-only and served once-then-frozen, under the `--css` same-origin header rules. No interaction (no synthetic clicks/input), no navigation, no persistence — see the non-goals below. **ES-module `import` resolution is not built yet** (demoted to a follow-up, `bl-1b98`, pending a new-dependency decision): a `type="module"` script runs as a *classic* script, so module-syntax-free code works, but a bare `import`/`export` throws (counted) and the page still yields the honest `needs-js` signal.
 - `-H "Name: value"` / `--header` — send a request header, repeatable, curl-style. A caller-supplied `User-Agent` replaces the default. Headers ride `--css` stylesheet subfetches only when the sheet shares the page's origin — credentials never leak cross-origin. No cookie jar, no sessions: headers are per-call input.
 
 When a page can't be rendered faithfully under the current recipe — e.g. an empty SPA shell with `--js` off — frot emits a `needs` envelope rather than a silently degraded `out`.
@@ -50,12 +50,12 @@ The `--css` engine is a deliberately small, dependency-free subset (type/`.class
 
 ## Where it stands
 
-Phases 0–3 (plus the Phase 2.5 impression-fidelity pass) have landed and are verified against real pages: fetch (HTTP/1.1+2, redirects, gzip/brotli, charset detection, browser-ish UA) + HTML5 parse; all seven views, `bboxes` included; the `needs-X` taxonomy with the SPA-shell `needs-js` heuristic; the `--css` capability; and Phase 3's on-demand layout. Sub-second on real pages; the binary is ~3.5 MB.
+Phases 0–4 (plus the Phase 2.5 impression-fidelity pass) have landed and are verified against real pages: fetch (HTTP/1.1+2, redirects, gzip/brotli, charset detection, browser-ish UA) + HTML5 parse; all seven views, `bboxes` included; the `needs-X` taxonomy with the SPA-shell `needs-js` heuristic; the `--css` capability; Phase 3's on-demand layout; and Phase 4's bounded `--js`. Sub-second on real pages; the binary is ~4.6 MB (the JS engine is compiled in unconditionally).
 
 Phase 2.5 (impression fidelity — the honest-capability-signals principle catching up with the shipped surface) closed the gaps the 2026-07 arch pass found:
 
 - **HTTP status is in the envelope.** Every network response carries an `http` block (`"http":{"status":200}`); a non-2xx response (status ≥ 400) flips the envelope to `status:"error"` (exit 1) with `error.kind:"http.<code>"` — so a 404/500/bot-challenge page is no longer reported as a successful impression. (`file://` reads have no HTTP response, so no `http` block.)
-- **Unimplemented surface fails honestly.** Accepted-but-unbuilt flags are rejected as usage errors (exit 2, message on stderr) naming the phase that delivers them, never silently accepted — `--js` today, and `--out bboxes` until Phase 3 made it a real view (below).
+- **Unimplemented surface fails honestly.** Accepted-but-unbuilt flags are rejected as usage errors (exit 2, message on stderr) naming the phase that delivers them, never silently accepted — this gated `--js` until Phase 4 built it, and `--out bboxes` until Phase 3 made it a real view (both below).
 - **AX names are role-correct.** Name-from-content is restricted to WAI-ARIA `nameFrom:contents` roles (`link`, `heading`, `button`, `cell`, …); container roles (`table`, `rowgroup`, `list`, …) are no longer named from their full subtree text.
 - **Layout tables collapse in `ax`.** A `<table>` with no data-table semantics (no `<caption>`/`<th>`/`summary`/`role`/`aria-label`) is demoted to `presentation`, so table-layout sites (e.g. Hacker News) surface content without `table`/`row`/`cell` scaffolding noise.
 
@@ -65,12 +65,18 @@ Phase 3 (on-demand layout) added element geometry with no new flag:
 - **Layout is on-demand, not a flag.** `bboxes` always builds it; `--out ax` builds it only under `--css`, so flex `order`/`*-reverse` surface as visual reading order in the AX tree. Every other view skips layout entirely.
 - **Viewport is 1280px, hard-coded** (no `--viewport`/`--width` knob).
 
+Phase 4 (bounded `--js`) added the one capability that mutates the DOM:
+
+- **Scripts run against the real arena, not a mirror.** JS holds opaque node handles; every read/write goes through a narrow (~20-op) host syscall table to the *same* `Document` every other view reads (single source of truth). `--js` runs first — before needs detection, CSS, layout, and the view — so the whole pipeline consumes the post-JS document exactly as it consumes a static one.
+- **Engine: `rquickjs` (quickjs-ng), vendored C via `cc`** — no cmake/bindgen/system dep; the static musl binary holds. It runs real framework bundles (React 17 UMD + `ReactDOM.render`, Vue 3 global build, jQuery 3.7.1 settle end-to-end with zero errors).
+- **Bounded and honest.** A budget-killed or partial run is reported: the envelope gains a `js` block, emitted only under `--js` — `"js":{"scripts":<executed>,"errors":<throws + unhandled rejections + refused fetches>,"settled":<loop reached quiescence within budget>}`. Post-JS the `needs-js` heuristic re-runs: a page still a shell after JS gets `needs-js` (now "needs more JS than the shim gives"). Script throws are normal web weather and do not flip `status`; only the needs detector and the transport/parse error taxonomy do.
+
 Known limitations — honest signals, not silent failures:
 
-- **`--js` is not built yet.** It is a usage error until Phase 4 (JS) lands.
+- **`--js` runs page scripts, but not ES-module `import`.** A `type="module"` script executes as a *classic* script (module-syntax-free module code works; a bare `import`/`export` throws, counted in `js.errors`, and the page still yields `needs-js`). Import resolution needs `rquickjs`'s `loader` feature — a new dependency deferred to `bl-1b98` pending a dependency decision. `--js` is also deliberately non-interactive: no synthetic clicks/input/scroll, no navigation (`location`/`history` writes are counted no-ops), no persistence across calls (`localStorage`/`sessionStorage`/`cookie` are in-memory and born empty; `indexedDB` is absent), no iframes/workers/WASM/canvas rendering.
 - **Layout is an approximation, not pixel truth.** Geometry is a structural estimate: fixed font metrics (16px font, 8px average glyph advance, 20px line-height, greedy word-wrap), the fixed 1280px viewport, and block + inline + basic flex only. Grid, floats, `position:absolute/fixed/sticky/relative` offsets, and table-layout are coerced to in-flow block/inline; box-model widths/margins/padding, flex wrap/grow/shrink and precise justify/align/gap, and `@media` are out. There is **no `needs:["layout"]` signal** — the published approximation contract (`docs/design/layout.md` §6) is the honesty mechanism.
 
-Next capability phase: Phase 4 (bounded `--js`).
+Next: Phase 5+ is TBD (VISION.md) — push toward more Web APIs if Phase 4 holds, or accept the ceiling and defer the long tail to a real browser. The nearest tracked follow-up is ES-module `import` resolution (`bl-1b98`).
 
 Docs: `VISION.md` is the why and the roadmap; `ARCHITECTURE.md` is the as-built how (pipeline, contracts, decision log).
 
