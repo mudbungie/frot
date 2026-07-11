@@ -3,14 +3,21 @@
 //! prelude (`llvm-cov` cannot see it — that is the golden suite's job, js.md §3).
 
 use crate::dom::Document;
-use crate::js::{Session, StyleSource};
+use crate::js::{Env, Session, StyleSource};
+
+fn env() -> Env {
+    Env {
+        url: "https://example.com/".into(),
+        user_agent: "frot-test/1".into(),
+    }
+}
 
 fn bare(html: &str) -> Session {
-    Session::new(Document::parse(html), StyleSource::Bare)
+    Session::new(Document::parse(html), StyleSource::Bare, env())
 }
 
 fn authored(html: &str, external: Vec<String>) -> Session {
-    Session::new(Document::parse(html), StyleSource::Authored(external))
+    Session::new(Document::parse(html), StyleSource::Authored(external), env())
 }
 
 /// A rendered block gets a real box (full 1280 viewport, one line tall); a

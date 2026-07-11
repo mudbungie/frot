@@ -2,11 +2,15 @@
 //! console) is wired over the syscalls. Prelude JS lines are not `llvm-cov`
 //! visible; these guard the facade until the golden fixture suite (4.9) owns it.
 
-use super::{Session, StyleSource};
+use super::{Env, Session, StyleSource};
 use crate::dom::Document;
 
 fn sess(html: &str) -> Session {
-    Session::new(Document::parse(html), StyleSource::Bare)
+    let env = Env {
+        url: "https://example.com/".into(),
+        user_agent: "frot-test/1".into(),
+    };
+    Session::new(Document::parse(html), StyleSource::Bare, env)
 }
 
 #[test]

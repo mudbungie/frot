@@ -19,9 +19,25 @@ use super::geometry::SharedGeometry;
 use crate::css::query_all;
 use crate::dom::{Document, NodeKind};
 
+mod env;
+
 /// The arena, shared between the host and the syscall closures for the JS
 /// phase's mutable window (js.md §2). Interior mutability, not a mirror.
 pub type SharedDoc = Rc<RefCell<Document>>;
+
+/// The static facts the environment shims are built from (js.md §7): the UA
+/// string frot sends and the final page URL. `navigator`/`location` derive from
+/// these; nothing here is computed by the shim.
+#[derive(Debug, Clone)]
+pub struct Env {
+    pub url: String,
+    pub user_agent: String,
+}
+
+/// The counted-no-op sink (js.md §7/§11/§10): the prelude bumps it each time the
+/// shim refuses a navigation it cannot honestly perform (`location` assignment).
+/// The wiring layer folds it into the envelope `js.errors` count.
+pub type Denials = Rc<RefCell<u32>>;
 
 /// One captured `console` call (level + rendered message), in emission order.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,7 +52,14 @@ pub type Console = Rc<RefCell<Vec<Log>>>;
 /// Register the whole syscall table on `engine`'s realm, then evaluate the
 /// prelude that builds the web-facing API on top of it. Closures capture clones
 /// of `doc`/`console`; nothing global.
-pub fn install(engine: &Engine, doc: SharedDoc, console: Console, geo: SharedGeometry) {
+pub fn install(
+    engine: &Engine,
+    doc: SharedDoc,
+    console: Console,
+    geo: SharedGeometry,
+    env: Env,
+    denials: Denials,
+) {
     engine
         .context()
         .with(|ctx| -> rquickjs::Result<()> {
@@ -45,6 +68,7 @@ pub fn install(engine: &Engine, doc: SharedDoc, console: Console, geo: SharedGeo
             mutations(&ctx, &g, &doc)?;
             query_and_console(&ctx, &g, &doc, &console)?;
             geometry(&ctx, &g, &doc, &geo)?;
+            env::install(&ctx, &g, env, &denials)?;
             Ok(())
         })
         .expect("install frot syscall table");

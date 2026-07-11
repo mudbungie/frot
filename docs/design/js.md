@@ -112,8 +112,10 @@ Two layers, one narrow interface:
   (`innerHTML` runs the html5ever *fragment* parser through the same absorb
   path), selector matching (reusing `css::selector` — the CSS subset engine is
   the single source of selector semantics for both the cascade and
-  `querySelector`), geometry (§8), subfetch (§6), and console logging. This
-  table is the **entire** Rust↔JS surface.
+  `querySelector`), geometry (§8), subfetch (§6), the static environment facts
+  §7 derives from (the UA string, the final URL, the viewport width, and the
+  refused-navigation count), and console logging. This table is the **entire**
+  Rust↔JS surface.
 - **A bundled JS prelude** (`src/js/prelude/*.js`, embedded via
   `include_str!`, evaluated before any page script) implements the web-facing
   API on top of the syscalls: `Node`/`Element`/`Document` prototypes,

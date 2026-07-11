@@ -3,10 +3,14 @@
 //! (which `llvm-cov` cannot see — that is the golden suite's job, js.md §3).
 
 use crate::dom::Document;
-use crate::js::{EvalError, Log, Session, StyleSource};
+use crate::js::{Env, EvalError, Log, Session, StyleSource};
 
 fn sess(html: &str) -> Session {
-    Session::new(Document::parse(html), StyleSource::Bare)
+    let env = Env {
+        url: "https://example.com/".into(),
+        user_agent: "frot-test/1".into(),
+    };
+    Session::new(Document::parse(html), StyleSource::Bare, env)
 }
 
 #[test]

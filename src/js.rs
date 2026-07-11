@@ -22,7 +22,7 @@ use engine::Engine;
 
 pub use engine::EvalError;
 pub use geometry::StyleSource;
-pub use syscall::Log;
+pub use syscall::{Env, Log};
 
 /// A JS execution session bound to one document. It owns the engine, shares the
 /// arena with the syscall closures for the mutable JS window (js.md §2), and
@@ -32,23 +32,27 @@ pub struct Session {
     engine: Engine,
     doc: syscall::SharedDoc,
     console: syscall::Console,
+    denials: syscall::Denials,
 }
 
 impl Session {
     /// Bind `doc` to a fresh engine, install the syscall table, and load the
     /// prelude. `styles` is the geometry cache's styling policy (js.md §8): the
     /// pipeline passes [`StyleSource::Authored`] under `--css`, else
-    /// [`StyleSource::Bare`].
-    pub fn new(doc: Document, styles: StyleSource) -> Self {
+    /// [`StyleSource::Bare`]. `env` carries the static facts the §7 environment
+    /// shims (navigator/location/matchMedia) derive from.
+    pub fn new(doc: Document, styles: StyleSource, env: Env) -> Self {
         let engine = Engine::new();
         let doc = Rc::new(RefCell::new(doc));
         let console = Rc::new(RefCell::new(Vec::new()));
         let geo = Rc::new(RefCell::new(geometry::Geometry::new(styles)));
-        syscall::install(&engine, doc.clone(), console.clone(), geo);
+        let denials = Rc::new(RefCell::new(0));
+        syscall::install(&engine, doc.clone(), console.clone(), geo, env, denials.clone());
         Session {
             engine,
             doc,
             console,
+            denials,
         }
     }
 
@@ -67,6 +71,12 @@ impl Session {
     /// The `console` lines captured so far, in emission order.
     pub fn console(&self) -> Ref<'_, Vec<Log>> {
         self.console.borrow()
+    }
+
+    /// Navigations the shim refused (js.md §7/§11) — the counted-no-op tally the
+    /// wiring layer folds into the envelope `js.errors` count (§10).
+    pub fn denials(&self) -> u32 {
+        *self.denials.borrow()
     }
 }
 
