@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rquickjs::{CatchResultExt, Coerced, Context, Ctx, Runtime, Value};
+use rquickjs::{CatchResultExt, Coerced, Context, Ctx, FromJs, Runtime, Value};
 
 /// §5 / §13 OQ-1 defaults. Constants, not flags.
 pub const EXEC_BUDGET_MS: u64 = 1_000;
@@ -120,9 +120,9 @@ impl Engine {
     /// so a JS `try/catch` that swallows the interrupt still stops the loop.
     pub fn eval_armed(&self, src: &str) -> Result<String, EvalError> {
         let res = self.ctx.with(|ctx| {
-            ctx.eval::<Coerced<String>, _>(src)
+            ctx.eval::<Value, _>(src)
                 .catch(&ctx)
-                .map(|c| c.0)
+                .map(|v| coerce_string(&ctx, v))
                 .map_err(|e| e.to_string())
         });
         self.drain_jobs();
@@ -147,6 +147,17 @@ impl Engine {
             let _ = self.rt.execute_pending_job();
         }
     }
+}
+
+/// Coerce a completion value to a string for the host protocol, defensively: a
+/// page script's completion is *not* the page's output, and some values won't
+/// `ToString` (a bare `Object.create(null)`, a framework's public proxy — Vue's
+/// `mount()` returns one). Such a coercion throw is the host's problem, never a
+/// script error (js.md §10: errors are the page's throws), so it degrades to the
+/// empty string rather than surfacing as an [`EvalError::Exception`]. Primitive
+/// completions (the event-loop drivers' integers, string evals) coerce as usual.
+fn coerce_string<'js>(ctx: &Ctx<'js>, v: Value<'js>) -> String {
+    Coerced::<String>::from_js(ctx, v).map(|c| c.0).unwrap_or_default()
 }
 
 impl Default for Engine {

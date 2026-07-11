@@ -236,3 +236,6 @@ mod ax_tests;
 
 #[cfg(test)]
 mod js_tests;
+
+#[cfg(test)]
+mod golden_tests;

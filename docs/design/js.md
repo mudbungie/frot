@@ -307,6 +307,13 @@ Two moves against today's `run.rs`:
   rendered something must not look complete. Emitted only when `--js` is on.
 - Envelope `status` is unaffected by script errors; only the needs detector
   and the existing error taxonomy set non-`ok` status.
+- **A host-side coercion failure is not a script error (as built, 4.9).** The
+  run driver reads each task's completion value as a string for its protocol,
+  but a page script's completion is not its output, and some values won't
+  `ToString` (a bare `Object.create(null)`; a framework's public proxy — Vue 3's
+  `mount()` returns one). Such a coercion throw is the host's, not the page's, so
+  the engine seam degrades it to the empty string rather than counting it — the
+  script ran clean. (Only the page's own throws and unhandled rejections count.)
 
 ## 11. Non-goals
 
@@ -366,7 +373,13 @@ the falsifiable check on §1.
 - **OQ-1 — budget constants** (`EXEC_BUDGET_MS = 1000`, `VIRTUAL_HORIZON_MS =
   10_000`, `JS_MEM_LIMIT = 64 MiB`, `SUBFETCH_MAX = 16`): recommended as
   written; the spike and fixture suite tune them. Constants stay constants —
-  no flags without a filed need.
+  no flags without a filed need. **Resolved (4.9, bl-6358): unchanged, measured
+  with wide margin.** The golden fixtures settle end-to-end (React 17 UMD +
+  ReactDOM.render, Vue 3 global build, jQuery 3.7.1) with `errors: 0,
+  settled: true`; measured whole-run wall time is **~9–16 ms release / ~26–31 ms
+  debug** — a >30× margin under `EXEC_BUDGET_MS`. None trips `VIRTUAL_HORIZON_MS`,
+  `JS_MEM_LIMIT`, or `SUBFETCH_MAX` (the shells load 2–3 classic bundles, well
+  under 16). No constant needed changing.
 - **OQ-2 — deterministic `Math.random` / frozen clock for reproducibility?**
   Recommended: **no.** Network content already varies across calls;
   reproducibility-within-a-call is what the virtual clock and frozen fetches

@@ -26,6 +26,12 @@ fn reads_expose_kind_tag_attr_text_and_links() {
     assert_eq!(s.eval("__frot_tag(p)").unwrap(), "p");
     assert_eq!(s.eval("__frot_attr(p, 'id')").unwrap(), "x");
     assert_eq!(s.eval("String(__frot_attr(p, 'missing'))").unwrap(), "undefined");
+    // attrs enumerates an element's [name, value] pairs (the faithful-clone
+    // primitive); on a non-element it is the empty list, not an error.
+    assert_eq!(
+        s.eval("JSON.stringify(__frot_attrs(p))").unwrap(),
+        "[[\"id\",\"x\"],[\"class\",\"a b\"]]"
+    );
     assert_eq!(s.eval("__frot_text(p)").unwrap(), "hi");
     assert_eq!(s.eval("__frot_tag(__frot_parent(p))").unwrap(), "body");
     // p's only child is a text node (the `text` kind arm).
@@ -36,9 +42,10 @@ fn reads_expose_kind_tag_attr_text_and_links() {
         s.eval("JSON.stringify(__frot_children(body).map(__frot_kind))").unwrap(),
         "[\"element\",\"comment\"]"
     );
-    // tag / attr on a non-element node fall to the `None` arms.
+    // tag / attr / attrs on a non-element node fall to the empty arms.
     assert_eq!(s.eval("String(__frot_tag(__frot_children(body)[1]))").unwrap(), "undefined");
     assert_eq!(s.eval("String(__frot_attr(__frot_children(body)[1], 'x'))").unwrap(), "undefined");
+    assert_eq!(s.eval("__frot_attrs(__frot_children(body)[1]).length").unwrap(), "0");
 }
 
 #[test]

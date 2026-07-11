@@ -111,6 +111,17 @@ fn reads<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, doc: &SharedDoc) -> rqu
             _ => None,
         }
     });
+    bind!(ctx, g, "__frot_attrs", {
+        let d = doc.clone();
+        move |id: u32| match &d.borrow().node(id).kind {
+            NodeKind::Element(e) => e
+                .attrs
+                .iter()
+                .map(|a| vec![a.name.clone(), a.value.clone()])
+                .collect(),
+            _ => Vec::<Vec<String>>::new(),
+        }
+    });
     bind!(ctx, g, "__frot_text", {
         let d = doc.clone();
         move |id: u32| d.borrow().text_content(id)

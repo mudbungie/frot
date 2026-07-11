@@ -18,6 +18,16 @@ fn default_matches_new() {
 }
 
 #[test]
+fn an_unstringifiable_completion_is_the_empty_string_not_an_error() {
+    // A completion value whose `ToString` throws (a bare null-prototype object,
+    // or a framework proxy — Vue's `mount()` returns one) is the *host's*
+    // coercion problem, not the page's: it degrades to "" rather than surfacing
+    // as an exception (js.md §10 — errors are the page's throws). The script ran
+    // fine; only reading its completion for the host protocol failed.
+    assert_eq!(Engine::new().eval("Object.create(null)").unwrap(), "");
+}
+
+#[test]
 fn exception_surfaces_the_message() {
     let err = Engine::new().eval("throw new Error('boom')").unwrap_err();
     match err {
