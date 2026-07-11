@@ -72,10 +72,10 @@ fn without_js_a_shell_needs_js_and_emits_no_block() {
 }
 
 #[test]
-fn a_shell_the_shim_cannot_fill_still_needs_js_with_the_block() {
-    // The external bundle can't be fetched before subtask 4.6, so the body stays
-    // empty: `needs-js` survives (§10) and the honest `js` block — `errors: 1`
-    // for the skipped external — rides along on the needs envelope.
+fn a_shell_whose_bundle_does_not_load_still_needs_js_with_the_block() {
+    // The server mocks only `/`, so the `/app.js` subfetch resolves to a non-2xx
+    // (§6) — the external script is skipped-and-counted (§4.2), the body stays
+    // empty, `needs-js` survives (§10), and the honest `js` block rides along.
     let (_s, _m, url) = serve(SHELL);
     let (code, out, _) = run_capture(&[&url, "--js", "--out", "text"]);
     assert_eq!(code, 0);
@@ -83,6 +83,56 @@ fn a_shell_the_shim_cannot_fill_still_needs_js_with_the_block() {
     assert_eq!(v["status"], "needs");
     assert_eq!(v["needs"], serde_json::json!(["js"]));
     assert_eq!(v["js"], serde_json::json!({"scripts": 0, "errors": 1, "settled": true}));
+}
+
+#[test]
+fn an_external_bundle_is_fetched_and_run_clearing_needs_js() {
+    // §4/§6: the external `<script src>` is fetched under the subfetch policy and
+    // executed; it fills the shell, so `needs-js` clears and the run reports one
+    // script, no errors.
+    let mut server = mockito::Server::new();
+    let _page = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_body("<html><body><div id='root'></div><script src='/app.js'></script></body></html>")
+        .create();
+    let _bundle = server
+        .mock("GET", "/app.js")
+        .with_status(200)
+        .with_body("document.getElementById('root').textContent = 'hydrated';")
+        .create();
+    let url = server.url();
+    let (code, out, _) = run_capture(&[&url, "--js", "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    assert_eq!(v["status"], "ok");
+    assert_eq!(v["out"], "hydrated");
+    assert_eq!(v["js"], serde_json::json!({"scripts": 1, "errors": 0, "settled": true}));
+}
+
+#[test]
+fn a_page_that_fetches_json_populates_from_the_response() {
+    // §6 fetch end to end: a same-origin GET is frozen and its body drives a DOM
+    // mutation inside the `.then` microtask, before the pipeline reads the DOM.
+    let mut server = mockito::Server::new();
+    let _page = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_body(
+            "<html><body><div id='root'></div><script>\
+             fetch('/data').then(function(r){return r.text();})\
+             .then(function(t){document.getElementById('root').textContent = t;});\
+             </script></body></html>",
+        )
+        .create();
+    let _data = server.mock("GET", "/data").with_status(200).with_body("from-fetch").create();
+    let url = server.url();
+    let (code, out, _) = run_capture(&[&url, "--js", "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    assert_eq!(v["status"], "ok");
+    assert_eq!(v["out"], "from-fetch");
+    assert_eq!(v["js"]["errors"], 0);
 }
 
 #[test]
@@ -104,9 +154,10 @@ fn js_with_css_seeds_the_authored_style_source() {
 }
 
 #[test]
-fn an_external_script_is_counted_until_subfetch_lands() {
-    // §4.2 seam: the external `src` can't be fetched before subtask 4.6, so it
-    // is skipped-and-counted — `errors: 1`, and the DOM is untouched.
+fn a_failed_external_src_is_skipped_and_counted() {
+    // §4.2: the `/app.js` subfetch fails (unmocked → non-2xx), so the external
+    // script is skipped-and-counted like a failed stylesheet — `errors: 1`, and
+    // the static DOM is otherwise untouched.
     let (_s, _m, url) = serve(
         "<html><body><p>static</p><script src='/app.js'></script></body></html>",
     );

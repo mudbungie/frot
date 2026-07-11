@@ -11,11 +11,13 @@ use crate::dom::Document;
 
 mod evloop;
 mod facade;
+mod net;
 
 fn test_env() -> Env {
     Env {
         url: "https://example.com/".into(),
         user_agent: "frot-test/1".into(),
+        headers: Vec::new(),
     }
 }
 
@@ -25,6 +27,18 @@ fn sess(html: &str) -> Session {
 
 fn drive(html: &str) -> (Document, Report) {
     run(Document::parse(html), StyleSource::Bare, test_env())
+}
+
+/// Drive a page whose §6 subfetches resolve against `url` — used by the external-
+/// `src` path, where a `file://` base with an absent sibling fails deterministically
+/// and offline (the repo test rule: never touch the real network).
+fn drive_at(html: &str, url: &str) -> (Document, Report) {
+    let env = Env {
+        url: url.into(),
+        user_agent: "frot-test/1".into(),
+        headers: Vec::new(),
+    };
+    run(Document::parse(html), StyleSource::Bare, env)
 }
 
 /// Drive a page with a tight wall-clock budget so budget-trip paths resolve fast

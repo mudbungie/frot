@@ -16,22 +16,26 @@ use rquickjs::{Ctx, Exception, Function};
 
 use super::engine::Engine;
 use super::geometry::SharedGeometry;
+use super::subfetch::SharedSubfetch;
 use crate::css::query_all;
 use crate::dom::{Document, NodeKind};
 
 mod env;
+mod net;
 
 /// The arena, shared between the host and the syscall closures for the JS
 /// phase's mutable window (js.md §2). Interior mutability, not a mirror.
 pub type SharedDoc = Rc<RefCell<Document>>;
 
-/// The static facts the environment shims are built from (js.md §7): the UA
-/// string frot sends and the final page URL. `navigator`/`location` derive from
-/// these; nothing here is computed by the shim.
+/// The static request facts the JS layer is built from: the final page URL and
+/// UA string the §7 shims derive from (`navigator`/`location`), plus the caller's
+/// `-H` headers, which the §6 subfetch cache rides on same-origin requests.
+/// Nothing here is computed by the shim.
 #[derive(Debug, Clone)]
 pub struct Env {
     pub url: String,
     pub user_agent: String,
+    pub headers: Vec<(String, String)>,
 }
 
 /// The counted-no-op sink (js.md §7/§11/§10): the prelude bumps it each time the
@@ -59,6 +63,7 @@ pub fn install(
     geo: SharedGeometry,
     env: Env,
     denials: Denials,
+    subfetch: SharedSubfetch,
 ) {
     engine
         .context()
@@ -69,6 +74,7 @@ pub fn install(
             query_and_console(&ctx, &g, &doc, &console)?;
             geometry(&ctx, &g, &doc, &geo)?;
             env::install(&ctx, &g, env, &denials)?;
+            net::install(&ctx, &g, &subfetch)?;
             Ok(())
         })
         .expect("install frot syscall table");

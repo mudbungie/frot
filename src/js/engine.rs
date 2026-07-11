@@ -8,11 +8,13 @@
 //! type escapes `src/js/` (js.md §1), mirroring how no `markup5ever` type leaks
 //! past `dom.rs`.
 
+use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rquickjs::{CatchResultExt, Coerced, Context, Runtime};
+use rquickjs::{CatchResultExt, Coerced, Context, Ctx, Runtime, Value};
 
 /// §5 / §13 OQ-1 defaults. Constants, not flags.
 pub const EXEC_BUDGET_MS: u64 = 1_000;
@@ -42,6 +44,7 @@ pub struct Engine {
     base: Instant,
     deadline: Arc<AtomicU64>,
     tripped: Arc<AtomicBool>,
+    rejections: Rc<Cell<i64>>,
 }
 
 impl Engine {
@@ -66,6 +69,17 @@ impl Engine {
                 false
             }
         })));
+        // Unhandled promise rejection tracking (js.md §10). quickjs reports a
+        // rejection with no handler (`is_handled == false`) and, if one is later
+        // attached, a matching handle (`is_handled == true`); the running net is
+        // the count of still-unhandled rejections, read after the settle loop.
+        let rejections = Rc::new(Cell::new(0));
+        let rej = rejections.clone();
+        rt.set_host_promise_rejection_tracker(Some(Box::new(
+            move |_: Ctx<'_>, _: Value<'_>, _: Value<'_>, is_handled: bool| {
+                rej.set(rej.get() + if is_handled { -1 } else { 1 });
+            },
+        )));
         let ctx = Context::full(&rt).expect("quickjs context");
         Self {
             rt,
@@ -74,6 +88,7 @@ impl Engine {
             base,
             deadline,
             tripped,
+            rejections,
         }
     }
 
@@ -116,6 +131,13 @@ impl Engine {
         } else {
             res.map_err(EvalError::Exception)
         }
+    }
+
+    /// Net unhandled promise rejections observed so far (§10). A late `.catch`
+    /// un-counts an earlier report, so the net never ends negative in practice;
+    /// it is clamped at zero and reported as a `u32`.
+    pub fn rejections(&self) -> u32 {
+        self.rejections.get().max(0) as u32
     }
 
     /// Host-driven microtask drain (§5): run pending jobs until the queue is

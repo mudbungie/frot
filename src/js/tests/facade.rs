@@ -2,7 +2,7 @@
 //! geometry, and the §4 script discovery/order over the syscall table.
 
 use super::super::{classify, is_js_type, Script};
-use super::{drive, sess};
+use super::{drive, drive_at, sess};
 use crate::dom::Document;
 
 #[test]
@@ -83,8 +83,12 @@ fn a_throwing_script_still_counts_as_executed_and_errored() {
 }
 
 #[test]
-fn external_scripts_are_skipped_and_counted_until_subfetch() {
-    let (_doc, report) = drive("<body><script src='app.js'></script></body>");
+fn a_failed_external_src_is_skipped_and_counted() {
+    // §4.2: a `file://` page whose sibling bundle is absent — the §6 subfetch
+    // fails, so the external script is skipped-and-counted (deterministic,
+    // offline). The run-and-execute path is proven end to end in `run::js_tests`.
+    let (_doc, report) =
+        drive_at("<body><script src='app.js'></script></body>", "file:///frot-no-such-dir/page.html");
     assert_eq!((report.scripts, report.errors, report.settled), (0, 1, true));
 }
 

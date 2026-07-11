@@ -8,19 +8,20 @@
 //! Rust syscall closures it calls are covered directly in `syscall::tests`.
 //!
 //! This is the **core** prelude plus the geometry facade, the §7 environment
-//! breadth, and the §5 event loop: `Node`/`Element`/`Document`, `querySelector`,
-//! `innerHTML`/`textContent`, `console`, the geometry facade
-//! (`getBoundingClientRect`/`offset*`/`getComputedStyle`, js.md §8), the
-//! environment shims (`env.js`: storage, cookie, `navigator`/`location`/
-//! `matchMedia`, `self`/`window` aliasing, spec-legal denials), and the
+//! breadth, the §5 event loop, and the §6 network layer: `Node`/`Element`/
+//! `Document`, `querySelector`, `innerHTML`/`textContent`, `console`, the
+//! geometry facade (`getBoundingClientRect`/`offset*`/`getComputedStyle`, js.md
+//! §8), the environment shims (`env.js`: storage, cookie, `navigator`/
+//! `location`/`matchMedia`, `self`/`window` aliasing, spec-legal denials), the
 //! virtual-clock loop (`loop.js`: `setTimeout`/`setInterval`/
 //! `requestAnimationFrame`, `addEventListener`/`dispatchEvent`, the
-//! `DOMContentLoaded`/`load` lifecycle). The `fetch` breadth arrives with 4.6.
+//! `DOMContentLoaded`/`load` lifecycle), and `fetch`/`XMLHttpRequest` over the
+//! once-then-frozen subfetch cache (`net.js`, js.md §6).
 
 /// The concatenated prelude source. Each module is an IIFE over `globalThis`, so
 /// order matters only where one module extends another's globals: `env.js` and
 /// `loop.js` run after `dom.js` because they extend the `document` and `Node`
-/// it defines (`loop.js` last, closing the web-API surface).
+/// it defines, and `net.js` runs after `loop.js` because its XHR uses `g.Event`.
 pub const SOURCE: &str = concat!(
     include_str!("prelude/console.js"),
     "\n",
@@ -31,4 +32,6 @@ pub const SOURCE: &str = concat!(
     include_str!("prelude/env.js"),
     "\n",
     include_str!("prelude/loop.js"),
+    "\n",
+    include_str!("prelude/net.js"),
 );

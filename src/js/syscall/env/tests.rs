@@ -9,6 +9,7 @@ fn sess(url: &str, ua: &str) -> Session {
     let env = Env {
         url: url.into(),
         user_agent: ua.into(),
+        headers: Vec::new(),
     };
     Session::new(Document::parse("<html><body></body></html>"), StyleSource::Bare, env)
 }

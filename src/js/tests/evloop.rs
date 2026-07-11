@@ -157,6 +157,27 @@ fn a_budget_trip_inside_a_lifecycle_handler_stops_the_loop() {
 }
 
 #[test]
+fn an_unhandled_promise_rejection_is_counted() {
+    // §10: a promise that rejects with no handler is a counted error — the run
+    // still settles (rejections are weather, not a budget trip).
+    let (_doc, report) = drive("<body><script>Promise.reject(new Error('nope'));</script></body>");
+    assert_eq!((report.errors, report.settled), (1, true));
+}
+
+#[test]
+fn a_late_handled_rejection_is_not_counted() {
+    // §10: a rejection reported unhandled but caught later (here in a timer) is
+    // un-counted by the tracker's matching handle report — net zero.
+    let (_doc, report) = drive(
+        "<body><script>\
+         var p = Promise.reject(new Error('x'));\
+         setTimeout(function () { p.catch(function () {}); }, 10);\
+         </script></body>",
+    );
+    assert_eq!((report.errors, report.settled), (0, true));
+}
+
+#[test]
 fn microtasks_drain_between_macrotasks() {
     // §5: a promise continuation scheduled inside a timer callback runs before
     // the next timer — the host drains the job queue between macrotasks.

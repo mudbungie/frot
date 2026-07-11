@@ -113,6 +113,7 @@ fn run_scripts(
     let env = Env {
         url: fetched.final_url.clone(),
         user_agent: fetch::user_agent(&args.headers).to_string(),
+        headers: args.headers.clone(),
     };
     let (doc, r) = crate::js::run(doc, styles, env);
     (doc, Some(JsInfo::new(r.scripts, r.errors, r.settled)))

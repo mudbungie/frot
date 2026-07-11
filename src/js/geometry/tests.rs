@@ -9,6 +9,7 @@ fn env() -> Env {
     Env {
         url: "https://example.com/".into(),
         user_agent: "frot-test/1".into(),
+        headers: Vec::new(),
     }
 }
 

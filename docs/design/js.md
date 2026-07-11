@@ -143,8 +143,14 @@ during parse. So:
 
 1. **Script discovery:** all `<script>` elements in document order. Classic
    scripts (no `type`, or a JS MIME) and `type="module"` run; `nomodule` and
-   non-JS types are skipped. External `src` is fetched under the §6 policy;
-   module static imports resolve through the same subfetch path.
+   non-JS types are skipped. External `src` is fetched under the §6 policy and
+   executed as a classic script. *Module `import` resolution is deferred* — a
+   follow-up (bl-1b98), not the first cut: rquickjs's module loader is gated
+   behind its `loader` feature, which pulls in the `relative-path` crate, a new
+   dependency outside `~/AGENTS.md`'s no-new-deps posture (OQ-4's own escape
+   hatch — see §13). Until then a `type="module"` script runs as a classic
+   script: module-syntax-free module code works, but a bare `import`/`export`
+   throws (counted, §10) and yields the honest `needs-js` signal.
 2. **Order:** source order, one queue. `defer` semantics *are* "after parse,
    in source order", and `async`'s any-order license makes source order a
    legal schedule — so one rule covers all three script modes, no scheduler.
@@ -205,9 +211,15 @@ nothing due before the horizon.
 JS-visible network is `fetch` + `XMLHttpRequest` (both wrap one syscall; XHR
 is trivially "sync" since the whole loop is single-threaded and blocking):
 
-- **GET only.** Anything else rejects (fetch) / errors (XHR), counted. frot
-  reads the web; it does not submit to it (the frottage rule — no mutating
-  requests back to the origin).
+- **GET only.** Anything else rejects (fetch — a rejected promise) / throws
+  (XHR `send`). frot reads the web; it does not submit to it (the frottage
+  rule — no mutating requests back to the origin). Refusals and transport
+  failures surface through the *same unified channel as every other §5 error*:
+  a `fetch` rejection counts when unhandled (§10 rejection tracking), an XHR
+  `send` throw counts when uncaught — a page that gracefully `.catch()`es is
+  not penalised. (As built: the once-frozen cache is `src/js/subfetch.rs`; the
+  `__frot_subfetch` syscall and the `fetch`/`XMLHttpRequest` prelude ride it,
+  and so does the external-`<script src>` runner.)
 - **Once-then-frozen.** Each absolute URL is fetched at most once per call and
   its response cached for the call's lifetime. Deterministic within the call,
   nothing persists past it.
@@ -285,8 +297,12 @@ Two moves against today's `run.rs`:
   ```
 
   `scripts` = scripts executed, `errors` = counted failures (§4–§7 throws,
-  unhandled rejections, refused fetches), `settled` = the §5 loop reached
-  quiescence within budget. This is the honesty channel for *partial*
+  unhandled promise rejections, and refused/failed subfetches — which surface
+  as those same rejections/throws, §6), `settled` = the §5 loop reached
+  quiescence within budget. Unhandled-rejection counting is wired at the engine
+  seam via quickjs's host rejection tracker (a running net that a late `.catch`
+  un-counts), read once after the settle loop. This is the honesty channel for
+  *partial*
   execution that outcome detection can't see — a budget-killed run that still
   rendered something must not look complete. Emitted only when `--js` is on.
 - Envelope `status` is unaffected by script errors; only the needs detector
@@ -329,8 +345,11 @@ the falsifiable check on §1.
 5. **Event loop** — virtual clock, horizon, timers/rAF, microtask drain,
    lifecycle events, wall-clock interrupt + settled flag (§5). *Dep: 4.*
 6. **Subfetch: fetch/XHR + modules** — once-then-frozen cache, GET-only,
-   same-origin header rules, `SUBFETCH_MAX`; module import resolution rides
-   the same path (§6). *Dep: 5.*
+   same-origin header rules, `SUBFETCH_MAX`; external `<script src>` execution.
+   *As built (bl-00ba):* classic-script pages landed; unhandled-rejection
+   counting wired (§10). **ES module `import` resolution split to a follow-up
+   (bl-1b98)** — it needs rquickjs's `loader` feature (new `relative-path`
+   dep), OQ-4's escape hatch. *Dep: 5.*
 7. **Geometry syscalls** — per-generation Styles/Layout cache,
    `getBoundingClientRect`/`offset*`/`getComputedStyle` subset (§8). *Dep: 3;
    layout exists since Phase 3.*
@@ -358,4 +377,12 @@ the falsifiable check on §1.
 - **OQ-4 — ES modules in the first cut?** Recommended: **yes** (subtask 6) —
   the 2026 web is module-first; skipping them guts coverage. If the spike
   shows module loading is disproportionately heavy, demote to a follow-up and
-  let classic-script pages land first.
+  let classic-script pages land first. **Resolved (bl-00ba): demoted.** Not the
+  spike but the implementation surfaced the cost: rquickjs's `Runtime::
+  set_loader`/`Resolver`/`Loader` (the only way `import` resolution rides the
+  subfetch path) live behind the crate's `loader` feature, which adds the
+  `relative-path` dependency. That trips the escape hatch's "new deps" clause
+  and `~/AGENTS.md`'s no-new-deps rule, so classic-script pages (inline +
+  external `<script src>` + `fetch`/XHR) landed first and module `import`
+  resolution is filed as bl-1b98. A `type="module"` script still runs, as a
+  classic script (§4).
