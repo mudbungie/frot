@@ -65,9 +65,11 @@ impl Geometry {
         let generation = doc.generation();
         let fresh = matches!(&self.cache, Some(c) if c.generation == generation);
         if !fresh {
+            // Geometry only exists inside a JS session, so `--js` is definitionally
+            // active — `<noscript>` is hidden (js.md §4).
             let styles = match &self.source {
-                StyleSource::Bare => css::compute_bare(doc),
-                StyleSource::Authored(ext) => css::compute_with(doc, ext),
+                StyleSource::Bare => css::compute_bare(doc, true),
+                StyleSource::Authored(ext) => css::compute_with(doc, ext, true),
             };
             let layout = layout::compute(doc, &styles, layout::VIEWPORT_WIDTH);
             self.cache = Some(Cached { generation, styles, layout });

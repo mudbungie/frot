@@ -10,8 +10,9 @@ use std::io::Write;
 use crate::ax;
 use crate::cli;
 use crate::dom::{Document, NodeKind, WalkEvent};
-use crate::envelope::{Envelope, ErrorInfo, HttpInfo, StatusKind, UrlBlock, View};
+use crate::envelope::{Envelope, ErrorInfo, HttpInfo, JsInfo, StatusKind, UrlBlock, View};
 use crate::fetch::{self, FetchResult};
+use crate::js::{Env, StyleSource};
 use crate::needs;
 use crate::views;
 use serde_json::Value;
@@ -62,9 +63,14 @@ fn build_envelope(args: &cli::Args) -> Envelope {
                 return Envelope::error(url, args.out, error).with_http(http);
             }
             let doc = Document::parse(&fetched.body);
+            // §9: JS runs before needs/CSS/layout/views, so everything downstream
+            // consumes the post-JS document exactly as it consumes a static one.
+            let (doc, js) = run_scripts(args, doc, &fetched);
             let needs = needs::detect(args.out, &doc);
             if !needs.is_empty() {
-                return Envelope::needs(url, args.out, needs, None).with_http(http);
+                return Envelope::needs(url, args.out, needs, None)
+                    .with_http(http)
+                    .with_js(js);
             }
             let styles = compute_styles(args, &doc, &fetched);
             // Layout is on-demand (`layout.md` §3): `bboxes` always needs
@@ -81,9 +87,35 @@ fn build_envelope(args: &cli::Args) -> Envelope {
                 .flatten();
             let payload =
                 build_payload(args.out, &doc, &fetched, styles.as_ref(), layout.as_ref());
-            Envelope::ok(url, args.out, payload).with_http(http)
+            Envelope::ok(url, args.out, payload).with_http(http).with_js(js)
         }
     }
+}
+
+/// Run page scripts before the rest of the pipeline when `--js` is on (js.md
+/// §9), returning the (possibly mutated) document and the envelope `js` block —
+/// present only under `--js`. Without it the document passes through untouched.
+/// The geometry cache's [`StyleSource`] mirrors the `--css` policy (§8), and the
+/// [`Env`] carries the final URL and the User-Agent frot sent (§7).
+fn run_scripts(
+    args: &cli::Args,
+    doc: Document,
+    fetched: &FetchResult,
+) -> (Document, Option<JsInfo>) {
+    if !args.js {
+        return (doc, None);
+    }
+    let styles = if args.css {
+        StyleSource::Authored(external_css(&doc, &fetched.final_url, &args.headers))
+    } else {
+        StyleSource::Bare
+    };
+    let env = Env {
+        url: fetched.final_url.clone(),
+        user_agent: fetch::user_agent(&args.headers).to_string(),
+    };
+    let (doc, r) = crate::js::run(doc, styles, env);
+    (doc, Some(JsInfo::new(r.scripts, r.errors, r.settled)))
 }
 
 /// The [`crate::css::Styles`] a view needs. Under `--css`, the full author
@@ -100,9 +132,9 @@ fn compute_styles(
 ) -> Option<crate::css::Styles> {
     if args.css {
         let external = external_css(doc, &fetched.final_url, &args.headers);
-        Some(crate::css::compute_with(doc, &external))
+        Some(crate::css::compute_with(doc, &external, args.js))
     } else if args.out == View::Bboxes {
-        Some(crate::css::compute_bare(doc))
+        Some(crate::css::compute_bare(doc, args.js))
     } else {
         None
     }
@@ -200,3 +232,6 @@ mod bboxes_tests;
 
 #[cfg(test)]
 mod ax_tests;
+
+#[cfg(test)]
+mod js_tests;

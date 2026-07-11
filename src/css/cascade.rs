@@ -31,19 +31,20 @@ impl Applied {
 }
 
 pub fn compute(doc: &Document) -> Styles {
-    compute_with(doc, &[])
+    compute_with(doc, &[], false)
 }
 
 /// Like [`compute`], but `external` raw CSS texts (fetched `<link>`
-/// stylesheets) cascade ahead of the document's own `<style>` rules.
-pub fn compute_with(doc: &Document, external: &[String]) -> Styles {
+/// stylesheets) cascade ahead of the document's own `<style>` rules. `js` (did
+/// `--js` run) flips `<noscript>` to hidden (js.md §4).
+pub fn compute_with(doc: &Document, external: &[String], js: bool) -> Styles {
     let mut sheets: Vec<Stylesheet> = external.iter().map(|s| Stylesheet::parse(s)).collect();
     sheets.extend(
         doc.find_by_tag("style")
             .into_iter()
             .map(|id| Stylesheet::parse(&doc.text_content(id))),
     );
-    cascade(doc, &sheets)
+    cascade(doc, &sheets, js)
 }
 
 /// UA-implicit `display` plus inline `style=` only — **no** author `<style>`
@@ -52,8 +53,8 @@ pub fn compute_with(doc: &Document, external: &[String]) -> Styles {
 /// CSS", so bare layout must ignore `<style>` exactly as it ignores `<link>`
 /// sheets. Shares the [`cascade`] walk with [`compute_with`]; the only
 /// difference is the empty sheet list.
-pub fn compute_bare(doc: &Document) -> Styles {
-    cascade(doc, &[])
+pub fn compute_bare(doc: &Document, js: bool) -> Styles {
+    cascade(doc, &[], js)
 }
 
 /// Cascade `sheets` (already gathered) over every element with full ancestor
@@ -61,11 +62,11 @@ pub fn compute_bare(doc: &Document) -> Styles {
 /// (author + external sheets) and [`compute_bare`] (empty sheets); inline
 /// `style=` and UA-implicit display are applied by `resolve` regardless of the
 /// sheet list.
-fn cascade(doc: &Document, sheets: &[Stylesheet]) -> Styles {
+fn cascade(doc: &Document, sheets: &[Stylesheet], js: bool) -> Styles {
     let mut nodes = vec![ComputedStyle::default(); doc.len()];
     let mut ancestors: Vec<&Element> = Vec::new();
     for &root in doc.roots() {
-        walk(doc, root, &mut ancestors, sheets, Visibility::Visible, &mut nodes);
+        walk(doc, root, &mut ancestors, sheets, Visibility::Visible, js, &mut nodes);
     }
     Styles::from_nodes(nodes)
 }
@@ -76,18 +77,19 @@ fn walk<'a>(
     ancestors: &mut Vec<&'a Element>,
     sheets: &[Stylesheet],
     parent_vis: Visibility,
+    js: bool,
     nodes: &mut [ComputedStyle],
 ) {
     let entry = doc.node(id);
     let NodeKind::Element(el) = &entry.kind else {
         return;
     };
-    let cs = resolve(el, ancestors, sheets, parent_vis);
+    let cs = resolve(el, ancestors, sheets, parent_vis, js);
     let vis = cs.visibility;
     nodes[id as usize] = cs;
     ancestors.push(el);
     for &c in &entry.children {
-        walk(doc, c, ancestors, sheets, vis, nodes);
+        walk(doc, c, ancestors, sheets, vis, js, nodes);
     }
     ancestors.pop();
 }
@@ -97,6 +99,7 @@ fn resolve(
     ancestors: &[&Element],
     sheets: &[Stylesheet],
     parent_vis: Visibility,
+    js: bool,
 ) -> ComputedStyle {
     let near_first: Vec<&Element> = ancestors.iter().rev().copied().collect();
     let mut applied: Vec<Applied> = Vec::new();
@@ -137,7 +140,7 @@ fn resolve(
         }
     }
     ComputedStyle {
-        display: display(&applied, el),
+        display: display(&applied, el, js),
         order: order_value(&applied),
         flex_direction: flex_direction(&applied),
         visibility: visibility(&applied, parent_vis),
@@ -163,11 +166,13 @@ fn flex_direction(applied: &[Applied]) -> FlexDirection {
         .unwrap_or_default()
 }
 
-/// The winning `display`: a matched author/inline rule (parsed and coerced by
-/// [`Display::parse`]), else the element's UA-implicit display by tag.
-fn display(applied: &[Applied], el: &Element) -> Display {
+/// The winning `display`: a matched author/inline rule ([`Display::parse`]),
+/// else the tag's UA-implicit display — but `<noscript>` is UA-implicit `none`
+/// once `--js` ran (js.md §4: scripting hides noscript), author-overridable.
+fn display(applied: &[Applied], el: &Element, js: bool) -> Display {
     match winner(applied, None, "display") {
         Some(v) => Display::parse(v),
+        None if js && el.name == "noscript" => Display::None,
         None => implicit_display(&el.name),
     }
 }

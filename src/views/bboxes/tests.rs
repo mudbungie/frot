@@ -4,7 +4,7 @@ use crate::{css, layout};
 /// Layout with the full author cascade (`<style>` + inline + UA).
 fn full(html: &str) -> (Document, layout::Layout, Styles) {
     let doc = Document::parse(html);
-    let styles = css::compute_with(&doc, &[]);
+    let styles = css::compute_with(&doc, &[], false);
     let l = layout::compute(&doc, &styles, layout::VIEWPORT_WIDTH);
     (doc, l, styles)
 }
@@ -13,7 +13,7 @@ fn full(html: &str) -> (Document, layout::Layout, Styles) {
 /// no-`--css` path (`layout.md` §3).
 fn bare(html: &str) -> (Document, layout::Layout, Styles) {
     let doc = Document::parse(html);
-    let styles = css::compute_bare(&doc);
+    let styles = css::compute_bare(&doc, false);
     let l = layout::compute(&doc, &styles, layout::VIEWPORT_WIDTH);
     (doc, l, styles)
 }
@@ -110,7 +110,7 @@ fn bare_ignores_style_block_that_css_would_reorder() {
         <div><em>a</em><em>b</em></div>";
     // Bare: `<style>` ignored → div is block flow → source order a, b.
     let doc = Document::parse(html);
-    let bare_s = css::compute_bare(&doc);
+    let bare_s = css::compute_bare(&doc, false);
     let bare_l = layout::compute(&doc, &bare_s, layout::VIEWPORT_WIDTH);
     let bare_out = entries(bboxes(&doc, &bare_l, &bare_s));
     let bare_ems: Vec<&str> = bare_out
@@ -120,7 +120,7 @@ fn bare_ignores_style_block_that_css_would_reorder() {
         .collect();
     assert_eq!(bare_ems, ["a", "b"]);
     // Full: `<style>` applied → flex row-reverse → reading order b, a.
-    let full_s = css::compute_with(&doc, &[]);
+    let full_s = css::compute_with(&doc, &[], false);
     let full_l = layout::compute(&doc, &full_s, layout::VIEWPORT_WIDTH);
     let full_out = entries(bboxes(&doc, &full_l, &full_s));
     let full_ems: Vec<&str> = full_out

@@ -8,6 +8,9 @@ use crate::envelope::View;
 pub struct Args {
     pub url: String,
     pub css: bool,
+    /// Run page scripts in the embedded engine before the rest of the pipeline
+    /// consumes the (now post-JS) document (`docs/design/js.md` §9).
+    pub js: bool,
     pub out: View,
     /// Request headers, in argv order. Sent with the page request and with
     /// same-origin `--css` subfetches; see `fetch`.
@@ -28,13 +31,7 @@ pub enum CliError {
     NoUrl,
     NoOut,
     ExtraPositional(String),
-    /// Accepted-but-not-yet-built surface. Rejected as a usage error so no
-    /// flag silently no-ops; the message names the phase that delivers it.
-    Unimplemented(String),
 }
-
-/// `--js` parses but nothing consumes it; reject rather than silently ignore.
-const JS_UNIMPLEMENTED: &str = "--js: not yet implemented — lands with Phase 4";
 
 impl CliError {
     pub fn is_help_or_version(&self) -> bool {
@@ -73,7 +70,6 @@ impl std::fmt::Display for CliError {
             CliError::NoUrl => write!(f, "missing <url>\n{}", USAGE),
             CliError::NoOut => write!(f, "missing --out <view>\n{}", USAGE),
             CliError::ExtraPositional(s) => write!(f, "unexpected argument: {}\n{}", s, USAGE),
-            CliError::Unimplemented(s) => write!(f, "{}", s),
         }
     }
 }
@@ -98,6 +94,7 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
 
     let mut url: Option<String> = None;
     let mut css = false;
+    let mut js = false;
     let mut out: Option<View> = None;
     let mut headers: Vec<(String, String)> = Vec::new();
 
@@ -113,7 +110,12 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
                 }
                 css = true;
             }
-            "--js" => return Err(CliError::Unimplemented(JS_UNIMPLEMENTED.into())),
+            "--js" => {
+                if js {
+                    return Err(CliError::DuplicateFlag("--js".into()));
+                }
+                js = true;
+            }
             "-H" | "--header" => {
                 i += 1;
                 let v = argv
@@ -161,7 +163,7 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
     if is_file && !headers.is_empty() {
         return Err(CliError::HeadersWithFile);
     }
-    Ok(Args { url, css, out, headers })
+    Ok(Args { url, css, js, out, headers })
 }
 
 #[cfg(test)]

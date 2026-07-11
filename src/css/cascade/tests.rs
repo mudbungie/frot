@@ -181,14 +181,28 @@ fn flex_direction_is_the_winning_keyword_else_row() {
 }
 
 #[test]
+fn noscript_is_hidden_only_when_js_ran() {
+    use crate::css::compute_with;
+    // js.md §4: scripting hides <noscript>. UA-implicit, so an author `display`
+    // rule still overrides it.
+    let doc = Document::parse("<noscript><p>fallback</p></noscript>");
+    let ns = first_tag(&doc, "noscript");
+    assert!(!compute_with(&doc, &[], false).display_none(ns));
+    assert!(compute_with(&doc, &[], true).display_none(ns));
+    let doc = Document::parse("<style>noscript{display:block}</style><noscript>x</noscript>");
+    let ns = first_tag(&doc, "noscript");
+    assert!(!compute_with(&doc, &[], true).display_none(ns));
+}
+
+#[test]
 fn external_sheets_cascade_before_style_elements() {
     use crate::css::compute_with;
     // an external sheet alone hides the element.
     let doc = Document::parse("<p>x</p>");
-    let s = compute_with(&doc, &["p{display:none}".to_string()]);
+    let s = compute_with(&doc, &["p{display:none}".to_string()], false);
     assert!(s.display_none(first_tag(&doc, "p")));
     // a later <style> rule of equal specificity wins over the external one.
     let doc = Document::parse("<style>p{display:block}</style><p>x</p>");
-    let s = compute_with(&doc, &["p{display:none}".to_string()]);
+    let s = compute_with(&doc, &["p{display:none}".to_string()], false);
     assert!(!s.display_none(first_tag(&doc, "p")));
 }

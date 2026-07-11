@@ -115,6 +115,28 @@ impl HttpInfo {
     }
 }
 
+/// The `--js` execution signal (`docs/design/js.md` §10). Additive and emitted
+/// only when `--js` ran: `scripts` counts scripts executed, `errors` counts
+/// throws / unhandled rejections / refused fetches, `settled` is whether the
+/// event loop reached quiescence within the wall-clock budget. This is the
+/// honesty channel for *partial* execution outcome detection can't see.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JsInfo {
+    pub scripts: u32,
+    pub errors: u32,
+    pub settled: bool,
+}
+
+impl JsInfo {
+    pub fn new(scripts: u32, errors: u32, settled: bool) -> Self {
+        Self {
+            scripts,
+            errors,
+            settled,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Envelope {
     pub frot: String,
@@ -129,6 +151,8 @@ pub struct Envelope {
     pub error: Option<ErrorInfo>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub http: Option<HttpInfo>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub js: Option<JsInfo>,
 }
 
 impl Envelope {
@@ -142,6 +166,7 @@ impl Envelope {
             needs: None,
             error: None,
             http: None,
+            js: None,
         }
     }
 
@@ -160,6 +185,7 @@ impl Envelope {
             needs: Some(needs),
             error: None,
             http: None,
+            js: None,
         }
     }
 
@@ -173,6 +199,7 @@ impl Envelope {
             needs: None,
             error: Some(error),
             http: None,
+            js: None,
         }
     }
 
@@ -180,6 +207,13 @@ impl Envelope {
     /// idempotent — `None` leaves the envelope untouched (e.g. `file://`).
     pub fn with_http(mut self, http: Option<HttpInfo>) -> Self {
         self.http = http;
+        self
+    }
+
+    /// Attach the `--js` execution signal (`docs/design/js.md` §10). Additive;
+    /// `None` (no `--js`) leaves the envelope untouched.
+    pub fn with_js(mut self, js: Option<JsInfo>) -> Self {
+        self.js = js;
         self
     }
 

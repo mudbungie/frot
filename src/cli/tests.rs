@@ -39,12 +39,20 @@ fn flags_after_url_order_independent() {
 }
 
 #[test]
-fn js_flag_rejected_as_unimplemented() {
+fn js_flag_accepted() {
+    let a = parse(&argv(&["https://x/", "--js", "--out", "text"])).unwrap();
+    assert!(a.js);
+    assert!(!a.css);
+}
+
+#[test]
+fn js_flag_defaults_off_and_rejects_duplicates() {
+    let a = parse(&argv(&["https://x/", "--out", "text"])).unwrap();
+    assert!(!a.js);
     assert_eq!(
-        parse(&argv(&["https://x/", "--js", "--out", "text"])),
-        Err(CliError::Unimplemented(JS_UNIMPLEMENTED.into()))
+        parse(&argv(&["https://x/", "--js", "--js", "--out", "text"])),
+        Err(CliError::DuplicateFlag("--js".into()))
     );
-    assert!(JS_UNIMPLEMENTED.contains("Phase 4"));
 }
 
 #[test]
@@ -145,7 +153,7 @@ fn help_and_version_short_and_long() {
 fn non_help_is_not_help_or_version() {
     assert!(!CliError::NoArgs.is_help_or_version());
     assert!(!CliError::NoUrl.is_help_or_version());
-    assert!(!CliError::Unimplemented("x".into()).is_help_or_version());
+    assert!(!CliError::DuplicateFlag("--js".into()).is_help_or_version());
 }
 
 #[test]
@@ -163,7 +171,6 @@ fn display_each_error_variant() {
         CliError::NoUrl,
         CliError::NoOut,
         CliError::ExtraPositional("oops".into()),
-        CliError::Unimplemented("--js: nope".into()),
     ];
     for c in cases {
         let s = format!("{}", c);

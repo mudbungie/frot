@@ -157,9 +157,16 @@ during parse. So:
 5. **`document.write` throws** (counted). Post-parse `write` implies reopening
    the document — semantics frot will not fake. Ad-tech long-tail is a
    non-goal.
-6. **`<noscript>` flips.** Without `--js`, noscript content is real content
-   (correct today). Under `--js` it must not render: the cascade treats
-   `noscript` as UA-implicit `display:none` when the js capability ran.
+6. **`<noscript>` flips.** Under `--js` its content must not render: the
+   cascade treats `noscript` as UA-implicit `display:none` (author-overridable)
+   when the js capability ran — the single-source-of-truth home for display
+   semantics. *As built:* this is where every style-consuming path reads the
+   flip, but it is currently observationally inert, because the structural
+   views already suppress `<noscript>` unconditionally regardless of `--js`
+   (`text`/`ax` list it in `SKIP_TAGS`; `layout`/`bboxes` in `NON_RENDERED_TAGS`).
+   Views that surface it today (`links`, `forms`, raw `dom`) don't consult the
+   cascade, so they are unaffected by the flip; unifying noscript suppression
+   across all views is left to the 4.9/4.10 fidelity pass.
 
 ## 5. Bounded execution — the event loop
 

@@ -20,6 +20,16 @@ const USER_AGENT: &str =
 const TIMEOUT_SECS: u64 = 15;
 const MAX_BODY_BYTES: u64 = 16 * 1024 * 1024;
 
+/// The User-Agent frot sends: a `-H "User-Agent: …"` override when the caller
+/// supplied one, else the built-in default. `navigator.userAgent` (js.md §7)
+/// reports the same string, so the shim never lies about who fetched.
+pub fn user_agent(headers: &[(String, String)]) -> &str {
+    headers
+        .iter()
+        .find(|(n, _)| n.eq_ignore_ascii_case("user-agent"))
+        .map_or(USER_AGENT, |(_, v)| v.as_str())
+}
+
 #[derive(Debug, Clone)]
 pub struct FetchResult {
     pub final_url: String,
@@ -54,20 +64,15 @@ pub fn fetch(url: &str, headers: &[(String, String)]) -> Result<FetchResult, Fet
     if parsed.scheme() == "file" {
         return fetch_file(&parsed);
     }
-    let is_ua = |n: &str| n.eq_ignore_ascii_case("user-agent");
-    let ua = headers
-        .iter()
-        .find(|(n, _)| is_ua(n))
-        .map_or(USER_AGENT, |(_, v)| v.as_str());
     let agent: Agent = Agent::config_builder()
-        .user_agent(ua)
+        .user_agent(user_agent(headers))
         .timeout_global(Some(Duration::from_secs(TIMEOUT_SECS)))
         .http_status_as_error(false)
         .build()
         .into();
 
     let mut request = agent.get(url);
-    for (n, v) in headers.iter().filter(|(n, _)| !is_ua(n)) {
+    for (n, v) in headers.iter().filter(|(n, _)| !n.eq_ignore_ascii_case("user-agent")) {
         request = request.header(n.as_str(), v.as_str());
     }
     let mut response = request.call().map_err(map_ureq_error)?;
