@@ -16,9 +16,10 @@ mod syscall;
 
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
+use std::time::Duration;
 
 use crate::dom::{Document, NodeId, NodeKind};
-use engine::Engine;
+use engine::{Engine, EXEC_BUDGET_MS};
 
 pub use engine::EvalError;
 pub use geometry::StyleSource;
@@ -30,58 +31,122 @@ pub use syscall::{Env, Log};
 pub struct Report {
     /// Scripts that executed (§10 `scripts`); a script that threw still ran.
     pub scripts: u32,
-    /// Counted failures (§10 `errors`): throws, refused navigations (the §7/§11
-    /// counted no-ops the environment shim tallies), plus — until subfetch
+    /// Counted failures (§10 `errors`): throws — from scripts *and* from event-
+    /// loop timer callbacks / lifecycle listeners (§5) — refused navigations (the
+    /// §7/§11 counted no-ops the environment shim tallies), plus — until subfetch
     /// (4.6) — every external `src` script, which §4.2 skips-and-counts.
     pub errors: u32,
-    /// Whether the run reached quiescence within the wall-clock budget (§5).
+    /// Whether the whole run — script queue *and* settle loop — reached
+    /// quiescence within the single wall-clock budget (§5); a budget trip
+    /// anywhere clears it.
     pub settled: bool,
 }
 
-/// Run every page script against `doc` in document order (`docs/design/js.md`
-/// §4), returning the post-JS document and the execution [`Report`]. Scripts a
-/// script inserts join the queue (§4.3): each pass re-scans and runs the next
-/// not-yet-run `<script>`, a fixpoint that naturally picks up appended ones.
+/// Run a page's JS against `doc` under the bounded virtual-clock event loop
+/// (`docs/design/js.md` §4–§5), returning the post-JS document and the [`Report`].
 /// `styles`/`env` seed the geometry cache (§8) and environment shims (§7).
 ///
-/// The `DOMContentLoaded`/`load` lifecycle events and the virtual-clock timer
-/// horizon are the event loop (§5, subtask 4.5); here a run is `settled` unless
-/// a script trips the wall-clock budget, which stops the queue.
+/// One wall-clock deadline ([`EXEC_BUDGET_MS`]) spans the whole run — the script
+/// queue *and* the settle loop — armed once ([`Session::begin`]). The phases run
+/// in order (§4.4): the script queue drains, then `DOMContentLoaded`, then
+/// `load`, then the virtual-clock settle loop. A budget trip anywhere stops the
+/// run and marks it unsettled (§5); a script/callback throw is counted and the
+/// run continues.
 pub fn run(doc: Document, styles: StyleSource, env: Env) -> (Document, Report) {
-    let session = Session::new(doc, styles, env);
+    run_with(doc, styles, env, Duration::from_millis(EXEC_BUDGET_MS))
+}
+
+/// [`run`] with an explicit wall-clock budget; the tests dial it down so the
+/// budget-trip paths stay deterministic and fast (the 4.1 spike's pattern).
+fn run_with(doc: Document, styles: StyleSource, env: Env, budget: Duration) -> (Document, Report) {
+    let session = Session::with_budget(doc, styles, env, budget);
+    session.begin();
+    let mut report = Report {
+        scripts: 0,
+        errors: 0,
+        settled: true,
+    };
+    run_script_queue(&session, &mut report);
+    if report.settled {
+        run_event_loop(&session, &mut report);
+    }
+    // Fold the environment shim's refused-navigation tally into §10 `errors`.
+    report.errors += session.denials();
+    (session.into_document(), report)
+}
+
+/// Drain the script queue in document order (§4). Scripts a script inserts join
+/// the queue (§4.3): each pass re-scans for the next not-yet-run `<script>`, a
+/// fixpoint that picks up appended ones. A budget trip clears `settled` and ends
+/// the phase; scripts inserted later (by timers/lifecycle) do not re-enter — the
+/// script phase is over once this returns (§4.4).
+fn run_script_queue(session: &Session, report: &mut Report) {
     let mut done: Vec<NodeId> = Vec::new();
-    let (mut scripts, mut errors, mut settled) = (0u32, 0u32, true);
-    while let Some((id, script)) = next_script(&session, &done) {
+    while report.settled {
+        let Some((id, script)) = next_script(session, &done) else {
+            break;
+        };
         done.push(id);
         match script {
             // External `src` is fetched under §6 — until subfetch (4.6) lands
             // the fetch cannot happen, so §4.2 skips-and-counts the script.
-            Script::External => errors += 1,
+            Script::External => report.errors += 1,
             // Non-JS `type` / `nomodule`: not for us (§4.1), skipped silently.
             Script::Skip => {}
-            Script::Inline(body) => match session.eval(&body) {
-                Ok(_) => scripts += 1,
-                Err(EvalError::Exception(_)) => {
-                    scripts += 1;
-                    errors += 1;
-                }
-                Err(EvalError::Budget) => {
-                    scripts += 1;
-                    errors += 1;
-                    settled = false;
-                    break;
-                }
-            },
+            Script::Inline(body) => run_script(session, &body, report),
         }
     }
-    // Fold the environment shim's refused-navigation tally into §10 `errors`.
-    errors += session.denials();
-    let report = Report {
-        scripts,
-        errors,
-        settled,
-    };
-    (session.into_document(), report)
+}
+
+/// Evaluate one script body under the run's deadline, tallying it per §5: a
+/// throw counts an error, a budget trip additionally clears `settled`.
+fn run_script(session: &Session, body: &str, report: &mut Report) {
+    report.scripts += 1;
+    match session.run_task(body) {
+        Ok(_) => {}
+        Err(EvalError::Exception(_)) => report.errors += 1,
+        Err(EvalError::Budget) => {
+            report.errors += 1;
+            report.settled = false;
+        }
+    }
+}
+
+/// The settle loop (§5): fire `DOMContentLoaded` then `load`, then drain the
+/// virtual-clock timer queue until nothing is due before the horizon. Each step
+/// is one host-driven macrotask (microtasks drain between, in the engine). A
+/// budget trip stops the loop and leaves the run unsettled.
+fn run_event_loop(session: &Session, report: &mut Report) {
+    for name in ["DOMContentLoaded", "load"] {
+        match drive(session, &format!("__frot_fire('{name}')"), report) {
+            Some(errs) => report.errors += errs as u32,
+            None => return,
+        }
+    }
+    loop {
+        match drive(session, "__frot_next_timer()", report) {
+            // -1: nothing due before the horizon — the loop has settled (§5).
+            Some(n) if n < 0 => break,
+            // A fired callback: `n` is its error count (0 or 1); loop continues.
+            Some(n) => report.errors += n as u32,
+            // Budget tripped mid-callback: `settled` already cleared, stop.
+            None => break,
+        }
+    }
+}
+
+/// Run one event-loop driver call, returning its integer protocol value, or
+/// `None` when the budget tripped (which clears `settled`). The drivers catch
+/// callback throws in JS and encode them in the return value, so the only
+/// non-value outcome is a deadline hit.
+fn drive(session: &Session, src: &str, report: &mut Report) -> Option<i64> {
+    match session.run_task(src) {
+        Ok(s) => Some(s.trim().parse::<i64>().unwrap_or(0)),
+        Err(_) => {
+            report.settled = false;
+            None
+        }
+    }
 }
 
 /// A discovered `<script>`, classified for execution (§4.1).
@@ -149,13 +214,19 @@ pub struct Session {
 }
 
 impl Session {
-    /// Bind `doc` to a fresh engine, install the syscall table, and load the
-    /// prelude. `styles` is the geometry cache's styling policy (js.md §8): the
-    /// pipeline passes [`StyleSource::Authored`] under `--css`, else
-    /// [`StyleSource::Bare`]. `env` carries the static facts the §7 environment
-    /// shims (navigator/location/matchMedia) derive from.
+    /// Bind `doc` to a fresh engine (shipping budget), install the syscall table,
+    /// and load the prelude. `styles` is the geometry cache's styling policy
+    /// (js.md §8): the pipeline passes [`StyleSource::Authored`] under `--css`,
+    /// else [`StyleSource::Bare`]. `env` carries the static facts the §7
+    /// environment shims (navigator/location/matchMedia) derive from.
     pub fn new(doc: Document, styles: StyleSource, env: Env) -> Self {
-        let engine = Engine::new();
+        Self::with_budget(doc, styles, env, Duration::from_millis(EXEC_BUDGET_MS))
+    }
+
+    /// [`Session::new`] with an explicit wall-clock budget for the engine — the
+    /// event loop's single deadline (§5), dialed down by the budget-trip tests.
+    pub fn with_budget(doc: Document, styles: StyleSource, env: Env, budget: Duration) -> Self {
+        let engine = Engine::with_limits(engine::JS_MEM_LIMIT, budget);
         let doc = Rc::new(RefCell::new(doc));
         let console = Rc::new(RefCell::new(Vec::new()));
         let geo = Rc::new(RefCell::new(geometry::Geometry::new(styles)));
@@ -169,8 +240,20 @@ impl Session {
         }
     }
 
-    /// Evaluate a page script, draining microtasks, and coerce its value to a
-    /// string (the engine's smoke surface; the event loop lands in subtask 4.5).
+    /// Arm the run's single wall-clock deadline (§5): the budget spans every
+    /// script, lifecycle dispatch, and timer callback that follows, not each one.
+    pub fn begin(&self) {
+        self.engine.arm();
+    }
+
+    /// Evaluate a script/driver call inside the armed deadline (§5), draining
+    /// microtasks — the [`run`] path's one execution primitive.
+    pub fn run_task(&self, src: &str) -> Result<String, EvalError> {
+        self.engine.eval_armed(src)
+    }
+
+    /// Evaluate with a fresh per-call budget (the facade smoke surface used by
+    /// the tests); [`run_task`](Self::run_task) is the event-loop path.
     pub fn eval(&self, src: &str) -> Result<String, EvalError> {
         self.engine.eval(src)
     }

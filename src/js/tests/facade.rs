@@ -1,24 +1,9 @@
-//! End-to-end checks that the JS prelude facade (Node/Element/Document +
-//! console) is wired over the syscalls. Prelude JS lines are not `llvm-cov`
-//! visible; these guard the facade until the golden fixture suite (4.9) owns it.
+//! Prelude facade + script-queue tests: the Node/Element/Document API, console,
+//! geometry, and the §4 script discovery/order over the syscall table.
 
-use super::{classify, is_js_type, run, Env, Script, Session, StyleSource};
+use super::super::{classify, is_js_type, Script};
+use super::{drive, sess};
 use crate::dom::Document;
-
-fn test_env() -> Env {
-    Env {
-        url: "https://example.com/".into(),
-        user_agent: "frot-test/1".into(),
-    }
-}
-
-fn sess(html: &str) -> Session {
-    Session::new(Document::parse(html), StyleSource::Bare, test_env())
-}
-
-fn drive(html: &str) -> (Document, super::Report) {
-    run(Document::parse(html), StyleSource::Bare, test_env())
-}
 
 #[test]
 fn document_facade_queries_and_reads_the_tree() {
@@ -93,17 +78,13 @@ fn run_executes_inline_scripts_and_reclaims_the_mutated_document() {
 
 #[test]
 fn a_throwing_script_still_counts_as_executed_and_errored() {
-    let (_doc, report) = drive(
-        "<body><script>throw new Error('x')</script></body>",
-    );
+    let (_doc, report) = drive("<body><script>throw new Error('x')</script></body>");
     assert_eq!((report.scripts, report.errors, report.settled), (1, 1, true));
 }
 
 #[test]
 fn external_scripts_are_skipped_and_counted_until_subfetch() {
-    let (_doc, report) = drive(
-        "<body><script src='app.js'></script></body>",
-    );
+    let (_doc, report) = drive("<body><script src='app.js'></script></body>");
     assert_eq!((report.scripts, report.errors, report.settled), (0, 1, true));
 }
 
@@ -130,18 +111,6 @@ fn script_inserted_scripts_join_the_queue() {
     );
     assert_eq!(report.scripts, 2);
     assert_eq!(doc.find_by_tag("hr").len(), 1);
-}
-
-#[test]
-fn a_budget_trip_stops_the_queue_and_marks_unsettled() {
-    // The first script spins out the wall-clock budget; the loop breaks, so the
-    // second never runs and the run is unsettled (§5).
-    let (doc, report) = drive(
-        "<body><script>while(true){}</script>\
-         <script>document.body.appendChild(document.createElement('hr'))</script></body>",
-    );
-    assert_eq!((report.scripts, report.errors, report.settled), (1, 1, false));
-    assert_eq!(doc.find_by_tag("hr").len(), 0);
 }
 
 #[test]

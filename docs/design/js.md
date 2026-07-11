@@ -153,7 +153,10 @@ during parse. So:
 3. Scripts inserted by other scripts (`appendChild` of a `<script>`) join the
    end of the queue — that is how bundlers chain-load.
 4. After the queue drains: `DOMContentLoaded`, then `load`, then the settle
-   loop (§5).
+   loop (§5). Re-entry (rule 3) is a *script-phase* affordance: once the queue
+   drains the phase is over, so a `<script>` inserted later by a lifecycle
+   handler or a timer callback is not executed — one linear pass, no feedback
+   from the event loop into the script queue.
 5. **`document.write` throws** (counted). Post-parse `write` implies reopening
    the document — semantics frot will not fake. Ad-tech long-tail is a
    non-goal.
@@ -180,7 +183,11 @@ design center. Two clocks, three limits:
   **`VIRTUAL_HORIZON_MS = 10_000`** — a task due past the horizon is dropped.
   `setTimeout(f, 30_000)` never fires ("no timers past load"); `setInterval`
   pollers and `requestAnimationFrame` chains (rAF = 16 ms virtual timer)
-  self-terminate at the horizon instead of needing per-API caps.
+  self-terminate at the horizon instead of needing per-API caps. Sub-millisecond
+  timer delays clamp to 1 ms so every fire advances the virtual clock — a
+  `0`-delay poller (`setInterval(f, 0)`, or a self-rescheduling `setTimeout`)
+  therefore self-terminates at the horizon rather than spinning out the
+  wall-clock budget.
 - **Wall-clock budget: `EXEC_BUDGET_MS = 1_000`**, enforced by the engine's
   interrupt handler; covers execution *and* §6 subfetch time in one deadline.
   Hitting it stops the loop and marks the run unsettled (§10).

@@ -30,7 +30,11 @@ pub enum EvalError {
 }
 
 /// An embedded engine with one realm. `new` installs the interrupt hook and
-/// memory cap once; each `eval` re-arms the deadline and drains microtasks.
+/// memory cap once. [`Engine::arm`] opens a single wall-clock deadline window;
+/// [`Engine::eval_armed`] runs inside it (the event loop drives every script,
+/// lifecycle dispatch, and timer callback of one JS run under one deadline,
+/// js.md §5), while [`Engine::eval`] is `arm` + `eval_armed` for a standalone
+/// one-shot. Each eval drains the microtask queue before returning.
 pub struct Engine {
     rt: Runtime,
     ctx: Context,
@@ -79,12 +83,27 @@ impl Engine {
         &self.ctx
     }
 
-    /// Evaluate a script, drain the microtask queue, and return the result
-    /// coerced to a string (`docs/design/js.md` §1 smoke surface).
-    pub fn eval(&self, src: &str) -> Result<String, EvalError> {
+    /// Open one wall-clock deadline window (`EXEC_BUDGET_MS` from now) and clear
+    /// the trip flag. The event loop arms once per JS run so the budget spans the
+    /// whole run — scripts *and* the settle loop — not each script (js.md §5).
+    pub fn arm(&self) {
         self.tripped.store(false, Ordering::Relaxed);
         let deadline = (self.base.elapsed() + self.budget).as_nanos() as u64;
         self.deadline.store(deadline, Ordering::Relaxed);
+    }
+
+    /// `arm` then [`eval_armed`](Self::eval_armed) — a standalone one-shot eval
+    /// with its own budget window (`docs/design/js.md` §1 smoke surface).
+    pub fn eval(&self, src: &str) -> Result<String, EvalError> {
+        self.arm();
+        self.eval_armed(src)
+    }
+
+    /// Evaluate inside the current deadline window, drain the microtask queue,
+    /// and return the result coerced to a string. Once the budget has tripped
+    /// the result is [`EvalError::Budget`] regardless of the eval's own outcome —
+    /// so a JS `try/catch` that swallows the interrupt still stops the loop.
+    pub fn eval_armed(&self, src: &str) -> Result<String, EvalError> {
         let res = self.ctx.with(|ctx| {
             ctx.eval::<Coerced<String>, _>(src)
                 .catch(&ctx)
@@ -92,13 +111,11 @@ impl Engine {
                 .map_err(|e| e.to_string())
         });
         self.drain_jobs();
-        res.map_err(|msg| {
-            if self.tripped.load(Ordering::Relaxed) {
-                EvalError::Budget
-            } else {
-                EvalError::Exception(msg)
-            }
-        })
+        if self.tripped.load(Ordering::Relaxed) {
+            Err(EvalError::Budget)
+        } else {
+            res.map_err(EvalError::Exception)
+        }
     }
 
     /// Host-driven microtask drain (§5): run pending jobs until the queue is
