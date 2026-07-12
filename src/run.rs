@@ -46,7 +46,7 @@ pub(crate) fn run_io(argv: &[String], out: &mut dyn Write, err: &mut dyn Write) 
 
 fn build_envelope(args: &cli::Args) -> Envelope {
     let initial_url = UrlBlock::requested(&args.url);
-    match fetch::fetch(&args.url, &args.headers) {
+    match fetch::fetch_document(&args.url, &args.headers) {
         Err(e) => {
             Envelope::error(initial_url, args.out, ErrorInfo::new(&e.kind, e.message))
         }

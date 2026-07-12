@@ -249,6 +249,22 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   page are refused). `file://` pages may fetch remote resources, as with CSS.
 - **Caps:** `SUBFETCH_MAX = 16` requests per call (counted when exceeded);
   network time spends the §5 wall-clock budget — one deadline, not two.
+- **No document-navigation header set.** The Firefox-121 navigation defaults
+  (`Accept: text/html,…`, `Accept-Language`, `Upgrade-Insecure-Requests`,
+  `Sec-Fetch-Dest: document` / `Mode: navigate` / `Site: none` / `User: ?1` —
+  `fetch::DOCUMENT_HEADERS`) attach only on the **top-level page GET**
+  (`fetch::fetch_document`). Subfetches — stylesheets, `fetch`/XHR, and external
+  `<script src>` — go through `fetch::fetch`, which sends only the shared
+  `User-Agent` and ureq's negotiated `Accept-Encoding`, plus same-origin `-H`.
+  Rationale: a subresource load is not a navigation, so replaying the
+  navigation set on it (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-User: ?1`,
+  `Upgrade-Insecure-Requests`) would be *affirmatively* inconsistent — no real
+  browser sends navigate-mode `Sec-Fetch` on a `fetch()`/stylesheet/script.
+  Full per-`Dest` subresource fidelity (`style` vs `empty` vs `script`, same-
+  vs cross-site) is more mechanism than this consistency pass warrants and
+  would not flip the trial's hard cases (which fail on TLS fingerprint, not
+  headers — see bl-0eba). Subfetches therefore stay honest-minimal; the
+  masquerade is completed at the one navigation that gates access.
 - Absent-by-design channels: `WebSocket`/`EventSource` are undefined (feature
   detection falls through); `navigator.sendBeacon` returns `false` — where the
   platform spec offers a legal denial, prefer it over an exception.

@@ -17,6 +17,32 @@ use crate::envelope::kinds;
 
 const USER_AGENT: &str =
     "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
+
+/// Firefox-121 document-navigation default headers, layered under the caller's
+/// `-H` on the top-level page GET so the request shape matches the
+/// [`USER_AGENT`] (and `navigator`) it claims. A bare Firefox UA with
+/// `accept: */*` and no `Accept-Language`/`Sec-Fetch-*` is an obvious bot tell;
+/// this is consistency of the existing masquerade, not anti-bot evasion. Pinned
+/// to the same Firefox version as `USER_AGENT` — bump them together.
+///
+/// `Accept-Encoding` is deliberately absent: ureq sets it from its enabled
+/// decoders (`gzip, br`). Real Firefox also advertises `deflate`, but we only
+/// claim what we can actually inflate — a false `deflate` would break decoding
+/// of a deflate-encoded body. Subresource subfetches (`docs/design/js.md` §6)
+/// do NOT carry this set: navigate-mode `Sec-Fetch-*` on a subresource is
+/// itself inconsistent, so they stay honest-minimal.
+const DOCUMENT_HEADERS: &[(&str, &str)] = &[
+    (
+        "Accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    ),
+    ("Accept-Language", "en-US,en;q=0.5"),
+    ("Upgrade-Insecure-Requests", "1"),
+    ("Sec-Fetch-Dest", "document"),
+    ("Sec-Fetch-Mode", "navigate"),
+    ("Sec-Fetch-Site", "none"),
+    ("Sec-Fetch-User", "?1"),
+];
 const TIMEOUT_SECS: u64 = 15;
 const MAX_BODY_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -53,6 +79,24 @@ impl FetchError {
             message: message.into(),
         }
     }
+}
+
+/// GET a top-level document: the Firefox-navigation [`DOCUMENT_HEADERS`]
+/// layered *under* the caller's `headers`, so a caller `-H` for any of those
+/// names replaces the default rather than duplicating it (same precedence as
+/// [`user_agent`]). Subresource subfetches (stylesheets, `fetch`/XHR, external
+/// `<script>`) call [`fetch`] directly and do not carry the navigation set.
+pub fn fetch_document(
+    url: &str,
+    headers: &[(String, String)],
+) -> Result<FetchResult, FetchError> {
+    let mut effective = headers.to_vec();
+    for (name, value) in DOCUMENT_HEADERS {
+        if !headers.iter().any(|(n, _)| n.eq_ignore_ascii_case(name)) {
+            effective.push(((*name).to_string(), (*value).to_string()));
+        }
+    }
+    fetch(url, &effective)
 }
 
 /// GET `url` with the caller's `headers` attached. A caller-supplied
