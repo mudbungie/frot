@@ -21,6 +21,7 @@ fn env_ua_feeds_navigator() {
     assert_eq!(s.eval("navigator.userAgent").unwrap(), "custom-ua/9");
     assert_eq!(s.eval("navigator.sendBeacon('/x', 'y')").unwrap(), "false");
     assert_eq!(s.eval("typeof navigator.serviceWorker").unwrap(), "undefined");
+    assert_eq!(s.eval("navigator.webdriver").unwrap(), "false");
 }
 
 #[test]

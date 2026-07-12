@@ -114,6 +114,9 @@
     onLine: true,
     cookieEnabled: true,
     doNotTrack: null,
+    // False is the truth: frot is not under WebDriver remote control, and
+    // real browsers define the field (absence is itself an odd fingerprint).
+    webdriver: false,
     hardwareConcurrency: 1,
     maxTouchPoints: 0,
     // Legal denial, not an exception (§6): frot reads, never submits.

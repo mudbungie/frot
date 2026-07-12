@@ -261,7 +261,7 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
 - `document.cookie`: in-memory string, born empty (OQ-3).
 - `indexedDB`: absent. Apps that require it fail into the §10 outcome story.
 - `navigator` / `location`: static facts frot already has (the UA string it
-  sends, the final URL). `location` *assignment* is navigation — a counted
+  sends, the final URL, `webdriver: false` — truthful: no remote control). `location` *assignment* is navigation — a counted
   no-op; frot takes an impression of one document, it does not browse.
 - `matchMedia`: evaluated against the fixed 1280px viewport for width queries;
   everything else matches never. `getContext()` on canvas returns `null`
