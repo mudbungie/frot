@@ -21,7 +21,18 @@ serde_json = { version = "1", features = ["preserve_order"] }
 html5ever = "0.39"
 markup5ever_rcdom = "0.39"
 url = "2"
-ureq = { version = "3", default-features = false, features = ["rustls", "gzip", "brotli"] }
+# HTTP/1.1 client: ureq keeps redirects, gzip/brotli, timeouts and the error
+# taxonomy. Its own rustls feature is dropped — the TLS handshake is supplied
+# by `craftls` behind `src/fetch/firefox_tls.rs` so the ClientHello matches
+# Firefox (WAF fingerprint match). ureq speaks HTTP/1.1 only.
+ureq = { version = "3", default-features = false, features = ["gzip", "brotli"] }
+# `craftls` = a fork of rustls with a craftable ClientHello (cipher/extension
+# order, GREASE, key-share, padding). Pure Rust + `ring`; the only pure-Rust
+# way to emit a Firefox JA3/JA4. Kept behind `firefox_tls.rs`; no craftls type
+# leaks past that module. See bl-0eba journal for the maintenance tradeoff.
+craftls = { version = "0.0.2", package = "craftls", default-features = false, features = ["ring", "tls12", "logging"] }
+webpki-roots = "0.26"
+rustls-pki-types = "1"
 encoding_rs = "0.8"
 # --js engine (Phase 4). Vendored quickjs-ng C compiled by `cc` with
 # pregenerated bindings — no bindgen, no cmake, no system dep. Kept behind
@@ -30,7 +41,6 @@ rquickjs = { version = "0.12", default-features = false, features = ["loader"] }
 
 [dev-dependencies]
 mockito = "1"
-rustls = { version = "0.23", default-features = false }
 
 [profile.release]
 lto = "fat"

@@ -47,6 +47,7 @@ Orchestration lives in `src/run.rs` (~100 lines); everything below it is a pure 
 |---|---|
 | `src/cli.rs` | hand-rolled argv parser → `Args` |
 | `src/fetch.rs` | blocking ureq GET; redirects, gzip/brotli, charset decode |
+| `src/fetch/firefox_tls.rs` | ureq `Connector` that TLS-wraps HTTPS with a Firefox ClientHello (`craftls`) + Title-Case header names — the browser-identity transport seam |
 | `src/dom.rs` | html5ever → arena facade |
 | `src/dom/mutate.rs` | `--js` DOM mutation ops (append-plus-relink) + generation counter |
 | `src/needs.rs` | capability-gap detection (post-JS under `--js`) |
@@ -70,7 +71,9 @@ Every module has a colocated `tests.rs`; `tests/binary.rs` drives the compiled b
 
 ## Fetch behavior
 
-`ureq` 3 with rustls (no C TLS), Firefox-desktop User-Agent, 15 s global timeout, 16 MiB body cap, redirects followed (final URL reported in `url.final`), gzip/brotli decoding. Charset: `Content-Type` header, else `<meta charset>` sniff in the first 1 KiB, else UTF-8, decoded via `encoding_rs`. Non-2xx responses do not error at the transport layer (`http_status_as_error(false)`) — the body is still read — but `run.rs` surfaces the code in an `http` block and flips status ≥ 400 to an `error` envelope (`error.kind: http.<code>`), so a 404/500/bot-challenge body is never reported as a successful impression.
+`ureq` 3 (HTTP/1.1 only — no h2), 15 s global timeout, 16 MiB body cap, redirects followed (final URL reported in `url.final`), gzip/brotli decoding. Charset: `Content-Type` header, else `<meta charset>` sniff in the first 1 KiB, else UTF-8, decoded via `encoding_rs`. Non-2xx responses do not error at the transport layer (`http_status_as_error(false)`) — the body is still read — but `run.rs` surfaces the code in an `http` block and flips status ≥ 400 to an `error` envelope (`error.kind: http.<code>`), so a 404/500/bot-challenge body is never reported as a successful impression.
+
+**Browser-identity transport (`src/fetch/firefox_tls.rs`).** WAFs fingerprint the TLS ClientHello (JA3/JA4) and the on-wire header casing; a stock rustls handshake with lowercase header names 403s even behind perfect Firefox headers (proven on StackOverflow). So the HTTPS handshake is supplied by `craftls` — a fork of rustls with a craftable ClientHello — carrying the Firefox fingerprint (cipher/extension order, GREASE, key-share, padding), and the transport Title-Cases header names on the wire (ureq/`http` emit them lowercase). It plugs in as a `ureq` `Connector` (`ureq::unversioned::transport`, chained after `TcpConnector`), so ureq keeps HTTP/1.1, redirects, decompression, timeouts and the error taxonomy — only the handshake bytes and header casing change; no `craftls` type leaks past `firefox_tls.rs` (the same seam discipline as `js/engine.rs`). Crypto is `ring` (pure Rust, static-musl clean); the only C is an incidental `zstd-sys` for cert-compression. Cost: **+2.1 MiB → ≈7.06 MiB** (musl 7.25 MiB), inside the 5–15 MB envelope. Residual soft tells (accepted — they don't gate current targets): ALPN reads `http/1.1` not `h2`, and ureq's header *order/set* is not Firefox's (bl-28d6 owns the header set). Scope: fingerprint-matching only; CAPTCHA / JS-challenge solving is refused.
 
 Under `--css`, external `<link rel=stylesheet>` hrefs are resolved against the final URL and fetched best-effort — a failed sheet is skipped, never fatal (CSS is an enhancement to the impression, not a precondition).
 

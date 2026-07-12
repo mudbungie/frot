@@ -234,12 +234,6 @@ fn map_tls_static_str() {
 }
 
 #[test]
-fn map_rustls_error_is_fetch_tls() {
-    let e = map_ureq_error(UE::Rustls(rustls::Error::General("rustls".to_string())));
-    assert_eq!(e.kind, kinds::FETCH_TLS);
-}
-
-#[test]
 fn map_io_error_is_fetch_body() {
     let e = map_ureq_error(UE::Io(std::io::Error::other("read")));
     assert_eq!(e.kind, kinds::FETCH_BODY);

@@ -11,9 +11,13 @@
 
 use std::time::Duration;
 
+use ureq::unversioned::resolver::DefaultResolver;
+use ureq::unversioned::transport::{Connector, TcpConnector};
 use ureq::{Agent, ResponseExt};
 
 use crate::envelope::kinds;
+
+mod firefox_tls;
 
 const USER_AGENT: &str =
     "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
@@ -108,12 +112,18 @@ pub fn fetch(url: &str, headers: &[(String, String)]) -> Result<FetchResult, Fet
     if parsed.scheme() == "file" {
         return fetch_file(&parsed);
     }
-    let agent: Agent = Agent::config_builder()
+    // The connector chain opens TCP, then wraps HTTPS in a Firefox-shaped TLS
+    // handshake (`firefox_tls`). ureq keeps HTTP/1.1, redirects, decompression,
+    // timeouts and the error taxonomy; only the ClientHello changes.
+    let config = Agent::config_builder()
         .user_agent(user_agent(headers))
         .timeout_global(Some(Duration::from_secs(TIMEOUT_SECS)))
         .http_status_as_error(false)
-        .build()
-        .into();
+        .build();
+    let connector = ()
+        .chain(TcpConnector::default())
+        .chain(firefox_tls::FirefoxTlsConnector::default());
+    let agent = Agent::with_parts(config, connector, DefaultResolver::default());
 
     let mut request = agent.get(url);
     for (n, v) in headers.iter().filter(|(n, _)| !n.eq_ignore_ascii_case("user-agent")) {
@@ -223,7 +233,7 @@ pub(crate) fn map_ureq_error(e: ureq::Error) -> FetchError {
         Error::Timeout(_) => kinds::FETCH_TIMEOUT,
         Error::TooManyRedirects | Error::RedirectFailed => kinds::FETCH_REDIRECT,
         Error::BadUri(_) | Error::RequireHttpsOnly(_) => kinds::FETCH_URL,
-        Error::Tls(_) | Error::Rustls(_) => kinds::FETCH_TLS,
+        Error::Tls(_) => kinds::FETCH_TLS,
         Error::Io(_)
         | Error::BodyExceedsLimit(_)
         | Error::BodyStalled

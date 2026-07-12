@@ -2,7 +2,7 @@
 
 Take an impression of a web page — structure, text, accessibility tree — without rendering or executing it. Like a gravestone rubbing for the web.
 
-`frot` is the curl that renders: a stateless, single-binary CLI (~4.7 MB, no runtime deps — the embedded JS engine is compiled in unconditionally) that sits in the gap between `curl` and a headless browser. You give it a URL, a capability recipe, and one output view; it gives you back a machine-parseable JSON envelope. Built for harnesses that need to look at pages programmatically without standing up a browser pool.
+`frot` is the curl that renders: a stateless, single-binary CLI (~7 MB, no runtime deps — the embedded JS engine and a browser-matching TLS stack are compiled in unconditionally) that sits in the gap between `curl` and a headless browser. You give it a URL, a capability recipe, and one output view; it gives you back a machine-parseable JSON envelope. Built for harnesses that need to look at pages programmatically without standing up a browser pool.
 
 ## Usage
 
@@ -50,7 +50,7 @@ The `--css` engine is a deliberately small, dependency-free subset (type/`.class
 
 ## Where it stands
 
-Phases 0–4 (plus the Phase 2.5 impression-fidelity pass) have landed and are verified against real pages: fetch (HTTP/1.1+2, redirects, gzip/brotli, charset detection, browser-ish UA) + HTML5 parse; all seven views, `bboxes` included; the `needs-X` taxonomy with the SPA-shell `needs-js` heuristic; the `--css` capability; Phase 3's on-demand layout; and Phase 4's bounded `--js`. Sub-second on real pages; the binary is ~4.7 MB (the JS engine is compiled in unconditionally).
+Phases 0–4 (plus the Phase 2.5 impression-fidelity pass) have landed and are verified against real pages: fetch (HTTP/1.1, redirects, gzip/brotli, charset detection, Firefox UA + a matching Firefox TLS ClientHello so fingerprinting WAFs don't 403) + HTML5 parse; all seven views, `bboxes` included; the `needs-X` taxonomy with the SPA-shell `needs-js` heuristic; the `--css` capability; Phase 3's on-demand layout; and Phase 4's bounded `--js`. Sub-second on real pages; the binary is ~7 MB (the JS engine and TLS stack are compiled in unconditionally).
 
 Phase 2.5 (impression fidelity — the honest-capability-signals principle catching up with the shipped surface) closed the gaps the 2026-07 arch pass found:
 

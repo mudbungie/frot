@@ -51,10 +51,10 @@ frot is built in phases. Each phase delivers a usable tool; later phases extend 
 
 ### Phase 0 — Fetch + parse + envelope — **landed**
 
-- HTTP/1.1 + HTTP/2 client with sane defaults (redirects, content-encoding, character set detection).
+- HTTP/1.1 client with sane defaults (redirects, content-encoding, character set detection). HTTP/2 is not spoken (the `ureq` transport is HTTP/1.1-only); a real Firefox negotiates h2, so the ALPN reads `http/1.1`, a residual soft tell that does not gate the current WAF targets.
 - HTML5 parsing (via `html5ever`).
 - CLI surface and the machine-first output envelope. Outputs at this phase: `dom`, `text` (raw, source-order, no visibility filter), `links`, `forms`, `meta`.
-- Realistic browser-ish User-Agent and TLS defaults; not anti-bot-grade, but not obviously a bot either.
+- Browser-identity masquerade: a Firefox User-Agent, and a **Firefox TLS ClientHello** (cipher/extension order, GREASE, key-share, padding via a craftable rustls fork behind `src/fetch/firefox_tls.rs`) plus Title-Case on-wire header names. This clears fingerprinting WAFs (JA3/JA4 + header-casing) that 403 a stock rustls handshake. Matching a browser's fingerprint is in scope; CAPTCHA / anti-bot JS-challenge solving is the refused boundary (see below).
 - The envelope shape, the `needs-X` signal shape, and the error taxonomy are load-bearing and do not change in later phases.
 
 ### Phase 1 — Semantic impression — **landed**
@@ -101,7 +101,7 @@ If Phase 4 holds, push toward more Web APIs. If it doesn't, accept the ceiling a
 ## What this is not
 
 - Not a browser. Not a competitor to Playwright or Browserless.
-- Not anti-bot infrastructure. If a site is gated by Cloudflare, frot will fail honestly.
+- Not anti-bot infrastructure. frot *reps a browser* — a Firefox UA, navigator surface, TLS ClientHello and header casing — because a harness looking at the web should look like a browser, not a bot. That is the whole of the masquerade. It does **not** solve CAPTCHAs or execute anti-bot JS challenges; a site gated behind those (a Cloudflare interstitial, a behavioral challenge) is failed honestly (the challenge page's status is surfaced, never swallowed). Fingerprint-matching is in bounds; challenge-beating is the refused line.
 - Not a screenshot tool. Pixels are not the output.
 - Not a business. This is a harness component, shared for portability.
 
