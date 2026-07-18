@@ -300,6 +300,11 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   base resolution rides `Url::join`. `URLSearchParams` is built in JS over the
   parsed `search` string; editing a URL's `searchParams` re-serializes back into
   its `search`/`href` (string surgery on the authoritative href, not a re-parse).
+- Viewport size is a fixed **1280×720** (`layout.rs`
+  `VIEWPORT_WIDTH`/`VIEWPORT_HEIGHT`; a constant, not a flag). `window.inner*`
+  and `window.outer*` report it (inner == outer — no browser chrome); pages that
+  gate desktop chrome on `window.innerWidth` (mdbook does) get the honest width
+  instead of `undefined`/NaN → the mobile branch.
 - `matchMedia`: evaluated against the fixed 1280px viewport for width queries;
   everything else matches never. `getContext()` on canvas returns `null`
   (spec-legal). `Worker`, `WebAssembly`, `serviceWorker`: absent.
@@ -318,6 +323,11 @@ the prelude shapes into every `DOMRect`/`offset*`) and a computed-style read
 - `getComputedStyle` exposes only what the cascade actually computes
   (`display`, `visibility`, the flex reorder keys); unknown properties return
   `""`. No pretense of a full computed-style set.
+- `clientWidth`/`clientHeight` equal `offsetWidth`/`offsetHeight`: frot's model
+  is borderless and scrollbar-less (`layout.md` §6 parses no border/padding), so
+  content box == border box. The one exception is the `documentElement`, which
+  reports the **viewport** (1280×720) as browsers do — the primary way a page
+  reads viewport size.
 - Geometry answers inherit the layout approximation contract wholesale
   (`docs/design/layout.md` §6): structural estimates, not pixel truth.
 

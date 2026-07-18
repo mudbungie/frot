@@ -9,7 +9,7 @@ use rquickjs::{Ctx, Function, Object};
 use url::Url;
 
 use super::{Denials, Env};
-use crate::layout::VIEWPORT_WIDTH;
+use crate::layout::{VIEWPORT_HEIGHT, VIEWPORT_WIDTH};
 
 /// Bind one named host function, keeping the `?` error paths on the call line so
 /// line coverage sees the executed (never-erroring) `set` — the same shape the
@@ -20,10 +20,10 @@ macro_rules! bind {
     };
 }
 
-/// Register `__frot_env_ua`, `__frot_location`, `__frot_viewport_width`, and
-/// `__frot_denied` on the realm. Consumes `env`, moving its facts into the
-/// closures; `denials` is the shared counter the prelude bumps on a refused
-/// navigation.
+/// Register `__frot_env_ua`, `__frot_location`, `__frot_url_parse`,
+/// `__frot_viewport_width`, `__frot_viewport_height`, and `__frot_denied` on the
+/// realm. Consumes `env`, moving its facts into the closures; `denials` is the
+/// shared counter the prelude bumps on a refused navigation.
 pub fn install<'js>(
     ctx: &Ctx<'js>,
     g: &Object<'js>,
@@ -38,6 +38,7 @@ pub fn install<'js>(
         url_parse(&ctx, &spec, base.as_deref())
     });
     bind!(ctx, g, "__frot_viewport_width", || VIEWPORT_WIDTH);
+    bind!(ctx, g, "__frot_viewport_height", || VIEWPORT_HEIGHT);
     let d = denials.clone();
     bind!(ctx, g, "__frot_denied", move || *d.borrow_mut() += 1);
     Ok(())

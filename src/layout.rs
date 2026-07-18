@@ -31,6 +31,13 @@ mod inline;
 /// `--viewport` flag (design §4, OQ-2).
 pub const VIEWPORT_WIDTH: i32 = 1280;
 
+/// Viewport height in px — the fixed 1280×720 viewport, paired with
+/// [`VIEWPORT_WIDTH`]; a constant, not a flag (design §4, OQ-2). Block flow does
+/// not consume it (height flows from content), but the JS `env.js` shims report
+/// it as `innerHeight`/`outerHeight` and `documentElement.clientHeight`
+/// (js.md §7/§8), so pages that read the viewport height get an honest fact.
+pub const VIEWPORT_HEIGHT: i32 = 720;
+
 /// One line box's height in px: font-size 16px × line-height 1.25 (design §6).
 /// The single line-box unit; the [`inline`] flow pass stacks lines by it and
 /// every inline fragment is this tall. A structural estimate, not pixel truth.

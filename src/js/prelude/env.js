@@ -199,8 +199,34 @@
     forward: function () {},
   };
 
-  // --- matchMedia: width queries vs the fixed viewport; else never (§7) -----
+  // --- viewport & width facts (§7/§8) ---------------------------------------
+  // A fixed 1280×720 viewport (layout.rs VIEWPORT_WIDTH/VIEWPORT_HEIGHT). Pages
+  // gate desktop chrome on width — mdbook reads window.innerWidth, and a NaN
+  // compare takes the mobile branch and strips its sidebar — so the widths frot
+  // already knows are exposed honestly. window inner == outer (no browser
+  // chrome). Element clientWidth/clientHeight == offsetWidth/offsetHeight
+  // (borderless, scrollbar-less model, §8). The documentElement reports the
+  // viewport itself, as browsers do — the primary way a page reads viewport size.
   var VW = g.__frot_viewport_width();
+  var VH = g.__frot_viewport_height();
+  g.innerWidth = g.outerWidth = VW;
+  g.innerHeight = g.outerHeight = VH;
+  if (g.Node) {
+    Object.defineProperty(g.Node.prototype, 'clientWidth', {
+      get: function () {
+        var de = g.document.documentElement;
+        return de && this._id === de._id ? VW : this.offsetWidth;
+      },
+    });
+    Object.defineProperty(g.Node.prototype, 'clientHeight', {
+      get: function () {
+        var de = g.document.documentElement;
+        return de && this._id === de._id ? VH : this.offsetHeight;
+      },
+    });
+  }
+
+  // --- matchMedia: width queries vs the fixed viewport; else never (§7) -----
   function evalWidth(query) {
     var re = /\((min-width|max-width|width)\s*:\s*(\d+)px\)/g;
     var m,

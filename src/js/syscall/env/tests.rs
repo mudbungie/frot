@@ -66,6 +66,27 @@ fn viewport_width_is_the_layout_constant() {
 }
 
 #[test]
+fn viewport_height_syscall_and_the_width_surface() {
+    let s = sess("https://example.com/", "ua/1");
+    // The new height syscall mirrors the width one (js.md §7/§8).
+    let vh = crate::layout::VIEWPORT_HEIGHT.to_string();
+    assert_eq!(s.eval("String(__frot_viewport_height())").unwrap(), vh);
+    // window inner == outer report the fixed viewport.
+    assert_eq!(s.eval("window.innerWidth").unwrap(), "1280");
+    assert_eq!(s.eval("window.outerWidth").unwrap(), "1280");
+    assert_eq!(s.eval("window.innerHeight").unwrap(), "720");
+    assert_eq!(s.eval("window.outerHeight").unwrap(), "720");
+    // documentElement is special-cased to the viewport (the root reports it).
+    assert_eq!(s.eval("document.documentElement.clientWidth").unwrap(), "1280");
+    assert_eq!(s.eval("document.documentElement.clientHeight").unwrap(), "720");
+    // A normal element's clientWidth/clientHeight mirror offsetWidth/offsetHeight
+    // (borderless, scrollbar-less model); body is a full-width block.
+    assert_eq!(s.eval("document.body.clientWidth === document.body.offsetWidth").unwrap(), "true");
+    assert_eq!(s.eval("document.body.clientHeight === document.body.offsetHeight").unwrap(), "true");
+    assert_eq!(s.eval("document.body.clientWidth").unwrap(), "1280");
+}
+
+#[test]
 fn url_parse_syscall_decomposes_resolves_and_flags_validity() {
     let s = sess("https://example.com/", "ua/1");
     // No base is passed as `undefined` (the prelude's `new URL(x)` path); the
