@@ -9,6 +9,7 @@ use std::time::Duration;
 use super::{run, run_with, Env, Report, Session, StyleSource};
 use crate::dom::Document;
 
+mod envgold;
 mod evloop;
 mod facade;
 mod net;

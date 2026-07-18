@@ -1,0 +1,147 @@
+<!-- env-contract golden (js.md §7 + §4.4/§5 lifecycle) — the EXECUTABLE contract
+     for frot's JS environment surface. The probe self-checks every fact in JS and
+     records any regression into `data-fail` (empty array == all pass); the Rust
+     gate (src/js/tests/envgold.rs) only reads that array plus the report facts it
+     alone can see (scripts/errors/settled). THIS FILE is the one place to edit
+     when a future ball adds or removes an API. Page scripts run strict (a bare
+     undeclared assignment throws), so every global is declared via `var`. -->
+<html>
+<body>
+<div id="probe">probe</div>
+<script>
+  // Accumulated failures — a descriptive string per regressed fact.
+  var FAILS = [];
+  // Ordered lifecycle markers, appended as each phase runs.
+  var ORDER = [];
+  // readyState / performance.now snapshots, filled across the run's phases.
+  var RS = {};
+
+  function check(name, cond) {
+    if (!cond) FAILS.push(name);
+  }
+  function eq(name, actual, expected) {
+    if (actual !== expected) FAILS.push(name + ': got ' + JSON.stringify(actual) + ' want ' + JSON.stringify(expected));
+  }
+
+  // --- Present: language + host globals the shims and pages rely on (§7) ------
+  eq('present:queueMicrotask', typeof queueMicrotask, 'function');
+  eq('present:performance.now', typeof performance.now, 'function');
+  eq('present:Promise', typeof Promise, 'function');
+  eq('present:WeakMap', typeof WeakMap, 'function');
+  eq('present:Proxy', typeof Proxy, 'function');
+  eq('present:Symbol', typeof Symbol, 'function');
+  eq('present:reportError', typeof reportError, 'function');
+  eq('present:URL', typeof URL, 'function');
+  eq('present:URLSearchParams', typeof URLSearchParams, 'function');
+
+  // --- matchMedia: width queries vs the fixed 1280px viewport (§7) -----------
+  // px and em/rem, the latter converting at 16px/unit (80em == 1280px).
+  eq('mm:min1024px', matchMedia('(min-width: 1024px)').matches, true);
+  eq('mm:max640px', matchMedia('(max-width: 640px)').matches, false);
+  eq('mm:min80em', matchMedia('(min-width: 80em)').matches, true);
+  eq('mm:min81em', matchMedia('(min-width: 81em)').matches, false);
+  eq('mm:min40rem', matchMedia('(min-width: 40rem)').matches, true);
+  eq('mm:featureless', matchMedia('print').matches, false);
+
+  // --- Viewport + geometry widths (§7/§8) ------------------------------------
+  eq('win:innerWidth', innerWidth, 1280);
+  eq('win:innerHeight', innerHeight, 720);
+  eq('win:outerWidth', outerWidth, 1280);
+  var body = document.body;
+  eq('geo:offsetWidth', body.offsetWidth, 1280);
+  eq('geo:gbcr.width', body.getBoundingClientRect().width, 1280);
+  // borderless/scrollbar-less model: content box == border box (§8).
+  eq('geo:clientWidth==offsetWidth', body.clientWidth, body.offsetWidth);
+  eq('geo:clientWidth', body.clientWidth, 1280);
+  // documentElement reports the viewport itself (§8).
+  eq('geo:documentElement.clientWidth', document.documentElement.clientWidth, 1280);
+  eq('geo:documentElement.clientHeight', document.documentElement.clientHeight, 720);
+
+  // --- history: in-memory, no navigation; does NOT mutate location (§7) ------
+  eq('history:state.init', history.state, null);
+  eq('history:length.init', history.length, 1);
+  eq('history:scrollRestoration', history.scrollRestoration, 'auto');
+  var pathBefore = location.pathname;
+  history.pushState({ p: 1 }, '', '/pushed');
+  eq('history:state.afterPush', history.state.p, 1);
+  eq('history:length.afterPush', history.length, 2);
+  history.replaceState({ p: 2 }, '', '/replaced');
+  eq('history:state.afterReplace', history.state.p, 2);
+  eq('history:length.afterReplace', history.length, 2);
+  // location is a static fact — pushState left the honest path untouched (§7).
+  eq('history:location.unchanged', location.pathname, pathBefore);
+
+  // --- URL / URLSearchParams (§7) --------------------------------------------
+  eq('url:searchParams.get', new URL('a?x=1', 'https://e.com/d/').searchParams.get('x'), '1');
+  var invalid;
+  try {
+    new URL('not a url');
+    invalid = 'no throw';
+  } catch (e) {
+    invalid = e.constructor.name;
+  }
+  eq('url:invalid.throws', invalid, 'TypeError');
+
+  // --- Storage + cookie: real semantics, born empty (§7) ---------------------
+  eq('storage:local.empty', localStorage.length, 0);
+  eq('storage:session.empty', sessionStorage.length, 0);
+  eq('storage:cookie.empty', document.cookie, '');
+
+  // --- self/window/top/parent all point at the single global (§1 spike) ------
+  check('identity:window==self==top==parent==globalThis',
+    window === self && self === top && top === parent && window === globalThis);
+
+  // --- Absent by design: `typeof` is 'undefined' so detection falls through --
+  ['IntersectionObserver', 'MutationObserver', 'ResizeObserver', 'customElements',
+    'MessageChannel', 'TextEncoder', 'indexedDB'].forEach(function (n) {
+    eq('absent:' + n, typeof globalThis[n], 'undefined');
+  });
+
+  // --- Lifecycle capture (§4.4/§5): readyState transitions + phase order -----
+  RS.inline = document.readyState;      // 'loading' while the script queue runs
+  RS.perf0 = performance.now();
+  ORDER.push('inline');
+  document.addEventListener('DOMContentLoaded', function () {
+    RS.dcl = document.readyState;       // 'interactive' immediately before DCL
+    ORDER.push('dcl');
+  });
+  window.addEventListener('load', function () {
+    RS.load = document.readyState;      // 'complete' before load
+    RS.perfLoad = performance.now();
+    ORDER.push('load');
+    // A timer scheduled after load fires under the virtual clock (§5): the clock
+    // jumps to its due time, so performance.now advances by the delay.
+    setTimeout(function () {
+      RS.postload = document.readyState;
+      RS.perfTimer = performance.now();
+      ORDER.push('timer');
+      // Self-check the lifecycle now that every phase has run.
+      eq('life:readyState.inline', RS.inline, 'loading');
+      eq('life:readyState.defer', RS.defer, 'loading');
+      eq('life:readyState.dcl', RS.dcl, 'interactive');
+      eq('life:readyState.load', RS.load, 'complete');
+      eq('life:readyState.postload', RS.postload, 'complete');
+      // scripts (incl. defer) before DCL, DCL before load, timer after load.
+      eq('life:order', ORDER.join(','), 'inline,defer,dcl,load,timer');
+      // Virtual clock advanced by the 5 ms timer delay.
+      check('life:virtualClockAdvanced', RS.perfTimer - RS.perfLoad >= 5);
+      // The one place the whole run's regressions surface, written last.
+      document.documentElement.setAttribute('data-fail', JSON.stringify(FAILS));
+      document.documentElement.setAttribute('data-done', '1');
+    }, 5);
+  });
+
+  // reportError routes an unhandled window 'error' into js.errors (§10). Called
+  // once, deliberately — the Rust gate asserts the run's errors count == 1, which
+  // pins both the channel and that nothing else in the probe errored.
+  reportError(new Error('frot-env-probe'));
+</script>
+<!-- A `defer` inline script still runs in the script queue, before DCL (§4.2):
+     one source-order rule covers classic/defer/async. It shares the globals the
+     first script declared (cross-script `var` visibility). -->
+<script defer>
+  RS.defer = document.readyState;       // still 'loading' — ran before DCL
+  ORDER.push('defer');
+</script>
+</body>
+</html>
