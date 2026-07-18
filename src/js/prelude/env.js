@@ -176,6 +176,29 @@
     },
   });
 
+  // --- history: in-memory, no navigation (§7) -------------------------------
+  // Routers read `history.state` on first render; absent, they throw. pushState/
+  // replaceState set `.state` (the only fact read back); pushState also bumps
+  // `length`. They do NOT mutate `location`: it stays the honest fetched URL
+  // (§7, "location is a static fact") — frot takes ONE impression, and SPA
+  // routers pick their initial route from that location. go/back/forward are
+  // no-ops (there is nowhere to go). Born fresh, discarded at exit (§7).
+  g.history = {
+    state: null,
+    length: 1,
+    scrollRestoration: 'auto',
+    pushState: function (state, title, url) {
+      this.state = state;
+      this.length += 1;
+    },
+    replaceState: function (state, title, url) {
+      this.state = state;
+    },
+    go: function () {},
+    back: function () {},
+    forward: function () {},
+  };
+
   // --- matchMedia: width queries vs the fixed viewport; else never (§7) -----
   var VW = g.__frot_viewport_width();
   function evalWidth(query) {

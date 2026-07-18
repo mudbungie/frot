@@ -81,6 +81,26 @@ fn refused_navigations_are_counted_no_ops() {
 }
 
 #[test]
+fn history_is_in_memory_and_never_navigates() {
+    let s = sess("https://example.com/", "ua/1");
+    // Born fresh; a router probing `history.state` reads null, never throws.
+    assert_eq!(s.eval("String(history.state)").unwrap(), "null");
+    assert_eq!(s.eval("history.length").unwrap(), "1");
+    assert_eq!(s.eval("history.scrollRestoration").unwrap(), "auto");
+    // pushState sets `.state` and bumps length; replaceState only replaces.
+    s.eval("history.pushState({page: 1}, '', '/a')").unwrap();
+    assert_eq!(s.eval("history.state.page").unwrap(), "1");
+    assert_eq!(s.eval("history.length").unwrap(), "2");
+    s.eval("history.replaceState({page: 2}, '', '/b')").unwrap();
+    assert_eq!(s.eval("history.state.page").unwrap(), "2");
+    assert_eq!(s.eval("history.length").unwrap(), "2");
+    // Navigation is refused: location stays the honest fetched URL, no denial.
+    s.eval("history.go(-1); history.back(); history.forward();").unwrap();
+    assert_eq!(s.eval("location.href").unwrap(), "https://example.com/");
+    assert_eq!(s.denials(), 0);
+}
+
+#[test]
 fn storage_and_cookie_are_in_memory_and_born_empty() {
     let s = sess("https://example.com/", "ua/1");
     assert_eq!(s.eval("localStorage.length").unwrap(), "0");

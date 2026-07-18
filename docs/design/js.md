@@ -279,6 +279,15 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
 - `navigator` / `location`: static facts frot already has (the UA string it
   sends, the final URL, `webdriver: false` — truthful: no remote control). `location` *assignment* is navigation — a counted
   no-op; frot takes an impression of one document, it does not browse.
+- `history`: in-memory, born fresh (`state: null`, `length: 1`,
+  `scrollRestoration: 'auto'`), discarded at exit. SPA routers read
+  `history.state` on first render; absent, they throw. `pushState`/
+  `replaceState` set `.state` (the only fact read back) — `pushState` also
+  bumps `length`; `go`/`back`/`forward` are no-ops. They do **not** mutate
+  `location`: it stays the honest fetched URL (location is a static fact),
+  because frot takes one impression and routers pick their initial route from
+  that location. A page that genuinely needs `location` to reflect `pushState`
+  is a separate concern.
 - `matchMedia`: evaluated against the fixed 1280px viewport for width queries;
   everything else matches never. `getContext()` on canvas returns `null`
   (spec-legal). `Worker`, `WebAssembly`, `serviceWorker`: absent.
