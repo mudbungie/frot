@@ -115,16 +115,38 @@ impl HttpInfo {
     }
 }
 
+/// One surfaced JS error message (`docs/design/js.md` §10): `kind` is the error
+/// class (`throw` / `report` / `subfetch`), `text` its message. Present only in
+/// the `js.messages` array, itself emitted only under `--js-errors`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JsMessage {
+    pub kind: String,
+    pub text: String,
+}
+
+impl JsMessage {
+    pub fn new(kind: impl Into<String>, text: impl Into<String>) -> Self {
+        Self {
+            kind: kind.into(),
+            text: text.into(),
+        }
+    }
+}
+
 /// The `--js` execution signal (`docs/design/js.md` §10). Additive and emitted
 /// only when `--js` ran: `scripts` counts scripts executed, `errors` counts
 /// throws / unhandled rejections / refused fetches, `settled` is whether the
-/// event loop reached quiescence within the wall-clock budget. This is the
-/// honesty channel for *partial* execution outcome detection can't see.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// event loop reached quiescence within the wall-clock budget. `messages` — the
+/// bounded per-error detail behind `errors` — is present only under `--js-errors`
+/// (`errors` is always the authoritative count). This is the honesty channel for
+/// *partial* execution outcome detection can't see.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JsInfo {
     pub scripts: u32,
     pub errors: u32,
     pub settled: bool,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub messages: Option<Vec<JsMessage>>,
 }
 
 impl JsInfo {
@@ -133,7 +155,15 @@ impl JsInfo {
             scripts,
             errors,
             settled,
+            messages: None,
         }
+    }
+
+    /// Attach the bounded §10 message detail (`--js-errors`). Additive; without
+    /// this the `messages` field is absent, leaving the count-only shape intact.
+    pub fn with_messages(mut self, messages: Vec<JsMessage>) -> Self {
+        self.messages = Some(messages);
+        self
     }
 }
 

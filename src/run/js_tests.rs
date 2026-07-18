@@ -172,3 +172,66 @@ fn a_failed_external_src_is_skipped_and_counted() {
     assert_eq!(v["out"], "static");
     assert_eq!(v["js"], serde_json::json!({"scripts": 0, "errors": 1, "settled": true}));
 }
+
+// A page whose first inline script throws and whose second reports a caught
+// error via reportError (bl-249c's React-style dead-app channel): two counted
+// errors, two captured messages when `--js-errors` asks for them.
+const THROW_AND_REPORT: &str = "<html><body>\
+    <script>throw new Error('boom-throw');</script>\
+    <script>reportError(new Error('boom-report'));</script>\
+    </body></html>";
+
+#[test]
+fn js_errors_surfaces_throw_and_report_messages_in_order() {
+    let (_s, _m, url) = serve(THROW_AND_REPORT);
+    let (code, out, _) = run_capture(&[&url, "--js", "--js-errors", "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    // The count is unchanged (a throw + a reported error); the messages array is
+    // the new detail, in occurrence order: the throw first, then the report.
+    assert_eq!(v["js"]["errors"], 2);
+    let msgs = v["js"]["messages"].as_array().expect("messages array under --js-errors");
+    assert_eq!(msgs.len(), 2);
+    assert_eq!(msgs[0]["kind"], "throw");
+    assert!(msgs[0]["text"].as_str().unwrap().contains("boom-throw"), "got {:?}", msgs[0]);
+    // reportError is the whole point (bl-249c): its message reaches js.messages.
+    assert_eq!(msgs[1]["kind"], "report");
+    assert_eq!(msgs[1]["text"], "boom-report");
+}
+
+#[test]
+fn without_the_flag_the_js_block_stays_count_only() {
+    // Additive schema: the same failing page emits no `messages` key without
+    // `--js-errors`, and the `errors` count is identical either way.
+    let (_s, _m, url) = serve(THROW_AND_REPORT);
+    let (code, out, _) = run_capture(&[&url, "--js", "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    assert_eq!(v["js"], serde_json::json!({"scripts": 2, "errors": 2, "settled": true}));
+}
+
+#[test]
+fn js_errors_names_the_failed_external_bundle() {
+    // A dead external `<script src>` (unmocked → non-2xx) is captured by its spec
+    // under `--js-errors`, so the operator learns *which* bundle went dark.
+    let (_s, _m, url) = serve(SHELL);
+    let (code, out, _) = run_capture(&[&url, "--js", "--js-errors", "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    assert_eq!(v["js"]["errors"], 1);
+    let msgs = v["js"]["messages"].as_array().unwrap();
+    assert_eq!(msgs.len(), 1);
+    assert_eq!(msgs[0]["kind"], "subfetch");
+    assert!(msgs[0]["text"].as_str().unwrap().contains("app.js"), "got {:?}", msgs[0]);
+}
+
+#[test]
+fn js_errors_without_js_is_a_usage_error() {
+    // Gating: the flag requires --js; bare it is exit 2 with no envelope, the
+    // message on stderr (mirrors the -H/file:// gating).
+    let (_s, _m, url) = serve("<html></html>");
+    let (code, out, err) = run_capture(&[&url, "--js-errors", "--out", "text"]);
+    assert_eq!(code, 2);
+    assert!(out.is_empty(), "no envelope on a usage error: {out:?}");
+    assert!(err.contains("--js-errors requires --js"), "got {err:?}");
+}

@@ -21,7 +21,10 @@ use crate::css::query_all;
 use crate::dom::{Document, NodeKind};
 
 mod env;
+mod messages;
 mod net;
+
+pub use messages::{push as push_message, Message, Messages};
 
 /// The arena, shared between the host and the syscall closures for the JS
 /// phase's mutable window (js.md §2). Interior mutability, not a mirror.
@@ -51,14 +54,16 @@ pub type Denials = Rc<RefCell<u32>>;
 /// (refused navigations).
 pub type ReportedErrors = Rc<RefCell<u32>>;
 
-/// The prelude's counted-failure sinks (js.md §10), shared with the host and
-/// folded into `js.errors` after the run: refused navigations ([`Denials`], §7/
-/// §11) and reported unhandled errors ([`ReportedErrors`], §10). Bundled so the
-/// [`install`] surface stays narrow.
+/// The prelude's §10 reporting sinks, shared with the host: the two counts
+/// folded into `js.errors` after the run — refused navigations ([`Denials`], §7/
+/// §11) and reported unhandled errors ([`ReportedErrors`], §10) — plus the
+/// bounded [`Messages`] detail behind them (surfaced only under `--js-errors`).
+/// Bundled so the [`install`] surface stays narrow.
 #[derive(Clone)]
 pub struct Counters {
     pub denials: Denials,
     pub reported: ReportedErrors,
+    pub messages: Messages,
 }
 
 /// One captured `console` call (level + rendered message), in emission order.
@@ -91,7 +96,7 @@ pub fn install(
             mutations(&ctx, &g, &doc)?;
             query_and_console(&ctx, &g, &doc, &console)?;
             geometry(&ctx, &g, &doc, &geo)?;
-            reported_errors(&ctx, &g, &counters.reported)?;
+            reported_errors(&ctx, &g, &counters.reported, &counters.messages)?;
             env::install(&ctx, &g, env, &counters.denials)?;
             net::install(&ctx, &g, &subfetch)?;
             Ok(())
@@ -231,19 +236,25 @@ fn query_and_console<'js>(
     Ok(())
 }
 
-/// The §10 reported-error syscall: `__frot_report_error` bumps the shared
+/// The §10 reported-error syscall: `__frot_report_error(text)` bumps the shared
 /// counter for each unhandled error the prelude surfaces (`reportError` /
-/// `window.onerror` / a dispatched window `'error'` event). Distinct from the
-/// §7 navigation [`Denials`] — this is the caught-and-reported app-failure
-/// channel React et al. route through instead of throwing.
+/// `window.onerror` / a dispatched window `'error'` event) and captures its
+/// message into the bounded [`Messages`] sink. Distinct from the §7 navigation
+/// [`Denials`] — this is the caught-and-reported app-failure channel React et al.
+/// route through instead of throwing.
 fn reported_errors<'js>(
     ctx: &Ctx<'js>,
     g: &rquickjs::Object<'js>,
     reported: &ReportedErrors,
+    messages: &Messages,
 ) -> rquickjs::Result<()> {
     bind!(ctx, g, "__frot_report_error", {
         let r = reported.clone();
-        move || *r.borrow_mut() += 1
+        let m = messages.clone();
+        move |text: String| {
+            *r.borrow_mut() += 1;
+            messages::push(&m, "report", &text);
+        }
     });
     Ok(())
 }

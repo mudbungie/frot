@@ -11,6 +11,9 @@ pub struct Args {
     /// Run page scripts in the embedded engine before the rest of the pipeline
     /// consumes the (now post-JS) document (`docs/design/js.md` §9).
     pub js: bool,
+    /// Surface the bounded `js.messages` error detail (`docs/design/js.md` §10).
+    /// Requires `--js`; the count `js.errors` is emitted with or without it.
+    pub js_errors: bool,
     pub out: View,
     /// Request headers, in argv order. Sent with the page request and with
     /// same-origin `--css` subfetches; see `fetch`.
@@ -28,6 +31,7 @@ pub enum CliError {
     DuplicateFlag(String),
     BadHeader(String),
     HeadersWithFile,
+    JsErrorsWithoutJs,
     NoUrl,
     NoOut,
     ExtraPositional(String),
@@ -39,7 +43,7 @@ impl CliError {
     }
 }
 
-pub const USAGE: &str = "usage: frot <url> [-H \"Name: value\"] [--css] [--js] --out <dom|text|ax|links|forms|bboxes|meta>";
+pub const USAGE: &str = "usage: frot <url> [-H \"Name: value\"] [--css] [--js] [--js-errors] --out <dom|text|ax|links|forms|bboxes|meta>";
 
 fn view_list() -> String {
     View::ALL
@@ -66,6 +70,9 @@ impl std::fmt::Display for CliError {
             }
             CliError::HeadersWithFile => {
                 write!(f, "-H cannot apply to a file:// URL\n{}", USAGE)
+            }
+            CliError::JsErrorsWithoutJs => {
+                write!(f, "--js-errors requires --js\n{}", USAGE)
             }
             CliError::NoUrl => write!(f, "missing <url>\n{}", USAGE),
             CliError::NoOut => write!(f, "missing --out <view>\n{}", USAGE),
@@ -95,6 +102,7 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
     let mut url: Option<String> = None;
     let mut css = false;
     let mut js = false;
+    let mut js_errors = false;
     let mut out: Option<View> = None;
     let mut headers: Vec<(String, String)> = Vec::new();
 
@@ -115,6 +123,12 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
                     return Err(CliError::DuplicateFlag("--js".into()));
                 }
                 js = true;
+            }
+            "--js-errors" => {
+                if js_errors {
+                    return Err(CliError::DuplicateFlag("--js-errors".into()));
+                }
+                js_errors = true;
             }
             "-H" | "--header" => {
                 i += 1;
@@ -157,13 +171,19 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
 
     let url = url.ok_or(CliError::NoUrl)?;
     let out = out.ok_or(CliError::NoOut)?;
+    // `--js-errors` only shapes the `js` block, which exists only under `--js`;
+    // an accepted flag must do something — reject the bare combination (mirrors
+    // the -H/file:// gating below).
+    if js_errors && !js {
+        return Err(CliError::JsErrorsWithoutJs);
+    }
     // Under the same-origin rule headers could never be sent from a file://
     // page, and an accepted flag must do something — reject the combination.
     let is_file = url.get(..5).is_some_and(|p| p.eq_ignore_ascii_case("file:"));
     if is_file && !headers.is_empty() {
         return Err(CliError::HeadersWithFile);
     }
-    Ok(Args { url, css, js, out, headers })
+    Ok(Args { url, css, js, js_errors, out, headers })
 }
 
 #[cfg(test)]

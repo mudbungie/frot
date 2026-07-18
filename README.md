@@ -7,7 +7,7 @@ Take an impression of a web page — structure, text, accessibility tree — wit
 ## Usage
 
 ```
-frot <url> [-H "Name: value"] [--css] [--js] --out <dom|text|ax|links|forms|bboxes|meta>
+frot <url> [-H "Name: value"] [--css] [--js] [--js-errors] --out <dom|text|ax|links|forms|bboxes|meta>
 ```
 
 ```console
@@ -42,6 +42,7 @@ The capability recipe is orthogonal to the view: it picks what to do to the docu
 
 - `--css` — parse `<style>`, inline `style=`, and external `<link rel=stylesheet>` CSS; `display:none` and inherited `visibility` filter the `text` and `ax` views, and `::before`/`::after` generated content is folded into them
 - `--js` — execute the page's scripts in an embedded engine (`rquickjs`/quickjs-ng) against the *real* DOM, then let the rest of the pipeline consume the post-JS document. Execution is bounded: a virtual-clock event loop (timers/`requestAnimationFrame` self-terminate at a 10 s virtual horizon — no timers past load), a 1 s wall-clock budget covering script *and* network time, and a 64 MiB engine heap. Network reads (`fetch`/`XMLHttpRequest`) are GET-only and served once-then-frozen, under the `--css` same-origin header rules. No interaction (no synthetic clicks/input), no navigation, no persistence — see the non-goals below. **ES-module `import` resolution is built** (`bl-1b98`): a `type="module"` script — inline or external — evaluates as a real module; relative/absolute-URL `import` specifiers resolve and load through the same once-then-frozen subfetch cache, top-level `await` and dynamic `import()` settle inside the one budget. Bare specifiers (`import x from 'react'`) have no import map, so they are unresolvable exactly as in a browser without one — a counted error, the page still yielding the honest `needs-js` signal.
+- `--js-errors` — requires `--js`; adds a bounded `js.messages` array (`[{kind, text}]`, first 32) to the `js` block, the *what* behind the `js.errors` count. Three classes carry a message — `throw` (a script/module exception), `report` (`reportError`/`window.onerror`/a dispatched window `'error'` — the channel a caught React render crash uses, so a dead app's messages are visible not just counted), and `subfetch` (a failed external `<script src>`, named by its spec). Rejections, refused navigations, and timer/lifecycle throws stay count-only. Bare (without `--js`) it is a usage error. The `js.errors` count is emitted with or without the flag.
 - `-H "Name: value"` / `--header` — send a request header, repeatable, curl-style. A caller-supplied `User-Agent` replaces the default. Headers ride `--css` stylesheet subfetches only when the sheet shares the page's origin — credentials never leak cross-origin. No cookie jar, no sessions: headers are per-call input.
 
 When a page can't be rendered faithfully under the current recipe — e.g. an empty SPA shell with `--js` off — frot emits a `needs` envelope rather than a silently degraded `out`.
@@ -69,7 +70,7 @@ Phase 4 (bounded `--js`) added the one capability that mutates the DOM:
 
 - **Scripts run against the real arena, not a mirror.** JS holds opaque node handles; every read/write goes through a narrow (~20-op) host syscall table to the *same* `Document` every other view reads (single source of truth). `--js` runs first — before needs detection, CSS, layout, and the view — so the whole pipeline consumes the post-JS document exactly as it consumes a static one.
 - **Engine: `rquickjs` (quickjs-ng), vendored C via `cc`** — no cmake/bindgen/system dep; the static musl binary holds. It runs real framework bundles (React 17 UMD + `ReactDOM.render`, Vue 3 global build, jQuery 3.7.1 settle end-to-end with zero errors).
-- **Bounded and honest.** A budget-killed or partial run is reported: the envelope gains a `js` block, emitted only under `--js` — `"js":{"scripts":<executed>,"errors":<throws + unhandled rejections + refused fetches>,"settled":<loop reached quiescence within budget>}`. Post-JS the `needs-js` heuristic re-runs: a page still a shell after JS gets `needs-js` (now "needs more JS than the shim gives"). Script throws are normal web weather and do not flip `status`; only the needs detector and the transport/parse error taxonomy do.
+- **Bounded and honest.** A budget-killed or partial run is reported: the envelope gains a `js` block, emitted only under `--js` — `"js":{"scripts":<executed>,"errors":<throws + unhandled rejections + refused fetches>,"settled":<loop reached quiescence within budget>}`. `--js-errors` adds a bounded `messages` array of `{kind, text}` detail behind that count (opt-in, additive). Post-JS the `needs-js` heuristic re-runs: a page still a shell after JS gets `needs-js` (now "needs more JS than the shim gives"). Script throws are normal web weather and do not flip `status`; only the needs detector and the transport/parse error taxonomy do.
 
 Known limitations — honest signals, not silent failures:
 

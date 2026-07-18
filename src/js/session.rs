@@ -23,6 +23,9 @@ pub struct Session {
     engine: Engine,
     doc: syscall::SharedDoc,
     console: syscall::Console,
+    /// The §10 reporting sinks: the denial/reported counts folded into
+    /// `js.errors`, plus the bounded message detail behind them (written by the
+    /// `report` syscall and by [`Session::capture`]).
     counters: syscall::Counters,
     subfetch: subfetch::SharedSubfetch,
     /// The final page URL — the base an inline `type="module"` script's imports
@@ -50,6 +53,7 @@ impl Session {
         let counters = syscall::Counters {
             denials: Rc::new(RefCell::new(0)),
             reported: Rc::new(RefCell::new(0)),
+            messages: Rc::new(RefCell::new(Vec::new())),
         };
         // The §6 cache is anchored at the page URL and rides the caller's -H
         // headers same-origin; both live in `env`, so build it before install
@@ -148,6 +152,19 @@ impl Session {
     /// no-op sibling of [`denials`](Self::denials), folded into `js.errors`.
     pub fn reported_errors(&self) -> u32 {
         *self.counters.reported.borrow()
+    }
+
+    /// Capture one host-observed §10 error message (a script/module `throw` or a
+    /// failed `subfetch`) into the bounded sink — the `report` syscall captures
+    /// its own. Detail only; the `js.errors` count is folded separately.
+    pub(super) fn capture(&self, kind: &str, text: &str) {
+        syscall::push_message(&self.counters.messages, kind, text);
+    }
+
+    /// The §10 error messages captured so far (bounded to `MESSAGES_MAX`), read
+    /// once after the run to fold into the report.
+    pub(super) fn messages(&self) -> Vec<syscall::Message> {
+        self.counters.messages.borrow().clone()
     }
 
     /// Fetch `spec` through the once-then-frozen §6 cache (the external-`src`

@@ -25,11 +25,11 @@ use engine::EXEC_BUDGET_MS;
 pub use engine::EvalError;
 pub use geometry::StyleSource;
 pub use session::Session;
-pub use syscall::{Env, Log};
+pub use syscall::{Env, Log, Message};
 
 /// The `--js` execution outcome (`docs/design/js.md` §10), which the pipeline
 /// maps into the envelope `js` block.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Report {
     /// Scripts that executed (§10 `scripts`); a script that threw still ran.
     pub scripts: u32,
@@ -47,6 +47,12 @@ pub struct Report {
     /// quiescence within the single wall-clock budget (§5); a budget trip
     /// anywhere clears it.
     pub settled: bool,
+    /// The bounded §10 error-message detail behind `errors` (js.md §10): the
+    /// first `MESSAGES_MAX` captured `throw` / `report` / `subfetch` messages, in
+    /// occurrence order. Captured unconditionally; the pipeline surfaces it only
+    /// behind `--js-errors`. Rejections, refused navigations, and timer/
+    /// lifecycle-listener throws stay count-only.
+    pub messages: Vec<Message>,
 }
 
 /// Run a page's JS against `doc` under the bounded virtual-clock event loop
@@ -72,6 +78,7 @@ fn run_with(doc: Document, styles: StyleSource, env: Env, budget: Duration) -> (
         scripts: 0,
         errors: 0,
         settled: true,
+        messages: Vec::new(),
     };
     run_script_queue(&session, &mut report);
     if report.settled {
@@ -85,6 +92,9 @@ fn run_with(doc: Document, styles: StyleSource, env: Env, budget: Duration) -> (
     report.errors += session.denials();
     report.errors += session.rejections();
     report.errors += session.reported_errors();
+    // The bounded §10 message detail (throws/reports/subfetch failures) captured
+    // across the run; the `report` syscall wrote its own during the run.
+    report.messages = session.messages();
     (session.into_document(), report)
 }
 
@@ -125,29 +135,39 @@ fn run_external(session: &Session, module: bool, src: &str, report: &mut Report)
     match session.subfetch(src) {
         subfetch::Outcome::Got(f) if f.ok && module => run_module(session, &f.url, &f.body, report),
         subfetch::Outcome::Got(f) if f.ok => run_script(session, &f.body, report),
-        _ => report.errors += 1,
+        // A failed or non-2xx external `src` leaves nothing to run: counted (§4.2)
+        // and captured by its spec, so `--js-errors` names which bundle went dark.
+        _ => {
+            report.errors += 1;
+            session.capture("subfetch", src);
+        }
     }
 }
 
 /// Evaluate one classic script body under the run's deadline, tallying it (§5).
 fn run_script(session: &Session, body: &str, report: &mut Report) {
-    tally(report, session.run_task(body));
+    tally(session, report, session.run_task(body));
 }
 
 /// Evaluate one ES module (`name` = its URL, the import base, js.md §4.1) under
 /// the run's deadline, tallying it (§5). An unresolvable specifier or failed
 /// module fetch throws and is counted here; sibling scripts continue.
 fn run_module(session: &Session, name: &str, body: &str, report: &mut Report) {
-    tally(report, session.run_module(name, body));
+    tally(session, report, session.run_module(name, body));
 }
 
 /// Fold one script/module evaluation into the report per §5: it ran (`scripts`);
-/// a throw counts an error; a budget trip additionally clears `settled`.
-fn tally(report: &mut Report, result: Result<String, EvalError>) {
+/// a throw counts an error and its message is captured (§10 `throw`); a budget
+/// trip additionally clears `settled` and carries no message (the run stopped,
+/// not the script).
+fn tally(session: &Session, report: &mut Report, result: Result<String, EvalError>) {
     report.scripts += 1;
     match result {
         Ok(_) => {}
-        Err(EvalError::Exception(_)) => report.errors += 1,
+        Err(EvalError::Exception(msg)) => {
+            report.errors += 1;
+            session.capture("throw", &msg);
+        }
         Err(EvalError::Budget) => {
             report.errors += 1;
             report.settled = false;

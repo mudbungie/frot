@@ -227,7 +227,7 @@
       }
       if (handled === true) suppressed = true;
     }
-    if (!suppressed) g.__frot_report_error();
+    if (!suppressed) g.__frot_report_error(ev.message != null ? String(ev.message) : '');
     return !ev.defaultPrevented;
   }
   g.reportError = function (err) {

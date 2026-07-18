@@ -380,6 +380,37 @@ Two moves against today's `run.rs`:
   *partial*
   execution that outcome detection can't see — a budget-killed run that still
   rendered something must not look complete. Emitted only when `--js` is on.
+- **Opt-in error messages behind `--js-errors`** (bl-3356). `errors` answers
+  *how many*; `--js-errors` adds *what they said*, a bounded array on the `js`
+  block — present only with the flag, `errors` always present and unchanged:
+
+  ```json
+  "js": { "scripts": 14, "errors": 2, "settled": true,
+          "messages": [ { "kind": "throw",  "text": "TypeError: x is not a function" },
+                        { "kind": "report", "text": "Minified React error #418" } ] }
+  ```
+
+  The flag **requires `--js`** — bare, it is a usage error (exit 2, no envelope),
+  mirroring the `-H`/`file://` gating. Capture is unconditional but bounded to
+  `MESSAGES_MAX` (**32**, a constant, not a flag — like `SUBFETCH_MAX`): a noisier
+  page keeps climbing `errors` while the detail array stops at the first 32. Three
+  `kind`s **carry a message** (message in hand at the seam, cheap):
+  - `throw` — a script/module top-level exception (`EvalError::Exception`, `js.rs`
+    `tally`), the message quickjs surfaced.
+  - `report` — `reportError` / `window.onerror` / a dispatched window `'error'`
+    the shim reported (the bl-249c channel: a React ≥16 render crash is *caught*
+    and reported, never thrown, so this is what makes a dead app's messages
+    visible, not just counted). Carried through `__frot_report_error(text)`.
+  - `subfetch` — a failed/non-2xx external `<script src>`, captured by its spec so
+    the operator learns *which* bundle went dark.
+
+  Three classes stay **count-only** (still in `errors`, no message): unhandled
+  **rejections** (the engine net-counts via quickjs's tracker; a late `.catch`
+  un-counts, so attaching a stable message is invasive), refused **navigations**
+  (a `Denials` no-op carries no per-event detail beyond a constant), and
+  **timer / lifecycle-listener** throws (`loop.js` `fire`/`__frot_next_timer`
+  catch and return counts only; reaching their messages is invasive). This keeps
+  the capture set to the seams where a meaningful message is already in hand.
 - Envelope `status` is unaffected by script errors; only the needs detector
   and the existing error taxonomy set non-`ok` status.
 - **A host-side coercion failure is not a script error (as built, 4.9).** The

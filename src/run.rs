@@ -10,7 +10,7 @@ use std::io::Write;
 use crate::ax;
 use crate::cli;
 use crate::dom::{Document, NodeKind, WalkEvent};
-use crate::envelope::{Envelope, ErrorInfo, HttpInfo, JsInfo, StatusKind, UrlBlock, View};
+use crate::envelope::{Envelope, ErrorInfo, HttpInfo, JsInfo, JsMessage, StatusKind, UrlBlock, View};
 use crate::fetch::{self, FetchResult};
 use crate::js::{Env, StyleSource};
 use crate::needs;
@@ -96,7 +96,8 @@ fn build_envelope(args: &cli::Args) -> Envelope {
 /// §9), returning the (possibly mutated) document and the envelope `js` block —
 /// present only under `--js`. Without it the document passes through untouched.
 /// The geometry cache's [`StyleSource`] mirrors the `--css` policy (§8), and the
-/// [`Env`] carries the final URL and the User-Agent frot sent (§7).
+/// [`Env`] carries the final URL and the User-Agent frot sent (§7). Under
+/// `--js-errors` the block also carries the bounded `js.messages` detail (§10).
 fn run_scripts(
     args: &cli::Args,
     doc: Document,
@@ -116,7 +117,13 @@ fn run_scripts(
         headers: args.headers.clone(),
     };
     let (doc, r) = crate::js::run(doc, styles, env);
-    (doc, Some(JsInfo::new(r.scripts, r.errors, r.settled)))
+    let mut info = JsInfo::new(r.scripts, r.errors, r.settled);
+    if args.js_errors {
+        info = info.with_messages(
+            r.messages.iter().map(|m| JsMessage::new(&m.kind, &m.text)).collect(),
+        );
+    }
+    (doc, Some(info))
 }
 
 /// The [`crate::css::Styles`] a view needs. Under `--css`, the full author

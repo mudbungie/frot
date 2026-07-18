@@ -56,6 +56,29 @@ fn js_flag_defaults_off_and_rejects_duplicates() {
 }
 
 #[test]
+fn js_errors_requires_js() {
+    // --js-errors only shapes the `js` block, which exists only under --js; bare
+    // it is a usage error (exit 2 at the run layer), like -H on a file:// URL.
+    assert_eq!(
+        parse(&argv(&["https://x/", "--js-errors", "--out", "text"])),
+        Err(CliError::JsErrorsWithoutJs)
+    );
+    // With --js it is accepted and defaults off without it.
+    let a = parse(&argv(&["https://x/", "--js", "--js-errors", "--out", "text"])).unwrap();
+    assert!(a.js && a.js_errors);
+    let b = parse(&argv(&["https://x/", "--js", "--out", "text"])).unwrap();
+    assert!(b.js && !b.js_errors);
+}
+
+#[test]
+fn js_errors_rejects_duplicates() {
+    assert_eq!(
+        parse(&argv(&["https://x/", "--js", "--js-errors", "--js-errors", "--out", "text"])),
+        Err(CliError::DuplicateFlag("--js-errors".into()))
+    );
+}
+
+#[test]
 fn bboxes_view_now_parses() {
     for form in [
         argv(&["https://x/", "--out", "bboxes"]),
@@ -168,6 +191,7 @@ fn display_each_error_variant() {
         CliError::DuplicateFlag("--css".into()),
         CliError::BadHeader("nope".into()),
         CliError::HeadersWithFile,
+        CliError::JsErrorsWithoutJs,
         CliError::NoUrl,
         CliError::NoOut,
         CliError::ExtraPositional("oops".into()),
