@@ -43,6 +43,24 @@ pub struct Env {
 /// The wiring layer folds it into the envelope `js.errors` count.
 pub type Denials = Rc<RefCell<u32>>;
 
+/// The reported-error sink (js.md §10): the prelude bumps it for each UNHANDLED
+/// error it surfaces — `reportError`, `window.onerror`, or a dispatched window
+/// `'error'` event that nothing suppresses. React >=16 *catches* render errors
+/// and reports them here rather than throwing, so this is what keeps a dead app
+/// from reading `errors: 0`. Folded into `js.errors`, distinct from [`Denials`]
+/// (refused navigations).
+pub type ReportedErrors = Rc<RefCell<u32>>;
+
+/// The prelude's counted-failure sinks (js.md §10), shared with the host and
+/// folded into `js.errors` after the run: refused navigations ([`Denials`], §7/
+/// §11) and reported unhandled errors ([`ReportedErrors`], §10). Bundled so the
+/// [`install`] surface stays narrow.
+#[derive(Clone)]
+pub struct Counters {
+    pub denials: Denials,
+    pub reported: ReportedErrors,
+}
+
 /// One captured `console` call (level + rendered message), in emission order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Log {
@@ -62,7 +80,7 @@ pub fn install(
     console: Console,
     geo: SharedGeometry,
     env: Env,
-    denials: Denials,
+    counters: Counters,
     subfetch: SharedSubfetch,
 ) {
     engine
@@ -73,7 +91,8 @@ pub fn install(
             mutations(&ctx, &g, &doc)?;
             query_and_console(&ctx, &g, &doc, &console)?;
             geometry(&ctx, &g, &doc, &geo)?;
-            env::install(&ctx, &g, env, &denials)?;
+            reported_errors(&ctx, &g, &counters.reported)?;
+            env::install(&ctx, &g, env, &counters.denials)?;
             net::install(&ctx, &g, &subfetch)?;
             Ok(())
         })
@@ -203,6 +222,23 @@ fn query_and_console<'js>(
     bind!(ctx, g, "__frot_console", {
         let c = console.clone();
         move |level: String, text: String| c.borrow_mut().push(Log { level, text })
+    });
+    Ok(())
+}
+
+/// The §10 reported-error syscall: `__frot_report_error` bumps the shared
+/// counter for each unhandled error the prelude surfaces (`reportError` /
+/// `window.onerror` / a dispatched window `'error'` event). Distinct from the
+/// §7 navigation [`Denials`] — this is the caught-and-reported app-failure
+/// channel React et al. route through instead of throwing.
+fn reported_errors<'js>(
+    ctx: &Ctx<'js>,
+    g: &rquickjs::Object<'js>,
+    reported: &ReportedErrors,
+) -> rquickjs::Result<()> {
+    bind!(ctx, g, "__frot_report_error", {
+        let r = reported.clone();
+        move || *r.borrow_mut() += 1
     });
     Ok(())
 }

@@ -354,9 +354,12 @@ Two moves against today's `run.rs`:
   ```
 
   `scripts` = scripts executed, `errors` = counted failures (§4–§7 throws,
-  unhandled promise rejections, and refused/failed subfetches — which surface
-  as those same rejections/throws, §6), `settled` = the §5 loop reached
-  quiescence within budget. Unhandled-rejection counting is wired at the engine
+  unhandled promise rejections, refused/failed subfetches — which surface as
+  those same rejections/throws, §6 — and unhandled errors surfaced via
+  `reportError`/`window.onerror`/a dispatched window `'error'` event that nothing
+  suppresses, the channel frameworks like React ≥16 use to *catch* a render
+  crash rather than throw, so a dead app does not read `errors: 0`), `settled`
+  = the §5 loop reached quiescence within budget. Unhandled-rejection counting is wired at the engine
   seam via quickjs's host rejection tracker (a running net that a late `.catch`
   un-counts), read once after the settle loop. This is the honesty channel for
   *partial*

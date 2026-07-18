@@ -207,4 +207,41 @@
         }
     return errs;
   };
+
+  // --- Unhandled-error accounting (js.md §10) --------------------------------
+  // React >=16 CATCHES render errors and reports them via reportError (else
+  // console.error) rather than throwing, so a dead app would otherwise count 0
+  // errors. reportError and a directly dispatched window 'error' event funnel
+  // through raiseError: fire the window 'error' listeners and window.onerror;
+  // if nothing suppresses it (no preventDefault, onerror didn't return true) it
+  // is an UNHANDLED error and is counted into js.errors via __frot_report_error.
+  function raiseError(ev) {
+    fire('window', ev, g);
+    var suppressed = ev.defaultPrevented;
+    if (typeof g.onerror === 'function') {
+      var handled;
+      try {
+        handled = g.onerror(ev.message, '', 0, 0, ev.error);
+      } catch (e) {
+        handled = false;
+      }
+      if (handled === true) suppressed = true;
+    }
+    if (!suppressed) g.__frot_report_error();
+    return !ev.defaultPrevented;
+  }
+  g.reportError = function (err) {
+    var ev = new g.Event('error');
+    ev.target = g;
+    ev.error = err;
+    ev.message = err && err.message != null ? String(err.message) : String(err);
+    raiseError(ev);
+  };
+  // Route a directly dispatched window 'error' event through the same
+  // accounting; every other event type keeps the plain window dispatch.
+  var rawWindowDispatch = g.dispatchEvent;
+  g.dispatchEvent = function (ev) {
+    if (ev && ev.type === 'error') return raiseError(ev);
+    return rawWindowDispatch(ev);
+  };
 })(globalThis);

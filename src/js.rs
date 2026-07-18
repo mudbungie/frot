@@ -36,9 +36,12 @@ pub struct Report {
     /// Counted failures (§10 `errors`): throws — from scripts *and* from event-
     /// loop timer callbacks / lifecycle listeners (§5) — unhandled promise
     /// rejections (§10, including refused/failed `fetch`), refused navigations
-    /// (the §7/§11 counted no-ops the environment shim tallies), plus every
-    /// external `src` script whose §6 subfetch failed or was non-2xx, which §4.2
-    /// skips-and-counts like a failed stylesheet.
+    /// (the §7/§11 counted no-ops the environment shim tallies), unhandled errors
+    /// reported via `reportError`/`window.onerror`/a dispatched window `'error'`
+    /// event (§10 — the caught-and-reported failures frameworks like React route
+    /// here instead of throwing), plus every external `src` script whose §6
+    /// subfetch failed or was non-2xx, which §4.2 skips-and-counts like a failed
+    /// stylesheet.
     pub errors: u32,
     /// Whether the whole run — script queue *and* settle loop — reached
     /// quiescence within the single wall-clock budget (§5); a budget trip
@@ -75,10 +78,13 @@ fn run_with(doc: Document, styles: StyleSource, env: Env, budget: Duration) -> (
         run_event_loop(&session, &mut report);
     }
     // Fold the deferred §10 tallies into `errors`: refused navigations (the
-    // environment shim's counted no-ops) and unhandled promise rejections (net
-    // once the whole run's microtasks have drained — a late `.catch` un-counts).
+    // environment shim's counted no-ops), unhandled promise rejections (net once
+    // the whole run's microtasks have drained — a late `.catch` un-counts), and
+    // unhandled errors the shim reported (reportError / window.onerror / a
+    // dispatched window 'error' event — the caught-and-reported app failures).
     report.errors += session.denials();
     report.errors += session.rejections();
+    report.errors += session.reported_errors();
     (session.into_document(), report)
 }
 

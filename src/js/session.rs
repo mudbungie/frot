@@ -23,7 +23,7 @@ pub struct Session {
     engine: Engine,
     doc: syscall::SharedDoc,
     console: syscall::Console,
-    denials: syscall::Denials,
+    counters: syscall::Counters,
     subfetch: subfetch::SharedSubfetch,
     /// The final page URL — the base an inline `type="module"` script's imports
     /// resolve against (js.md §4.1); external modules use their own fetched URL.
@@ -47,7 +47,10 @@ impl Session {
         let doc = Rc::new(RefCell::new(doc));
         let console = Rc::new(RefCell::new(Vec::new()));
         let geo = Rc::new(RefCell::new(geometry::Geometry::new(styles)));
-        let denials = Rc::new(RefCell::new(0));
+        let counters = syscall::Counters {
+            denials: Rc::new(RefCell::new(0)),
+            reported: Rc::new(RefCell::new(0)),
+        };
         // The §6 cache is anchored at the page URL and rides the caller's -H
         // headers same-origin; both live in `env`, so build it before install
         // moves `env` into the environment shims.
@@ -62,14 +65,14 @@ impl Session {
             console.clone(),
             geo,
             env,
-            denials.clone(),
+            counters.clone(),
             subfetch.clone(),
         );
         Session {
             engine,
             doc,
             console,
-            denials,
+            counters,
             subfetch,
             page_url,
         }
@@ -131,13 +134,20 @@ impl Session {
     /// Navigations the shim refused (js.md §7/§11) — the counted-no-op tally the
     /// wiring layer folds into the envelope `js.errors` count (§10).
     pub fn denials(&self) -> u32 {
-        *self.denials.borrow()
+        *self.counters.denials.borrow()
     }
 
     /// Unhandled promise rejections (§10) observed across the run — the engine's
     /// net tally, read once after the settle loop so a late `.catch` un-counts.
     pub fn rejections(&self) -> u32 {
         self.engine.rejections()
+    }
+
+    /// Unhandled errors the shim reported (§10) — `reportError`/`window.onerror`/
+    /// a dispatched window `'error'` event that nothing suppressed. The counted-
+    /// no-op sibling of [`denials`](Self::denials), folded into `js.errors`.
+    pub fn reported_errors(&self) -> u32 {
+        *self.counters.reported.borrow()
     }
 
     /// Fetch `spec` through the once-then-frozen §6 cache (the external-`src`

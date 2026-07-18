@@ -211,6 +211,68 @@ fn a_late_handled_rejection_is_not_counted() {
 }
 
 #[test]
+fn a_reported_error_is_counted() {
+    // bl-249c / §10: React >=16 catches render errors and reportError()s them
+    // rather than throwing. reportError dispatches an unhandled window 'error'
+    // event, which counts into js.errors — the honesty signal for a dead app
+    // that otherwise reports errors:0.
+    let (_doc, report) = drive(
+        "<body><script>\
+         try { throw new Error('render boom'); } catch (e) { reportError(e); }\
+         </script></body>",
+    );
+    assert_eq!((report.scripts, report.errors, report.settled), (1, 1, true));
+}
+
+#[test]
+fn a_preventdefaulted_error_listener_suppresses_the_count() {
+    // §10: an 'error' listener that preventDefaults suppresses the default
+    // (counted) action — a page that handles its own errors is not penalised.
+    let (_doc, report) = drive(
+        "<body><script>\
+         window.addEventListener('error', function (e) { e.preventDefault(); });\
+         reportError(new Error('handled'));\
+         </script></body>",
+    );
+    assert_eq!((report.errors, report.settled), (0, true));
+}
+
+#[test]
+fn window_onerror_returning_true_suppresses_the_count() {
+    // §10: the classic window.onerror contract — returning true marks the error
+    // handled, so it is not counted.
+    let (_doc, report) = drive(
+        "<body><script>\
+         window.onerror = function () { return true; };\
+         reportError(new Error('handled'));\
+         </script></body>",
+    );
+    assert_eq!((report.errors, report.settled), (0, true));
+}
+
+#[test]
+fn a_window_onerror_not_returning_true_still_counts() {
+    // §10: an onerror that observes but does not claim the error (no `true`)
+    // leaves it unhandled — still counted.
+    let (_doc, report) = drive(
+        "<body><script>\
+         window.onerror = function () {};\
+         reportError(new Error('boom'));\
+         </script></body>",
+    );
+    assert_eq!((report.errors, report.settled), (1, true));
+}
+
+#[test]
+fn a_dispatched_window_error_event_is_counted() {
+    // §10: dispatching a window 'error' event directly routes through the same
+    // accounting as reportError.
+    let (_doc, report) =
+        drive("<body><script>window.dispatchEvent(new Event('error'));</script></body>");
+    assert_eq!((report.errors, report.settled), (1, true));
+}
+
+#[test]
 fn microtasks_drain_between_macrotasks() {
     // §5: a promise continuation scheduled inside a timer callback runs before
     // the next timer — the host drains the job queue between macrotasks.
