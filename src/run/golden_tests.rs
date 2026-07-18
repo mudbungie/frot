@@ -18,6 +18,8 @@ const REACT_DOM: &str = include_str!("../../tests/fixtures/js/react-dom.producti
 const VUE: &str = include_str!("../../tests/fixtures/js/vue.global.prod.js");
 const JQUERY: &str = include_str!("../../tests/fixtures/js/jquery.min.js");
 const ESM_GREETER: &str = include_str!("../../tests/fixtures/js/esm-greeter.mjs");
+// React 19 (createRoot, concurrent) — react+react-dom+app bundled to one IIFE.
+const REACT19_TODO: &str = include_str!("../../tests/fixtures/js/react19-todo.bundle.js");
 
 fn run_capture(args: &[&str]) -> (u8, String) {
     let mut out = Vec::new();
@@ -75,6 +77,44 @@ fn react_shell_needs_js_without_and_renders_with() {
     assert_eq!(v["status"], "ok");
     assert!(v["out"].as_str().unwrap().contains("Hello from React"), "{}", v["out"]);
     assert_eq!(v["js"], serde_json::json!({"scripts": 3, "errors": 0, "settled": true}));
+}
+
+// The capstone (bl-4640): a *modern*-React CSR app must actually render. Unlike
+// the React 17 fixture (classic `ReactDOM.render`), this is `createRoot` — the
+// concurrent path a real React 18/19 SPA uses, mounting into an initially-empty
+// `<div id='root'>`. Its init reads `history.state` and `new URL(location.href)
+// .searchParams` (the SPA-router surface the field trial's React 19 todomvc
+// crashed on when both were absent), and it mounts a controlled `<input>` (which
+// made React set `node.defaultValue` — a getter-only accessor until this task
+// gave it a setter). One `<script>` because react+react-dom+app are one bundle.
+const REACT19_PAGE: &str = "<html><body><div id='root'></div>\
+    <script src='/app.js'></script></body></html>";
+
+#[test]
+fn react19_createroot_app_renders_from_empty_root() {
+    let (_s, url) = serve(REACT19_PAGE, &[("/app.js", REACT19_TODO)]);
+    // Static shell (no --js): the empty root is honestly needs-js.
+    let (_c, before) = run_capture(&[&url, "--out", "text"]);
+    assert_eq!(env(&before)["status"], "needs");
+    assert_eq!(env(&before)["needs"], serde_json::json!(["js"]));
+    // With --js the app renders client-side: needs-js clears, one script ran
+    // clean and the scheduler-driven mount settled with zero errors.
+    let (code, out) = run_capture(&[&url, "--js", "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = env(&out);
+    assert_eq!(v["status"], "ok");
+    let text = v["out"].as_str().unwrap();
+    // Rendered content is present: the heading, the URL-derived filter line
+    // (proves URL/searchParams ran), and the seeded todo items.
+    assert!(text.contains("Todos") && text.contains("Filter: all"), "{text}");
+    assert!(text.contains("Buy milk") && text.contains("Ship frot"), "{text}");
+    assert_eq!(v["js"], serde_json::json!({"scripts": 1, "errors": 0, "settled": true}));
+    // The ax view proves the interactive shape: a named textbox and a 3-item
+    // list, mounted where the shell had only an empty div.
+    let (_c, ax) = run_capture(&[&url, "--js", "--out", "ax"]);
+    let tree = env(&ax)["out"].to_string();
+    assert!(tree.contains("\"textbox\"") && tree.contains("New todo"), "{tree}");
+    assert!(tree.contains("\"list\""), "{tree}");
 }
 
 const VUE_PAGE: &str = "<html><body><div id='app'></div>\

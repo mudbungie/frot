@@ -99,6 +99,13 @@
     get: function () {
       return this.tagName === 'TEXTAREA' ? this.textContent : this.getAttribute('value') || '';
     },
+    // React sets node.defaultValue when it mounts a controlled <input>; with no
+    // setter that throws mid-render and the app dies. defaultValue reflects the
+    // same `value` attribute the getter reads (frot caches no form state — the
+    // arena attribute is the one source), so the setter mirrors `value`'s.
+    set: function (v) {
+      this.setAttribute('value', String(v));
+    },
   });
   Object.defineProperty(proto, 'type', {
     configurable: true,

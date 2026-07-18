@@ -16,6 +16,30 @@ React 17 (classic `ReactDOM.render`, not the React 18 `createRoot`/scheduler
 path) and the Vue 3 *global* build (compiler included, UMD, no module graph) and
 jQuery's full UMD build are all classic scripts — none is a module-graph build.
 
+## Bundled application fixtures
+
+React 19 dropped the official UMD builds the 17.0.2 pin uses, so the modern-React
+capstone (bl-4640) can't be a single `curl`ed distribution — it's a tiny genuine
+todo app bundled *with* its React runtime into one classic IIFE.
+
+| File | Package(s) | Version | Build |
+| --- | --- | --- | --- |
+| `react19-todo.bundle.js` | react + react-dom | 19.1.1 | esbuild 0.25.5, see below |
+| `react19-todo.src.js` | (app source) | — | the readable input to the bundle |
+
+`react19-todo.src.js` is the app: a controlled `<input>` + a seeded list mounted
+via `ReactDOM.createRoot(...).render(...)` (the React 18/19 concurrent path, NOT
+17's `ReactDOM.render`) into an empty `<div id='root'>`. Its init reads
+`history.state` and `new URL(location.href).searchParams` — the SPA-router
+surface the field trial's React 19 todomvc crashed on. It is vendored only so the
+187 KB minified bundle stays auditable and reproducible; the golden test drives
+the **bundle**. Reproduce (react/react-dom pinned to 19.1.1):
+
+```
+esbuild react19-todo.src.js --bundle --minify --format=iife \
+  --define:process.env.NODE_ENV='"production"' --outfile=react19-todo.bundle.js
+```
+
 ## Hand-authored fixtures
 
 | File | Purpose |
