@@ -45,6 +45,21 @@ fn syntax_error_is_an_exception() {
 }
 
 #[test]
+fn eval_setup_is_exempt_from_the_page_budget() {
+    // Prelude install is host setup, not page script (js.md §5, bl-5ac3). A
+    // zero budget — a deadline already in the past for any *armed* run — must
+    // not trip `eval_setup`: it disarms first, so however slow the environment
+    // setup completes. The same engine's page-budget path still trips, proving
+    // the exemption is scoped to setup, not a disabled interrupt.
+    let engine = short_budget(0);
+    assert_eq!(
+        engine.eval_setup("globalThis.__setup = 7; String(__setup)").unwrap(),
+        "7"
+    );
+    assert_eq!(engine.eval("while (true) {}").unwrap_err(), EvalError::Budget);
+}
+
+#[test]
 fn interrupt_hook_bounds_an_infinite_loop() {
     // Primitive 2: wall-clock interrupt. A tight infinite loop must be
     // stopped by the budget rather than hang the host.

@@ -97,7 +97,12 @@ pub fn install(
             Ok(())
         })
         .expect("install frot syscall table");
-    engine.eval(super::prelude::SOURCE).expect("evaluate frot prelude");
+    // Prelude install is host setup, not page script: evaluate it exempt from
+    // the page budget (js.md §5) so a dialed-down budget can't trip mid-install
+    // (bl-5ac3). Page scripts arm their own deadline via `Session::begin`.
+    engine
+        .eval_setup(super::prelude::SOURCE)
+        .expect("evaluate frot prelude");
 }
 
 macro_rules! bind {

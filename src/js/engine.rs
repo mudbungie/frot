@@ -131,6 +131,19 @@ impl Engine {
         self.eval_armed(src)
     }
 
+    /// Evaluate host setup source (the syscall prelude) exempt from the page
+    /// budget (js.md §5: the single deadline covers page scripts and the event
+    /// loop, never the one-time API install). Disarms the deadline first — sets
+    /// it past every possible run — so however slow the environment (llvm-cov, a
+    /// loaded CI box) the interrupt cannot trip mid-install and turn setup into a
+    /// spurious budget failure. Page scripts re-arm their own window via
+    /// [`arm`](Self::arm)/[`eval_armed`](Self::eval_armed) before they run.
+    pub fn eval_setup(&self, src: &str) -> Result<String, EvalError> {
+        self.tripped.store(false, Ordering::Relaxed);
+        self.deadline.store(u64::MAX, Ordering::Relaxed);
+        self.eval_armed(src)
+    }
+
     /// Evaluate inside the current deadline window, drain the microtask queue,
     /// and return the result coerced to a string. Once the budget has tripped
     /// the result is [`EvalError::Budget`] regardless of the eval's own outcome —
