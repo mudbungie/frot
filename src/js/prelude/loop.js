@@ -167,12 +167,35 @@
     return !(ev && ev.defaultPrevented);
   };
 
-  // Host lifecycle fire (§4.4 / §5): dispatch to document + window and the
-  // matching on<event> property handler, returning the listener error count.
+  // readyState transition (js.md §4.4): the field advances loading ->
+  // 'interactive' (immediately before DOMContentLoaded) -> 'complete' (before
+  // load); each transition dispatches readystatechange on document so
+  // readyState-polling init and older loaders unblock. Returns the listener
+  // throw count (folded into the loop's error tally like any handler).
+  function setReadyState(state) {
+    g.document.readyState = state;
+    var ev = new g.Event('readystatechange');
+    ev.target = g.document;
+    var errs = fire('document', ev, g.document);
+    if (typeof g.document.onreadystatechange === 'function')
+      try {
+        g.document.onreadystatechange.call(g.document, ev);
+      } catch (e) {
+        errs++;
+      }
+    return errs;
+  }
+
+  // Host lifecycle fire (§4.4 / §5): advance readyState (before the matching
+  // event), dispatch to document + window and the matching on<event> property
+  // handler, returning the listener error count.
   g.__frot_fire = function (name) {
+    var errs = 0;
+    if (name === 'DOMContentLoaded') errs += setReadyState('interactive');
+    else if (name === 'load') errs += setReadyState('complete');
     var ev = new g.Event(name);
     ev.target = g.document;
-    var errs = fire('document', ev, g.document) + fire('window', ev, g);
+    errs += fire('document', ev, g.document) + fire('window', ev, g);
     var on = 'on' + name.toLowerCase();
     var hosts = [g.document, g];
     for (var i = 0; i < hosts.length; i++)

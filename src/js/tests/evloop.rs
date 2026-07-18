@@ -113,6 +113,39 @@ fn lifecycle_events_fire_in_order_after_scripts() {
 }
 
 #[test]
+fn readystate_advances_loading_interactive_complete() {
+    // bl-f22b / §4.4: readyState is 'loading' while scripts run, 'interactive'
+    // immediately before DOMContentLoaded, 'complete' before load; each
+    // transition dispatches readystatechange on document (addEventListener +
+    // the onreadystatechange property).
+    let (doc, report) = drive(
+        "<body><script>\
+         document.body.setAttribute('data-inline', document.readyState);\
+         document.addEventListener('readystatechange', function () {\
+           document.body.setAttribute('data-rsc-' + document.readyState, '1');\
+         });\
+         document.onreadystatechange = function () {\
+           document.body.setAttribute('data-onrsc', document.readyState);\
+         };\
+         document.addEventListener('DOMContentLoaded', function () {\
+           document.body.setAttribute('data-dcl', document.readyState);\
+         });\
+         window.addEventListener('load', function () {\
+           document.body.setAttribute('data-load', document.readyState);\
+         });\
+         </script></body>",
+    );
+    assert_eq!((report.errors, report.settled), (0, true));
+    assert_eq!(attr(&doc, "data-inline").as_deref(), Some("loading"));
+    assert_eq!(attr(&doc, "data-dcl").as_deref(), Some("interactive"));
+    assert_eq!(attr(&doc, "data-load").as_deref(), Some("complete"));
+    // readystatechange fired at each transition, via both dispatch paths.
+    assert_eq!(attr(&doc, "data-rsc-interactive").as_deref(), Some("1"));
+    assert_eq!(attr(&doc, "data-rsc-complete").as_deref(), Some("1"));
+    assert_eq!(attr(&doc, "data-onrsc").as_deref(), Some("complete"));
+}
+
+#[test]
 fn a_throwing_lifecycle_handler_is_counted_and_the_run_continues() {
     // §5: a load handler (registered via the onload property) that throws is
     // counted; the loop still settles.

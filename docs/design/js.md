@@ -166,7 +166,10 @@ during parse. So:
 3. Scripts inserted by other scripts (`appendChild` of a `<script>`) join the
    end of the queue — that is how bundlers chain-load.
 4. After the queue drains: `DOMContentLoaded`, then `load`, then the settle
-   loop (§5). Re-entry (rule 3) is a *script-phase* affordance: once the queue
+   loop (§5). `document.readyState` tracks this: `'loading'` while the queue
+   runs (deferred scripts included), `'interactive'` immediately before
+   `DOMContentLoaded`, `'complete'` before `load` — each transition dispatching
+   `readystatechange` on `document`, so readyState-polling init unblocks. Re-entry (rule 3) is a *script-phase* affordance: once the queue
    drains the phase is over, so a `<script>` inserted later by a lifecycle
    handler or a timer callback is not executed — one linear pass, no feedback
    from the event loop into the script queue.
