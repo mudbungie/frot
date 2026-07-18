@@ -291,6 +291,15 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   because frot takes one impression and routers pick their initial route from
   that location. A page that genuinely needs `location` to reflect `pushState`
   is a separate concern.
+- `URL` / `URLSearchParams`: WHATWG subset routers reach for
+  (`new URL(location.href)`, `url.searchParams`). Parsing is delegated to the
+  Rust `url` crate through the `__frot_url_parse(spec, base)` syscall — the
+  **single source of URL semantics**, shared with `location` via one `decompose`
+  helper; there is no second URL parser in JS. `new URL` **throws** a
+  `TypeError` on an invalid URL (unlike `location`, a fact that empties);
+  base resolution rides `Url::join`. `URLSearchParams` is built in JS over the
+  parsed `search` string; editing a URL's `searchParams` re-serializes back into
+  its `search`/`href` (string surgery on the authoritative href, not a re-parse).
 - `matchMedia`: evaluated against the fixed 1280px viewport for width queries;
   everything else matches never. `getContext()` on canvas returns `null`
   (spec-legal). `Worker`, `WebAssembly`, `serviceWorker`: absent.

@@ -66,6 +66,77 @@ fn viewport_width_is_the_layout_constant() {
 }
 
 #[test]
+fn url_parse_syscall_decomposes_resolves_and_flags_validity() {
+    let s = sess("https://example.com/", "ua/1");
+    // No base is passed as `undefined` (the prelude's `new URL(x)` path); the
+    // syscall takes two args. Absolute URL: valid + decomposed (shares
+    // `location`'s decomposition).
+    assert_eq!(s.eval("__frot_url_parse('https://e.com:8443/a?x=1#h', undefined).valid").unwrap(), "true");
+    assert_eq!(
+        s.eval("__frot_url_parse('https://e.com:8443/a?x=1#h', undefined).origin").unwrap(),
+        "https://e.com:8443"
+    );
+    // Base resolution rides the `url` crate's Url::join.
+    assert_eq!(
+        s.eval("__frot_url_parse('a/b?x=1', 'https://e.com/d/').href").unwrap(),
+        "https://e.com/d/a/b?x=1"
+    );
+    assert_eq!(s.eval("__frot_url_parse('a/b?x=1', 'https://e.com/d/').pathname").unwrap(), "/d/a/b");
+    // Invalid spec (no base) and an unparseable base both report valid:false.
+    assert_eq!(s.eval("__frot_url_parse('not a url', undefined).valid").unwrap(), "false");
+    assert_eq!(s.eval("__frot_url_parse('x', 'not a url').valid").unwrap(), "false");
+}
+
+#[test]
+fn url_prelude_builds_urls_and_searchparams() {
+    let s = sess("https://example.com/", "ua/1");
+    // Acceptance: base resolution + searchParams.get, and the plain components.
+    let u = "new URL('a/b?x=1', 'https://e.com/d/')";
+    assert_eq!(s.eval(&format!("{u}.searchParams.get('x')")).unwrap(), "1");
+    assert_eq!(s.eval(&format!("{u}.href")).unwrap(), "https://e.com/d/a/b?x=1");
+    assert_eq!(s.eval(&format!("{u}.pathname")).unwrap(), "/d/a/b");
+    assert_eq!(s.eval(&format!("{u}.origin")).unwrap(), "https://e.com");
+    assert_eq!(s.eval(&format!("{u}.toString()")).unwrap(), "https://e.com/d/a/b?x=1");
+    // Invalid URL throws a TypeError (unlike `location`, which empties).
+    assert_eq!(
+        s.eval("try { new URL('not a url'); 'no throw' } catch (e) { e.constructor.name }").unwrap(),
+        "TypeError"
+    );
+    // URLSearchParams: get/getAll/has/append/set/delete/toString/iteration.
+    let p = "var p = new URLSearchParams('a=1&b=2&a=3');";
+    assert_eq!(s.eval(&format!("{p} p.get('a')")).unwrap(), "1");
+    assert_eq!(s.eval(&format!("{p} p.getAll('a').join(',')")).unwrap(), "1,3");
+    assert_eq!(s.eval(&format!("{p} p.has('b') + ',' + p.has('z')")).unwrap(), "true,false");
+    assert_eq!(s.eval(&format!("{p} p.append('c', '4'); p.toString()")).unwrap(), "a=1&b=2&a=3&c=4");
+    assert_eq!(s.eval(&format!("{p} p.set('a', '9'); p.toString()")).unwrap(), "a=9&b=2");
+    assert_eq!(s.eval(&format!("{p} p.delete('a'); p.toString()")).unwrap(), "b=2");
+    // forEach and [Symbol.iterator] entries.
+    assert_eq!(
+        s.eval(&format!("{p} var o=[]; p.forEach((v,k)=>o.push(k+'='+v)); o.join('|')")).unwrap(),
+        "a=1|b=2|a=3"
+    );
+    assert_eq!(
+        s.eval(&format!("{p} Array.from(p).map(e=>e.join('=')).join('|')")).unwrap(),
+        "a=1|b=2|a=3"
+    );
+    assert_eq!(s.eval(&format!("{p} Array.from(p.keys()).join(',')")).unwrap(), "a,b,a");
+    assert_eq!(s.eval(&format!("{p} Array.from(p.values()).join(',')")).unwrap(), "1,2,3");
+    // '+' decodes to a space; other inits (array, object, copy) parse too.
+    assert_eq!(s.eval("new URLSearchParams('q=a+b').get('q')").unwrap(), "a b");
+    assert_eq!(s.eval("new URLSearchParams([['k','v']]).get('k')").unwrap(), "v");
+    assert_eq!(s.eval("new URLSearchParams({k:'v'}).get('k')").unwrap(), "v");
+    assert_eq!(s.eval("new URLSearchParams(new URLSearchParams('k=v')).get('k')").unwrap(), "v");
+    // searchParams edits reflect into the owning URL's search + href (one source).
+    let url = "var url = new URL('https://e.com/p?x=1#h'); url.searchParams.set('y','2');";
+    assert_eq!(s.eval(&format!("{url} url.search")).unwrap(), "?x=1&y=2");
+    assert_eq!(s.eval(&format!("{url} url.href")).unwrap(), "https://e.com/p?x=1&y=2#h");
+    // Deleting the last query pair empties search (href drops the '?').
+    let url2 = "var u2 = new URL('https://e.com/p?x=1'); u2.searchParams.delete('x');";
+    assert_eq!(s.eval(&format!("{url2} u2.search")).unwrap(), "");
+    assert_eq!(s.eval(&format!("{url2} u2.href")).unwrap(), "https://e.com/p");
+}
+
+#[test]
 fn refused_navigations_are_counted_no_ops() {
     let s = sess("https://example.com/", "ua/1");
     assert_eq!(s.denials(), 0);

@@ -17,6 +17,8 @@
 //! geometry facade (`getBoundingClientRect`/`offset*`/`getComputedStyle`, js.md
 //! §8), the environment shims (`env.js`: storage, cookie, `navigator`/
 //! `location`/`matchMedia`, `self`/`window` aliasing, spec-legal denials), the
+//! WHATWG-subset `URL`/`URLSearchParams` (`url.js`, over the `__frot_url_parse`
+//! syscall), the
 //! virtual-clock loop (`loop.js`: `setTimeout`/`setInterval`/
 //! `requestAnimationFrame`, `addEventListener`/`dispatchEvent`, the
 //! `DOMContentLoaded`/`load` lifecycle), and `fetch`/`XMLHttpRequest` over the
@@ -26,7 +28,9 @@
 /// order matters only where one module extends another's globals: `elem.js`/
 /// `elem2.js` (and `env.js`, `loop.js`) run after `dom.js` because they extend
 /// the `document` and `Node` it defines — `elem2.js` after `elem.js` — and
-/// `net.js` runs after `loop.js` because its XHR uses `g.Event`.
+/// `net.js` runs after `loop.js` because its XHR uses `g.Event`. `url.js` is
+/// standalone (it extends no other module, only the `__frot_url_parse` syscall),
+/// so its position is free.
 pub const SOURCE: &str = concat!(
     include_str!("prelude/console.js"),
     "\n",
@@ -39,6 +43,8 @@ pub const SOURCE: &str = concat!(
     include_str!("prelude/geometry.js"),
     "\n",
     include_str!("prelude/env.js"),
+    "\n",
+    include_str!("prelude/url.js"),
     "\n",
     include_str!("prelude/loop.js"),
     "\n",
