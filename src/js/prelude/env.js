@@ -1,10 +1,12 @@
 // Environment shims (js.md §7) — no persistence. localStorage/sessionStorage
 // and document.cookie are in-memory, born empty, and die with the process;
 // navigator/location are the static facts frot already has (UA it sends, final
-// URL); matchMedia evaluates width queries against the fixed viewport; the rest
-// are spec-legal denials (null/false/absent), never silent lies. Layered on the
-// __frot_env_ua / __frot_location / __frot_viewport_width / __frot_denied
-// syscalls; runs after dom.js so it can extend `document` and `Node`.
+// URL); matchMedia delegates to the Rust media-query evaluator (the one @media
+// blocks cascade through — src/css/media.rs); the rest are spec-legal denials
+// (null/false/absent), never silent lies. Layered on the __frot_env_ua /
+// __frot_location / __frot_viewport_width / __frot_media_matches /
+// __frot_denied syscalls; runs after dom.js so it can extend `document` and
+// `Node`.
 (function (g) {
   'use strict';
 
@@ -226,24 +228,16 @@
     });
   }
 
-  // --- matchMedia: width queries vs the fixed viewport; else never (§7) -----
-  function evalWidth(query) {
-    var re = /\((min-width|max-width|width)\s*:\s*(\d+(?:\.\d+)?)(px|em|rem)\)/g;
-    var m,
-      result = null;
-    while ((m = re.exec(query))) {
-      // em/rem convert at a 16px root font-size (so 80em == the 1280px viewport).
-      var px = m[3] === 'px' ? +m[2] : +m[2] * 16;
-      var pass = m[1] === 'min-width' ? VW >= px : m[1] === 'max-width' ? VW <= px : VW === px;
-      result = result === null ? pass : result && pass;
-    }
-    // No width feature -> "everything else matches never" (§7).
-    return result === null ? false : result;
-  }
+  // --- matchMedia: the shared Rust media-query evaluator (§7) ---------------
+  // One authority for media-query semantics (src/css/media.rs): @media blocks
+  // in the CSS cascade and matchMedia here both evaluate through it, via the
+  // __frot_media_matches syscall — CSS and JS can never disagree. Width/height
+  // queries in px/em/rem (16px per em/rem) against the fixed viewport;
+  // screen/all match, print and anything unknown never does.
   g.matchMedia = function (query) {
     query = String(query);
     return {
-      matches: evalWidth(query),
+      matches: g.__frot_media_matches(query),
       media: query,
       onchange: null,
       addListener: function () {},

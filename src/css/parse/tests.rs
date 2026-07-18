@@ -30,17 +30,42 @@ fn comments_are_stripped_including_unterminated() {
 }
 
 #[test]
-fn at_rules_are_skipped() {
+fn non_media_at_rules_are_skipped() {
     // `@import ... ;` terminates at the semicolon.
     let s = Stylesheet::parse(r#"@import "x"; p{a:b}"#);
     assert_eq!(s.rules.len(), 1);
-    // `@media { ... }` skips its whole (balanced) block.
-    let s = Stylesheet::parse("@media screen { p{a:b} } div{c:d}");
+    // other conditional groups (`@supports`, `@layer`) skip their whole
+    // (balanced) block — only `@media` is evaluated (bl-8ff4).
+    let s = Stylesheet::parse("@supports (display:grid) { p{a:b} } div{c:d}");
     assert_eq!(s.rules.len(), 1);
     assert_eq!(s.rules[0].decls, vec![d("c", "d", false)]);
-    // unterminated block and bare at-keyword at EOF parse to nothing.
-    assert!(Stylesheet::parse("@media { p{a:b}").rules.is_empty());
+    // bare at-keyword at EOF parses to nothing.
     assert!(Stylesheet::parse("@charset").rules.is_empty());
+}
+
+#[test]
+fn media_blocks_are_evaluated_against_the_fixed_viewport() {
+    // A matching prelude contributes its rules to the cascade in place…
+    let s = Stylesheet::parse("@media (min-width: 768px) { p{a:b} } div{c:d}");
+    assert_eq!(s.rules.len(), 2);
+    assert_eq!(s.rules[0].decls, vec![d("a", "b", false)]);
+    // …a non-matching one contributes nothing.
+    assert!(Stylesheet::parse("@media (min-width: 2000px) { p{a:b} }").rules.is_empty());
+    assert!(Stylesheet::parse("@media print { p{a:b} }").rules.is_empty());
+    // The at-keyword is case-insensitive.
+    assert_eq!(Stylesheet::parse("@MEDIA screen { p{a:b} }").rules.len(), 1);
+    // Statement form (no body) contributes nothing.
+    assert!(Stylesheet::parse("@media screen;").rules.is_empty());
+    // An unterminated body reads to end of sheet (as plain rules do); an
+    // empty prelude means `all`.
+    assert_eq!(Stylesheet::parse("@media { p{a:b}").rules.len(), 1);
+}
+
+#[test]
+fn nested_media_blocks_multiply() {
+    let s = Stylesheet::parse("@media screen { @media (max-width: 9999px) { p{a:b} } q{c:d} }");
+    assert_eq!(s.rules.len(), 2);
+    assert!(Stylesheet::parse("@media screen { @media print { p{a:b} } }").rules.is_empty());
 }
 
 #[test]

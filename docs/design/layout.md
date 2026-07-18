@@ -189,8 +189,11 @@ in-flow block/inline so the page still lays out approximately:
   metrics below), no margin/border/padding widths, no `box-sizing`, no margin
   collapsing, no `overflow`/scroll, no `z-index` stacking, no `transform`/`zoom`,
   no multi-column, no `writing-mode`/vertical text, no bidi/RTL reordering.
-- **`@media`/`@supports`** remain out of the CSS engine (Phase 2 note), so
-  responsive rules do not apply at the 1280px viewport.
+- **`@media`** width/height/screen queries are evaluated against the fixed
+  1280×720 viewport (`src/css/media.rs` — the same evaluator JS `matchMedia`
+  delegates to), so responsive rules apply as a 1280px browser would; unknown
+  features (`orientation`, `prefers-*`, …) conservatively never match.
+  **`@supports`** (and other conditional groups) remain out of the CSS engine.
 
 **Inline metrics** are a deliberate, documented approximation: no font is
 loaded. Text advances at a fixed rate — default font-size 16px, ~0.5em average

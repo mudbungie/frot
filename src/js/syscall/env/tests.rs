@@ -58,11 +58,16 @@ fn viewport_width_is_the_layout_constant() {
     let s = sess("https://example.com/", "ua/1");
     let vw = crate::layout::VIEWPORT_WIDTH.to_string();
     assert_eq!(s.eval("String(__frot_viewport_width())").unwrap(), vw);
-    // matchMedia rides it: a satisfied min-width matches, a narrow max-width and
-    // a featureless query never do (js.md §7).
+    // matchMedia rides the shared css::media evaluator (the same authority
+    // @media blocks cascade through, js.md §7): a satisfied min-width and the
+    // screen/all types match; a narrow max-width, print, and anything unknown
+    // never do.
     assert_eq!(s.eval("matchMedia('(min-width: 800px)').matches").unwrap(), "true");
     assert_eq!(s.eval("matchMedia('(max-width: 600px)').matches").unwrap(), "false");
     assert_eq!(s.eval("matchMedia('print').matches").unwrap(), "false");
+    assert_eq!(s.eval("matchMedia('screen').matches").unwrap(), "true");
+    assert_eq!(s.eval("matchMedia('screen and (min-width: 800px)').matches").unwrap(), "true");
+    assert_eq!(s.eval("matchMedia('(prefers-color-scheme: dark)').matches").unwrap(), "false");
 }
 
 #[test]
@@ -77,7 +82,7 @@ fn matchmedia_converts_em_and_rem_at_16px() {
     assert_eq!(s.eval("matchMedia('(min-width: 40rem)').matches").unwrap(), "true");
     assert_eq!(s.eval("matchMedia('(min-width: 79.9em)').matches").unwrap(), "true");
     assert_eq!(s.eval("matchMedia('(width: 80em)').matches").unwrap(), "true");
-    // px still works after the regex change (regression guard).
+    // px still works after the evaluator handoff (regression guard).
     assert_eq!(s.eval("matchMedia('(min-width: 960px)').matches").unwrap(), "true");
 }
 

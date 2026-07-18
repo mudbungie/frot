@@ -65,7 +65,7 @@ frot is built in phases. Each phase delivers a usable tool; later phases extend 
 ### Phase 2 — CSS application — **landed**
 
 - `--css` capability flag.
-- Parse and apply CSS for visibility and content semantics: `display:none`, `visibility:hidden`, pseudo-content. Implemented as a small dependency-free subset engine rather than pulling in `cssparser`/`selectors` — the binary-size and dependency-discipline constraints outweighed full CSS fidelity for a narrow visibility/content need. External `<link>` stylesheets are fetched best-effort (failures skipped); `@media`/`@supports` are out of scope; layout (and thus list-marker generation) defers to Phase 3.
+- Parse and apply CSS for visibility and content semantics: `display:none`, `visibility:hidden`, pseudo-content. Implemented as a small dependency-free subset engine rather than pulling in `cssparser`/`selectors` — the binary-size and dependency-discipline constraints outweighed full CSS fidelity for a narrow visibility/content need. External `<link>` stylesheets are fetched best-effort (failures skipped); `@media` width/screen queries are evaluated against the fixed 1280×720 viewport (the same evaluator JS `matchMedia` uses — mobile-first pages render as a desktop browser would); `@supports` is out of scope; layout (and thus list-marker generation) defers to Phase 3.
 - Subsequent outputs (text, AX) reflect what's *visible*, not what's in the markup.
 
 ### Phase 2.5 — Impression fidelity — **landed**

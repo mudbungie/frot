@@ -44,6 +44,27 @@ fn specificity_and_source_order_break_ties() {
 }
 
 #[test]
+fn media_min_width_overrides_apply_at_the_desktop_viewport() {
+    // bl-8ff4 minimal repro: mobile-first CSS hides desktop chrome in the base
+    // rules and un-hides it (and hides the hamburger) inside
+    // `@media (min-width: 768px)`. At the fixed 1280px viewport the desktop
+    // nav must render and the hamburger must not — frot used to emit the
+    // exact inverse because @media blocks were skipped wholesale.
+    let (doc, s) = styles(
+        "<style>\
+         .desktop-nav { display: none; }\
+         @media (min-width: 768px) { .desktop-nav { display: block; } }\
+         .hamburger { display: block; }\
+         @media (min-width: 768px) { .hamburger { display: none; } }\
+         </style>\
+         <nav class=desktop-nav><a href=/docs>Docs</a><a href=/about>About</a></nav>\
+         <button class=hamburger>Mobile navigation</button>",
+    );
+    assert!(!s.display_none(first_tag(&doc, "nav")));
+    assert!(s.display_none(first_tag(&doc, "button")));
+}
+
+#[test]
 fn visibility_inherits_and_is_overridable() {
     let (doc, s) = styles(
         "<div style='visibility:hidden'><span>a<i style='visibility:visible'>b</i></span></div>",

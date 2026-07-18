@@ -1,10 +1,13 @@
 //! Stylesheet and declaration-list parsing.
 //!
-//! A best-effort CSS subset: comments are stripped, `@`-rules are skipped
-//! (including any `{…}` body — so `@media` visibility rules are intentionally
-//! not evaluated; we have no viewport without layout), and malformed rules or
-//! declarations are dropped rather than aborting the sheet.
+//! A best-effort CSS subset: comments are stripped, and malformed rules or
+//! declarations are dropped rather than aborting the sheet. `@media` preludes
+//! are evaluated against the fixed viewport ([`super::media`]) — a matching
+//! block's rules join the cascade, a non-matching one contributes nothing.
+//! Every other `@`-rule (`@supports`, `@layer`, `@import`, …) is still
+//! skipped wholesale, including any `{…}` body.
 
+use super::media;
 use super::selector::Selector;
 use super::selparse::{parse_selector_list, split_top};
 
@@ -38,7 +41,14 @@ impl Stylesheet {
                 break;
             }
             if chars[i] == '@' {
-                i = skip_at_rule(&chars, i);
+                let (name, prelude, body, next) = read_at_rule(&chars, i);
+                i = next;
+                // Only `@media` is evaluated; a body-less one (statement form)
+                // parses as the empty sheet. Nested `@media` multiply through
+                // the recursion. Other conditional groups are still skipped.
+                if name == "media" && media::matches(&prelude) {
+                    rules.extend(Stylesheet::parse(&body.unwrap_or_default()).rules);
+                }
                 continue;
             }
             let (prelude, body, next) = match read_rule(&chars, i) {
@@ -145,33 +155,47 @@ fn skip_ws(b: &[char], mut i: usize) -> usize {
     i
 }
 
-/// Skip an at-rule: to the terminating `;`, or past a balanced `{…}` body.
-fn skip_at_rule(b: &[char], start: usize) -> usize {
-    let mut i = start;
+/// Read an at-rule at `start` (`b[start] == '@'`): its lowercased name, its
+/// prelude (from the name to the terminating `;` or the `{`), its balanced
+/// `{…}` body if it has one, and the index just past the rule.
+fn read_at_rule(b: &[char], start: usize) -> (String, String, Option<String>, usize) {
+    let mut i = start + 1;
+    while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == '-') {
+        i += 1;
+    }
+    let name: String = b[start + 1..i].iter().collect::<String>().to_ascii_lowercase();
+    let pre_start = i;
+    while i < b.len() && b[i] != ';' && b[i] != '{' {
+        i += 1;
+    }
+    let prelude: String = b[pre_start..i].iter().collect();
+    if i >= b.len() || b[i] == ';' {
+        return (name, prelude, None, (i + 1).min(b.len()));
+    }
+    let (body, next) = read_block(b, i);
+    (name, prelude, Some(body), next)
+}
+
+/// Read a balanced `{…}` body whose `{` is at `open`. Returns the body text
+/// and the index just past the closing `}` (an unterminated body reads to
+/// end of sheet).
+fn read_block(b: &[char], open: usize) -> (String, usize) {
+    let mut i = open + 1;
+    let body_start = i;
+    let mut depth = 1u32;
     while i < b.len() {
         match b[i] {
-            ';' => return i + 1,
-            '{' => {
-                let mut depth = 0u32;
-                while i < b.len() {
-                    match b[i] {
-                        '{' => depth += 1,
-                        '}' => {
-                            depth -= 1;
-                            if depth == 0 {
-                                return i + 1;
-                            }
-                        }
-                        _ => {}
-                    }
-                    i += 1;
-                }
-                return i;
-            }
-            _ => i += 1,
+            '{' => depth += 1,
+            '}' => depth -= 1,
+            _ => {}
         }
+        if depth == 0 {
+            break;
+        }
+        i += 1;
     }
-    i
+    let body: String = b[body_start..i].iter().collect();
+    (body, (i + 1).min(b.len()))
 }
 
 /// Read one `prelude { body }` rule starting at `start`. Returns the prelude,
@@ -186,22 +210,7 @@ fn read_rule(b: &[char], start: usize) -> Option<(String, String, usize)> {
         return None;
     }
     let prelude: String = b[start..i].iter().collect();
-    i += 1;
-    let body_start = i;
-    let mut depth = 1u32;
-    while i < b.len() && depth > 0 {
-        match b[i] {
-            '{' => depth += 1,
-            '}' => depth -= 1,
-            _ => {}
-        }
-        if depth == 0 {
-            break;
-        }
-        i += 1;
-    }
-    let body: String = b[body_start..i].iter().collect();
-    let next = (i + 1).min(b.len());
+    let (body, next) = read_block(b, i);
     Some((prelude, body, next))
 }
 

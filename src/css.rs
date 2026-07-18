@@ -4,10 +4,13 @@
 //!
 //! Scope is deliberately narrow — only what visibility and generated content
 //! need: `display:none`, `visibility:hidden|collapse` (inherited), and
-//! `::before`/`::after` `content`. There is no layout, no media-query
-//! evaluation, and no `cssparser`/`selectors` dependency; see `VISION.md`.
+//! `::before`/`::after` `content`. `@media` preludes are evaluated against
+//! the fixed 1280×720 viewport ([`media`] — the same evaluator JS
+//! `matchMedia` delegates to). There is no layout and no
+//! `cssparser`/`selectors` dependency; see `VISION.md`.
 
 mod cascade;
+pub mod media;
 mod parse;
 mod query;
 mod selector;
