@@ -32,9 +32,10 @@ fn serve(body: &str) -> (mockito::ServerGuard, mockito::Mock, String) {
     (server, m, url)
 }
 
-// An SPA shell: empty body, filled only by its external bundle. The inline
-// script's own source would count as body text (the Phase-1 heuristic reads
-// `text_content`), so the shell case must use an external `src`.
+// An SPA shell: an empty mount div filled only by its external bundle. The
+// needs heuristic sets `<script>` subtrees aside, so inline or external the
+// bare document is a starved shell; the external `src` here also exercises the
+// §6 subfetch path in the tests below.
 const SHELL: &str =
     "<html><body><div id='root'></div><script src='/app.js'></script></body></html>";
 
@@ -45,11 +46,14 @@ fn js_runs_inline_scripts_populates_content_and_emits_the_js_block() {
          <script>document.getElementById('root').textContent = 'hello world';</script>\
          </body></html>",
     );
-    // Without `--js` the inline script never runs, so the text view (which skips
-    // `<script>`) is empty.
+    // Without `--js` the inline script never runs: the body is a bare mount
+    // shell (a `<script>`'s own source isn't rendered content), so the honest
+    // signal is needs-js — and no `js` block rides along without `--js`.
     let (_c, before, _) = run_capture(&[&url, "--out", "text"]);
-    assert_eq!(parse_envelope(&before)["out"], "");
-    assert!(parse_envelope(&before).get("js").is_none());
+    let b = parse_envelope(&before);
+    assert_eq!(b["status"], "needs");
+    assert_eq!(b["needs"], serde_json::json!(["js"]));
+    assert!(b.get("js").is_none());
     // With `--js` the script mutates the DOM and the block reports the run.
     let (code, out, _) = run_capture(&[&url, "--js", "--out", "text"]);
     assert_eq!(code, 0);
