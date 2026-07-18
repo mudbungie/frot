@@ -305,7 +305,8 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   and `window.outer*` report it (inner == outer — no browser chrome); pages that
   gate desktop chrome on `window.innerWidth` (mdbook does) get the honest width
   instead of `undefined`/NaN → the mobile branch.
-- `matchMedia`: evaluated against the fixed 1280px viewport for width queries;
+- `matchMedia`: evaluated against the fixed 1280px viewport for width queries in
+  `px`/`em`/`rem` (`em`/`rem` at a **16px** root font-size, so `80em == 1280px`);
   everything else matches never. `getContext()` on canvas returns `null`
   (spec-legal). `Worker`, `WebAssembly`, `serviceWorker`: absent.
 

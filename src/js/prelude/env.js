@@ -228,12 +228,13 @@
 
   // --- matchMedia: width queries vs the fixed viewport; else never (§7) -----
   function evalWidth(query) {
-    var re = /\((min-width|max-width|width)\s*:\s*(\d+)px\)/g;
+    var re = /\((min-width|max-width|width)\s*:\s*(\d+(?:\.\d+)?)(px|em|rem)\)/g;
     var m,
       result = null;
     while ((m = re.exec(query))) {
-      var pass =
-        m[1] === 'min-width' ? VW >= +m[2] : m[1] === 'max-width' ? VW <= +m[2] : VW === +m[2];
+      // em/rem convert at a 16px root font-size (so 80em == the 1280px viewport).
+      var px = m[3] === 'px' ? +m[2] : +m[2] * 16;
+      var pass = m[1] === 'min-width' ? VW >= px : m[1] === 'max-width' ? VW <= px : VW === px;
       result = result === null ? pass : result && pass;
     }
     // No width feature -> "everything else matches never" (§7).

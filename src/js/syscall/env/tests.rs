@@ -66,6 +66,22 @@ fn viewport_width_is_the_layout_constant() {
 }
 
 #[test]
+fn matchmedia_converts_em_and_rem_at_16px() {
+    let s = sess("https://example.com/", "ua/1");
+    // 16px per em/rem: 80em == 1280px == the viewport width.
+    assert_eq!(s.eval("matchMedia('(min-width: 79em)').matches").unwrap(), "true");
+    assert_eq!(s.eval("matchMedia('(min-width: 80em)').matches").unwrap(), "true");
+    assert_eq!(s.eval("matchMedia('(min-width: 81em)').matches").unwrap(), "false");
+    assert_eq!(s.eval("matchMedia('(max-width: 50em)').matches").unwrap(), "false");
+    // rem behaves identically; fractional values parse; bare `width` too.
+    assert_eq!(s.eval("matchMedia('(min-width: 40rem)').matches").unwrap(), "true");
+    assert_eq!(s.eval("matchMedia('(min-width: 79.9em)').matches").unwrap(), "true");
+    assert_eq!(s.eval("matchMedia('(width: 80em)').matches").unwrap(), "true");
+    // px still works after the regex change (regression guard).
+    assert_eq!(s.eval("matchMedia('(min-width: 960px)').matches").unwrap(), "true");
+}
+
+#[test]
 fn viewport_height_syscall_and_the_width_surface() {
     let s = sess("https://example.com/", "ua/1");
     // The new height syscall mirrors the width one (js.md §7/§8).
