@@ -37,6 +37,33 @@ fn ok_response_carries_http_status_block() {
 }
 
 #[test]
+fn accepted_non_200_2xx_stays_ok_and_surfaces_http_status() {
+    // Field trial (bl-84ef): amazon.com answered HTTP 202 with a soft-bot-block
+    // challenge body. Only status >= 400 flips to `error` (bl-d1c6), so a 2xx
+    // that is not 200 must stay `ok`, keep exit 0, and still surface
+    // `http.status` — the sole signal that lets a caller tell a soft block from
+    // a genuinely empty page. This test fails if 202 ever flips to error or if
+    // the `http` block stops being emitted. The >= 400 error path is pinned by
+    // `not_found_flips_to_error_with_http_block` and
+    // `forbidden_challenge_flips_to_error_with_distinct_kind` below.
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(202)
+        .with_body("<html><body>challenge</body></html>")
+        .create();
+    let (code, out, _) = run_capture(&[&server.url(), "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    assert_eq!(v["status"], "ok");
+    assert_eq!(v["http"]["status"], 202);
+    assert!(
+        v.get("error").is_none(),
+        "a 2xx response is an impression, not an error"
+    );
+}
+
+#[test]
 fn not_found_flips_to_error_with_http_block() {
     let mut server = mockito::Server::new();
     let _m = server
