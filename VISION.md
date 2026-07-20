@@ -4,7 +4,7 @@
 
 There is a gap between `curl` (raw bytes, no semantics) and a full headless browser (Chromium, hundreds of MB, slow start, stateful, fragile). Harnesses live in this gap. They need to look at web pages programmatically — fetch a doc, read its structure, find a link, extract a table, see what an accessibility tree would expose — without standing up a browser pool.
 
-The available options force a binary choice: too little (curl + regex, hope the page is SSR'd, brittle), or too much (Playwright, browser pool, container, anti-bot proxy infrastructure). Nothing sits cleanly in the middle as a small, fast, stateless tool that produces *machine-readable impressions* of the web.
+The available options force a binary choice: too little (curl + regex, hope the page is SSR'd, brittle), or too much (Playwright, browser pool, container). Nothing sits cleanly in the middle as a small, fast, stateless tool that produces *machine-readable impressions* of the web.
 
 ## The name
 
@@ -101,7 +101,6 @@ If Phase 4 holds, push toward more Web APIs. If it doesn't, accept the ceiling a
 ## What this is not
 
 - Not a browser. Not a competitor to Playwright or Browserless.
-- Not anti-bot infrastructure. frot *reps a browser* — a Firefox UA, navigator surface, TLS ClientHello and header casing — because a harness looking at the web should look like a browser, not a bot. That is the whole of the masquerade. It does **not** solve CAPTCHAs or execute anti-bot JS challenges; a site gated behind those (a Cloudflare interstitial, a behavioral challenge) is failed honestly (the challenge page's status is surfaced, never swallowed). Fingerprint-matching is in bounds; challenge-beating is the refused line.
 - Not a screenshot tool. Pixels are not the output.
 - Not a business. This is a harness component, shared for portability.
 
