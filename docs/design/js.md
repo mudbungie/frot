@@ -556,3 +556,29 @@ the falsifiable check on §1.
   §6 subfetch cache now resolves and links module graphs, so `type="module"`
   scripts evaluate as real modules (§4.1) with bare specifiers spec-legally
   unresolvable (no import map) and failed fetches counted (§10).
+- **OQ-5 — raise `EXEC_BUDGET_MS` for the heaviest apps?** (bl-f859, field
+  trial 2026-07-19: excalidraw.com, open.spotify.com, discord.com hit the 1 s
+  deadline before quiescence; post-bl-c7e9, chunk-heavy sites like linear.app
+  additionally convert their refused-chunk errors into `settled: false`, as
+  that ball predicted.) **Resolved: no — the ceiling is accepted; the budget
+  stands at 1 s.** Four reasons, in force order:
+  1. With the count cap gone (bl-c7e9), the deadline is the *single* work
+     limiter by design. Its value is the product promise — VISION's success
+     criterion is "sub-second once JS is in play" — so it is a contract, not a
+     fidelity tunable; raising it trades the promise away for the long tail
+     VISION explicitly refuses to optimize for.
+  2. The virtual clock (§5) never waits on timers, so 1 s of budget is 1 s of
+     *genuine* compute and network. A page that cannot settle in that is doing
+     more real work than a fast structural-impression tool should underwrite —
+     exactly Phase 5+'s "accept the ceiling and defer to a real browser."
+  3. The trial's unsettled sites are canvas/WebGL/audio apps that exceed the
+     *shim*, not the clock — no budget renders them, and two of three already
+     emit `needs-js` correctly. `settled: false` is the honesty contract
+     working, not a defect.
+  4. The chunk-heavy conversion (refused-chunks → `settled: false`) is a
+     *latency* shape, not a budget-size shape: the §6 cache fetches
+     sequentially, so N chunks cost N round-trips and doubling the budget buys
+     linear chunk count for doubled wall time. If a filed need ever demands
+     more inside the same promise, the principled lever is subfetch
+     concurrency (parallel dispatch under the same deadline and byte pool),
+     not more time — noted, deliberately not built.
