@@ -8,8 +8,9 @@
 use std::io::Write;
 
 use crate::ax;
+use crate::run::gather::external_css;
 use crate::cli;
-use crate::dom::{Document, NodeKind, WalkEvent};
+use crate::dom::Document;
 use crate::envelope::{
     Envelope, ErrorInfo, HttpInfo, JsInfo, JsMessage, NeedsKind, StatusKind, UrlBlock, View,
 };
@@ -18,7 +19,6 @@ use crate::js::{Env, StyleSource};
 use crate::needs;
 use crate::views;
 use serde_json::Value;
-use url::Url;
 
 pub fn run(argv: &[String]) -> u8 {
     run_io(argv, &mut std::io::stdout(), &mut std::io::stderr())
@@ -190,49 +190,7 @@ fn build_payload(
     }
 }
 
-/// Absolute URLs of `<link rel="stylesheet">` hrefs, resolved against the
-/// page's final URL. Non-stylesheet links, empty hrefs, and hrefs that fail
-/// to resolve are dropped. A `file:` sheet is kept only when the page itself
-/// is `file:` — remote content must never cause local reads.
-fn external_hrefs(doc: &Document, base: &str) -> Vec<String> {
-    let base_url = Url::parse(base).ok();
-    let base_is_file = base_url.as_ref().is_some_and(|b| b.scheme() == "file");
-    let mut out = Vec::new();
-    doc.walk(None, &mut |ev, e| {
-        if let WalkEvent::Enter(_) = ev {
-            if let NodeKind::Element(el) = &e.kind {
-                let is_sheet = el.name == "link"
-                    && el.attr("rel").is_some_and(|r| {
-                        r.split_whitespace().any(|t| t.eq_ignore_ascii_case("stylesheet"))
-                    });
-                if is_sheet {
-                    if let Some(h) = el.attr("href").filter(|s| !s.is_empty()) {
-                        if let Some(u) = base_url.as_ref().and_then(|b| b.join(h).ok()) {
-                            if u.scheme() != "file" || base_is_file {
-                                out.push(u.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    });
-    out
-}
-
-/// Fetch each external stylesheet best-effort: CSS is non-critical, so a
-/// failed fetch is silently skipped rather than failing the run. The
-/// caller's `-H` headers ride along only when the sheet shares the page's
-/// origin — credentials never leak cross-origin.
-fn external_css(doc: &Document, base: &str, headers: &[(String, String)]) -> Vec<String> {
-    external_hrefs(doc, base)
-        .into_iter()
-        .filter_map(|u| {
-            let h = if fetch::same_origin(&u, base) { headers } else { &[] };
-            fetch::fetch(&u, h).ok().map(|r| r.body)
-        })
-        .collect()
-}
+mod gather;
 
 #[cfg(test)]
 mod tests;

@@ -38,11 +38,66 @@ parallel.
 
 This is the asymmetry the field trial flagged: `--js` is bounded on multiple
 axes (`docs/design/js.md` — `EXEC_BUDGET_MS = 1000` wall-clock covering script
-*and* network, `JS_MEM_LIMIT = 64 MiB`, `VIRTUAL_HORIZON_MS = 10_000`,
-`SUBFETCH_MAX = 16` capping JS-driven fetch/XHR count). `--css` has none: a
+*and* network, `JS_MEM_LIMIT = 64 MiB`, `VIRTUAL_HORIZON_MS = 10_000`, and at
+the time of this investigation `SUBFETCH_MAX = 16` capping JS-driven fetch/XHR
+count — since retired by bl-c7e9 on the grounds that a request count prices no
+real resource; the surviving JS bounds are time, engine heap, and fetched
+bytes). `--css` has none: a
 page with N stylesheets on a slow host costs up to N × 15s, serially, with no
 cap on N and no shared budget. Today's floor is "however many `<link>` tags the
 page has," which is attacker/host-controlled.
+
+#### Fixed — bl-8ba2 (`src/run/gather.rs`)
+
+The gather phase is now concurrent and bounded. Two bounds, one per real
+resource — the shape js.md §6 settled on when `SUBFETCH_MAX` was retired
+(bl-c7e9): a *count* of requests prices no resource, so there is deliberately
+no cap on how many stylesheets a page may link. Every sheet is still
+attempted, in document order, until time runs out.
+
+- **`GATHER_BUDGET_MS = 5_000`** — one aggregate wall-clock ceiling for the
+  whole phase, all sheets combined. Rationale: the budget is a *backstop, not
+  the mechanism*. Concurrency is what makes the common case fast; this exists
+  so one slow or dead host cannot set the floor for the run. It is sized from
+  both ends — comfortably above a full wave of legitimately slow sheets (a
+  cold cross-origin CDN handshake plus transfer, ~1–2 s), and far below the
+  per-request `fetch::TIMEOUT_SECS = 15` that was previously the phase's
+  effective limit, so `--css` can no longer cost 15 s × N. On the measured
+  worst real page (linear.app, 68 chunks) it does not trip at all.
+- **`MAX_IN_FLIGHT = 6`** — simultaneous requests, via `std::thread::scope`
+  over the existing synchronous `fetch::fetch` (no async runtime, no
+  thread-pool dependency). This bounds *sockets and OS threads*, which are
+  real resources, and is not a count cap in the retired-`SUBFETCH_MAX` sense:
+  nothing is dropped for being the Nth sheet. Six is Firefox's per-server
+  limit (`network.http.max-persistent-connections-per-server`), and frot
+  already presents as Firefox — 68 parallel connections would be both a
+  fingerprint tell and rude to the origin.
+
+Both are constants, not flags: same severability posture as the 1280 px
+viewport (`layout.md` §4) and `EXEC_BUDGET_MS`. Nothing about a caller's page
+makes a different number right.
+
+The deadline is the single authority. Each request's timeout is *derived* from
+what the budget has left (`fetch::fetch_within`), rather than the phase
+tolerating one in-flight overshoot as the JS subfetch seam does — so a host
+that accepts the connection and never answers costs the phase its remaining
+budget and nothing more. Statelessness holds: the budget is a parameter
+(`gather_within`, the seam the budget-trip test dials down, mirroring
+`Session::with_budget`), the only shared state is an atomic work cursor, and
+workers return their results at join rather than sharing a buffer.
+
+A tripped budget is not a run failure — CSS stays best-effort, as
+`external_css` always documented: whatever arrived applies, in source order.
+Note this is silent, consistent with the pre-existing treatment of individual
+sheet failures. Surfacing "the impression was gathered under a tripped CSS
+budget" in the envelope would be the honest-signals move (VISION principle 5),
+but it changes the output schema and so is escalation-gated; deliberately not
+taken here.
+
+Measured on a local stub origin serving 30 stylesheets at 100 ms each
+(release build, same machine, three runs): **3.03 s → 0.50 s**. The after
+number is 5 waves × 100 ms, exactly the `MAX_IN_FLIGHT` prediction; the before
+number is the serial sum.
 
 ### 1b. Selector matching is unindexed — O(elements × rules)
 
@@ -87,13 +142,12 @@ byte size (30,864 vs 428 rules for only 3.5x more bytes, but ~30x more time).
 Two independent fixes, two independent balls (different code paths, different
 risk, different tests — don't land them together):
 
-1. **Bound and parallelize the CSS fetch path.** Fetch external stylesheets
-   concurrently (no new async runtime needed — `std::thread::scope` over the
-   existing synchronous `fetch::fetch` suffices; a thread-pool crate is a
-   dependency-tree conversation per `AGENTS.md`, not a given). Add an aggregate
-   wall-clock budget for the whole CSS-gather phase, mirroring `--js`'s
-   axis-bounding — the fix is a budget *and* concurrency, not concurrency
-   alone, or a single slow host still hangs the run.
+1. ~~**Bound and parallelize the CSS fetch path.**~~ **Done — bl-8ba2**, see
+   "Fixed" under Finding 1a above. Landed std-only (`std::thread::scope`, no
+   new dependency): `MAX_IN_FLIGHT = 6` concurrent requests under one
+   `GATHER_BUDGET_MS = 5_000` aggregate budget. The fix had to be a budget
+   *and* concurrency — concurrency alone still lets a single slow host hang
+   the run.
 2. **Index the cascade.** Bucket rules by rightmost simple selector
    (id/class/tag) so per-element matching skips rules that cannot possibly
    apply, the standard technique. Must preserve the existing cascade/specificity

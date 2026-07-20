@@ -17,7 +17,10 @@ use ureq::{Agent, ResponseExt};
 
 use crate::envelope::kinds;
 
+mod decode;
 mod firefox_tls;
+
+pub(crate) use decode::decode_body;
 
 const USER_AGENT: &str =
     "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
@@ -103,11 +106,26 @@ pub fn fetch_document(
     fetch(url, &effective)
 }
 
-/// GET `url` with the caller's `headers` attached. A caller-supplied
-/// `User-Agent` replaces the default. `Authorization` is never forwarded
-/// across redirects (ureq's default). `file://` reads ignore `headers` —
-/// the CLI rejects that combination as a usage error before we get here.
+/// GET `url` with the caller's `headers` attached, under the default
+/// per-request [`TIMEOUT_SECS`] ceiling. A caller-supplied `User-Agent`
+/// replaces the default. `Authorization` is never forwarded across redirects
+/// (ureq's default). `file://` reads ignore `headers` — the CLI rejects that
+/// combination as a usage error before we get here.
 pub fn fetch(url: &str, headers: &[(String, String)]) -> Result<FetchResult, FetchError> {
+    fetch_within(url, headers, Duration::from_secs(TIMEOUT_SECS))
+}
+
+/// [`fetch`] with the request's wall-clock ceiling supplied by the caller.
+/// A caller that holds a *phase* budget spanning several requests (the CSS
+/// gather, `src/run/gather.rs`) derives each request's timeout from the time
+/// its budget has left, so the phase cannot overrun by a hung host: the
+/// deadline is the single authority and the per-request ceiling is derived
+/// from it, never the other way round.
+pub(crate) fn fetch_within(
+    url: &str,
+    headers: &[(String, String)],
+    timeout: Duration,
+) -> Result<FetchResult, FetchError> {
     let parsed = validate_url(url)?;
     if parsed.scheme() == "file" {
         return fetch_file(&parsed);
@@ -117,7 +135,7 @@ pub fn fetch(url: &str, headers: &[(String, String)]) -> Result<FetchResult, Fet
     // timeouts and the error taxonomy; only the ClientHello changes.
     let config = Agent::config_builder()
         .user_agent(user_agent(headers))
-        .timeout_global(Some(Duration::from_secs(TIMEOUT_SECS)))
+        .timeout_global(Some(timeout))
         .http_status_as_error(false)
         .build();
     let connector = ()
@@ -242,51 +260,6 @@ pub(crate) fn map_ureq_error(e: ureq::Error) -> FetchError {
         _ => kinds::INTERNAL,
     };
     FetchError::new(kind, msg)
-}
-
-pub(crate) fn extract_charset_from_content_type(ct: &str) -> Option<String> {
-    let lower = ct.to_ascii_lowercase();
-    let idx = lower.find("charset=")?;
-    let after = &ct[idx + "charset=".len()..];
-    let end = after
-        .find(|c: char| c == ';' || c.is_whitespace())
-        .unwrap_or(after.len());
-    let trimmed = after[..end].trim_matches(['"', '\'']);
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
-}
-
-pub(crate) fn decode_body(bytes: &[u8], content_type: Option<&str>) -> (String, String) {
-    let declared = content_type.and_then(extract_charset_from_content_type);
-    let sniffed = sniff_meta_charset(bytes);
-    let chosen = declared.or(sniffed).unwrap_or_else(|| "utf-8".to_string());
-    let encoding =
-        encoding_rs::Encoding::for_label(chosen.as_bytes()).unwrap_or(encoding_rs::UTF_8);
-    let (decoded, used, _had_errors) = encoding.decode(bytes);
-    (decoded.into_owned(), used.name().to_ascii_lowercase())
-}
-
-fn sniff_meta_charset(bytes: &[u8]) -> Option<String> {
-    let head: &[u8] = if bytes.len() > 1024 {
-        &bytes[..1024]
-    } else {
-        bytes
-    };
-    let head_str = String::from_utf8_lossy(head);
-    let lower = head_str.to_ascii_lowercase();
-    let idx = lower.find("charset=")?;
-    let after = head_str[idx + "charset=".len()..].trim_start_matches(['"', '\'']);
-    let end = after
-        .find(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_')
-        .unwrap_or(after.len());
-    if end == 0 {
-        None
-    } else {
-        Some(after[..end].to_string())
-    }
 }
 
 #[cfg(test)]

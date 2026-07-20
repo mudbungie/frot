@@ -28,7 +28,7 @@ fn tmp_dir(name: &str) -> std::path::PathBuf {
 }
 
 fn file_url(p: &std::path::Path) -> String {
-    Url::from_file_path(p).unwrap().to_string()
+    url::Url::from_file_path(p).unwrap().to_string()
 }
 
 #[test]
