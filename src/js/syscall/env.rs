@@ -8,7 +8,7 @@
 use rquickjs::{Ctx, Function, Object};
 use url::Url;
 
-use super::{Denials, Env};
+use super::Host;
 use crate::layout::{VIEWPORT_HEIGHT, VIEWPORT_WIDTH};
 
 /// Bind one named host function, keeping the `?` error paths on the call line so
@@ -22,20 +22,16 @@ macro_rules! bind {
 
 /// Register `__frot_env_ua`, `__frot_location`, `__frot_url_parse`,
 /// `__frot_viewport_width`, `__frot_viewport_height`, `__frot_media_matches`,
-/// and `__frot_denied` on the realm. Consumes `env`, moving its facts into the
-/// closures; `denials` is the shared counter the prelude bumps on a refused
-/// navigation. `__frot_media_matches` backs `matchMedia` with the CSS engine's
-/// media-query evaluator (`css::media`) — the same authority `@media` blocks
-/// cascade through, so CSS and JS can never disagree.
-pub fn install<'js>(
-    ctx: &Ctx<'js>,
-    g: &Object<'js>,
-    env: Env,
-    denials: &Denials,
-) -> rquickjs::Result<()> {
-    let ua = env.user_agent;
+/// and `__frot_denied` on the realm. Clones the static facts out of `host.env`
+/// into the closures; `host.counters.denials` is the shared counter the prelude
+/// bumps on a refused navigation. `__frot_media_matches` backs `matchMedia` with
+/// the CSS engine's media-query evaluator (`css::media`) — the same authority
+/// `@media` blocks cascade through, so CSS and JS can never disagree.
+pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::Result<()> {
+    let denials = &host.counters.denials;
+    let ua = host.env.user_agent.clone();
     bind!(ctx, g, "__frot_env_ua", move || ua.clone());
-    let url = env.url;
+    let url = host.env.url.clone();
     bind!(ctx, g, "__frot_location", move |ctx: Ctx<'js>| location_obj(&ctx, &url));
     bind!(ctx, g, "__frot_url_parse", |ctx: Ctx<'js>, spec: String, base: Option<String>| {
         url_parse(&ctx, &spec, base.as_deref())

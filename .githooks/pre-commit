@@ -29,8 +29,12 @@ if git diff --cached --name-only --diff-filter=ACM | grep -qE '\.rs$'; then
     echo "pre-commit: cargo-llvm-cov not installed. Run 'make setup'." >&2
     exit 1
   fi
-  cargo llvm-cov --fail-under-lines 100 >/dev/null || {
-    echo "pre-commit: line coverage below 100%" >&2
+  # Regions as well as lines: a fully-covered line can still hide an untaken
+  # branch or an unreached `?` error edge, which is exactly where the blind
+  # spots were. An unreachable region is a design signal — delete the dead path
+  # or restructure it so it can be tested; never suppress it.
+  cargo llvm-cov --fail-under-lines 100 --fail-under-regions 100 >/dev/null || {
+    echo "pre-commit: line or region coverage below 100%" >&2
     exit 1
   }
 fi

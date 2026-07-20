@@ -132,6 +132,32 @@ fn leading_whitespace_in_inline_at_doc_start_dropped() {
     assert_eq!(got, "hello");
 }
 
+/// `push_text` and `flush_pending` carry no "is `out` empty?" guard, because
+/// the root block break always fires first (see [`State::push_text`]'s docs).
+/// That rests entirely on `html`/`body` being block tags — `tags.rs` warns its
+/// membership is load-bearing, and this is the second consumer it means. Drop
+/// either name from `BLOCK_TAGS` and a leading space reappears in `--out text`,
+/// which `finish` does not trim; so pin the membership *and* the behaviour it
+/// buys, across every shape that can put whitespace before the first character.
+#[test]
+fn text_never_starts_with_whitespace() {
+    assert!(crate::tags::is_block("html"), "html must stay a block tag");
+    assert!(crate::tags::is_block("body"), "body must stay a block tag");
+    for html in [
+        "  <p>hi</p>",
+        "<html><body><span>   hello</span></body></html>",
+        "<html>\n\t<body>\n<div>\n  x</div></body></html>",
+        "<span> a</span>",
+        "<html><body>   <b> </b> <i>  q</i></body></html>",
+    ] {
+        let got = t(html);
+        assert!(
+            !got.starts_with([' ', '\n']),
+            "leading whitespace survived for {html:?}: {got:?}"
+        );
+    }
+}
+
 #[test]
 fn trailing_whitespace_from_pre_is_trimmed() {
     let got = t("<pre>hello </pre>");

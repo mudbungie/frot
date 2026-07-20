@@ -145,6 +145,39 @@ fn an_ipv6_literal_authority_is_rejected_as_a_dns_name() {
     assert!(matches!(err, Error::Tls(m) if m == "invalid dns name"), "unexpected");
 }
 
+/// `ClientConnection::new` can refuse the config itself, before a single byte
+/// reaches the wire. `connect` must turn that into the same clean `Tls` error
+/// as any other handshake refusal rather than unwrapping. Driven with the real
+/// shipping config and one field rustls rejects — `max_fragment_size` outside
+/// the accepted 32..=16389 — so what is under test is the production
+/// construction path, not a lookalike config assembled for the test.
+#[test]
+fn a_config_the_connection_rejects_is_a_tls_error() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || for _s in listener.incoming().flatten() {});
+
+    let mut config = firefox_config(test_roots());
+    config.max_fragment_size = Some(16);
+    let connector = ()
+        .chain(TcpConnector::default())
+        .chain(FirefoxTlsConnector::with_config(config));
+    let agent = Agent::with_parts(
+        ureq::config::Config::default(),
+        connector,
+        DefaultResolver::default(),
+    );
+
+    let err = agent
+        .get(&format!("https://localhost:{port}/"))
+        .call()
+        .unwrap_err();
+    assert!(
+        matches!(err, Error::Tls(m) if m == "tls client connection"),
+        "unexpected error: {err:?}"
+    );
+}
+
 /// A peer that completes the handshake and then emits bytes that are not valid
 /// TLS records fails the *read* side of the stream. That is a distinct seam
 /// from a reset during connect: here the transport is live and the corruption

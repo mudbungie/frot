@@ -70,12 +70,14 @@ impl Session {
         let page_url = env.url.clone();
         syscall::install(
             &engine,
-            doc.clone(),
-            console.clone(),
-            geo,
-            env,
-            counters.clone(),
-            subfetch.clone(),
+            syscall::Host {
+                doc: doc.clone(),
+                console: console.clone(),
+                geo,
+                env,
+                counters: counters.clone(),
+                subfetch: subfetch.clone(),
+            },
         );
         Session {
             engine,

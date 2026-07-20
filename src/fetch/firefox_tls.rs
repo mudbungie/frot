@@ -54,17 +54,31 @@ impl FirefoxTlsConnector {
     /// set; the tests inject a throwaway CA so a local server can be reached
     /// without disabling verification.
     pub fn with_roots(roots: RootCertStore) -> Self {
-        let config = ClientConfig::builder()
-            .with_root_certificates(roots)
-            .with_no_client_auth()
-            // `test_alpn_http1`: the Firefox extension set, but ALPN offers only
-            // http/1.1 — ureq speaks HTTP/1.1, so we must not let the server
-            // select h2. (SO clears on this variant; h2 is future work.)
-            .with_fingerprint(craftls::craft::FIREFOX_105.test_alpn_http1.builder());
+        Self::with_config(firefox_config(roots))
+    }
+
+    /// Build a connector over an already-assembled `config`. Whether a
+    /// per-connection [`ClientConnection`] can be constructed at all is decided
+    /// entirely by the config, so it arrives through the signature rather than
+    /// being welded into the constructor — that is what lets a test drive
+    /// `connect`'s construction-refusal arm with the shipping config plus one
+    /// rejected field, instead of leaving the arm unreachable by design.
+    pub fn with_config(config: ClientConfig) -> Self {
         Self {
             config: Arc::new(config),
         }
     }
+}
+
+/// The shipping client config: Firefox's ClientHello over `roots`.
+fn firefox_config(roots: RootCertStore) -> ClientConfig {
+    ClientConfig::builder()
+        .with_root_certificates(roots)
+        .with_no_client_auth()
+        // `test_alpn_http1`: the Firefox extension set, but ALPN offers only
+        // http/1.1 — ureq speaks HTTP/1.1, so we must not let the server
+        // select h2. (SO clears on this variant; h2 is future work.)
+        .with_fingerprint(craftls::craft::FIREFOX_105.test_alpn_http1.builder())
 }
 
 impl<In: Transport> Connector<In> for FirefoxTlsConnector {

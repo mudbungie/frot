@@ -24,7 +24,7 @@ lint:
 	cargo clippy --all-targets -- -D warnings
 
 cov:
-	cargo llvm-cov --fail-under-lines 100
+	cargo llvm-cov --fail-under-lines 100 --fail-under-regions 100
 
 clean:
 	cargo clean

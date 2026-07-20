@@ -9,7 +9,7 @@ A stateless, single-binary tool that takes structural impressions of web pages. 
 ## Hard rules
 
 - **Source files ≤ 300 lines.** Enforced by pre-commit hook. Docs and config are exempt. If a file is growing, split it; don't widen the budget.
-- **Test coverage = 100%.** Enforced by pre-commit hook via `cargo llvm-cov`. If something can't be tested, redesign it so it can be. Untestable code is not built.
+- **Test coverage = 100%, lines *and* regions.** Enforced by pre-commit hook via `cargo llvm-cov --fail-under-lines 100 --fail-under-regions 100`. Regions catch what lines miss: an untaken branch or an unreached `?` error edge on a line that ran. If something can't be tested, redesign it so it can be — delete the dead path or take its dependency through the call signature. Untestable code is not built, and a region is never suppressed with an attribute or a `#[cfg]`.
 - **Statelessness is non-negotiable.** No globals, no module-level mutable state, no implicit sessions. Pass state explicitly through call signatures.
 - **Output formats are machine-first.** New outputs must be parseable without heuristics. Pretty-printing is a separate concern.
 
@@ -25,7 +25,7 @@ Task tracking is `bl` (see `bl --skill`). One agent takes a task all the way thr
 make setup              # one-time: install cargo-llvm-cov
 make precommit-install  # one-time: wire pre-commit hook
 make test               # cargo test
-make cov                # cargo llvm-cov, requires 100%
+make cov                # cargo llvm-cov, requires 100% lines and regions
 make lint               # cargo clippy with -D warnings
 make build              # release build
 ```

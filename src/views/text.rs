@@ -41,6 +41,16 @@ impl State {
         }
     }
 
+    /// Whitespace never needs an "is there anything before me?" guard, because
+    /// there always is: [`emit`] calls [`State::block_break`] on entering any
+    /// block element *before* pushing any text, `Document::parse` always yields
+    /// an `html` root, and `tags::BLOCK_TAGS` holds both `html` and `body`. So
+    /// `pending_break` is set before the first `push_text` runs, and
+    /// [`State::flush_pending`] takes the break arm — which returns early —
+    /// while `out` is still empty. A pending *space* therefore only ever
+    /// survives to be flushed once `out` is non-empty, and `out` never shrinks
+    /// before `finish`. `text_never_starts_with_whitespace` pins the tag
+    /// membership this rests on.
     fn push_text(&mut self, s: &str) {
         if self.pre_depth > 0 {
             self.flush_pending();
@@ -49,9 +59,7 @@ impl State {
         }
         for ch in s.chars() {
             if ch.is_whitespace() {
-                if !self.out.is_empty() || self.pending_break {
-                    self.pending_space = true;
-                }
+                self.pending_space = true;
             } else {
                 self.flush_pending();
                 self.out.push(ch);
@@ -86,9 +94,7 @@ impl State {
             return;
         }
         if self.pending_space {
-            if !self.out.is_empty() {
-                self.out.push(' ');
-            }
+            self.out.push(' ');
             self.pending_space = false;
         }
     }

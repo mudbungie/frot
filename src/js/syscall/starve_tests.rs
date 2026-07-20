@@ -13,6 +13,8 @@ use crate::dom::Document;
 use crate::js::engine::{Engine, EXEC_BUDGET_MS};
 use crate::js::geometry::{self, StyleSource};
 use crate::js::subfetch;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::Duration;
 
 fn env() -> Env {
@@ -43,12 +45,14 @@ fn install_capped(mem_limit: usize) -> Result<(), String> {
         )));
         install(
             &engine,
-            doc,
-            Rc::new(RefCell::new(Vec::new())),
-            geo,
-            env(),
-            counters,
-            sf,
+            Host {
+                doc,
+                console: Rc::new(RefCell::new(Vec::new())),
+                geo,
+                env: env(),
+                counters,
+                subfetch: sf,
+            },
         );
     })
     .map_err(|p| {
@@ -59,57 +63,24 @@ fn install_capped(mem_limit: usize) -> Result<(), String> {
     })
 }
 
-/// Whether `mem_limit` was enough to get the whole syscall table bound (the
-/// run may still have died later, in the prelude).
-fn table_phase_completed(mem_limit: usize) -> bool {
-    match install_capped(mem_limit) {
-        Ok(()) => true,
-        Err(m) => !m.contains("syscall table"),
-    }
-}
-
-/// A cap inside the zone where the table stops fitting. Located at run time
-/// rather than hardcoded: it tracks the engine's own allocation sizes, which
-/// are a QuickJS build detail and not ours to pin. The predicate is not
-/// perfectly monotone (GC timing shifts the exact byte at which a phase runs
-/// out), so this lands *somewhere* in the transition zone rather than on an
-/// exact edge — hence the wide fine sweep around it below.
-fn table_phase_boundary() -> usize {
-    let (mut lo, mut hi) = (110_000usize, 400_000usize);
-    while lo < hi {
-        let mid = lo + (hi - lo) / 2;
-        if table_phase_completed(mid) {
-            hi = mid
-        } else {
-            lo = mid + 1
-        }
-    }
-    lo
-}
-
-/// Sweeping the heap cap moves the first failing allocation through each of the
-/// seven binding groups in turn, then through the prelude. Every cap must
-/// either install fully or panic. The sweep asserts all three outcomes appear:
-/// a table-binding failure, a prelude failure, and a clean install — so the
-/// starvation is proven to bite *inside* the binding phase and not only in the
-/// much larger prelude that follows it.
+/// Sweeping the heap cap moves the first failing allocation through the binding
+/// phase and then through the prelude. Every cap must either install fully or
+/// panic. The sweep asserts all three outcomes appear: a table-binding failure,
+/// a prelude failure, and a clean install — so the starvation is proven to bite
+/// *inside* the binding phase and not only in the much larger prelude that
+/// follows it.
 ///
-/// The band is walked coarsely, then byte-by-byte just under the boundary: the
-/// last group to be bound has only one function in it, so the caps that starve
-/// exactly it are a handful of bytes wide.
+/// The groups are applied as one uniform sequence (`super::GROUPS`), so *which*
+/// group a given cap starves does not matter: they share a single failure path,
+/// and any cap landing in the binding phase exercises it. That is why a coarse
+/// walk suffices here — no hunt for the narrow band that starves one particular
+/// group.
 #[test]
 fn a_starved_install_panics_rather_than_half_installing() {
     let prior = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
-    let boundary = table_phase_boundary();
-    // Coarse across the whole starved band: spreads the first failing
-    // allocation over the early binding groups, and (past the transition zone)
-    // over the far larger prelude.
-    let coarse = (110_000..260_000).step_by(64);
-    // Byte-by-byte through the transition zone: the last group bound holds a
-    // single function, so the caps that starve exactly it are a few bytes wide.
-    let fine = boundary.saturating_sub(512)..=boundary + 512;
-    let msgs: Vec<Result<(), String>> = coarse.chain(fine).map(install_capped).collect();
+    let msgs: Vec<Result<(), String>> =
+        (110_000..260_000).step_by(64).map(install_capped).collect();
     let roomy = install_capped(crate::js::engine::JS_MEM_LIMIT);
     std::panic::set_hook(prior);
 
