@@ -11,31 +11,34 @@
 //! - [`detect`] — a **document** fact: the DOM under the recipe carries no
 //!   renderable content (`needs: ["js"]`, the SPA-shell heuristic below).
 //!
-//! ## The signal: a starved mount region behind static chrome
+//! ## The signal: no rendered content behind static chrome
 //!
-//! A client-side-rendered app ships an empty mount container — React's
-//! `<div id=root>`, TodoMVC's `<section class=todoapp>` — that JavaScript later
-//! fills. Before that script runs (or if it runs and renders nothing) the
-//! page's *content* is absent even though the shell is dressed with a static
-//! `<header>`, `<footer>`, `<nav>`, or an SEO title. Those framing elements are
-//! **chrome**, not content: an earlier heuristic that only looked for a
-//! literally empty `<body>` read such shells as `ok` and emitted an essentially
-//! empty impression — the exact "silently degraded result that looks complete"
-//! VISION forbids. Real shells (todomvc: empty `section.todoapp` + a static
-//! `footer.info`; excalidraw: a `<header>` masthead + empty root `<div>`) carry
-//! that boilerplate, so a body-empty test never fired.
+//! A client-side-rendered app ships a scaffold — React's `<div id=root>`,
+//! TodoMVC's empty `section.todoapp`, telegram's 49-empty-element sidebar
+//! shell — that JavaScript later fills. Before that script runs (or if it
+//! runs and renders nothing) the page's *content* is absent even though the
+//! shell is dressed with static `<header>`/`<footer>`/`<nav>` boilerplate.
+//! Those framing elements are **chrome**, not content, and how much empty
+//! furniture the scaffold ships is noise: a lone mount `<div>` and a large
+//! tree of empty boxes are the same fact — nothing renderable. (An earlier
+//! guard also required "at most three elements", a proxy for "a mount
+//! region" that read telegram's big-but-empty scaffold as a rendered page.)
 //!
-//! [`content_starved`] therefore measures the body with chrome
+//! [`content_signals`] therefore walks the body with chrome
 //! (`header`/`footer`/`nav`/`aside`) and never-rendered nodes
-//! (`script`/`style`/`noscript`/`template`) set aside. If scripts are present
-//! and what remains carries **no text** and **at most three elements** — a lone
-//! mount region, not a filled page and not a large scaffold of empty boxes —
-//! the content the view needs isn't there and the page `needs: ["js"]`. The
-//! check re-runs on the post-settle DOM, so a `--js` pass that leaves the app
-//! dead still trips it: the boundary moves, it doesn't disappear. False
-//! `needs-js` is cheaper than false `ok`, so the test errs toward flagging —
-//! any real body text (a `<p>`, a list item, a table cell, or content the app
-//! renders into its mount) clears it.
+//! (`script`/`style`/`noscript`/`template`) set aside, collecting the two
+//! ways a document can carry rendered content: **text** (a non-whitespace
+//! text node) and **label** (an element with a non-empty `alt` or
+//! `aria-label` — content a non-text view can express without text).
+//! Starvation is view-sensitive (`docs/design/needs.md` §4): the `text` view
+//! is starved without text; `ax`/`links`/`forms` are starved without text or
+//! label. If scripts are present and the view is starved, the page
+//! `needs: ["js"]`. The check re-runs on the post-settle DOM, so a `--js`
+//! pass that leaves the app dead still trips it: the boundary moves, it
+//! doesn't disappear. False `needs-js` is cheaper than false `ok`, so the
+//! test errs toward flagging — the documented residual is a zero-text page
+//! of labeled images, which keeps flagging the `text` view while `ax` reads
+//! it honestly via labels.
 
 use crate::dom::{Document, NodeId, NodeKind, WalkEvent};
 use crate::envelope::{NeedsKind, View};
@@ -73,26 +76,42 @@ pub fn detect(view: View, doc: &Document) -> Vec<NeedsKind> {
         return Vec::new();
     }
     let mut out = Vec::new();
-    if needs_js(doc) {
+    if needs_js(view, doc) {
         out.push(NeedsKind::Js);
     }
     out
 }
 
-fn needs_js(doc: &Document) -> bool {
+fn needs_js(view: View, doc: &Document) -> bool {
     let Some(body) = find_body(doc) else {
         return false;
     };
-    has_scripts(doc) && content_starved(doc, body)
+    has_scripts(doc) && starved(view, content_signals(doc, body))
 }
 
-/// True when the body — with chrome and never-rendered subtrees set aside —
-/// holds no text and at most three elements: a bare mount region rather than a
-/// rendered page. See the module docs for the rationale.
-fn content_starved(doc: &Document, body: NodeId) -> bool {
+/// The two ways a body can carry rendered content (module docs).
+struct Content {
+    text: bool,
+    label: bool,
+}
+
+/// Whether `view` finds nothing to render in the body's content signals:
+/// `text` can only express text; the other content views can also express an
+/// `alt`/`aria-label`. There is no element count — an empty scaffold is
+/// starved no matter how large (`docs/design/needs.md` §4).
+fn starved(view: View, c: Content) -> bool {
+    match view {
+        View::Text => !c.text,
+        _ => !c.text && !c.label,
+    }
+}
+
+/// Collect [`Content`] over the body with chrome and never-rendered subtrees
+/// set aside. An empty `alt`/`aria-label` (the decorative-image marker) is no
+/// label.
+fn content_signals(doc: &Document, body: NodeId) -> Content {
     let mut skip_depth = 0usize;
-    let mut elements = 0usize;
-    let mut has_text = false;
+    let mut c = Content { text: false, label: false };
     doc.walk(Some(body), &mut |ev, entry| match ev {
         WalkEvent::Enter(_) => {
             if let NodeKind::Element(el) = &entry.kind {
@@ -105,8 +124,8 @@ fn content_starved(doc: &Document, body: NodeId) -> bool {
                 return;
             }
             match &entry.kind {
-                NodeKind::Element(el) if el.name != "body" => elements += 1,
-                NodeKind::Text(t) if !t.trim().is_empty() => has_text = true,
+                NodeKind::Element(el) if has_label(el) => c.label = true,
+                NodeKind::Text(t) if !t.trim().is_empty() => c.text = true,
                 _ => {}
             }
         }
@@ -118,7 +137,14 @@ fn content_starved(doc: &Document, body: NodeId) -> bool {
             }
         }
     });
-    !has_text && elements <= 3
+    c
+}
+
+/// A non-empty `alt` or `aria-label`: content a non-text view can express.
+fn has_label(el: &crate::dom::Element) -> bool {
+    ["alt", "aria-label"]
+        .iter()
+        .any(|a| el.attr(a).is_some_and(|v| !v.trim().is_empty()))
 }
 
 /// Chrome frames content without being content; `script`/`style` and friends

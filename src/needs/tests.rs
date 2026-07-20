@@ -66,11 +66,52 @@ fn parser_injected_empty_body_with_only_head_script_signals_js() {
 }
 
 #[test]
-fn body_with_many_empty_descendants_does_not_signal_js() {
+fn scaffold_of_empty_boxes_signals_js_regardless_of_size() {
+    // bl-e22e: a large tree of empty divs is the same fact as a lone mount
+    // div — nothing renderable. The retired `<= 3 elements` guard read this
+    // as a rendered page.
     let doc = parse(
         "<html><body><div></div><div></div><div></div><div></div><div></div></body><script></script></html>",
     );
-    assert!(detect(View::Text, &doc).is_empty());
+    assert_eq!(detect(View::Text, &doc), vec![NeedsKind::Js]);
+    assert_eq!(detect(View::Ax, &doc), vec![NeedsKind::Js]);
+}
+
+#[test]
+fn labels_clear_non_text_views_but_not_the_text_view() {
+    // View sensitivity (needs.md §4): `alt`/`aria-label` are content the AX,
+    // links and forms views can express, so they clear starvation there; the
+    // text view can never carry them, so it stays flagged — the documented
+    // residual, erring toward flagging.
+    let doc = parse(
+        "<html><body><a href=/home><img src=logo.png alt=Home></a>\
+         <button aria-label=Search></button>\
+         <script src=app.js></script></body></html>",
+    );
+    assert_eq!(detect(View::Text, &doc), vec![NeedsKind::Js]);
+    assert!(detect(View::Ax, &doc).is_empty());
+    assert!(detect(View::Links, &doc).is_empty());
+    assert!(detect(View::Forms, &doc).is_empty());
+}
+
+#[test]
+fn empty_alt_is_the_decorative_marker_not_a_label() {
+    let doc = parse(
+        "<html><body><img src=x.png alt=\"\"><div aria-label=\" \"></div>\
+         <script src=app.js></script></body></html>",
+    );
+    assert_eq!(detect(View::Ax, &doc), vec![NeedsKind::Js]);
+}
+
+#[test]
+fn labels_inside_chrome_are_boilerplate_not_content() {
+    // Chrome subtrees are set aside for labels exactly as for text.
+    let doc = parse(
+        "<html><body><div id=root></div>\
+         <nav><a href=/ aria-label=Home></a></nav>\
+         <script src=app.js></script></body></html>",
+    );
+    assert_eq!(detect(View::Ax, &doc), vec![NeedsKind::Js]);
 }
 
 #[test]
@@ -105,6 +146,7 @@ fn content_inside_chrome_only_still_signals_js() {
 // an empty mount region — the case the body-empty heuristic used to miss.
 
 const TODOMVC: &str = include_str!("../../tests/fixtures/needs/todomvc.html");
+const TELEGRAM: &str = include_str!("../../tests/fixtures/needs/telegram.html");
 const EXCALIDRAW: &str = include_str!("../../tests/fixtures/needs/excalidraw.html");
 const WIKIPEDIA: &str = include_str!("../../tests/fixtures/needs/wikipedia.html");
 const HACKERNEWS: &str = include_str!("../../tests/fixtures/needs/hackernews.html");
@@ -136,6 +178,14 @@ fn todomvc_shell_signals_js() {
 fn excalidraw_shell_signals_js() {
     // `<header>` masthead with an SEO `<h1>` (chrome) around an empty root div.
     needs_js_for_all_content_views(EXCALIDRAW);
+}
+
+#[test]
+fn telegram_scaffold_signals_js() {
+    // bl-e22e (field trial 2026-07-19, vendored 2026-07-19): dozens of empty
+    // divs plus a `<defs>`-only svg sprite sheet, zero text, zero labels. The
+    // retired element-count guard reported this shell as an `ok` impression.
+    needs_js_for_all_content_views(TELEGRAM);
 }
 
 #[test]
