@@ -1,15 +1,21 @@
 //! Once-then-frozen subfetch cache (`docs/design/js.md` §6) — the JS-visible
-//! network layer shared by `fetch`, `XMLHttpRequest`, and external `<script
-//! src>`. One syscall (`super::syscall::net`) and the script runner
-//! (`super::run_external`) both ride this cache; the prelude shapes `fetch`/XHR
-//! over the syscall.
+//! network layer shared by `fetch`, `XMLHttpRequest`, external `<script src>`,
+//! and the ES-module loader. One syscall (`super::syscall::net`) and the script
+//! runner (`super::run_external`) both ride this cache; the prelude shapes
+//! `fetch`/XHR over the syscall.
 //!
 //! The policy mirrors the stylesheet subfetch in `run.rs`: GET only (implicit —
 //! the cache only ever calls [`crate::fetch::fetch`], which GETs), each absolute
 //! URL fetched at most once and its response frozen for the call, `-H` headers
-//! ride only same-origin, remote→local reads refused, and a `SUBFETCH_MAX` cap.
-//! No live network after a URL first resolves; nothing persists past the call
-//! (the cache dies with the [`super::Session`]).
+//! ride only same-origin, remote→local reads refused. Bounds are one per real
+//! resource (§6, bl-c7e9): *time* — the §5 wall-clock [`Deadline`] is consulted
+//! before every network dispatch (the engine interrupt cannot fire inside a
+//! blocking host fetch chain, so the seam enforces the same clock) — and
+//! *memory* — a pooled [`SUBFETCH_BYTES`] response-body budget across the call.
+//! There is deliberately no request-count cap: a count measures no resource and
+//! starved code-split apps while time and memory stood idle. No live network
+//! after a URL first resolves; nothing persists past the call (the cache dies
+//! with the [`super::Session`]).
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -19,10 +25,14 @@ use url::Url;
 
 use crate::fetch::{self, FetchResult};
 
-/// §6 / §13 OQ-1 default cap: requests per call. A constant, not a flag — the
-/// tests dial it down through [`Subfetch::with_cap`], the same posture the engine
-/// uses for the budget (`with_limits`).
-pub const SUBFETCH_MAX: u32 = 16;
+use super::engine::Deadline;
+
+/// §6 pooled response-byte budget per call. The frozen cache is the network-side
+/// analogue of the engine heap and takes the same allowance as
+/// `engine::JS_MEM_LIMIT`. A constant, not a flag — the tests dial it down
+/// through [`Subfetch::with_budget`], the same posture the engine uses for the
+/// time budget (`with_limits`).
+pub const SUBFETCH_BYTES: usize = 64 * 1024 * 1024;
 
 /// A frozen response, served for the call's lifetime once a URL resolves (§6).
 /// `ok` is the fetch-spec 2xx range (a `file://` read, statusless, is ok); it is
@@ -54,34 +64,43 @@ pub struct Subfetch {
     base: String,
     headers: Vec<(String, String)>,
     cache: HashMap<String, Frozen>,
-    count: u32,
-    max: u32,
+    deadline: Deadline,
+    spent: usize,
+    budget: usize,
 }
 
 impl Subfetch {
     /// A cache anchored at `base` (the final page URL) with the caller's
-    /// `headers`, at the shipping [`SUBFETCH_MAX`] cap.
-    pub fn new(base: &str, headers: Vec<(String, String)>) -> Self {
-        Self::with_cap(base, headers, SUBFETCH_MAX)
+    /// `headers`, dispatching only inside the engine's armed `deadline` window
+    /// and the shipping [`SUBFETCH_BYTES`] pool.
+    pub fn new(base: &str, headers: Vec<(String, String)>, deadline: Deadline) -> Self {
+        Self::with_budget(base, headers, deadline, SUBFETCH_BYTES)
     }
 
-    /// [`Subfetch::new`] with an explicit cap for the tests. `base` is stored
-    /// unparsed and validated per resolve, so a bogus page URL (which the
+    /// [`Subfetch::new`] with an explicit byte budget for the tests. `base` is
+    /// stored unparsed and validated per resolve, so a bogus page URL (which the
     /// `location` shim also tolerates) fails every fetch rather than panicking.
-    pub fn with_cap(base: &str, headers: Vec<(String, String)>, max: u32) -> Self {
+    pub fn with_budget(
+        base: &str,
+        headers: Vec<(String, String)>,
+        deadline: Deadline,
+        budget: usize,
+    ) -> Self {
         Subfetch {
             base: base.to_string(),
             headers,
             cache: HashMap::new(),
-            count: 0,
-            max,
+            deadline,
+            spent: 0,
+            budget,
         }
     }
 
     /// Fetch `spec` (resolved against the page URL) once, frozen (§6). A cache
     /// hit re-serves the frozen response without touching the network; a miss
-    /// spends one of the `max` requests, and past the cap every new URL is
-    /// refused (counted by the caller). Same-origin requests carry the `-H`
+    /// dispatches only while the §5 deadline stands and the byte pool has room —
+    /// past either, every new URL is refused (counted by the caller). Overshoot
+    /// is bounded to one in-flight response. Same-origin requests carry the `-H`
     /// headers; cross-origin ones do not (credentials never leak).
     pub fn get(&mut self, spec: &str) -> Outcome {
         let url = match self.resolve(spec) {
@@ -91,10 +110,15 @@ impl Subfetch {
         if let Some(frozen) = self.cache.get(&url) {
             return Outcome::Got(frozen.clone());
         }
-        if self.count >= self.max {
-            return Outcome::Failed(format!("subfetch cap reached ({} requests)", self.max));
+        if self.deadline.expired() {
+            return Outcome::Failed("subfetch refused: run budget exhausted".to_string());
         }
-        self.count += 1;
+        if self.spent >= self.budget {
+            return Outcome::Failed(format!(
+                "subfetch byte budget exhausted ({} bytes)",
+                self.budget
+            ));
+        }
         let headers: &[(String, String)] = if fetch::same_origin(&url, &self.base) {
             &self.headers
         } else {
@@ -103,6 +127,7 @@ impl Subfetch {
         match fetch::fetch(&url, headers) {
             Ok(r) => {
                 let frozen = freeze(r);
+                self.spent += frozen.body.len();
                 self.cache.insert(url, frozen.clone());
                 Outcome::Got(frozen)
             }

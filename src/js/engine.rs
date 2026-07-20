@@ -27,6 +27,33 @@ pub const EXEC_BUDGET_MS: u64 = 1_000;
 /// allocator, so `js::engine` never enables rquickjs's `allocator` feature.
 pub const JS_MEM_LIMIT: usize = 64 * 1024 * 1024;
 
+/// A shareable read handle on the engine's armed wall-clock window — the same
+/// `base`/deadline pair the §5 interrupt handler reads, so the run's clock has
+/// one authoritative home. The §6 subfetch cache consults it before dispatching
+/// network work: the interrupt can only fire between JS instructions, so a
+/// chain of blocking host fetches (a module graph loading through the §4.1
+/// loader) would otherwise outrun the budget unchecked.
+pub struct Deadline {
+    base: Instant,
+    deadline: Arc<AtomicU64>,
+}
+
+impl Deadline {
+    /// A window that never closes — the disarmed engine's own representation
+    /// (`u64::MAX`), for callers holding no engine (the subfetch unit tests).
+    pub fn never() -> Self {
+        Deadline {
+            base: Instant::now(),
+            deadline: Arc::new(AtomicU64::new(u64::MAX)),
+        }
+    }
+
+    /// Whether the armed window has passed.
+    pub fn expired(&self) -> bool {
+        self.base.elapsed().as_nanos() as u64 >= self.deadline.load(Ordering::Relaxed)
+    }
+}
+
 /// Why an `eval` stopped short of a value.
 #[derive(Debug, PartialEq, Eq)]
 pub enum EvalError {
@@ -94,6 +121,16 @@ impl Engine {
             deadline,
             tripped,
             rejections,
+        }
+    }
+
+    /// A [`Deadline`] handle on this engine's armed window, shared with the §6
+    /// subfetch cache so network dispatch obeys the same clock the interrupt
+    /// handler enforces.
+    pub fn deadline(&self) -> Deadline {
+        Deadline {
+            base: self.base,
+            deadline: self.deadline.clone(),
         }
     }
 

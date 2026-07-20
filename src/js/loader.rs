@@ -3,8 +3,10 @@
 //! `type="module"` scripts and their `import` graph resolve and load through the
 //! *same* once-then-frozen [`SharedSubfetch`] that `fetch`/XHR and external
 //! `<script src>` ride — GET-only, resolved-URL cache key, same-origin header
-//! rules, `SUBFETCH_MAX` cap, remote→local refused. No side channel: a module's
-//! bytes come from exactly one subfetch, counted against the one cap.
+//! rules, the §6 deadline/byte bounds, remote→local refused. No side channel: a
+//! module's bytes come from exactly one subfetch, drawn from the one pool. The
+//! deadline check lives in the cache precisely for this path: a module graph is
+//! a chain of blocking host fetches the engine interrupt cannot interrupt.
 //!
 //! Installed on the engine's runtime via rquickjs's `loader` feature
 //! ([`Runtime::set_loader`], gated behind that feature — the sole reason the

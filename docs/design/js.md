@@ -227,7 +227,12 @@ Constants, not flags — same severability posture as the 1280px viewport
 every task, host-driven. An unhandled exception aborts *that script/task* and
 is counted; the loop continues — browser semantics, and a page that throws
 after rendering is still a good impression. **Settled** = queue empty and
-nothing due before the horizon.
+nothing due before the horizon, **within the budget** — the run driver also
+reads the deadline once at conclusion (bl-c7e9): the loop can conclude
+*because* the deadline expired (the §6 seam refuses network dispatch past it,
+emptying the remaining work) while the interrupt — which fires only between
+JS instructions — never happened to trip, and that run must report
+`settled: false` deterministically, not by interrupt-timing luck.
 
 ## 6. Network policy — once-then-frozen
 
@@ -250,8 +255,37 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   URL, `-H` headers ride only same-origin (scheme+host+port), redirects
   followed, 16 MiB cap, remote→local blocked (`file:` targets from an http(s)
   page are refused). `file://` pages may fetch remote resources, as with CSS.
-- **Caps:** `SUBFETCH_MAX = 16` requests per call (counted when exceeded);
-  network time spends the §5 wall-clock budget — one deadline, not two.
+- **Bounds — one per resource, none per request count (bl-c7e9).** Work is
+  bounded by *time*: subfetch network time spends the §5 wall-clock budget —
+  one deadline, not two — and the deadline is enforced **at this seam**: the
+  cache consults the engine's armed window (the same `base`/deadline pair the
+  interrupt handler reads — one authoritative clock) before dispatching any
+  network request, and refuses once it has passed. The seam check exists
+  because the interrupt can only fire between JS instructions: a module graph
+  loading through the §4.1 loader is a chain of blocking host fetches with no
+  JS in between, which would otherwise outrun the budget unchecked. Overshoot
+  is bounded to the one in-flight request. Memory is bounded by *bytes*:
+  **`SUBFETCH_BYTES = 64 MiB`** of response body pooled across the call — the
+  frozen cache is the network-side analogue of the engine heap and takes the
+  same allowance as `JS_MEM_LIMIT` — on top of transport's per-response
+  16 MiB cap (`fetch::MAX_BODY_BYTES`, shared with stylesheets and the
+  document fetch). Both refusals surface through the unified §5/§10 channel
+  (counted; named under `--js-errors`).
+
+  There is deliberately **no request-count cap**. `SUBFETCH_MAX = 16` was
+  deleted (bl-c7e9, field trial 2026-07-19): a count is a proxy for no real
+  resource — it prices a 200-byte chunk and a 16 MiB bundle identically — and
+  modern bundlers code-split into 30–100 chunks, so the proxy tripped on
+  essentially every modern app (linear.app, vercel.com, figma.com,
+  angular.dev) while time and memory stood idle (golden fixtures settle in
+  ~9–16 ms of the 1 s budget). Worse, it corrupted the settle signal: a run
+  whose chunk loads were *refused* reported `settled: true` — false
+  quiescence. With the cap gone, `settled` has exactly one meaning (§5
+  quiescence within the time budget) and each resource has exactly one bound:
+  time — `EXEC_BUDGET_MS`; engine heap — `JS_MEM_LIMIT`; fetched bytes —
+  `SUBFETCH_BYTES`. A page that genuinely needs more than the budget allows
+  now dies honestly of time (`settled: false`), not of an arbitrary count
+  masquerading as completion.
 - **No document-navigation header set.** The Firefox-121 navigation defaults
   (`Accept: text/html,…`, `Accept-Language`, `Upgrade-Insecure-Requests`,
   `Sec-Fetch-Dest: document` / `Mode: navigate` / `Site: none` / `User: ?1` —
@@ -392,7 +426,7 @@ Two moves against today's `run.rs`:
 
   The flag **requires `--js`** — bare, it is a usage error (exit 2, no envelope),
   mirroring the `-H`/`file://` gating. Capture is unconditional but bounded to
-  `MESSAGES_MAX` (**32**, a constant, not a flag — like `SUBFETCH_MAX`): a noisier
+  `MESSAGES_MAX` (**32**, a constant, not a flag — like `SUBFETCH_BYTES`): a noisier
   page keeps climbing `errors` while the detail array stops at the first 32. Three
   `kind`s **carry a message** (message in hand at the seam, cheap):
   - `throw` — a script/module top-level exception (`EvalError::Exception`, `js.rs`
@@ -460,7 +494,9 @@ the falsifiable check on §1.
 5. **Event loop** — virtual clock, horizon, timers/rAF, microtask drain,
    lifecycle events, wall-clock interrupt + settled flag (§5). *Dep: 4.*
 6. **Subfetch: fetch/XHR + modules** — once-then-frozen cache, GET-only,
-   same-origin header rules, `SUBFETCH_MAX`; external `<script src>` execution.
+   same-origin header rules, the count cap as first shipped (`SUBFETCH_MAX`,
+   later deleted for the §6 deadline/byte bounds — bl-c7e9); external
+   `<script src>` execution.
    *As built (bl-00ba):* classic-script pages landed; unhandled-rejection
    counting wired (§10). **ES module `import` resolution landed as its follow-up
    (bl-1b98)** — rquickjs's `loader` feature (the approved `relative-path` dep)
@@ -489,6 +525,14 @@ the falsifiable check on §1.
   debug** — a >30× margin under `EXEC_BUDGET_MS`. None trips `VIRTUAL_HORIZON_MS`,
   `JS_MEM_LIMIT`, or `SUBFETCH_MAX` (the shells load 2–3 classic bundles, well
   under 16). No constant needed changing.
+  **Amended (bl-c7e9, field trial 2026-07-19): the fixture margin didn't
+  survive contact with the field.** Live code-split apps (30–100 chunks)
+  tripped `SUBFETCH_MAX` on essentially every run while the other budgets
+  stood idle. The resolution is not a bigger number — no count is principled,
+  because a request count measures no resource — but deleting the count cap
+  and bounding each real resource once: the §5 deadline now enforced at the
+  subfetch seam (work), and a pooled `SUBFETCH_BYTES = 64 MiB` (memory,
+  sized to `JS_MEM_LIMIT` — the cache is the network-side heap). See §6.
 - **OQ-2 — deterministic `Math.random` / frozen clock for reproducibility?**
   Recommended: **no.** Network content already varies across calls;
   reproducibility-within-a-call is what the virtual clock and frozen fetches

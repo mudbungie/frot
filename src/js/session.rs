@@ -57,8 +57,13 @@ impl Session {
         };
         // The §6 cache is anchored at the page URL and rides the caller's -H
         // headers same-origin; both live in `env`, so build it before install
-        // moves `env` into the environment shims.
-        let subfetch = Rc::new(RefCell::new(subfetch::Subfetch::new(&env.url, env.headers.clone())));
+        // moves `env` into the environment shims. It shares the engine's armed
+        // deadline so network dispatch obeys the run's one clock (§6).
+        let subfetch = Rc::new(RefCell::new(subfetch::Subfetch::new(
+            &env.url,
+            env.headers.clone(),
+            engine.deadline(),
+        )));
         // The ES-module resolver/loader (js.md §4.1/§6) rides the same §6 cache as
         // fetch/XHR/external-src, installed before any module evaluates.
         super::loader::install(&engine, &subfetch);
@@ -105,6 +110,14 @@ impl Session {
     /// The final page URL — an inline module script's import base (js.md §4.1).
     pub(super) fn page_url(&self) -> &str {
         &self.page_url
+    }
+
+    /// Whether the run's armed wall-clock window has passed — read once after
+    /// the settle loop (js.md §5/§6): a loop that concluded only because the §6
+    /// seam refused network dispatch past the deadline reached quiescence, but
+    /// not *within budget*, and must not report settled.
+    pub(super) fn deadline_expired(&self) -> bool {
+        self.engine.deadline().expired()
     }
 
     /// Evaluate with a fresh per-call budget (the facade smoke surface used by

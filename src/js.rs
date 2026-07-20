@@ -84,6 +84,13 @@ fn run_with(doc: Document, styles: StyleSource, env: Env, budget: Duration) -> (
     if report.settled {
         run_event_loop(&session, &mut report);
     }
+    // Quiescence within budget is `settled`'s one meaning (§5). The loop can
+    // conclude *because* the deadline expired — the §6 seam refuses network
+    // dispatch past it, emptying the remaining work — while the engine interrupt
+    // (which fires only between JS instructions) never happened to trip. An
+    // expired deadline at conclusion therefore clears `settled` deterministically
+    // rather than by interrupt-timing luck.
+    report.settled = report.settled && !session.deadline_expired();
     // Fold the deferred §10 tallies into `errors`: refused navigations (the
     // environment shim's counted no-ops), unhandled promise rejections (net once
     // the whole run's microtasks have drained — a late `.catch` un-counts), and

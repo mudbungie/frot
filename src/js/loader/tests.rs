@@ -169,3 +169,23 @@ fn an_endless_module_trips_the_budget_and_is_unsettled() {
     assert_eq!((r.scripts, r.errors, r.settled), (1, 1, false));
     fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn a_dead_deadline_refuses_module_loads_and_the_run_is_unsettled() {
+    // With the budget already spent when the import dispatches, the §6 seam
+    // refuses it ("run budget exhausted") even if the engine interrupt — which
+    // fires only between JS instructions — never trips inside the blocking load
+    // chain; and the run-driver's conclusion check clears `settled`
+    // deterministically (§5): quiescence reached by refusing work is not
+    // quiescence within budget. Either path yields the same honest report.
+    let dir = tmpdir("dead");
+    fs::write(dir.join("dep.js"), "export const x = 1;").unwrap();
+    let (_doc, r) = run_with(
+        Document::parse(&module_page("import {x} from './dep.js';")),
+        StyleSource::Bare,
+        env(&page_url(&dir)),
+        Duration::ZERO,
+    );
+    assert_eq!((r.scripts, r.errors, r.settled), (1, 1, false));
+    fs::remove_dir_all(&dir).unwrap();
+}
