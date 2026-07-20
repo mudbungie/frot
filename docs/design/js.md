@@ -286,7 +286,13 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   `SUBFETCH_BYTES`. A page that genuinely needs more than the budget allows
   now dies honestly of time (`settled: false`), not of an arbitrary count
   masquerading as completion.
-- **No document-navigation header set.** The Firefox-121 navigation defaults
+- **No document-navigation header set.** *(Version literal superseded: the
+  navigation set is pinned to Firefox **140.12.0esr** by
+  `docs/design/identity.md` §4, and per-destination subresource header sets —
+  the "more mechanism than this pass warrants" deferral below — are now
+  `bl-20ec`'s job under invariant I4. The rule this bullet states is unchanged
+  and was right: a subresource is not a navigation.)* The Firefox navigation
+  defaults
   (`Accept: text/html,…`, `Accept-Language`, `Upgrade-Insecure-Requests`,
   `Sec-Fetch-Dest: document` / `Mode: navigate` / `Site: none` / `User: ?1` —
   `fetch::DOCUMENT_HEADERS`) attach only on the **top-level page GET**
@@ -316,6 +322,16 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
 - `navigator` / `location`: static facts frot already has (the UA string it
   sends, the final URL, `webdriver: false` — truthful: no remote control). `location` *assignment* is navigation — a counted
   no-op; frot takes an impression of one document, it does not browse.
+  **Superseded in part by `docs/design/identity.md` §4/§8 (bl-3972):** the
+  `navigator` facts stop being literals in `env.js` and become derivations of
+  the one `BrowserProfile`, delivered through a syscall the way the UA already
+  is. That closes measured incoherences this file's original list carried —
+  `languages: ['en-US']` where Firefox reports `['en-US','en']` (and where the
+  `Accept-Language` header disagreed), `doNotTrack: null` where Firefox reports
+  `'unspecified'`, and missing `oscpu`/`vendorSub`/`buildID`/`pdfViewerEnabled`.
+  Screen/viewport geometry does **not** move: it stays derived from
+  `layout.rs`'s 1280×720 constant, because two viewport constants would be the
+  duplication the profile exists to prevent.
 - `history`: in-memory, born fresh (`state: null`, `length: 1`,
   `scrollRestoration: 'auto'`), discarded at exit. SPA routers read
   `history.state` on first render; absent, they throw. `pushState`/
@@ -468,11 +484,28 @@ Two moves against today's `run.rs`:
 - **No iframes.** Frame documents are not fetched or executed;
   `contentWindow`/`contentDocument` are `null`.
 - **No workers, no WASM, no media, no canvas rendering** (§7).
-- **Not a stealth runtime.** Fingerprinting resistance and anti-bot evasion
-  stay non-goals; if a challenge script defeats the shim, the outcome is an
-  honest `needs-js` or `error.kind: http.403` — and a *declared* challenge
-  (`needs.md` §3, e.g. `Retry-After` on a 200) is reported as
-  `needs: ["human"]` before its scripts are ever executed.
+- **Coherent identity, yes; stealth runtime, no** (`docs/design/identity.md`
+  §10 — this boundary **moved** on 2026-07-20 and this bullet is the moved
+  line, not the old one). The rule is one sentence: *frot may present a
+  coherent identity for a client that genuinely has the capabilities it claims;
+  it may not fabricate evidence of capabilities it does not have.*
+  - **In:** the JS-visible facts — `navigator` branding, `language`/`languages`,
+    `platform`/`oscpu`, `buildID`, the plugin/mimeType shims — derived from the
+    one `BrowserProfile` (identity.md §4, §8), consistent with the UA and TLS
+    the transport actually sent. `webdriver: false` stays: it is *truthful*, not
+    a costume.
+  - **Out, permanently:** fabricating high-entropy rendering signals — canvas,
+    WebGL, audio, font metrics, media-device enumeration. `getContext()` keeps
+    returning `null` (§7, spec-legal). frot cannot render, so it does not get to
+    claim it can.
+  - **Out, permanently:** executing or solving a challenge — CAPTCHA, JS
+    proof-of-work, behavioural interstitials — and evasion loops of any kind (no
+    UA rotation, no retry-until-allowed).
+  - **Unchanged — the honest outcome.** If a challenge script defeats the shim,
+    the outcome is an honest `needs-js` or `error.kind: http.403`; and a
+    *declared* challenge (`needs.md` §3, e.g. `Retry-After` on a 200) is
+    reported as `needs: ["human"]` **before its scripts are ever executed**.
+    Detection is refusal to pretend, not a step toward evasion.
 
 ## 12. Decomposition (proposed subtasks for bl-b3c5)
 

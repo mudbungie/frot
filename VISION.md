@@ -51,10 +51,11 @@ frot is built in phases. Each phase delivers a usable tool; later phases extend 
 
 ### Phase 0 — Fetch + parse + envelope — **landed**
 
-- HTTP/1.1 client with sane defaults (redirects, content-encoding, character set detection). HTTP/2 is not spoken (the `ureq` transport is HTTP/1.1-only); a real Firefox negotiates h2, so the ALPN reads `http/1.1`, a residual soft tell that does not gate the current WAF targets.
+- HTTP/1.1 client with sane defaults (redirects, content-encoding, character set detection). HTTP/2 is not spoken (the `ureq` transport is HTTP/1.1-only), so the ALPN reads `http/1.1`. **Corrected 2026-07-20:** this was recorded as "a residual soft tell that does not gate the current WAF targets", and the measurement says otherwise — a Firefox-shaped ClientHello that then *refuses* h2 is a combination no real Firefox produces, and it is the single dominant tell in the same-egress capture. It is also unfixable-by-approximation: JA4 embeds ALPN (`t13d1717h2` vs `…h1`), so an h1-only client can never match a Firefox JA4 by construction. Phase 5 owns it (`docs/design/identity.md` §7).
 - HTML5 parsing (via `html5ever`).
 - CLI surface and the machine-first output envelope. Outputs at this phase: `dom`, `text` (raw, source-order, no visibility filter), `links`, `forms`, `meta`.
-- Browser-identity masquerade: a Firefox User-Agent, and a **Firefox TLS ClientHello** (cipher/extension order, GREASE, key-share, padding via a craftable rustls fork behind `src/fetch/firefox_tls.rs`) plus Title-Case on-wire header names. This clears fingerprinting WAFs (JA3/JA4 + header-casing) that 403 a stock rustls handshake. Matching a browser's fingerprint is in scope; CAPTCHA / anti-bot JS-challenge solving is the refused boundary (see below).
+- Browser-identity masquerade: a Firefox User-Agent, and a **Firefox TLS ClientHello** (cipher/extension order, GREASE, key-share, padding via a craftable rustls fork behind `src/fetch/firefox_tls.rs`) plus Title-Case on-wire header names — the latter only on `https://`, as a side effect of living in the TLS connector. **Amended 2026-07-20:** the StackOverflow 403 this cleared **no longer reproduces** (HTTP 200, real content, 3/3 runs from the measured egress IP), so the masquerade's access value is unproven and the fork it rides (`craftls`, sole release 2024-01-16, rustls 0.22, no CVE path) is a live security liability. Phase 5 replaces it.
+- The refused boundary, restated precisely (`docs/design/identity.md` §10): frot may present a **coherent** identity for a client that genuinely has the capabilities it claims — it may **not** fabricate evidence of capabilities it does not have. So matching a browser's fingerprint is in scope, and canvas/WebGL/audio/font fingerprint fabrication, CAPTCHA / anti-bot JS-challenge solving, and evasion loops are refused.
 - The envelope shape, the `needs-X` signal shape, and the error taxonomy are load-bearing and do not change in later phases.
 
 ### Phase 1 — Semantic impression — **landed**
@@ -94,7 +95,17 @@ The live decomposition of this stage (and everything else) is the `bl` backlog, 
 - **ES modules ship (`bl-1b98`).** A `type="module"` script evaluates as a real module: `import` specifiers resolve against the importing module's URL and load through the same once-then-frozen subfetch cache, top-level `await`/dynamic `import()` settle inside the one budget. Bare specifiers have no import map, so they are unresolvable (a counted error) as in a browser without one. It rides `rquickjs`'s `loader` feature — the one new dependency (`relative-path`), approved 2026-07-10.
 - **Non-goals held honest (`docs/design/js.md` §11).** No interaction (no synthetic clicks/input/scroll — the only events dispatched are the `DOMContentLoaded`/`load` lifecycle pair), no navigation, no persistence, no iframes/workers/WASM/canvas rendering, not a stealth runtime.
 
-### Phase 5+ — TBD
+### Phase 5 — Network identity — **designed** (`docs/design/identity.md`)
+
+Not new capability: the honesty principle catching up with the transport, the way Phase 2.5 caught up with the output. The 2026-07-19 same-egress measurement found frot's identity is **incoherent** — a Firefox-121 UA over a 2022-era ClientHello that refuses h2, a Chrome-shaped `Accept`, header casing that changes with the URL scheme, and one TCP connection per request with no reuse.
+
+- **One `BrowserProfile` constant is the single source of truth.** TLS, ALPN, HTTP version, headers, cookies, `navigator`, and clocks all *derive* from it. Every fact has one definition site; the fingerprint hashes are computed, never stored.
+- **The persona is pinned to Firefox `140.12.0esr`** (Mozilla tarball, not the Ubuntu snap) — an ESR line so the fingerprint holds still, and one whose cipher list frot already emits exactly.
+- **One invariant carries most of the design: never advertise what you cannot speak.** ALPN ⊆ protocols implemented, `Accept-Encoding` ⊆ encodings decodable, every advertised group genuinely negotiable. That is what makes the client coherent rather than a costume, and it removes the "should we offer h2?" question — the profile declares h2, so the transport must speak it or the build fails.
+- **Retire `craftls`** for `rustls 0.23 + aws-lc-rs` (+284 KiB, +1 crate net, static musl proven) and add `h2`. **This route is a recommendation pending Mark's dependency checkpoint** — it introduces a vendored C stack and reverses the "blocking I/O, no async runtime" decision.
+- **The falsification rule fired, and the ceiling is reported rather than dressed up.** No route delivers a byte-exact Firefox inside frot's constraints: every stack that reproduces the measured profile is built on BoringSSL (C++), and `musl-tools` ships no C++ compiler. Size was never the binding constraint. So the goal is stated as **coherent, current, and maintained — explicitly not byte-identical.** frot is not trying to be unidentifiable; it is refusing to be self-contradictory.
+
+### Phase 6+ — TBD
 
 If Phase 4 holds, push toward more Web APIs. If it doesn't, accept the ceiling and ship a clean tool that defers to a real browser for the long tail.
 
