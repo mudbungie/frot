@@ -127,6 +127,44 @@ matching, not fetch latency. A second, smaller same-origin sheet (730KB, 428
 rules) cost 0.02-0.03s in the same harness — the delta tracks *rule count*, not
 byte size (30,864 vs 428 rules for only 3.5x more bytes, but ~30x more time).
 
+
+#### Fixed — bl-fce3 (`src/css/index.rs`)
+
+Rules are now bucketed by the **key simple** of their subject (rightmost)
+compound — id, else class, else type — so an element tests only the rules its
+own id / classes / tag can reach, plus a small always-tested bucket. Built
+once per `cascade` call and passed through the walk (`Index::build(sheets)`);
+no global, no cache, statelessness intact.
+
+Two invariants make the indexed walk *observationally identical* to the
+exhaustive one, and both are asserted mechanically in `src/css/index/tests.rs`:
+
+- **Completeness.** Every simple in a compound is *required* for that compound
+  to match, so bucketing on any one of them cannot lose a match. Selectors with
+  no usable key — `*`, attribute-only, and `Simple::Unsupported` — land in the
+  always-tested `others` bucket rather than being dropped. This is load-bearing
+  for `selector.rs`'s fail-closed contract ("a rule we cannot evaluate must
+  never hide or reveal content"): a dropped unsupported rule would silently
+  turn fail-closed into wrongly-*revealed* content.
+- **Order.** Bucketing reorders iteration, and `winner()`'s `max_by_key`
+  tie-break resolves exact ties to the *last* applied declaration — so order is
+  semantics, not incidental. Each (rule, selector) pair therefore carries the
+  sequence number it held in the flat scan, and `candidates()` re-sorts by it.
+  Declarations reach the cascade in exactly the original order.
+
+`winner()`'s `(important, inline, specificity, source-order)` key is untouched,
+as is every selector-matching rule; only the *set of rules tested* changed.
+
+Measured on the reproduction the investigation described — a synthetic 30k-rule
+utility sheet over a 1,000-element DOM, release build, same machine:
+**1.074 s → 0.039 s (27x)**, identical output.
+
+The `cascade.rs` split that came with it is a line-budget consequence, not a
+redesign: the file sat at exactly 300 lines. It now divides on a real seam —
+`cascade.rs` decides *which* declarations apply, `computed.rs` decides *what
+they compute to* (`Applied`, `winner`, the per-property getters), `content.rs`
+builds `content:` strings.
+
 ### Which one shows up depends on the site
 
 - **Many small stylesheets** (linear.app, 68 files) → fetch/serial-bound.
@@ -148,12 +186,11 @@ risk, different tests — don't land them together):
    `GATHER_BUDGET_MS = 5_000` aggregate budget. The fix had to be a budget
    *and* concurrency — concurrency alone still lets a single slow host hang
    the run.
-2. **Index the cascade.** Bucket rules by rightmost simple selector
-   (id/class/tag) so per-element matching skips rules that cannot possibly
-   apply, the standard technique. Must preserve the existing cascade/specificity
-   semantics exactly (`cascade.rs`'s `winner()` tie-break order is correct —
-   see Finding 2 audit below — this is a matching-cost fix only, not a
-   semantics change).
+2. ~~**Index the cascade.**~~ **Done — bl-fce3**, see "Fixed" under Finding 1b
+   above. Bucketed by the subject compound's key simple (id/class/tag), with a
+   keyless always-tested bucket; cascade and specificity semantics are
+   bit-for-bit preserved, including the fail-closed treatment of unsupported
+   selectors.
 
 ## Finding 2 — `--out text` shrink under `--css`: correct behavior, not a bug
 

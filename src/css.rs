@@ -10,6 +10,9 @@
 //! `cssparser`/`selectors` dependency; see `VISION.md`.
 
 mod cascade;
+mod computed;
+mod content;
+mod index;
 pub mod media;
 mod parse;
 mod query;
