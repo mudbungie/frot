@@ -436,7 +436,9 @@ Two moves against today's `run.rs`:
 - **No workers, no WASM, no media, no canvas rendering** (§7).
 - **Not a stealth runtime.** Fingerprinting resistance and anti-bot evasion
   stay non-goals; if a challenge script defeats the shim, the outcome is an
-  honest `needs-js` or `error.kind: http.403`.
+  honest `needs-js` or `error.kind: http.403` — and a *declared* challenge
+  (`needs.md` §3, e.g. `Retry-After` on a 200) is reported as
+  `needs: ["human"]` before its scripts are ever executed.
 
 ## 12. Decomposition (proposed subtasks for bl-b3c5)
 

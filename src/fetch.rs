@@ -217,7 +217,8 @@ fn validate_url(url: &str) -> Result<url::Url, FetchError> {
     Ok(parsed)
 }
 
-fn header_value(headers: &[(String, String)], name: &str) -> Option<String> {
+/// Case-insensitive response-header lookup, shared with `needs::challenge`.
+pub(crate) fn header_value(headers: &[(String, String)], name: &str) -> Option<String> {
     headers
         .iter()
         .find(|(n, _)| n.eq_ignore_ascii_case(name))

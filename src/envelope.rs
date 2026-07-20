@@ -52,6 +52,10 @@ impl View {
 pub enum NeedsKind {
     Js,
     Css,
+    /// The page demands interactive verification no recipe provides — a
+    /// server-declared challenge/deferral (`docs/design/needs.md` §3). The
+    /// capability past the end of the flag list: escalate out of frot.
+    Human,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

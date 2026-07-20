@@ -1,11 +1,15 @@
 //! Capability gap detection.
 //!
-//! When the current recipe (Phase 0 = no `--css`, no `--js`) is insufficient
-//! to faithfully produce a content-dependent view, [`detect`] reports which
-//! capabilities the page wants. The envelope's `status` flips to `needs` and
-//! the listed capabilities are surfaced to the caller.
+//! When the current recipe is insufficient to faithfully produce a
+//! content-dependent view, this module reports which capabilities the page
+//! wants. The envelope's `status` flips to `needs` and the listed
+//! capabilities are surfaced to the caller. Two detectors feed one taxonomy
+//! (`docs/design/needs.md`):
 //!
-//! Phase 1 lights up the `js` capability via a coarse SPA-shell heuristic.
+//! - [`challenge`] — a **transport** fact: the server declared the response
+//!   a stand-in for the page (`needs: ["human"]`, §3 of the design).
+//! - [`detect`] — a **document** fact: the DOM under the recipe carries no
+//!   renderable content (`needs: ["js"]`, the SPA-shell heuristic below).
 //!
 //! ## The signal: a starved mount region behind static chrome
 //!
@@ -35,6 +39,26 @@
 
 use crate::dom::{Document, NodeId, NodeKind, WalkEvent};
 use crate::envelope::{NeedsKind, View};
+use crate::fetch::header_value;
+
+/// Transport-declared deferral: the server itself marked a success response
+/// as a stand-in for the page (`docs/design/needs.md` §3). Two declarations
+/// are recognized, neither a body string-match:
+///
+/// - `Retry-After` present on the response. RFC 9110 §10.2.3 defines it for
+///   503 and 3xx; on a success response it says "this body is a placeholder,
+///   come back" — the shape of a bot-challenge interstitial served at 200.
+/// - `cf-mitigated: challenge`, Cloudflare's documented challenge marker.
+///
+/// The caller (`run.rs`) consults this only on the < 400 path — at >= 400
+/// the error flip already reports honestly — and returns pre-parse, so a
+/// declared challenge's scripts are never executed: detection stops earlier
+/// than evasion could begin.
+pub fn challenge(headers: &[(String, String)]) -> bool {
+    header_value(headers, "retry-after").is_some()
+        || header_value(headers, "cf-mitigated")
+            .is_some_and(|v| v.trim().eq_ignore_ascii_case("challenge"))
+}
 
 /// Views whose output materially depends on rendered body content.
 fn view_depends_on_content(view: View) -> bool {

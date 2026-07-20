@@ -10,7 +10,9 @@ use std::io::Write;
 use crate::ax;
 use crate::cli;
 use crate::dom::{Document, NodeKind, WalkEvent};
-use crate::envelope::{Envelope, ErrorInfo, HttpInfo, JsInfo, JsMessage, StatusKind, UrlBlock, View};
+use crate::envelope::{
+    Envelope, ErrorInfo, HttpInfo, JsInfo, JsMessage, NeedsKind, StatusKind, UrlBlock, View,
+};
 use crate::fetch::{self, FetchResult};
 use crate::js::{Env, StyleSource};
 use crate::needs;
@@ -61,6 +63,15 @@ fn build_envelope(args: &cli::Args) -> Envelope {
                     format!("server returned HTTP {code}"),
                 );
                 return Envelope::error(url, args.out, error).with_http(http);
+            }
+            // A server-declared deferral (needs.md §3: Retry-After on a
+            // success response, `cf-mitigated: challenge`) means the real
+            // page was never served. Flip to `needs:["human"]` pre-parse and
+            // for every view, like the >= 400 flip above — no `out`, no `js`
+            // block, and a declared challenge's scripts are never executed.
+            if needs::challenge(&fetched.headers) {
+                return Envelope::needs(url, args.out, vec![NeedsKind::Human], None)
+                    .with_http(http);
             }
             let doc = Document::parse(&fetched.body);
             // §9: JS runs before needs/CSS/layout/views, so everything downstream

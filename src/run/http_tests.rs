@@ -1,6 +1,8 @@
 //! HTTP-status surfacing: every network response carries an additive `http`
 //! block, and a server error (status >= 400) flips the envelope to `error`
-//! (kind `http.<code>`, exit 1) before the body is ever parsed.
+//! (kind `http.<code>`, exit 1) before the body is ever parsed. A
+//! server-declared challenge at a success status (needs.md §3) likewise
+//! flips pre-parse, to `needs:["human"]` (exit 0).
 
 use super::*;
 
@@ -98,4 +100,66 @@ fn forbidden_challenge_flips_to_error_with_distinct_kind() {
     assert_eq!(v["status"], "error");
     assert_eq!(v["error"]["kind"], "http.403");
     assert_eq!(v["http"]["status"], 403);
+}
+
+#[test]
+fn retry_after_on_200_flips_to_needs_human() {
+    // Field trial (bl-6d75): reddit's bot-challenge interstitial answers
+    // HTTP 200 + `retry-after: 0` with a body that has a title and text — a
+    // stand-in the server itself declared (needs.md §3). It must never be
+    // reported as an `ok` impression of the page.
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_header("Retry-After", "0")
+        .with_body("<html><head><title>Please wait</title></head><body><main>verifying</main></body></html>")
+        .create();
+    let (code, out, _) = run_capture(&[&server.url(), "--out", "text"]);
+    assert_eq!(code, 0, "needs is not an error");
+    let v = parse_envelope(&out);
+    assert_eq!(v["status"], "needs");
+    assert_eq!(v["needs"], serde_json::json!(["human"]));
+    assert_eq!(v["http"]["status"], 200);
+    assert!(v.get("out").is_none(), "no impression of a placeholder");
+    assert!(v.get("error").is_none(), "nothing failed");
+}
+
+#[test]
+fn cf_mitigated_challenge_flips_to_needs_human() {
+    // Cloudflare declares a challenge response with `cf-mitigated:
+    // challenge` (needs.md §3); at a status < 400 that declaration — not the
+    // body — flips the envelope.
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_header("CF-Mitigated", "challenge")
+        .with_body("<html><body>Checking your browser</body></html>")
+        .create();
+    let (code, out, _) = run_capture(&[&server.url(), "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    assert_eq!(v["status"], "needs");
+    assert_eq!(v["needs"], serde_json::json!(["human"]));
+}
+
+#[test]
+fn declared_challenge_flips_every_view_and_skips_js() {
+    // The flip is pre-parse and view-independent, mirroring the >= 400 flip:
+    // a `--out dom --js` of an interstitial still reports `needs:["human"]`,
+    // with no `js` block — a declared challenge's scripts never run.
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_header("retry-after", "5")
+        .with_body("<html><body><script>window.solved=1;</script></body></html>")
+        .create();
+    let (code, out, _) = run_capture(&[&server.url(), "--js", "--out", "dom"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    assert_eq!(v["status"], "needs");
+    assert_eq!(v["needs"], serde_json::json!(["human"]));
+    assert!(v.get("js").is_none(), "challenge scripts are never executed");
 }

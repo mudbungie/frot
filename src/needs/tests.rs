@@ -162,3 +162,37 @@ fn hackernews_listing_stays_ok() {
 fn guardian_article_stays_ok() {
     stays_ok_for_all_content_views(GUARDIAN);
 }
+
+// --- Transport-declared deferral (needs.md §3) ------------------------------
+
+fn hdr(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
+    pairs
+        .iter()
+        .map(|(n, v)| (n.to_string(), v.to_string()))
+        .collect()
+}
+
+#[test]
+fn retry_after_declares_a_challenge_whatever_its_value() {
+    assert!(challenge(&hdr(&[("retry-after", "0")])));
+    assert!(challenge(&hdr(&[("Retry-After", "120")])));
+}
+
+#[test]
+fn cf_mitigated_challenge_declares_a_challenge_case_insensitively() {
+    assert!(challenge(&hdr(&[("cf-mitigated", "challenge")])));
+    assert!(challenge(&hdr(&[("CF-Mitigated", " Challenge ")])));
+}
+
+#[test]
+fn other_cf_mitigated_values_are_not_a_challenge() {
+    // Cloudflare uses the header for other mitigations; only the challenge
+    // declaration means "the page was never served".
+    assert!(!challenge(&hdr(&[("cf-mitigated", "block")])));
+}
+
+#[test]
+fn ordinary_response_headers_declare_nothing() {
+    assert!(!challenge(&hdr(&[("content-type", "text/html")])));
+    assert!(!challenge(&[]));
+}
