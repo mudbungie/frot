@@ -31,7 +31,7 @@ The name scales with scope. Even when JS is in play, we're still taking an impre
 frot is composed of two orthogonal axes:
 
 - **Capability flags** describe *what to do* before producing output. They are transformations on the document:
-  - `--css` — parse and apply stylesheets, annotating the DOM with computed styles. Visibility (`display:none`, `visibility:hidden`) and generated content propagate to all subsequent outputs.
+  - `--css` — parse and apply stylesheets, annotating the DOM with computed styles. Visibility (`display:none`, `visibility:hidden`) and generated content propagate to all subsequent outputs. Pre-interaction chrome — hover/click-gated dropdowns, mega-menus, language switchers — is therefore expected to be absent from `--out text`/`--out ax` under `--css`, permanently and regardless of `--js`: frot never synthesizes interaction (see non-goals below). See `docs/design/css.md` Finding 2 for the traced field-trial evidence.
   - `--js` — execute scripts against the current DOM. JS mutates the DOM the way it does in a real engine, within bounded, stateless execution semantics.
 - **The output flag** picks *what to return*. Exactly one of: `dom`, `text`, `ax`, `links`, `forms`, `bboxes`, `meta`.
 
