@@ -248,6 +248,18 @@ fn bad_headers_rejected() {
             "raw was {:?}",
             raw
         );
+        // The `--header=` spelling rejects identically: one validator, both forms.
+        assert_eq!(
+            parse(&argv(&[
+                "https://x/",
+                &format!("--header={raw}"),
+                "--out",
+                "text"
+            ])),
+            Err(CliError::BadHeader(raw.into())),
+            "raw was {:?}",
+            raw
+        );
     }
 }
 

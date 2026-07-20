@@ -92,3 +92,84 @@ fn firefox_connector_serves_https_over_keepalive() {
     }
     server.join().unwrap();
 }
+
+fn firefox_agent() -> Agent {
+    let connector = ()
+        .chain(TcpConnector::default())
+        .chain(FirefoxTlsConnector::with_roots(test_roots()));
+    Agent::with_parts(
+        ureq::config::Config::default(),
+        connector,
+        DefaultResolver::default(),
+    )
+}
+
+/// A peer that accepts the connection then resets it mid-handshake surfaces as
+/// a transport error, not a hang or a panic: the TLS stream's read/write are
+/// the frot-owned seam that error travels through.
+#[test]
+fn a_peer_that_resets_mid_handshake_is_a_transport_error() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for sock in listener.incoming().flatten() {
+            // Let the ClientHello land, then close without ever reading it.
+            // Closing a socket with unread data queued forces an RST, so the
+            // client sees a reset rather than a clean EOF.
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            drop(sock);
+        }
+    });
+    let err = firefox_agent()
+        .get(&format!("https://localhost:{port}/"))
+        .call()
+        .unwrap_err();
+    assert!(
+        matches!(err, Error::Io(_) | Error::Tls(_) | Error::ConnectionFailed),
+        "unexpected error: {err:?}"
+    );
+}
+
+/// An IPv6-literal authority reaches the connector as the bracketed form
+/// `[::1]`, which is not a valid DNS name. That must be a clean `Tls` error
+/// rather than a panic inside the connector.
+#[test]
+fn an_ipv6_literal_authority_is_rejected_as_a_dns_name() {
+    let listener = TcpListener::bind("[::1]:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || for _s in listener.incoming().flatten() {});
+    let err = firefox_agent()
+        .get(&format!("https://[::1]:{port}/"))
+        .call()
+        .unwrap_err();
+    assert!(matches!(err, Error::Tls(m) if m == "invalid dns name"), "unexpected");
+}
+
+/// A peer that completes the handshake and then emits bytes that are not valid
+/// TLS records fails the *read* side of the stream. That is a distinct seam
+/// from a reset during connect: here the transport is live and the corruption
+/// surfaces out of `await_input`.
+#[test]
+fn garbage_after_a_good_handshake_fails_the_read_side() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let sc = server_config();
+    std::thread::spawn(move || {
+        let (mut sock, _) = listener.accept().unwrap();
+        {
+            let conn = ServerConnection::new(sc).unwrap();
+            let mut tls = StreamOwned::new(conn, &mut sock);
+            let _ = tls.read(&mut [0u8; 2048]);
+        }
+        // Raw, un-encrypted noise where a TLS record should be.
+        let _ = sock.write_all(&[0xff; 256]);
+    });
+    let err = firefox_agent()
+        .get(&format!("https://localhost:{port}/"))
+        .call()
+        .unwrap_err();
+    assert!(
+        matches!(err, Error::Io(_) | Error::Tls(_)),
+        "unexpected error: {err:?}"
+    );
+}

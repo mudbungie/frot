@@ -73,3 +73,6 @@ fn tokens(s: &str) -> Vec<String> {
     flush(&mut buf, &mut out);
     out
 }
+
+#[cfg(test)]
+mod tests;

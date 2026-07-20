@@ -167,6 +167,28 @@ fn http_equiv_without_content_does_not_set_charset() {
     assert_eq!(v["charset"], Value::Null);
 }
 
+/// A second `<meta charset>` does not overwrite the first: charset is
+/// first-wins, as a browser's encoding sniff is.
+#[test]
+fn first_meta_charset_wins_over_a_later_one() {
+    let v = run(
+        "<head><meta charset='UTF-8'><meta charset='iso-8859-1'></head>",
+        "https://example.com/",
+    );
+    assert_eq!(v["charset"], "utf-8");
+}
+
+/// A `Content-Type` http-equiv whose content carries no `charset=` parameter
+/// leaves charset unset — the header matches, the value simply has nothing.
+#[test]
+fn http_equiv_content_type_without_charset_param_sets_nothing() {
+    let v = run(
+        "<head><meta http-equiv='Content-Type' content='text/html'></head>",
+        "https://example.com/",
+    );
+    assert_eq!(v["charset"], Value::Null);
+}
+
 #[test]
 fn http_equiv_with_unrelated_content_does_not_set_charset() {
     let v = run(

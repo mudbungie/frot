@@ -294,4 +294,6 @@ fn bad_selector(ctx: &Ctx<'_>, sel: &str) -> rquickjs::Error {
 }
 
 #[cfg(test)]
+mod starve_tests;
+#[cfg(test)]
 mod tests;

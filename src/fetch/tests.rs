@@ -109,6 +109,27 @@ fn fetch_to_dead_port_returns_connect_error() {
     );
 }
 
+/// A response that promises more body than it delivers fails *during* the
+/// body read, after headers and status are already in hand. That late failure
+/// must still surface as a mapped `FetchError`, not a partial success.
+#[test]
+fn truncated_body_is_a_fetch_error_not_a_short_read() {
+    use std::io::Write;
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    std::thread::spawn(move || {
+        for mut stream in listener.incoming().flatten() {
+            let _ = std::io::Read::read(&mut stream, &mut [0u8; 1024]);
+            // Declares 4096 bytes, sends 5, then hangs up mid-body.
+            let _ = stream.write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 4096\r\n\r\nshort",
+            );
+        }
+    });
+    let e = fetch(&format!("http://{addr}/"), &[]).unwrap_err();
+    assert_eq!(e.kind, kinds::FETCH_BODY);
+}
+
 #[test]
 fn map_dns_error() {
     let e = map_ureq_error(UE::HostNotFound);

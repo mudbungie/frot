@@ -59,6 +59,21 @@ fn file_url_with_remote_host_is_fetch_url_error() {
     assert!(e.message.contains("not a local file path"));
 }
 
+/// The size gate is wired into the `file://` read, not just available beside
+/// it: an over-limit file is refused before its bytes are ever read. The file
+/// is sparse (`set_len`), so this costs no disk.
+#[test]
+fn oversized_file_is_refused_by_the_body_gate() {
+    let p = tmp_path("huge.html");
+    let f = std::fs::File::create(&p).unwrap();
+    f.set_len(MAX_BODY_BYTES + 1).unwrap();
+    drop(f);
+    let e = fetch(&file_url(&p), &[]).unwrap_err();
+    assert_eq!(e.kind, kinds::FETCH_BODY);
+    assert!(e.message.contains("limit"), "message was {:?}", e.message);
+    std::fs::remove_file(&p).unwrap();
+}
+
 #[test]
 fn body_len_gate_accepts_at_limit_and_rejects_over() {
     assert!(check_body_len(MAX_BODY_BYTES).is_ok());

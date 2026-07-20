@@ -108,4 +108,6 @@ fn url_parse<'js>(ctx: &Ctx<'js>, spec: &str, base: Option<&str>) -> rquickjs::R
 }
 
 #[cfg(test)]
+mod starve_tests;
+#[cfg(test)]
 mod tests;

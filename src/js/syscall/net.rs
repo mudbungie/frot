@@ -62,3 +62,6 @@ fn outcome_obj<'js>(ctx: &Ctx<'js>, outcome: Outcome) -> rquickjs::Result<Object
     }
     Ok(obj)
 }
+
+#[cfg(test)]
+mod tests;
