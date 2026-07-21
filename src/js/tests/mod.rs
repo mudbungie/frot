@@ -32,7 +32,12 @@ fn sess(html: &str) -> Session {
 }
 
 fn drive(html: &str) -> (Document, Report) {
-    run(Document::parse(html), StyleSource::Bare, test_env(), &FetchSession::new(Vec::new()))
+    run(
+        Document::parse(html),
+        StyleSource::Bare,
+        test_env(),
+        &FetchSession::new(Vec::new()),
+    )
 }
 
 /// Drive a page whose §6 subfetches resolve against `url` — used by the external-
@@ -43,7 +48,12 @@ fn drive_at(html: &str, url: &str) -> (Document, Report) {
         url: url.into(),
         user_agent: "frot-test/1".into(),
     };
-    run(Document::parse(html), StyleSource::Bare, env, &FetchSession::new(Vec::new()))
+    run(
+        Document::parse(html),
+        StyleSource::Bare,
+        env,
+        &FetchSession::new(Vec::new()),
+    )
 }
 
 /// Drive a page with a tight wall-clock budget so budget-trip paths resolve fast

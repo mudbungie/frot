@@ -42,9 +42,15 @@ fn classify(doc: &Document, id: NodeId) -> Script {
     if el.attr("nomodule").is_some() || !is_js_type(el.attr("type")) {
         Script::Skip
     } else if let Some(src) = el.attr("src").filter(|s| !s.is_empty()) {
-        Script::External { module: is_module(el.attr("type")), src: src.to_string() }
+        Script::External {
+            module: is_module(el.attr("type")),
+            src: src.to_string(),
+        }
     } else {
-        Script::Inline { module: is_module(el.attr("type")), body: doc.text_content(id) }
+        Script::Inline {
+            module: is_module(el.attr("type")),
+            body: doc.text_content(id),
+        }
     }
 }
 

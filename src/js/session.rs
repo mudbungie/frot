@@ -42,7 +42,13 @@ impl Session {
     /// else [`StyleSource::Bare`]. `env` carries the static facts the §7
     /// environment shims (navigator/location/matchMedia) derive from.
     pub fn new(doc: Document, styles: StyleSource, env: Env, fetch: &FetchSession) -> Self {
-        Self::with_budget(doc, styles, env, fetch, Duration::from_millis(EXEC_BUDGET_MS))
+        Self::with_budget(
+            doc,
+            styles,
+            env,
+            fetch,
+            Duration::from_millis(EXEC_BUDGET_MS),
+        )
     }
 
     /// [`Session::new`] with an explicit wall-clock budget for the engine — the

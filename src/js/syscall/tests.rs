@@ -11,7 +11,12 @@ fn sess(html: &str) -> Session {
         url: "https://example.com/".into(),
         user_agent: "frot-test/1".into(),
     };
-    Session::new(Document::parse(html), StyleSource::Bare, env, &FetchSession::new(Vec::new()))
+    Session::new(
+        Document::parse(html),
+        StyleSource::Bare,
+        env,
+        &FetchSession::new(Vec::new()),
+    )
 }
 
 #[test]

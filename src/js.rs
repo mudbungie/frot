@@ -76,7 +76,13 @@ pub fn run(
     env: Env,
     fetch: &FetchSession,
 ) -> (Document, Report) {
-    run_with(doc, styles, env, fetch, Duration::from_millis(EXEC_BUDGET_MS))
+    run_with(
+        doc,
+        styles,
+        env,
+        fetch,
+        Duration::from_millis(EXEC_BUDGET_MS),
+    )
 }
 
 /// [`run`] with an explicit wall-clock budget; the tests dial it down so the
@@ -161,7 +167,11 @@ fn run_script_queue(session: &Session, report: &mut Report) {
 /// for `type="module"` — as a module named by its own fetched URL, so its
 /// imports resolve against it (§4.1).
 fn run_external(session: &Session, module: bool, src: &str, report: &mut Report) {
-    let intent = if module { Intent::Module } else { Intent::ClassicScript };
+    let intent = if module {
+        Intent::Module
+    } else {
+        Intent::ClassicScript
+    };
     match session.subfetch(src, intent) {
         subfetch::Outcome::Got(f) if f.ok && module => run_module(session, &f.url, &f.body, report),
         subfetch::Outcome::Got(f) if f.ok => run_script(session, &f.body, report),

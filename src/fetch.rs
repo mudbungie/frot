@@ -31,8 +31,7 @@ mod session;
 pub(crate) use decode::decode_body;
 pub use session::{FetchSession, Intent};
 
-const USER_AGENT: &str =
-    "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
+const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
 
 pub(crate) const TIMEOUT_SECS: u64 = 15;
 pub(crate) const MAX_BODY_BYTES: u64 = 16 * 1024 * 1024;
@@ -91,9 +90,9 @@ pub(crate) fn build_agent() -> Agent {
         .http_status_as_error(false)
         .max_idle_connections_per_host(POOL_PER_HOST)
         .build();
-    let connector = ()
-        .chain(TcpConnector::default())
-        .chain(firefox_tls::FirefoxTlsConnector::default());
+    let connector =
+        ().chain(TcpConnector::default())
+            .chain(firefox_tls::FirefoxTlsConnector::default());
     Agent::with_parts(config, connector, DefaultResolver::default())
 }
 
@@ -114,7 +113,11 @@ pub(crate) fn dispatch(
     if parsed.scheme() == "file" {
         return fetch_file(&parsed);
     }
-    let mut request = agent.get(url).config().timeout_global(Some(timeout)).build();
+    let mut request = agent
+        .get(url)
+        .config()
+        .timeout_global(Some(timeout))
+        .build();
     for (n, v) in headers {
         request = request.header(n.as_str(), v.as_str());
     }

@@ -126,8 +126,14 @@ fn an_unchanged_sheet_is_gathered_once_across_passes() {
     // The `--css --js` shape: the JS-phase gather and the final cascade both ask
     // for the same sheet; the second pass is a session-cache hit — no new
     // connection, no second fetch.
-    assert_eq!(gather_within(&hrefs, &base, &session, GENEROUS), vec!["a{}".to_string()]);
-    assert_eq!(gather_within(&hrefs, &base, &session, GENEROUS), vec!["a{}".to_string()]);
+    assert_eq!(
+        gather_within(&hrefs, &base, &session, GENEROUS),
+        vec!["a{}".to_string()]
+    );
+    assert_eq!(
+        gather_within(&hrefs, &base, &session, GENEROUS),
+        vec!["a{}".to_string()]
+    );
     assert_eq!(conns.load(AtomicOrdering::SeqCst), 1);
 }
 

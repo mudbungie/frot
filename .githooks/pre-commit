@@ -5,6 +5,17 @@ set -euo pipefail
 # Staged .rs files, once. Docs and config are exempt from both gates.
 staged_rs="$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.rs$' || true)"
 
+# Formatting. Cheap, fails fast, and keeps the local close gate in lockstep with
+# CI's `cargo fmt --check` (rust-toolchain.toml pins the formatter so both agree).
+# Without this here, unformatted code lands through `bl close` and only reddens
+# CI afterward.
+if [ -n "$staged_rs" ]; then
+  cargo fmt --check || {
+    echo "pre-commit: run 'cargo fmt' — tree is not formatted" >&2
+    exit 1
+  }
+fi
+
 # Line cap. The limit itself lives in scripts/line-limit.sh (one home, shared
 # with CI); the hook only feeds it the staged set.
 if [ -n "$staged_rs" ]; then

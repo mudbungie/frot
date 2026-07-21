@@ -82,7 +82,10 @@ pub(crate) fn gather_within(
         let workers: Vec<_> = (0..hrefs.len().min(MAX_IN_FLIGHT))
             .map(|_| scope.spawn(|| drain(hrefs, base, session, deadline, &cursor)))
             .collect();
-        workers.into_iter().flat_map(|w| w.join().unwrap()).collect()
+        workers
+            .into_iter()
+            .flat_map(|w| w.join().unwrap())
+            .collect()
     });
     got.sort_by_key(|(i, _)| *i);
     got.into_iter().map(|(_, body)| body).collect()
@@ -102,9 +105,10 @@ fn drain(
     let mut got = Vec::new();
     loop {
         let i = cursor.fetch_add(1, Ordering::Relaxed);
-        let (Some(href), Some(left)) =
-            (hrefs.get(i), deadline.checked_duration_since(Instant::now()))
-        else {
+        let (Some(href), Some(left)) = (
+            hrefs.get(i),
+            deadline.checked_duration_since(Instant::now()),
+        ) else {
             return got;
         };
         if let Ok(r) = session.subresource(href, base, Intent::Style, left) {
@@ -126,7 +130,8 @@ pub(crate) fn external_hrefs(doc: &Document, base: &str) -> Vec<String> {
             if let NodeKind::Element(el) = &e.kind {
                 let is_sheet = el.name == "link"
                     && el.attr("rel").is_some_and(|r| {
-                        r.split_whitespace().any(|t| t.eq_ignore_ascii_case("stylesheet"))
+                        r.split_whitespace()
+                            .any(|t| t.eq_ignore_ascii_case("stylesheet"))
                     });
                 if is_sheet {
                     if let Some(h) = el.attr("href").filter(|s| !s.is_empty()) {

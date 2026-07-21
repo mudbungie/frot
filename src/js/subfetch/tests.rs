@@ -109,7 +109,12 @@ fn past_the_byte_pool_a_new_url_is_refused() {
     let _a = server.mock("GET", "/a").with_body("a").create();
     // Pool of 1 byte: the first response body spends it, the second URL is
     // refused before any fetch (js.md §6 — memory is the bound, not a count).
-    let mut sf = Subfetch::with_budget(FetchSession::new(Vec::new()), &server.url(), Deadline::never(), 1);
+    let mut sf = Subfetch::with_budget(
+        FetchSession::new(Vec::new()),
+        &server.url(),
+        Deadline::never(),
+        1,
+    );
     assert_eq!(got(get(&mut sf, "/a")).body, "a");
     assert!(failed(get(&mut sf, "/b")).contains("byte budget exhausted"));
 }
@@ -119,7 +124,12 @@ fn a_cache_hit_is_served_even_after_the_pool_is_spent() {
     let mut server = mockito::Server::new();
     let _a = server.mock("GET", "/a").with_body("aa").create();
     // The frozen response outlives its pool: a re-get spends nothing new.
-    let mut sf = Subfetch::with_budget(FetchSession::new(Vec::new()), &server.url(), Deadline::never(), 1);
+    let mut sf = Subfetch::with_budget(
+        FetchSession::new(Vec::new()),
+        &server.url(),
+        Deadline::never(),
+        1,
+    );
     assert_eq!(got(get(&mut sf, "/a")).body, "aa");
     assert_eq!(got(get(&mut sf, "/a")).body, "aa");
 }
@@ -130,7 +140,11 @@ fn past_the_deadline_dispatch_is_refused() {
     // armed is already expired, so no network is ever dispatched.
     let engine = Engine::with_limits(JS_MEM_LIMIT, Duration::ZERO);
     engine.arm();
-    let mut sf = Subfetch::new(FetchSession::new(Vec::new()), "https://example.com/", engine.deadline());
+    let mut sf = Subfetch::new(
+        FetchSession::new(Vec::new()),
+        "https://example.com/",
+        engine.deadline(),
+    );
     assert!(failed(get(&mut sf, "/late.js")).contains("run budget exhausted"));
 }
 
