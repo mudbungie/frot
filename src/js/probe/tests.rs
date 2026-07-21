@@ -17,7 +17,6 @@ fn env() -> Env {
     Env {
         url: "https://example.com/".into(),
         user_agent: "frot-test/1".into(),
-        headers: Vec::new(),
     }
 }
 
@@ -147,6 +146,7 @@ fn recording_preserves_frots_real_values() {
         Document::parse("<body></body>"),
         StyleSource::Bare,
         env(),
+        &crate::fetch::FetchSession::new(Vec::new()),
         log.clone(),
     );
     assert_eq!(s.eval("typeof AudioContext").unwrap(), "undefined");

@@ -3,18 +3,19 @@
 //! prelude (which `llvm-cov` cannot see — that is the golden suite's job).
 
 use crate::dom::Document;
+use crate::fetch::FetchSession;
 use crate::js::{Env, Session, StyleSource};
 
 fn sess(url: &str, ua: &str) -> Session {
     let env = Env {
         url: url.into(),
         user_agent: ua.into(),
-        headers: Vec::new(),
     };
     Session::new(
         Document::parse("<html><body></body></html>"),
         StyleSource::Bare,
         env,
+        &FetchSession::new(Vec::new()),
     )
 }
 

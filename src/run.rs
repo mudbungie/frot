@@ -8,6 +8,7 @@
 use std::io::Write;
 
 use crate::ax;
+use crate::run::gather::external_css;
 use crate::cli;
 use crate::dom::Document;
 use crate::envelope::{
@@ -16,7 +17,6 @@ use crate::envelope::{
 use crate::fetch::{self, FetchResult};
 use crate::js::{Env, StyleSource};
 use crate::needs;
-use crate::run::gather::external_css;
 use crate::views;
 use serde_json::Value;
 
@@ -48,8 +48,13 @@ pub(crate) fn run_io(argv: &[String], out: &mut dyn Write, err: &mut dyn Write) 
 
 fn build_envelope(args: &cli::Args) -> Envelope {
     let initial_url = UrlBlock::requested(&args.url);
-    match fetch::fetch_document(&args.url, &args.headers) {
-        Err(e) => Envelope::error(initial_url, args.out, ErrorInfo::new(&e.kind, e.message)),
+    // One fetch session per invocation: the document GET, every CSS/JS
+    // subfetch, and every redirect ride its shared pool and cache (bl-5191).
+    let session = fetch::FetchSession::new(args.headers.clone());
+    match session.navigate(&args.url) {
+        Err(e) => {
+            Envelope::error(initial_url, args.out, ErrorInfo::new(&e.kind, e.message))
+        }
         Ok(fetched) => {
             let http = fetched.status.map(HttpInfo::new);
             let url = UrlBlock::resolved(&args.url, &fetched.final_url);
@@ -74,14 +79,14 @@ fn build_envelope(args: &cli::Args) -> Envelope {
             let doc = Document::parse(&fetched.body);
             // §9: JS runs before needs/CSS/layout/views, so everything downstream
             // consumes the post-JS document exactly as it consumes a static one.
-            let (doc, js) = run_scripts(args, doc, &fetched);
+            let (doc, js) = run_scripts(args, doc, &fetched, &session);
             let needs = needs::detect(args.out, &doc);
             if !needs.is_empty() {
                 return Envelope::needs(url, args.out, needs, None)
                     .with_http(http)
                     .with_js(js);
             }
-            let styles = compute_styles(args, &doc, &fetched);
+            let styles = compute_styles(args, &doc, &fetched, &session);
             // Layout is on-demand (`layout.md` §3): `bboxes` always needs
             // geometry, and `ax` forces layout under `--css` — flex
             // `order`/`*-reverse` is the sole source-order↔reading-order
@@ -89,14 +94,14 @@ fn build_envelope(args: &cli::Args) -> Envelope {
             // layout is skipped. Both paths have a `Styles` here (`bboxes`
             // always, `ax` because `--css` built one), so layout is built iff
             // the view demands it.
-            let wants_layout = args.out == View::Bboxes || (args.out == View::Ax && args.css);
+            let wants_layout =
+                args.out == View::Bboxes || (args.out == View::Ax && args.css);
             let layout = wants_layout
                 .then(|| styles.as_ref().map(|s| build_layout(s, &doc)))
                 .flatten();
-            let payload = build_payload(args.out, &doc, &fetched, styles.as_ref(), layout.as_ref());
-            Envelope::ok(url, args.out, payload)
-                .with_http(http)
-                .with_js(js)
+            let payload =
+                build_payload(args.out, &doc, &fetched, styles.as_ref(), layout.as_ref());
+            Envelope::ok(url, args.out, payload).with_http(http).with_js(js)
         }
     }
 }
@@ -111,28 +116,25 @@ fn run_scripts(
     args: &cli::Args,
     doc: Document,
     fetched: &FetchResult,
+    session: &fetch::FetchSession,
 ) -> (Document, Option<JsInfo>) {
     if !args.js {
         return (doc, None);
     }
     let styles = if args.css {
-        StyleSource::Authored(external_css(&doc, &fetched.final_url, &args.headers))
+        StyleSource::Authored(external_css(&doc, &fetched.final_url, session))
     } else {
         StyleSource::Bare
     };
     let env = Env {
         url: fetched.final_url.clone(),
         user_agent: fetch::user_agent(&args.headers).to_string(),
-        headers: args.headers.clone(),
     };
-    let (doc, r) = crate::js::run(doc, styles, env);
+    let (doc, r) = crate::js::run(doc, styles, env, session);
     let mut info = JsInfo::new(r.scripts, r.errors, r.settled);
     if args.js_errors {
         info = info.with_messages(
-            r.messages
-                .iter()
-                .map(|m| JsMessage::new(&m.kind, &m.text))
-                .collect(),
+            r.messages.iter().map(|m| JsMessage::new(&m.kind, &m.text)).collect(),
         );
     }
     (doc, Some(info))
@@ -149,9 +151,10 @@ fn compute_styles(
     args: &cli::Args,
     doc: &Document,
     fetched: &FetchResult,
+    session: &fetch::FetchSession,
 ) -> Option<crate::css::Styles> {
     if args.css {
-        let external = external_css(doc, &fetched.final_url, &args.headers);
+        let external = external_css(doc, &fetched.final_url, session);
         Some(crate::css::compute_with(doc, &external, args.js))
     } else if args.out == View::Bboxes {
         Some(crate::css::compute_bare(doc, args.js))

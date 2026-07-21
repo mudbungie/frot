@@ -14,14 +14,17 @@ mod geometry;
 mod loader;
 mod prelude;
 mod probe;
+mod script;
 mod session;
 mod subfetch;
 mod syscall;
 
 use std::time::Duration;
 
-use crate::dom::{Document, NodeId, NodeKind};
+use crate::dom::{Document, NodeId};
+use crate::fetch::{FetchSession, Intent};
 use engine::EXEC_BUDGET_MS;
+use script::{next_script, Script};
 
 pub use engine::EvalError;
 pub use geometry::StyleSource;
@@ -67,14 +70,25 @@ pub struct Report {
 /// `load`, then the virtual-clock settle loop. A budget trip anywhere stops the
 /// run and marks it unsettled (§5); a script/callback throw is counted and the
 /// run continues.
-pub fn run(doc: Document, styles: StyleSource, env: Env) -> (Document, Report) {
-    run_with(doc, styles, env, Duration::from_millis(EXEC_BUDGET_MS))
+pub fn run(
+    doc: Document,
+    styles: StyleSource,
+    env: Env,
+    fetch: &FetchSession,
+) -> (Document, Report) {
+    run_with(doc, styles, env, fetch, Duration::from_millis(EXEC_BUDGET_MS))
 }
 
 /// [`run`] with an explicit wall-clock budget; the tests dial it down so the
 /// budget-trip paths stay deterministic and fast (the 4.1 spike's pattern).
-fn run_with(doc: Document, styles: StyleSource, env: Env, budget: Duration) -> (Document, Report) {
-    let session = Session::with_budget(doc, styles, env, budget);
+fn run_with(
+    doc: Document,
+    styles: StyleSource,
+    env: Env,
+    fetch: &FetchSession,
+    budget: Duration,
+) -> (Document, Report) {
+    let session = Session::with_budget(doc, styles, env, fetch, budget);
     session.begin();
     let report = run_session(&session);
     (session.into_document(), report)
@@ -147,7 +161,8 @@ fn run_script_queue(session: &Session, report: &mut Report) {
 /// for `type="module"` — as a module named by its own fetched URL, so its
 /// imports resolve against it (§4.1).
 fn run_external(session: &Session, module: bool, src: &str, report: &mut Report) {
-    match session.subfetch(src) {
+    let intent = if module { Intent::Module } else { Intent::ClassicScript };
+    match session.subfetch(src, intent) {
         subfetch::Outcome::Got(f) if f.ok && module => run_module(session, &f.url, &f.body, report),
         subfetch::Outcome::Got(f) if f.ok => run_script(session, &f.body, report),
         // A failed or non-2xx external `src` leaves nothing to run: counted (§4.2)
@@ -224,75 +239,6 @@ fn drive(session: &Session, src: &str, report: &mut Report) -> Option<i64> {
             report.settled = false;
             None
         }
-    }
-}
-
-/// A discovered `<script>`, classified for execution (§4.1). `module` marks a
-/// `type="module"` script: it is evaluated as a real ES module (imports resolve
-/// through the §6 loader) rather than run as a classic script.
-enum Script {
-    /// Inline body to evaluate — as a module when `module`, else a classic script.
-    Inline { module: bool, body: String },
-    /// External `src` (the attribute value) — fetched under §6, then run as a
-    /// classic script or, when `module`, evaluated as a module (§4.2).
-    External { module: bool, src: String },
-    /// Non-JS `type` or `nomodule`: intentionally not run, not counted.
-    Skip,
-}
-
-/// The next `<script>` (document order) not already in `done`, classified.
-fn next_script(session: &Session, done: &[NodeId]) -> Option<(NodeId, Script)> {
-    let doc = session.document();
-    let id = doc
-        .find_by_tag("script")
-        .into_iter()
-        .find(|id| !done.contains(id))?;
-    Some((id, classify(&doc, id)))
-}
-
-/// Classify a `<script>` per §4.1. `find_by_tag` only yields elements, but a
-/// non-element id has nothing to run — a spec-legal-empty [`Script::Skip`],
-/// not a panic.
-fn classify(doc: &Document, id: NodeId) -> Script {
-    let NodeKind::Element(el) = &doc.node(id).kind else {
-        return Script::Skip;
-    };
-    if el.attr("nomodule").is_some() || !is_js_type(el.attr("type")) {
-        Script::Skip
-    } else if let Some(src) = el.attr("src").filter(|s| !s.is_empty()) {
-        Script::External {
-            module: is_module(el.attr("type")),
-            src: src.to_string(),
-        }
-    } else {
-        Script::Inline {
-            module: is_module(el.attr("type")),
-            body: doc.text_content(id),
-        }
-    }
-}
-
-/// Whether a `<script type>` selects ES-module evaluation (§4.1) — the exact
-/// `"module"` keyword (case-insensitive), the one type that is not a classic
-/// script.
-fn is_module(t: Option<&str>) -> bool {
-    t.is_some_and(|s| s.trim().eq_ignore_ascii_case("module"))
-}
-
-/// Whether a `<script type>` names JavaScript (or a module) and so runs (§4.1);
-/// absent/empty is classic JS. Any other MIME is not for us.
-fn is_js_type(t: Option<&str>) -> bool {
-    match t {
-        None => true,
-        Some(s) => matches!(
-            s.trim().to_ascii_lowercase().as_str(),
-            "" | "module"
-                | "text/javascript"
-                | "application/javascript"
-                | "text/ecmascript"
-                | "application/ecmascript"
-                | "text/jscript"
-        ),
     }
 }
 

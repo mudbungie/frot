@@ -28,7 +28,7 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
     bind!(ctx, g, "__frot_subfetch", {
         let sf = host.subfetch.clone();
         move |ctx: Ctx<'js>, url: String| -> rquickjs::Result<Object<'js>> {
-            let outcome = sf.borrow_mut().get(&url);
+            let outcome = sf.borrow_mut().get(&url, crate::fetch::Intent::FetchXhr);
             outcome_obj(&ctx, outcome)
         }
     });

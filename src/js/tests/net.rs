@@ -8,6 +8,7 @@ use mockito::Server;
 
 use super::super::{Env, Session, StyleSource};
 use crate::dom::Document;
+use crate::fetch::FetchSession;
 
 fn session_at(url: &str) -> Session {
     Session::new(
@@ -16,8 +17,8 @@ fn session_at(url: &str) -> Session {
         Env {
             url: url.into(),
             user_agent: "frot-test/1".into(),
-            headers: Vec::new(),
         },
+        &FetchSession::new(Vec::new()),
     )
 }
 

@@ -10,6 +10,7 @@
 
 use super::*;
 use crate::dom::Document;
+use crate::fetch::FetchSession;
 use crate::js::engine::{Engine, EXEC_BUDGET_MS};
 use crate::js::geometry::{self, StyleSource};
 use crate::js::subfetch;
@@ -21,7 +22,6 @@ fn env() -> Env {
     Env {
         url: "https://example.com/".into(),
         user_agent: "frot-test/1".into(),
-        headers: Vec::new(),
     }
 }
 
@@ -39,8 +39,8 @@ fn install_capped(mem_limit: usize) -> Result<(), String> {
             messages: Rc::new(RefCell::new(Vec::new())),
         };
         let sf = Rc::new(RefCell::new(subfetch::Subfetch::new(
+            FetchSession::new(Vec::new()),
             "https://example.com/",
-            Vec::new(),
             engine.deadline(),
         )));
         install(

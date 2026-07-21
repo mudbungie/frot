@@ -24,7 +24,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::dom::{Document, NodeKind, WalkEvent};
-use crate::fetch;
+use crate::fetch::{FetchSession, Intent};
 use url::Url;
 
 /// Aggregate wall-clock ceiling for the entire gather phase.
@@ -54,15 +54,14 @@ const MAX_IN_FLIGHT: usize = 6;
 /// failing the run. Returns the bodies that arrived, in document order —
 /// source order is cascade order, so it must survive concurrency.
 ///
-/// The caller's `-H` headers ride along only when the sheet shares the page's
-/// origin — credentials never leak cross-origin.
-pub(crate) fn external_css(
-    doc: &Document,
-    base: &str,
-    headers: &[(String, String)],
-) -> Vec<String> {
+/// Every sheet rides `session`: the workers share its one connection pool
+/// (six workers, one bounded pool — not six isolated agents), and an unchanged
+/// sheet already gathered this invocation is re-served from the session cache
+/// without a second fetch. The `-H` scoping and credentials rule live in the
+/// session.
+pub(crate) fn external_css(doc: &Document, base: &str, session: &FetchSession) -> Vec<String> {
     let budget = Duration::from_millis(GATHER_BUDGET_MS);
-    gather_within(&external_hrefs(doc, base), base, headers, budget)
+    gather_within(&external_hrefs(doc, base), base, session, budget)
 }
 
 /// [`external_css`]'s gather with the phase budget supplied by the caller —
@@ -71,51 +70,44 @@ pub(crate) fn external_css(
 pub(crate) fn gather_within(
     hrefs: &[String],
     base: &str,
-    headers: &[(String, String)],
+    session: &FetchSession,
     budget: Duration,
 ) -> Vec<String> {
     let deadline = Instant::now() + budget;
-    // The only shared state is the work cursor; each worker owns its results
-    // and hands them back at join, so nothing needs a lock.
+    // The only worker-shared state is the work cursor and the session handle
+    // (its pool + cache are `Arc`/`Mutex`-backed); each worker owns its results
+    // and hands them back at join.
     let cursor = AtomicUsize::new(0);
     let mut got: Vec<(usize, String)> = std::thread::scope(|scope| {
         let workers: Vec<_> = (0..hrefs.len().min(MAX_IN_FLIGHT))
-            .map(|_| scope.spawn(|| drain(hrefs, base, headers, deadline, &cursor)))
+            .map(|_| scope.spawn(|| drain(hrefs, base, session, deadline, &cursor)))
             .collect();
-        workers
-            .into_iter()
-            .flat_map(|w| w.join().unwrap())
-            .collect()
+        workers.into_iter().flat_map(|w| w.join().unwrap()).collect()
     });
     got.sort_by_key(|(i, _)| *i);
     got.into_iter().map(|(_, body)| body).collect()
 }
 
-/// One worker: take the next unclaimed href and fetch it, until the list is
-/// exhausted or the phase deadline passes. Each fetch is given exactly the
-/// budget's remainder, so the last request cannot outlive the phase.
+/// One worker: take the next unclaimed href and fetch it through the shared
+/// `session`, until the list is exhausted or the phase deadline passes. Each
+/// fetch is given exactly the budget's remainder, so the last request cannot
+/// outlive the phase; same-origin `-H` scoping and dedup are the session's.
 fn drain(
     hrefs: &[String],
     base: &str,
-    headers: &[(String, String)],
+    session: &FetchSession,
     deadline: Instant,
     cursor: &AtomicUsize,
 ) -> Vec<(usize, String)> {
     let mut got = Vec::new();
     loop {
         let i = cursor.fetch_add(1, Ordering::Relaxed);
-        let (Some(href), Some(left)) = (
-            hrefs.get(i),
-            deadline.checked_duration_since(Instant::now()),
-        ) else {
+        let (Some(href), Some(left)) =
+            (hrefs.get(i), deadline.checked_duration_since(Instant::now()))
+        else {
             return got;
         };
-        let scoped: &[(String, String)] = if fetch::same_origin(href, base) {
-            headers
-        } else {
-            &[]
-        };
-        if let Ok(r) = fetch::fetch_within(href, scoped, left) {
+        if let Ok(r) = session.subresource(href, base, Intent::Style, left) {
             got.push((i, r.body));
         }
     }
@@ -134,8 +126,7 @@ pub(crate) fn external_hrefs(doc: &Document, base: &str) -> Vec<String> {
             if let NodeKind::Element(el) = &e.kind {
                 let is_sheet = el.name == "link"
                     && el.attr("rel").is_some_and(|r| {
-                        r.split_whitespace()
-                            .any(|t| t.eq_ignore_ascii_case("stylesheet"))
+                        r.split_whitespace().any(|t| t.eq_ignore_ascii_case("stylesheet"))
                     });
                 if is_sheet {
                     if let Some(h) = el.attr("href").filter(|s| !s.is_empty()) {

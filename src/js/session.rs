@@ -10,6 +10,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use crate::dom::Document;
+use crate::fetch::FetchSession;
 
 use super::engine::{self, Engine, EXEC_BUDGET_MS};
 use super::probe::ProbeLog;
@@ -40,14 +41,20 @@ impl Session {
     /// (js.md §8): the pipeline passes [`StyleSource::Authored`] under `--css`,
     /// else [`StyleSource::Bare`]. `env` carries the static facts the §7
     /// environment shims (navigator/location/matchMedia) derive from.
-    pub fn new(doc: Document, styles: StyleSource, env: Env) -> Self {
-        Self::with_budget(doc, styles, env, Duration::from_millis(EXEC_BUDGET_MS))
+    pub fn new(doc: Document, styles: StyleSource, env: Env, fetch: &FetchSession) -> Self {
+        Self::with_budget(doc, styles, env, fetch, Duration::from_millis(EXEC_BUDGET_MS))
     }
 
     /// [`Session::new`] with an explicit wall-clock budget for the engine — the
     /// event loop's single deadline (§5), dialed down by the budget-trip tests.
-    pub fn with_budget(doc: Document, styles: StyleSource, env: Env, budget: Duration) -> Self {
-        Self::build(doc, styles, env, budget, None)
+    pub fn with_budget(
+        doc: Document,
+        styles: StyleSource,
+        env: Env,
+        fetch: &FetchSession,
+        budget: Duration,
+    ) -> Self {
+        Self::build(doc, styles, env, fetch, budget, None)
     }
 
     /// [`Session::new`] with the capability-surface probe instrument attached
@@ -55,11 +62,18 @@ impl Session {
     /// evaluates the instrumentation prelude, so a measured run records which
     /// surfaces the page touched while producing frot's ordinary output. The
     /// [`super::probe::measure`] entry point owns the `log`.
-    pub(crate) fn measuring(doc: Document, styles: StyleSource, env: Env, log: ProbeLog) -> Self {
+    pub(crate) fn measuring(
+        doc: Document,
+        styles: StyleSource,
+        env: Env,
+        fetch: &FetchSession,
+        log: ProbeLog,
+    ) -> Self {
         Self::build(
             doc,
             styles,
             env,
+            fetch,
             Duration::from_millis(EXEC_BUDGET_MS),
             Some(log),
         )
@@ -73,6 +87,7 @@ impl Session {
         doc: Document,
         styles: StyleSource,
         env: Env,
+        fetch: &FetchSession,
         budget: Duration,
         probe: Option<ProbeLog>,
     ) -> Self {
@@ -85,13 +100,13 @@ impl Session {
             reported: Rc::new(RefCell::new(0)),
             messages: Rc::new(RefCell::new(Vec::new())),
         };
-        // The §6 cache is anchored at the page URL and rides the caller's -H
-        // headers same-origin; both live in `env`, so build it before install
-        // moves `env` into the environment shims. It shares the engine's armed
-        // deadline so network dispatch obeys the run's one clock (§6).
+        // The §6 cache is anchored at the page URL and dispatches through the
+        // invocation's shared `fetch` session (its pool + `-H` scoping); build it
+        // before install moves `env` into the environment shims. It shares the
+        // engine's armed deadline so network dispatch obeys the run's one clock (§6).
         let subfetch = Rc::new(RefCell::new(subfetch::Subfetch::new(
+            fetch.clone(),
             &env.url,
-            env.headers.clone(),
             engine.deadline(),
         )));
         // The ES-module resolver/loader (js.md §4.1/§6) rides the same §6 cache as
@@ -214,9 +229,9 @@ impl Session {
     }
 
     /// Fetch `spec` through the once-then-frozen §6 cache (the external-`src`
-    /// path); `fetch`/XHR reach the same cache through the `__frot_subfetch`
-    /// syscall.
-    pub(super) fn subfetch(&self, spec: &str) -> subfetch::Outcome {
-        self.subfetch.borrow_mut().get(spec)
+    /// path) with its request `intent`; `fetch`/XHR reach the same cache through
+    /// the `__frot_subfetch` syscall.
+    pub(super) fn subfetch(&self, spec: &str, intent: crate::fetch::Intent) -> subfetch::Outcome {
+        self.subfetch.borrow_mut().get(spec, intent)
     }
 }

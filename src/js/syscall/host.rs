@@ -19,14 +19,13 @@ use crate::js::subfetch::SharedSubfetch;
 pub type SharedDoc = Rc<RefCell<Document>>;
 
 /// The static request facts the JS layer is built from: the final page URL and
-/// UA string the §7 shims derive from (`navigator`/`location`), plus the caller's
-/// `-H` headers, which the §6 subfetch cache rides on same-origin requests.
-/// Nothing here is computed by the shim.
+/// UA string the §7 shims derive from (`navigator`/`location`). The caller's
+/// `-H` headers live on the shared [`crate::fetch::FetchSession`] the §6 subfetch
+/// cache dispatches through, not here. Nothing here is computed by the shim.
 #[derive(Debug, Clone)]
 pub struct Env {
     pub url: String,
     pub user_agent: String,
-    pub headers: Vec<(String, String)>,
 }
 
 /// The counted-no-op sink (js.md §7/§11/§10): the prelude bumps it each time the

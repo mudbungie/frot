@@ -83,7 +83,7 @@ impl Loader for SubfetchLoader {
     ) -> Result<Module<'js, Declared>> {
         // Bind the outcome so the cache borrow is released before `Module::declare`
         // recurses into this loader for the module's own imports (nested graphs).
-        let outcome = self.0.borrow_mut().get(name);
+        let outcome = self.0.borrow_mut().get(name, crate::fetch::Intent::Module);
         match outcome {
             Outcome::Got(f) if f.ok => Module::declare(ctx.clone(), name, f.body),
             Outcome::Got(_) => Err(Error::new_loading_message(name, "module fetch was not ok")),

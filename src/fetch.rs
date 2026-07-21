@@ -6,6 +6,13 @@
 //! used to decode it. Errors map to the canonical [`crate::envelope::kinds`]
 //! taxonomy that the envelope serializer expects.
 //!
+//! Every request rides one per-invocation [`FetchSession`] (`session.rs`): the
+//! session owns the connection pool, the caller header overrides, and the
+//! invocation-local resource cache. The transport (`ureq::Agent`) is built
+//! *once*, in [`build_agent`], and reached only through the session — no call
+//! site constructs its own transport, so a page load reuses connections and
+//! presents its TLS identity once, not once per request.
+//!
 //! `file://` support means frot can reach local disk: callers passing
 //! untrusted URLs should validate the scheme themselves, same as with curl.
 
@@ -19,38 +26,23 @@ use crate::envelope::kinds;
 
 mod decode;
 mod firefox_tls;
+mod session;
 
 pub(crate) use decode::decode_body;
+pub use session::{FetchSession, Intent};
 
-const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
+const USER_AGENT: &str =
+    "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
 
-/// Firefox-121 document-navigation default headers, layered under the caller's
-/// `-H` on the top-level page GET so the request shape matches the
-/// [`USER_AGENT`] (and `navigator`) it claims. A bare Firefox UA with
-/// `accept: */*` and no `Accept-Language`/`Sec-Fetch-*` is an obvious bot tell;
-/// this is consistency of the existing masquerade, not anti-bot evasion. Pinned
-/// to the same Firefox version as `USER_AGENT` — bump them together.
-///
-/// `Accept-Encoding` is deliberately absent: ureq sets it from its enabled
-/// decoders (`gzip, br`). Real Firefox also advertises `deflate`, but we only
-/// claim what we can actually inflate — a false `deflate` would break decoding
-/// of a deflate-encoded body. Subresource subfetches (`docs/design/js.md` §6)
-/// do NOT carry this set: navigate-mode `Sec-Fetch-*` on a subresource is
-/// itself inconsistent, so they stay honest-minimal.
-const DOCUMENT_HEADERS: &[(&str, &str)] = &[
-    (
-        "Accept",
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    ),
-    ("Accept-Language", "en-US,en;q=0.5"),
-    ("Upgrade-Insecure-Requests", "1"),
-    ("Sec-Fetch-Dest", "document"),
-    ("Sec-Fetch-Mode", "navigate"),
-    ("Sec-Fetch-Site", "none"),
-    ("Sec-Fetch-User", "?1"),
-];
-const TIMEOUT_SECS: u64 = 15;
-const MAX_BODY_BYTES: u64 = 16 * 1024 * 1024;
+pub(crate) const TIMEOUT_SECS: u64 = 15;
+pub(crate) const MAX_BODY_BYTES: u64 = 16 * 1024 * 1024;
+
+/// Idle HTTP/1.1 connections kept warm per host on the shared pool. Six is
+/// Firefox's `network.http.max-persistent-connections-per-server`, the same
+/// limit the CSS gather's `MAX_IN_FLIGHT` cites — a full wave of subresources to
+/// one origin stays warm for reuse, and frot never keeps more open than the
+/// browser it presents as.
+pub(crate) const POOL_PER_HOST: usize = 6;
 
 /// The User-Agent frot sends: a `-H "User-Agent: …"` override when the caller
 /// supplied one, else the built-in default. `navigator.userAgent` (js.md §7)
@@ -87,37 +79,33 @@ impl FetchError {
     }
 }
 
-/// GET a top-level document: the Firefox-navigation [`DOCUMENT_HEADERS`]
-/// layered *under* the caller's `headers`, so a caller `-H` for any of those
-/// names replaces the default rather than duplicating it (same precedence as
-/// [`user_agent`]). Subresource subfetches (stylesheets, `fetch`/XHR, external
-/// `<script>`) call [`fetch`] directly and do not carry the navigation set.
-pub fn fetch_document(url: &str, headers: &[(String, String)]) -> Result<FetchResult, FetchError> {
-    let mut effective = headers.to_vec();
-    for (name, value) in DOCUMENT_HEADERS {
-        if !headers.iter().any(|(n, _)| n.eq_ignore_ascii_case(name)) {
-            effective.push(((*name).to_string(), (*value).to_string()));
-        }
-    }
-    fetch(url, &effective)
+/// Build the one per-invocation transport: the browser-identity connector chain
+/// (TCP, then a Firefox-shaped TLS handshake for HTTPS — `firefox_tls`) over a
+/// shared connection pool. `http_status_as_error(false)` keeps a 4xx/5xx body
+/// readable (the envelope surfaces the code, `run.rs`); the per-request timeout
+/// is applied per call in [`dispatch`], so one agent serves every request under
+/// its own deadline. Called exactly once, by [`FetchSession::new`].
+pub(crate) fn build_agent() -> Agent {
+    let config = Agent::config_builder()
+        .user_agent(USER_AGENT)
+        .http_status_as_error(false)
+        .max_idle_connections_per_host(POOL_PER_HOST)
+        .build();
+    let connector = ()
+        .chain(TcpConnector::default())
+        .chain(firefox_tls::FirefoxTlsConnector::default());
+    Agent::with_parts(config, connector, DefaultResolver::default())
 }
 
-/// GET `url` with the caller's `headers` attached, under the default
-/// per-request [`TIMEOUT_SECS`] ceiling. A caller-supplied `User-Agent`
-/// replaces the default. `Authorization` is never forwarded across redirects
-/// (ureq's default). `file://` reads ignore `headers` — the CLI rejects that
-/// combination as a usage error before we get here.
-pub fn fetch(url: &str, headers: &[(String, String)]) -> Result<FetchResult, FetchError> {
-    fetch_within(url, headers, Duration::from_secs(TIMEOUT_SECS))
-}
-
-/// [`fetch`] with the request's wall-clock ceiling supplied by the caller.
-/// A caller that holds a *phase* budget spanning several requests (the CSS
-/// gather, `src/run/gather.rs`) derives each request's timeout from the time
-/// its budget has left, so the phase cannot overrun by a hung host: the
-/// deadline is the single authority and the per-request ceiling is derived
-/// from it, never the other way round.
-pub(crate) fn fetch_within(
+/// GET `url` over the session's shared `agent` with `headers` attached, under
+/// `timeout`. `headers` is the fully-resolved request set the session prepared
+/// (nav headers layered, or same-origin `-H` scoped) — a `User-Agent` among
+/// them overrides the agent's default (ureq applies its config UA only when the
+/// request carries none), so the caller's `-H "User-Agent"` still wins.
+/// `Authorization` is never forwarded across redirects (ureq's default).
+/// `file://` reads take the read path and ignore `headers` / the pool.
+pub(crate) fn dispatch(
+    agent: &Agent,
     url: &str,
     headers: &[(String, String)],
     timeout: Duration,
@@ -126,24 +114,8 @@ pub(crate) fn fetch_within(
     if parsed.scheme() == "file" {
         return fetch_file(&parsed);
     }
-    // The connector chain opens TCP, then wraps HTTPS in a Firefox-shaped TLS
-    // handshake (`firefox_tls`). ureq keeps HTTP/1.1, redirects, decompression,
-    // timeouts and the error taxonomy; only the ClientHello changes.
-    let config = Agent::config_builder()
-        .user_agent(user_agent(headers))
-        .timeout_global(Some(timeout))
-        .http_status_as_error(false)
-        .build();
-    let connector =
-        ().chain(TcpConnector::default())
-            .chain(firefox_tls::FirefoxTlsConnector::default());
-    let agent = Agent::with_parts(config, connector, DefaultResolver::default());
-
-    let mut request = agent.get(url);
-    for (n, v) in headers
-        .iter()
-        .filter(|(n, _)| !n.eq_ignore_ascii_case("user-agent"))
-    {
+    let mut request = agent.get(url).config().timeout_global(Some(timeout)).build();
+    for (n, v) in headers {
         request = request.header(n.as_str(), v.as_str());
     }
     let mut response = request.call().map_err(map_ureq_error)?;
@@ -175,7 +147,7 @@ pub(crate) fn fetch_within(
 /// Read a `file://` document. No response, so no status and no headers;
 /// charset comes from the `<meta>` sniff (or UTF-8), same as a header-less
 /// HTTP response.
-fn fetch_file(url: &url::Url) -> Result<FetchResult, FetchError> {
+pub(crate) fn fetch_file(url: &url::Url) -> Result<FetchResult, FetchError> {
     let path = url.to_file_path().map_err(|()| {
         FetchError::new(kinds::FETCH_URL, format!("not a local file path: {}", url))
     })?;
@@ -217,7 +189,7 @@ pub fn same_origin(a: &str, b: &str) -> bool {
         && a.port_or_known_default() == b.port_or_known_default()
 }
 
-fn validate_url(url: &str) -> Result<url::Url, FetchError> {
+pub(crate) fn validate_url(url: &str) -> Result<url::Url, FetchError> {
     let parsed = url::Url::parse(url)
         .map_err(|e| FetchError::new(kinds::FETCH_URL, format!("invalid URL: {}", e)))?;
     if !matches!(parsed.scheme(), "http" | "https" | "file") {
@@ -258,9 +230,3 @@ pub(crate) fn map_ureq_error(e: ureq::Error) -> FetchError {
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod file_tests;
-
-#[cfg(test)]
-mod header_tests;

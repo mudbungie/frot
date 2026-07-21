@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use super::super::{run, run_with, Env, Report, StyleSource};
 use crate::dom::Document;
+use crate::fetch::FetchSession;
 
 /// A unique temp dir for the `file://` module fixtures, cleaned by the caller.
 fn tmpdir(tag: &str) -> PathBuf {
@@ -24,22 +25,16 @@ fn tmpdir(tag: &str) -> PathBuf {
 }
 
 fn page_url(dir: &Path) -> String {
-    url::Url::from_file_path(dir.join("page.html"))
-        .unwrap()
-        .to_string()
+    url::Url::from_file_path(dir.join("page.html")).unwrap().to_string()
 }
 
 fn env(url: &str) -> Env {
-    Env {
-        url: url.into(),
-        user_agent: "frot-test/1".into(),
-        headers: Vec::new(),
-    }
+    Env { url: url.into(), user_agent: "frot-test/1".into() }
 }
 
 /// Drive a page whose module imports resolve against `url`.
 fn drive_at(html: &str, url: &str) -> (Document, Report) {
-    run(Document::parse(html), StyleSource::Bare, env(url))
+    run(Document::parse(html), StyleSource::Bare, env(url), &FetchSession::new(Vec::new()))
 }
 
 fn module_page(body: &str) -> String {
@@ -53,18 +48,12 @@ fn a_relative_import_resolves_loads_and_runs() {
     let dir = tmpdir("rel");
     fs::write(dir.join("dep.js"), "export const msg = 'imported!';").unwrap();
     let (doc, r) = drive_at(
-        &module_page(
-            "import {msg} from './dep.js'; document.getElementById('root').textContent = msg;",
-        ),
+        &module_page("import {msg} from './dep.js'; document.getElementById('root').textContent = msg;"),
         &page_url(&dir),
     );
     assert_eq!((r.scripts, r.errors, r.settled), (1, 0, true));
     let root = doc.find_by_tag("div")[0];
-    assert!(
-        doc.text_content(root).contains("imported!"),
-        "{}",
-        doc.text_content(root)
-    );
+    assert!(doc.text_content(root).contains("imported!"), "{}", doc.text_content(root));
     fs::remove_dir_all(&dir).unwrap();
 }
 
@@ -75,14 +64,8 @@ fn nested_and_root_relative_and_absolute_specifiers_all_resolve() {
     let dir = tmpdir("forms");
     fs::create_dir_all(dir.join("sub")).unwrap();
     fs::write(dir.join("a.js"), "export const a = 1;").unwrap();
-    fs::write(
-        dir.join("sub/b.js"),
-        "import {a} from '../a.js'; export const b = a + 1;",
-    )
-    .unwrap();
-    let abs = url::Url::from_file_path(dir.join("a.js"))
-        .unwrap()
-        .to_string();
+    fs::write(dir.join("sub/b.js"), "import {a} from '../a.js'; export const b = a + 1;").unwrap();
+    let abs = url::Url::from_file_path(dir.join("a.js")).unwrap().to_string();
     let body = format!(
         "import {{b}} from './sub/b.js'; import {{a as a2}} from '/{}/a.js'; \
          import {{a}} from '{abs}'; \
@@ -122,11 +105,7 @@ fn a_non_2xx_module_fetch_counts_as_one_error() {
     // A 404 module body loads but is not ok: the loader refuses it (§6), the
     // import throws, counted once.
     let mut server = mockito::Server::new();
-    let _m = server
-        .mock("GET", "/dep.js")
-        .with_status(404)
-        .with_body("nope")
-        .create();
+    let _m = server.mock("GET", "/dep.js").with_status(404).with_body("nope").create();
     let (_doc, r) = drive_at(
         &module_page("import './dep.js';"),
         &format!("{}/page.html", server.url()),
@@ -158,10 +137,7 @@ fn a_rejected_top_level_await_counts_once() {
     // Top-level await that rejects settles during the microtask drain; the
     // watcher counts the unhandled rejection exactly once.
     let dir = tmpdir("tla");
-    let (_doc, r) = drive_at(
-        &module_page("await Promise.reject(new Error('x'));"),
-        &page_url(&dir),
-    );
+    let (_doc, r) = drive_at(&module_page("await Promise.reject(new Error('x'));"), &page_url(&dir));
     assert_eq!((r.scripts, r.errors, r.settled), (1, 1, true));
     fs::remove_dir_all(&dir).unwrap();
 }
@@ -189,6 +165,7 @@ fn an_endless_module_trips_the_budget_and_is_unsettled() {
         Document::parse(&module_page("while (true) {}")),
         StyleSource::Bare,
         env(&page_url(&dir)),
+        &FetchSession::new(Vec::new()),
         Duration::from_millis(20),
     );
     assert_eq!((r.scripts, r.errors, r.settled), (1, 1, false));
@@ -209,6 +186,7 @@ fn a_dead_deadline_refuses_module_loads_and_the_run_is_unsettled() {
         Document::parse(&module_page("import {x} from './dep.js';")),
         StyleSource::Bare,
         env(&page_url(&dir)),
+        &FetchSession::new(Vec::new()),
         Duration::ZERO,
     );
     assert_eq!((r.scripts, r.errors, r.settled), (1, 1, false));

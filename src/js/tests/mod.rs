@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use super::{run, run_with, Env, Report, Session, StyleSource};
 use crate::dom::Document;
+use crate::fetch::FetchSession;
 
 mod envgold;
 mod evloop;
@@ -18,16 +19,20 @@ fn test_env() -> Env {
     Env {
         url: "https://example.com/".into(),
         user_agent: "frot-test/1".into(),
-        headers: Vec::new(),
     }
 }
 
 fn sess(html: &str) -> Session {
-    Session::new(Document::parse(html), StyleSource::Bare, test_env())
+    Session::new(
+        Document::parse(html),
+        StyleSource::Bare,
+        test_env(),
+        &FetchSession::new(Vec::new()),
+    )
 }
 
 fn drive(html: &str) -> (Document, Report) {
-    run(Document::parse(html), StyleSource::Bare, test_env())
+    run(Document::parse(html), StyleSource::Bare, test_env(), &FetchSession::new(Vec::new()))
 }
 
 /// Drive a page whose §6 subfetches resolve against `url` — used by the external-
@@ -37,9 +42,8 @@ fn drive_at(html: &str, url: &str) -> (Document, Report) {
     let env = Env {
         url: url.into(),
         user_agent: "frot-test/1".into(),
-        headers: Vec::new(),
     };
-    run(Document::parse(html), StyleSource::Bare, env)
+    run(Document::parse(html), StyleSource::Bare, env, &FetchSession::new(Vec::new()))
 }
 
 /// Drive a page with a tight wall-clock budget so budget-trip paths resolve fast
@@ -49,6 +53,7 @@ fn drive_bounded(html: &str, budget_ms: u64) -> (Document, Report) {
         Document::parse(html),
         StyleSource::Bare,
         test_env(),
+        &FetchSession::new(Vec::new()),
         Duration::from_millis(budget_ms),
     )
 }

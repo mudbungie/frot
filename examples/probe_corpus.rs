@@ -14,7 +14,7 @@
 //! the declaration and moves on.
 
 use frot::dom::Document;
-use frot::fetch::{self, fetch_document};
+use frot::fetch::{self, FetchSession};
 use frot::js::{measure, Env, StyleSource};
 
 /// (class, url). `Challenge` pages are fetched once and never executed.
@@ -68,7 +68,7 @@ fn main() {
     );
     for (class, url) in CORPUS {
         println!("\n## [{}] {}", class_name(class), url);
-        let fetched = match fetch_document(url, &[]) {
+        let fetched = match FetchSession::new(Vec::new()).navigate(url) {
             Ok(f) => f,
             Err(e) => {
                 println!("  fetch error: {} — {}", e.kind, e.message);
@@ -92,7 +92,6 @@ fn main() {
         let env = Env {
             url: fetched.final_url.clone(),
             user_agent: fetch::user_agent(&[]).to_string(),
-            headers: Vec::new(),
         };
         let m = measure(Document::parse(&fetched.body), StyleSource::Bare, env);
         println!(

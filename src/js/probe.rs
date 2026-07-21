@@ -25,6 +25,7 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use crate::dom::Document;
+use crate::fetch::FetchSession;
 
 use super::{run_session, Env, Report, Session, StyleSource};
 
@@ -58,7 +59,10 @@ pub struct Measurement {
 /// evidence.
 pub fn measure(doc: Document, styles: StyleSource, env: Env) -> Measurement {
     let log: ProbeLog = Rc::new(RefCell::new(BTreeMap::new()));
-    let session = Session::measuring(doc, styles, env, log.clone());
+    // The probe has no caller `-H`; its subfetches ride a fresh headerless
+    // session (bl-5191), the same shared-pool seam a shipping `--js` run uses.
+    let fetch = FetchSession::new(Vec::new());
+    let session = Session::measuring(doc, styles, env, &fetch, log.clone());
     session.begin();
     let report = run_session(&session);
     let probes = rank(&log.borrow());

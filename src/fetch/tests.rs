@@ -1,3 +1,9 @@
+//! Unit tests for the fetch *primitives* — URL validation, the body-size gate,
+//! same-origin comparison, header lookup, and the ureq→taxonomy error mapping.
+//! The transport itself (the shared pool, redirects, `file://`, header/nav
+//! policy) is exercised against a live loopback server in `session/tests.rs`,
+//! where the [`super::FetchSession`] seam it flows through lives.
+
 use super::*;
 use ureq::Error as UE;
 
@@ -32,105 +38,28 @@ fn validate_url_accepts_http_https_and_file() {
 }
 
 #[test]
-fn fetch_invalid_url_returns_url_error() {
-    let err = fetch("not a url", &[]).unwrap_err();
-    assert_eq!(err.kind, kinds::FETCH_URL);
+fn same_origin_compares_scheme_host_and_port() {
+    assert!(same_origin("http://a.example/x", "http://a.example/y?z"));
+    assert!(same_origin("https://a.example:443/", "https://a.example/p"));
+    assert!(!same_origin("http://a.example/", "https://a.example/"));
+    assert!(!same_origin("http://a.example/", "http://b.example/"));
+    assert!(!same_origin("http://a.example:81/", "http://a.example/"));
+    assert!(!same_origin("not a url", "http://a.example/"));
 }
 
 #[test]
-fn fetch_unsupported_scheme_returns_url_error() {
-    let err = fetch("ftp://example.com/x", &[]).unwrap_err();
-    assert_eq!(err.kind, kinds::FETCH_URL);
-}
-
-#[test]
-fn fetch_ok_against_mock_server() {
-    let mut server = mockito::Server::new();
-    let _m = server
-        .mock("GET", "/")
-        .with_status(200)
-        .with_header("content-type", "text/html; charset=utf-8")
-        .with_body("hello")
-        .create();
-    let url = server.url();
-    let r = fetch(&url, &[]).unwrap();
-    assert_eq!(r.status, Some(200));
-    assert_eq!(r.body, "hello");
-    assert_eq!(r.charset, "utf-8");
-    assert!(r
-        .headers
-        .iter()
-        .any(|(n, _)| n.eq_ignore_ascii_case("content-type")));
-}
-
-#[test]
-fn fetch_404_returns_envelope_ok() {
-    let mut server = mockito::Server::new();
-    let _m = server
-        .mock("GET", "/")
-        .with_status(404)
-        .with_body("not found")
-        .create();
-    let url = server.url();
-    let r = fetch(&url, &[]).unwrap();
-    assert_eq!(r.status, Some(404));
-    assert_eq!(r.body, "not found");
-}
-
-#[test]
-fn fetch_follows_redirects_and_records_final_url() {
-    let mut server = mockito::Server::new();
-    let target_path = "/landed";
-    let _m1 = server
-        .mock("GET", "/start")
-        .with_status(301)
-        .with_header("location", target_path)
-        .create();
-    let _m2 = server
-        .mock("GET", target_path)
-        .with_status(200)
-        .with_body("final")
-        .create();
-    let url = format!("{}/start", server.url());
-    let r = fetch(&url, &[]).unwrap();
-    assert_eq!(r.status, Some(200));
-    assert_eq!(r.body, "final");
-    assert!(r.final_url.ends_with("/landed"));
-}
-
-#[test]
-fn fetch_to_dead_port_returns_connect_error() {
-    // 127.0.0.1:1 should refuse on most systems.
-    let err = fetch("http://127.0.0.1:1/", &[]).unwrap_err();
-    assert!(
-        err.kind == kinds::FETCH_CONNECT
-            || err.kind == kinds::FETCH_TIMEOUT
-            || err.kind == kinds::FETCH_BODY,
-        "unexpected error kind: {} ({})",
-        err.kind,
-        err.message,
-    );
-}
-
-/// A response that promises more body than it delivers fails *during* the
-/// body read, after headers and status are already in hand. That late failure
-/// must still surface as a mapped `FetchError`, not a partial success.
-#[test]
-fn truncated_body_is_a_fetch_error_not_a_short_read() {
-    use std::io::Write;
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = listener.local_addr().unwrap();
-    std::thread::spawn(move || {
-        for mut stream in listener.incoming().flatten() {
-            let _ = std::io::Read::read(&mut stream, &mut [0u8; 1024]);
-            // Declares 4096 bytes, sends 5, then hangs up mid-body.
-            let _ = stream.write_all(
-                b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 4096\r\n\r\nshort",
-            );
-        }
-    });
-    let e = fetch(&format!("http://{addr}/"), &[]).unwrap_err();
+fn body_len_gate_accepts_at_limit_and_rejects_over() {
+    assert!(check_body_len(MAX_BODY_BYTES).is_ok());
+    let e = check_body_len(MAX_BODY_BYTES + 1).unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_BODY);
+    assert!(e.message.contains("limit"));
+}
+
+#[test]
+fn user_agent_defaults_and_overrides() {
+    assert_eq!(user_agent(&[]), USER_AGENT);
+    let h = vec![("User-Agent".to_string(), "custom/1".to_string())];
+    assert_eq!(user_agent(&h), "custom/1");
 }
 
 #[test]

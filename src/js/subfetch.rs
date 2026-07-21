@@ -5,7 +5,7 @@
 //! `fetch`/XHR over the syscall.
 //!
 //! The policy mirrors the stylesheet subfetch in `run.rs`: GET only (implicit —
-//! the cache only ever calls [`crate::fetch::fetch`], which GETs), each absolute
+//! the cache only ever calls [`FetchSession::subresource`], which GETs), each absolute
 //! URL fetched at most once and its response frozen for the call, `-H` headers
 //! ride only same-origin, remote→local reads refused. Bounds are one per real
 //! resource (§6, bl-c7e9): *time* — the §5 wall-clock [`Deadline`] is consulted
@@ -20,10 +20,11 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::time::Duration;
 
 use url::Url;
 
-use crate::fetch::{self, FetchResult};
+use crate::fetch::{FetchResult, FetchSession, Intent, TIMEOUT_SECS};
 
 use super::engine::Deadline;
 
@@ -59,10 +60,14 @@ pub enum Outcome {
 /// the Rust script runner, both of which fetch through it.
 pub type SharedSubfetch = Rc<RefCell<Subfetch>>;
 
-/// The once-then-frozen cache (§6), keyed by resolved absolute URL.
+/// The once-then-frozen cache (§6), keyed by resolved absolute URL. Its network
+/// dispatch rides the invocation's shared [`FetchSession`] (bl-5191): every
+/// subfetch reuses the one connection pool, and the `-H` same-origin scoping is
+/// the session's — this layer owns only the §6 freezing, deadline, and byte
+/// pool on top of it.
 pub struct Subfetch {
+    session: FetchSession,
     base: String,
-    headers: Vec<(String, String)>,
     cache: HashMap<String, Frozen>,
     deadline: Deadline,
     spent: usize,
@@ -70,25 +75,25 @@ pub struct Subfetch {
 }
 
 impl Subfetch {
-    /// A cache anchored at `base` (the final page URL) with the caller's
-    /// `headers`, dispatching only inside the engine's armed `deadline` window
+    /// A cache anchored at `base` (the final page URL) over the shared
+    /// `session`, dispatching only inside the engine's armed `deadline` window
     /// and the shipping [`SUBFETCH_BYTES`] pool.
-    pub fn new(base: &str, headers: Vec<(String, String)>, deadline: Deadline) -> Self {
-        Self::with_budget(base, headers, deadline, SUBFETCH_BYTES)
+    pub fn new(session: FetchSession, base: &str, deadline: Deadline) -> Self {
+        Self::with_budget(session, base, deadline, SUBFETCH_BYTES)
     }
 
     /// [`Subfetch::new`] with an explicit byte budget for the tests. `base` is
     /// stored unparsed and validated per resolve, so a bogus page URL (which the
     /// `location` shim also tolerates) fails every fetch rather than panicking.
     pub fn with_budget(
+        session: FetchSession,
         base: &str,
-        headers: Vec<(String, String)>,
         deadline: Deadline,
         budget: usize,
     ) -> Self {
         Subfetch {
+            session,
             base: base.to_string(),
-            headers,
             cache: HashMap::new(),
             deadline,
             spent: 0,
@@ -98,11 +103,13 @@ impl Subfetch {
 
     /// Fetch `spec` (resolved against the page URL) once, frozen (§6). A cache
     /// hit re-serves the frozen response without touching the network; a miss
-    /// dispatches only while the §5 deadline stands and the byte pool has room —
-    /// past either, every new URL is refused (counted by the caller). Overshoot
-    /// is bounded to one in-flight response. Same-origin requests carry the `-H`
-    /// headers; cross-origin ones do not (credentials never leak).
-    pub fn get(&mut self, spec: &str) -> Outcome {
+    /// dispatches through the shared session only while the §5 deadline stands
+    /// and the byte pool has room — past either, every new URL is refused
+    /// (counted by the caller). Overshoot is bounded to one in-flight response.
+    /// `intent` (fetch/XHR, external script, or module) rides to the session as
+    /// the bl-20ec per-destination seam; the same-origin `-H` scoping is the
+    /// session's.
+    pub fn get(&mut self, spec: &str, intent: Intent) -> Outcome {
         let url = match self.resolve(spec) {
             Ok(u) => u,
             Err(reason) => return Outcome::Failed(reason),
@@ -119,12 +126,8 @@ impl Subfetch {
                 self.budget
             ));
         }
-        let headers: &[(String, String)] = if fetch::same_origin(&url, &self.base) {
-            &self.headers
-        } else {
-            &[]
-        };
-        match fetch::fetch(&url, headers) {
+        let timeout = Duration::from_secs(TIMEOUT_SECS);
+        match self.session.subresource(&url, &self.base, intent, timeout) {
             Ok(r) => {
                 let frozen = freeze(r);
                 self.spent += frozen.body.len();
