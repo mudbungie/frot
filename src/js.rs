@@ -13,6 +13,7 @@ pub mod engine;
 mod geometry;
 mod loader;
 mod prelude;
+mod probe;
 mod session;
 mod subfetch;
 mod syscall;
@@ -24,6 +25,7 @@ use engine::EXEC_BUDGET_MS;
 
 pub use engine::EvalError;
 pub use geometry::StyleSource;
+pub use probe::{measure, Measurement};
 pub use session::Session;
 pub use syscall::{Env, Log, Message};
 
@@ -74,35 +76,38 @@ pub fn run(doc: Document, styles: StyleSource, env: Env) -> (Document, Report) {
 fn run_with(doc: Document, styles: StyleSource, env: Env, budget: Duration) -> (Document, Report) {
     let session = Session::with_budget(doc, styles, env, budget);
     session.begin();
+    let report = run_session(&session);
+    (session.into_document(), report)
+}
+
+/// Drive an already-armed [`Session`] through the whole run (§4–§5), folding the
+/// deferred §10 tallies into one [`Report`]. Shared by the shipping [`run`] path
+/// and the [`probe::measure`] instrument (distinct from the one-step [`drive`]).
+pub(crate) fn run_session(session: &Session) -> Report {
     let mut report = Report {
         scripts: 0,
         errors: 0,
         settled: true,
         messages: Vec::new(),
     };
-    run_script_queue(&session, &mut report);
+    run_script_queue(session, &mut report);
     if report.settled {
-        run_event_loop(&session, &mut report);
+        run_event_loop(session, &mut report);
     }
-    // Quiescence within budget is `settled`'s one meaning (§5). The loop can
-    // conclude *because* the deadline expired — the §6 seam refuses network
-    // dispatch past it, emptying the remaining work — while the engine interrupt
-    // (which fires only between JS instructions) never happened to trip. An
-    // expired deadline at conclusion therefore clears `settled` deterministically
-    // rather than by interrupt-timing luck.
+    // Quiescence within budget is `settled`'s one meaning (§5): the loop can
+    // conclude *because* the deadline expired (the §6 seam refuses network past
+    // it) while the engine interrupt — firing only between JS instructions —
+    // never tripped, so an expired deadline here clears `settled` deterministically.
     report.settled = report.settled && !session.deadline_expired();
-    // Fold the deferred §10 tallies into `errors`: refused navigations (the
-    // environment shim's counted no-ops), unhandled promise rejections (net once
-    // the whole run's microtasks have drained — a late `.catch` un-counts), and
-    // unhandled errors the shim reported (reportError / window.onerror / a
-    // dispatched window 'error' event — the caught-and-reported app failures).
+    // Fold the deferred §10 tallies into `errors`: refused navigations (counted
+    // no-ops), unhandled promise rejections (net after the run's microtasks drain
+    // — a late `.catch` un-counts), and unhandled errors the shim reported.
     report.errors += session.denials();
     report.errors += session.rejections();
     report.errors += session.reported_errors();
-    // The bounded §10 message detail (throws/reports/subfetch failures) captured
-    // across the run; the `report` syscall wrote its own during the run.
+    // The bounded §10 message detail captured across the run (§10).
     report.messages = session.messages();
-    (session.into_document(), report)
+    report
 }
 
 /// Drain the script queue in document order (§4). Scripts a script inserts join

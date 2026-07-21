@@ -39,16 +39,34 @@ const GROUPS: &[Group] = &[
     net::install,
 ];
 
+macro_rules! bind {
+    ($ctx:expr, $g:expr, $name:literal, $f:expr) => {
+        $g.set($name, Function::new($ctx.clone(), $f)?.with_name($name)?)?
+    };
+}
+
 /// Register the whole syscall table on `engine`'s realm, then evaluate the
 /// prelude that builds the web-facing API on top of it. Closures capture clones
 /// of the handles in `host`; nothing global.
 pub fn install(engine: &Engine, host: Host) {
+    let probe = host.probe.clone();
     engine
         .context()
         .with(|ctx| -> rquickjs::Result<()> {
             let g = ctx.globals();
             for group in GROUPS {
                 group(&ctx, &g, &host)?;
+            }
+            // The measure instrument's probe syscall (bl-bd4e) rides the same
+            // table, but only when a `ProbeLog` was supplied; a shipping `--js`
+            // run binds nothing extra and evaluates no second prelude. Inlined
+            // (not a fallible helper) so it carries no separate `?` error edge —
+            // the `bind!` macro's own edges share the uniform failure path.
+            if let Some(log) = &probe {
+                let l = log.clone();
+                bind!(ctx, g, "__frot_probe", move |name: String| {
+                    *l.borrow_mut().entry(name).or_insert(0) += 1;
+                });
             }
             Ok(())
         })
@@ -59,12 +77,14 @@ pub fn install(engine: &Engine, host: Host) {
     engine
         .eval_setup(super::prelude::SOURCE)
         .expect("evaluate frot prelude");
-}
-
-macro_rules! bind {
-    ($ctx:expr, $g:expr, $name:literal, $f:expr) => {
-        $g.set($name, Function::new($ctx.clone(), $f)?.with_name($name)?)?
-    };
+    // The instrumentation prelude (bl-bd4e) wraps what the shipping prelude just
+    // defined — `navigator`, `getContext`, the absent-global feature-detect
+    // surface — so it evaluates last, and only under the measure instrument.
+    if probe.is_some() {
+        engine
+            .eval_setup(super::probe::INSTRUMENT)
+            .expect("evaluate frot probe instrumentation");
+    }
 }
 
 /// Node-query syscalls: kind/tag/attr/text and the structural links.

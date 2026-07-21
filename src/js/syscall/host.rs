@@ -11,6 +11,7 @@ use std::rc::Rc;
 use super::Messages;
 use crate::dom::Document;
 use crate::js::geometry::SharedGeometry;
+use crate::js::probe::ProbeLog;
 use crate::js::subfetch::SharedSubfetch;
 
 /// The arena, shared between the host and the syscall closures for the JS
@@ -73,4 +74,10 @@ pub struct Host {
     pub env: Env,
     pub counters: Counters,
     pub subfetch: SharedSubfetch,
+    /// The capability-surface probe sink (`bl-bd4e`), present only when the
+    /// [`super::super::probe::measure`] instrument built this host. `Some` binds
+    /// the `__frot_probe` syscall and evaluates the instrumentation prelude
+    /// ([`super::install`]); `None` is every shipping `--js` run — no probe
+    /// syscall, no second prelude, no behaviour change.
+    pub probe: Option<ProbeLog>,
 }

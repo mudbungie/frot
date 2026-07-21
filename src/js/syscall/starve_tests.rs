@@ -52,6 +52,7 @@ fn install_capped(mem_limit: usize) -> Result<(), String> {
                 env: env(),
                 counters,
                 subfetch: sf,
+                probe: None,
             },
         );
     })

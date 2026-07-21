@@ -12,6 +12,7 @@ use std::time::Duration;
 use crate::dom::Document;
 
 use super::engine::{self, Engine, EXEC_BUDGET_MS};
+use super::probe::ProbeLog;
 use super::{geometry, subfetch, syscall};
 use super::{Env, EvalError, Log, StyleSource};
 
@@ -46,6 +47,35 @@ impl Session {
     /// [`Session::new`] with an explicit wall-clock budget for the engine — the
     /// event loop's single deadline (§5), dialed down by the budget-trip tests.
     pub fn with_budget(doc: Document, styles: StyleSource, env: Env, budget: Duration) -> Self {
+        Self::build(doc, styles, env, budget, None)
+    }
+
+    /// [`Session::new`] with the capability-surface probe instrument attached
+    /// (`bl-bd4e`, shipping budget): binds the `__frot_probe` syscall and
+    /// evaluates the instrumentation prelude, so a measured run records which
+    /// surfaces the page touched while producing frot's ordinary output. The
+    /// [`super::probe::measure`] entry point owns the `log`.
+    pub(crate) fn measuring(doc: Document, styles: StyleSource, env: Env, log: ProbeLog) -> Self {
+        Self::build(
+            doc,
+            styles,
+            env,
+            Duration::from_millis(EXEC_BUDGET_MS),
+            Some(log),
+        )
+    }
+
+    /// Shared construction for [`with_budget`](Self::with_budget) (shipping,
+    /// `probe = None`) and [`measuring`](Self::measuring) (`probe = Some`): bind
+    /// `doc` to a fresh engine, install the syscall table + prelude, and — when
+    /// `probe` is `Some` — the probe syscall and instrumentation prelude too.
+    fn build(
+        doc: Document,
+        styles: StyleSource,
+        env: Env,
+        budget: Duration,
+        probe: Option<ProbeLog>,
+    ) -> Self {
         let engine = Engine::with_limits(engine::JS_MEM_LIMIT, budget);
         let doc = Rc::new(RefCell::new(doc));
         let console = Rc::new(RefCell::new(Vec::new()));
@@ -77,6 +107,7 @@ impl Session {
                 env,
                 counters: counters.clone(),
                 subfetch: subfetch.clone(),
+                probe,
             },
         );
         Session {

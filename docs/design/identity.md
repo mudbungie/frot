@@ -768,10 +768,25 @@ Permanently out of reach, by design or by constraint:
 | **Proof-of-work challenges** | Refused (§10). |
 | **Behavioural challenges** (mouse paths, dwell time, scroll) | Refused — frot dispatches only the `DOMContentLoaded`/`load` lifecycle pair, never synthetic input. |
 | **High-entropy rendering** (canvas/WebGL/audio/font metrics) | **No longer refused (2026-07-20).** In scope as a coherent masquerade; **unbuilt today**, so a filed gap — `bl-bd4e` and follow-ups (§10). Not a permanent residual. |
+| **Font metrics via `offsetWidth` measurement loops** | The `document.fonts` / FontFaceSet API is a filed gap (a follow-up of `bl-bd4e`), but the **`offsetWidth`-based glyph-width channel is a residual**: frot's layout is a structural approximation (`layout.md` §6), so per-glyph text widths cannot be reproduced faithfully, and a *wrong* width is a louder tell than a missing font (§10's coherence bar). It is also unobservable to the `bl-bd4e` instrument (indistinguishable from ordinary layout reads), so no page can be cited as probing it — it is out by the no-folklore rule, not measured in. |
+| **`crypto.subtle` (WebCrypto)** | `crypto.getRandomValues`/`randomUUID` are cheap capabilities frot can genuinely provide (a `bl-bd4e` follow-up owns them); the full `SubtleCrypto` surface is a large capability that may stay residual — the filed gap decides. |
 | **Three key shares** | Blocked by rustls (§6.4). |
 | **`m,p,a,s` pseudo-order + HEADERS PRIORITY** | Deferred to stage C (§7). |
 | **UTC timezone** | Deliberate — determinism over realism (§9). |
 | **frot is identifiable *as frot*** | See §14 — this is accepted, not solved. |
+
+**`bl-bd4e` measurement (dated evidence, `docs/design/probe-evidence.md`, 2026-07-21).**
+The rows above that read *"filed gap"* are now backed by a live measurement of
+**which capability surfaces the field corpus actually probes**, not a spec list.
+The instrument records every watched surface a page touches while returning frot's
+real value unchanged, and its follow-up balls are filed **only** for surfaces a
+real page was measured probing — no speculative entries. Two facts from that pass
+belong here as deliberate non-answers: (1) the `offsetWidth` font channel above is
+**structurally unmeasurable** by the instrument; (2) the measurement **under-observes**
+surfaces reached only inside external fingerprint bundles that fail `subfetch` or
+throw early (frot records a probe only in scripts that execute), so absence of a
+surface from the table is *not* evidence a browser would not probe it — only its
+presence is load-bearing.
 
 ---
 
