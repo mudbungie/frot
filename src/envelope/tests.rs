@@ -133,10 +133,10 @@ fn envelope_error_emits_error_block() {
 
 #[test]
 fn http_info_new_and_serde_round_trip() {
-    let h = HttpInfo::new(404);
+    let h = HttpInfo::new(404, &[]);
     assert_eq!(h.status, 404);
     let s = serde_json::to_string(&h).unwrap();
-    assert_eq!(s, "{\"status\":404}");
+    assert_eq!(s, "{\"status\":404,\"headers\":[]}");
     let back: HttpInfo = serde_json::from_str(&s).unwrap();
     assert_eq!(back, h);
 }
@@ -152,10 +152,12 @@ fn envelope_with_http_attaches_and_none_is_omitted() {
     let s = base.clone().with_http(None).to_json_string();
     assert!(!s.contains("\"http\""));
     // Some attaches the block and survives a round trip.
-    let s = base.with_http(Some(HttpInfo::new(200))).to_json_string();
-    assert!(s.contains("\"http\":{\"status\":200}"));
+    let s = base
+        .with_http(Some(HttpInfo::new(200, &[])))
+        .to_json_string();
+    assert!(s.contains("\"http\":{\"status\":200,\"headers\":[]}"));
     let back: Envelope = serde_json::from_str(&s).unwrap();
-    assert_eq!(back.http, Some(HttpInfo::new(200)));
+    assert_eq!(back.http, Some(HttpInfo::new(200, &[])));
 }
 
 #[test]

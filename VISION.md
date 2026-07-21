@@ -75,7 +75,7 @@ frot is built in phases. Each phase delivers a usable tool; later phases extend 
 
 Debt surfaced by the 2026-07 arch pass; it precedes new capability because it is the honesty principle catching up with the shipped surface:
 
-- Surface the HTTP outcome in the envelope (additive `http` block). Today a 404/500/bot-challenge body is reported as an `ok` impression.
+- Surface the HTTP outcome in the envelope (additive `http` block). Today a 404/500/bot-challenge body is reported as an `ok` impression. *(Extended in Phase 5, `bl-acec`: `http.headers` surfaces a bounded allowlist of decision-relevant response headers — `retry-after`, `cf-mitigated`, `server`, `x-datadome`, `content-type` — so the evidence behind a `needs`/error signal is observable, not discarded. `set-cookie` and volatiles stay out.)*
 - Reject `--js` with a usage error until Phase 4 implements it; today it parses and silently does nothing.
 - Accessible-name computation restricted to `nameFrom: contents` roles. Today container roles (`table`, `rowgroup`, …) are named from their full subtree text, so ancestor names repeat all descendant content — bloat for the AX view's primary consumer.
 - Layout tables demoted to `presentation` in the AX tree (a DOM-based heuristic, as browsers do): a caption-less, header-less table used for layout should contribute content, not `table`/`row`/`cell` structure noise.

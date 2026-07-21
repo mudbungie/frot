@@ -254,10 +254,15 @@ most browser-unlike behaviour measured."
 | g2.com | `error{kind:"http.403"}` | 403 | `x-datadome: protected`, `server: cloudflare` |
 
 Both are the same real-world condition — *a bot defence refused us* — and a
-consumer must handle **two envelope shapes** to detect it. Worse, **a 403
-challenge is indistinguishable from a genuine 403**, because the distinguishing
-signal lives in response headers and **frot's envelope discards them**: the
-`http` block is `{"status": N}` and nothing else, verified on every capture. See
+consumer must handle **two envelope shapes** to detect it. A 403 challenge was
+**indistinguishable from a genuine 403**, because the distinguishing signal
+lives in response headers and frot's envelope discarded them. **Resolved
+(`bl-acec`, 2026-07-20):** the `http` block is now `{status, headers}`, and the
+allowlist surfaces exactly these markers (`server`, `x-datadome`,
+`retry-after`, `cf-mitigated`), so g2's bot-defence 403 carries
+`x-datadome: protected` / `server: cloudflare` where a genuine origin 403 does
+not — the two are now distinguishable in one envelope shape. The *reporting*
+still differs (one `needs`, one `error`); only the evidence gap is closed. See
 §15.
 
 ---
@@ -826,6 +831,11 @@ environment-dependent; *not* identity):
 - h1 header **casing**, asserted on **both** schemes (I3 — this is the regression
   test for §3.4)
 - the §8 `navigator` fact set
+- the envelope `http.headers` allowlist (`bl-acec`): `retry-after`,
+  `cf-mitigated`, `server`, `x-datadome`, `content-type` — lower-cased names in
+  wire order, repeats preserved. Deterministic by construction (`set-cookie`
+  and volatile per-request headers are excluded), so it is a golden field, not a
+  normalized one; a surfaced header outside the allowlist is a drift.
 
 **Hashes are assertions, not fixtures.** JA3/JA3N/JA4/JA4_r/JA4_ro/peetprint/
 akamai values are **computed from the capture and compared to the profile's
@@ -914,16 +924,27 @@ Attacking it before committing it, per `~/AGENTS.md`.
 Recorded so they are not lost, and **not** silently absorbed into a sibling.
 Each needs its own ball.
 
-1. **The envelope discards response headers.** The `http` block is
-   `{"status": N}` and nothing else. A caller cannot see `retry-after`,
-   `cf-mitigated`, `x-datadome`, `server`, or `set-cookie` — *exactly the
-   evidence needed to tell a bot refusal from a genuine one* (§3.7). Recommended:
-   an additive `http:{status, headers}`. This is an **output-schema change**, so
-   `AGENTS.md` requires escalation before it is designed.
+1. **The envelope discards response headers. — DELIVERED (`bl-acec`,
+   2026-07-20).** The `http` block was `{"status": N}` and nothing else. It is
+   now `{status, headers}`, `headers` a bounded, ordered allowlist —
+   `retry-after`, `cf-mitigated`, `server`, `x-datadome`, `content-type` — that
+   surfaces *exactly the evidence needed to tell a bot refusal from a genuine
+   one* (§3.7). Surfaced from the *same* header capture `needs::challenge`
+   decides on (single source, `src/envelope/http.rs`). `set-cookie` is
+   **excluded** here — session material the cookie jar (`bl-6dad`) owns — and so
+   are volatile per-request headers, to keep golden captures deterministic
+   (§12). The **oracle allowlist** here is that same set; a golden capture that
+   surfaces a header outside it, or omits a challenge marker inside it, is a
+   drift. Additive: the output-schema change was escalated and approved (Mark,
+   2026-07-20).
 2. **Amazon's 202 is mislabelled `needs:["js"]`** (§3.6). An empty body the
    server *withheld* is not a page that needs JS. The starvation detector
-   (`needs.md` §4) cannot currently tell the two apart, and the signal that would
-   let it — the response headers — is defect 1.
+   (`needs.md` §4) cannot currently tell the two apart. **Unblocked, not yet
+   fixed:** the separating signal — the response headers, defect 1 — is now
+   observable (`http.headers` surfaces the `server` header), so the
+   reclassification can key off it; the reclassification itself is a separate
+   ball (per `bl-acec`'s acceptance — additive header-surfacing does not change
+   the `needs` verdict).
 3. **Two envelope shapes for one condition** (§3.7): reddit's declared challenge
    is `needs:["human"]`, g2's is `error{http.403}`. Both mean "a bot defence
    refused us". A consumer must handle both.

@@ -6,6 +6,9 @@
 
 use serde::{Deserialize, Serialize};
 
+mod http;
+pub use http::{HttpHeader, HttpInfo};
+
 pub const ENVELOPE_VERSION: &str = "0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,21 +104,6 @@ impl ErrorInfo {
             kind: kind.into(),
             message: message.into(),
         }
-    }
-}
-
-/// HTTP response signal, present whenever a network response was received
-/// (a `file://` read carries none — no response happened). Additive to the
-/// envelope: the envelope `status` still describes the impression operation,
-/// while `http.status` reports the raw transport code the server returned.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HttpInfo {
-    pub status: u16,
-}
-
-impl HttpInfo {
-    pub fn new(status: u16) -> Self {
-        Self { status }
     }
 }
 

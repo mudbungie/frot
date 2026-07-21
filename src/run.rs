@@ -54,7 +54,12 @@ fn build_envelope(args: &cli::Args) -> Envelope {
     match session.navigate(&args.url) {
         Err(e) => Envelope::error(initial_url, args.out, ErrorInfo::new(&e.kind, e.message)),
         Ok(fetched) => {
-            let http = fetched.status.map(HttpInfo::new);
+            // One capture, two consumers (needs.md §3): `http` surfaces the
+            // allowlisted slice of `fetched.headers` and `needs::challenge`
+            // decides from the same set — they cannot disagree.
+            let http = fetched
+                .status
+                .map(|code| HttpInfo::new(code, &fetched.headers));
             let url = UrlBlock::resolved(&args.url, &fetched.final_url);
             // A server error (status >= 400) is not an impression: flip to an
             // error envelope before parsing, still carrying the http block.

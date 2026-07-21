@@ -94,6 +94,23 @@ Accepted residuals, stated rather than papered over:
   the starvation detector if its body is starved, and otherwise passes as
   `ok`. That residual is the price of refusing a body-copy classifier.
 
+**One capture, surfaced (`bl-acec`).** `challenge` reads
+`FetchResult::headers`; the envelope's `http.headers`
+(`src/envelope/http.rs`) exposes an allowlisted slice of *that same*
+capture, so the evidence behind this signal is observable and the two
+cannot disagree — the declaring header (`retry-after` / `cf-mitigated`) is
+inside the allowlist, so it is always surfaced. The allowlist is bounded to
+the headers a caller or `needs` uses to tell a bot-defence refusal from a
+genuine response: `retry-after`, `cf-mitigated`, `server`, `x-datadome`,
+`content-type` (provenance: `identity.md` §3.7 — reddit's `server:
+snooserv`, g2's `x-datadome: protected` + `server: cloudflare`).
+`set-cookie` (cookie jar's, `bl-6dad`) and volatile per-request headers
+(`date`, request/trace ids) are excluded so goldens stay deterministic
+(`identity.md` §12). This surfaces the evidence; it does not change the
+`needs` verdict — e.g. Amazon's 202 soft block stays as classified, now
+with its `server` header observable so a reclassification ball can key off
+it.
+
 ## 4. Document: content starvation → `needs:["js"]` (bl-e22e)
 
 Supersedes bl-6bb5's `no text AND ≤ 3 elements` guard. The element count

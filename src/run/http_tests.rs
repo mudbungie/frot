@@ -144,6 +144,116 @@ fn cf_mitigated_challenge_flips_to_needs_human() {
     assert_eq!(v["needs"], serde_json::json!(["human"]));
 }
 
+fn headers_of(v: &Value) -> Vec<(String, String)> {
+    v["http"]["headers"]
+        .as_array()
+        .expect("http.headers is always present on a network response")
+        .iter()
+        .map(|h| {
+            (
+                h["name"].as_str().unwrap().to_string(),
+                h["value"].as_str().unwrap().to_string(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn ok_response_surfaces_allowlisted_headers_and_strips_set_cookie() {
+    // The additive `http.headers`: the allowlisted response headers ride every
+    // network response, in wire order; `set-cookie` (session material, owned by
+    // the cookie jar) and volatile headers (`date`) never appear.
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_header("server", "snooserv")
+        .with_header("set-cookie", "sid=secret; HttpOnly")
+        .with_header("date", "Mon, 20 Jul 2026 00:00:00 GMT")
+        .with_header("content-type", "text/html")
+        .with_body("<p>hi</p>")
+        .create();
+    let (code, out, _) = run_capture(&[&server.url(), "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    let hs = headers_of(&v);
+    assert!(hs.contains(&("server".into(), "snooserv".into())), "{hs:?}");
+    assert!(
+        hs.iter().any(|(n, _)| n == "content-type"),
+        "content-type surfaced: {hs:?}"
+    );
+    assert!(
+        hs.iter().all(|(n, _)| n != "set-cookie"),
+        "set-cookie must never surface: {hs:?}"
+    );
+    assert!(
+        hs.iter().all(|(n, _)| n != "date"),
+        "volatile date must not surface: {hs:?}"
+    );
+}
+
+#[test]
+fn challenge_header_that_fired_needs_is_the_one_surfaced() {
+    // One capture, two consumers (needs.md §3): the exact header that made
+    // `needs::challenge` fire (`retry-after`) is the header `http.headers`
+    // surfaces — proof they derive from the same capture and cannot disagree.
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_header("retry-after", "0")
+        .with_header("server", "snooserv")
+        .with_body("<html><body><main>verifying</main></body></html>")
+        .create();
+    let (_c, out, _) = run_capture(&[&server.url(), "--out", "text"]);
+    let v = parse_envelope(&out);
+    assert_eq!(v["needs"], serde_json::json!(["human"]));
+    let hs = headers_of(&v);
+    assert!(
+        hs.contains(&("retry-after".into(), "0".into())),
+        "the declaring header is surfaced: {hs:?}"
+    );
+}
+
+#[test]
+fn bot_defence_403_is_distinguishable_from_a_genuine_403() {
+    // Field corpus (identity.md §3.7): g2's bot-defence 403 carried
+    // `x-datadome: protected` + `server: cloudflare`; a genuine origin 403 does
+    // not. Both flip to `error{http.403}`, but `http.headers` now carries the
+    // vendor markers, so a caller tells a refusal from a real failure.
+    let mut defence = mockito::Server::new();
+    let _d = defence
+        .mock("GET", "/")
+        .with_status(403)
+        .with_header("x-datadome", "protected")
+        .with_header("server", "cloudflare")
+        .with_body("<html>blocked</html>")
+        .create();
+    let (_c, out, _) = run_capture(&[&defence.url(), "--out", "text"]);
+    let v = parse_envelope(&out);
+    assert_eq!(v["error"]["kind"], "http.403");
+    let hs = headers_of(&v);
+    assert!(
+        hs.contains(&("x-datadome".into(), "protected".into())),
+        "vendor marker distinguishes the refusal: {hs:?}"
+    );
+
+    let mut genuine = mockito::Server::new();
+    let _g = genuine
+        .mock("GET", "/")
+        .with_status(403)
+        .with_header("server", "nginx")
+        .with_body("<h1>Forbidden</h1>")
+        .create();
+    let (_c, out, _) = run_capture(&[&genuine.url(), "--out", "text"]);
+    let v = parse_envelope(&out);
+    assert_eq!(v["error"]["kind"], "http.403");
+    assert!(
+        headers_of(&v).iter().all(|(n, _)| n != "x-datadome"),
+        "a genuine 403 carries no bot-defence marker"
+    );
+}
+
 #[test]
 fn declared_challenge_flips_every_view_and_skips_js() {
     // The flip is pre-parse and view-independent, mirroring the >= 400 flip:
