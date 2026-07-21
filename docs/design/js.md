@@ -484,23 +484,41 @@ Two moves against today's `run.rs`:
 - **No iframes.** Frame documents are not fetched or executed;
   `contentWindow`/`contentDocument` are `null`.
 - **No workers, no WASM, no media, no canvas rendering** (§7).
-- **Coherent identity, yes; stealth runtime, no** (`docs/design/identity.md`
-  §10 — this boundary **moved** on 2026-07-20 and this bullet is the moved
-  line, not the old one). The rule is one sentence: *frot may present a
-  coherent identity for a client that genuinely has the capabilities it claims;
-  it may not fabricate evidence of capabilities it does not have.*
+- **Coherent identity, yes; defeating defences, no** (`docs/design/identity.md`
+  §10 — this boundary **moved twice**: `bl-0356` moved it, then Mark's
+  masquerade ruling moved it again on 2026-07-20, and this bullet is the latest
+  line). The rule now separates two axes: *matching what the server requires is
+  in scope, including by masquerading a capability frot does not physically have;
+  what stays refused is a different axis — executing or solving a challenge, and
+  evasion loops. A signal frot cannot yet produce is a filed gap, not a
+  permanent non-goal.*
+  > **Superseded 2026-07-20.** This bullet previously read *"frot may present a
+  > coherent identity for a client that genuinely has the capabilities it claims;
+  > it may not fabricate evidence of capabilities it does not have,"* with
+  > canvas/WebGL/audio/font/media-device fabrication listed **"out,
+  > permanently"**. Mark superseded that (*"I don't mind masquerading
+  > capabilities … file backlogs for the gaps"*). Kept here as superseded, not
+  > deleted.
   - **In:** the JS-visible facts — `navigator` branding, `language`/`languages`,
     `platform`/`oscpu`, `buildID`, the plugin/mimeType shims — derived from the
     one `BrowserProfile` (identity.md §4, §8), consistent with the UA and TLS
     the transport actually sent. `webdriver: false` stays: it is *truthful*, not
     a costume.
-  - **Out, permanently:** fabricating high-entropy rendering signals — canvas,
-    WebGL, audio, font metrics, media-device enumeration. `getContext()` keeps
-    returning `null` (§7, spec-legal). frot cannot render, so it does not get to
-    claim it can.
-  - **Out, permanently:** executing or solving a challenge — CAPTCHA, JS
-    proof-of-work, behavioural interstitials — and evasion loops of any kind (no
-    UA rotation, no retry-until-allowed).
+  - **In scope, unbuilt — a filed gap:** masquerading high-entropy rendering
+    signals — canvas, WebGL, audio, font metrics, media-device enumeration — to
+    match what a fingerprinter requires. `getContext()` keeps returning `null`
+    **today** because the simulation is unbuilt (§7), *not* because it is
+    forbidden; the gap is owned by `bl-bd4e` and follow-ups (identity.md §10).
+    The bar is **coherence**: a masqueraded value must be a deterministic,
+    profile-derived simulation, because an incoherent one is a louder tell than
+    absence — an engineering requirement, not an honesty one. The **VISION
+    principle-5 question is resolved** (Mark, 2026-07-20 — no conflict: principle
+    5 governs honesty of the delivered impression, not the wire persona; see
+    identity.md §10 and VISION.md principle 5).
+  - **Out — a different axis, unchanged:** executing or solving a challenge —
+    CAPTCHA, JS proof-of-work, behavioural interstitials — and evasion loops of
+    any kind (no UA rotation, no retry-until-allowed). This is the `bl-abe5` hard
+    boundary and the 2026-07-20 ruling did not touch it.
   - **Unchanged — the honest outcome.** If a challenge script defeats the shim,
     the outcome is an honest `needs-js` or `error.kind: http.403`; and a
     *declared* challenge (`needs.md` §3, e.g. `Retry-After` on a 200) is

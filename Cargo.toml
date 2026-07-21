@@ -27,9 +27,12 @@ url = "2"
 # Firefox (WAF fingerprint match). ureq speaks HTTP/1.1 only.
 ureq = { version = "3", default-features = false, features = ["gzip", "brotli"] }
 # `craftls` = a fork of rustls with a craftable ClientHello (cipher/extension
-# order, GREASE, key-share, padding). Pure Rust + `ring`; the only pure-Rust
-# way to emit a Firefox JA3/JA4. Kept behind `firefox_tls.rs`; no craftls type
-# leaks past that module. See bl-0eba journal for the maintenance tradeoff.
+# order, GREASE, key-share, padding). NB (corrected 2026-07-20): `ring` is NOT
+# pure Rust — it carries 17 C files + 90 pregenerated asm files (BoringSSL-
+# derived). To be retired for `rustls 0.23 + aws-lc-rs` (Mark's call, 2026-07-20;
+# a C+asm -> C+asm move, not pure-Rust -> C), see docs/design/identity.md §6.1.
+# Kept behind `firefox_tls.rs`; no craftls type leaks past that module. See
+# bl-0eba journal for the maintenance tradeoff.
 craftls = { version = "0.0.2", package = "craftls", default-features = false, features = ["ring", "tls12", "logging"] }
 webpki-roots = "0.26"
 rustls-pki-types = "1"

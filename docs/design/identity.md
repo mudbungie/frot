@@ -31,9 +31,10 @@ no route delivers a byte-exact Firefox inside those constraints.
   **BoringSSL, which is C++**. `musl-tools` ships `musl-gcc` only; `boring-sys2`
   fails with `ToolNotFound: x86_64-linux-musl-g++` (`dpkg -L musl-tools | grep
   bin/` → `musl-gcc`, `musl-ldd`, no C++ compiler).
-- **Size was never the binding constraint.** The recommended route costs
-  **+284 KiB** stripped musl; even `wreq` would land at ≈8.46 MiB, inside the
-  envelope. The constraint that binds is the toolchain.
+- **Size was never the binding constraint.** The spike put the selected route at
+  +284 KiB stripped musl; the 2026-07-20 whole-binary rebuild puts it **32 KiB
+  *below* today** (§6.1 config (b)), and even `wreq` would land at ≈8.46 MiB,
+  inside the envelope. The constraint that binds is the toolchain.
 - **The pure-Rust ceiling is real and independent.** `rustls` emits **at most two
   key shares** where Firefox emits **three** (4588, 29, 23). The `h2` crate's
   `Pseudo` struct is hardcoded `m,s,a,p` and exposes no client API for the
@@ -363,58 +364,125 @@ Each is a testable assertion, not a guideline.
 
 ### 6.1 Decision
 
-**Recommended: R1-mod — retire `craftls`, move to `rustls 0.23 + aws-lc-rs`, port
-the craft layer into frot's own repo behind the existing `firefox_tls.rs` seam,
-then add `h2` (§7).**
+**SELECTED (Mark, 2026-07-20): config (b) — R1-mod — retire `craftls`, move to
+`rustls 0.23 + aws-lc-rs`, port the craft layer into frot's own repo behind the
+existing `firefox_tls.rs` seam, then add `h2` (§7).** The pure-Rust ML-KEM path,
+config (c) below, is **preserved as the size-optimized fallback**, not discarded.
 
-> ### ⚠️ CHECKPOINT: **PENDING — Mark's explicit approval required**
->
-> `~/AGENTS.md` requires a human checkpoint with dependency tree and size delta
-> for any new dependency or C/C++ stack. **This route has not been approved.**
-> Three separate things need a decision, and none of them is assumed here:
->
-> 1. **`aws-lc-sys`** — a large **vendored C + assembly** crate, replacing
->    pure-Rust `ring`. New C dependency.
-> 2. **`tokio`** — `h2` requires it. This **reverses** the explicit
->    `ARCHITECTURE.md` decision *"Blocking I/O, no async runtime — a single-shot
->    process fetching a handful of resources gains nothing from tokio and pays
->    startup + size for it."* Mitigation available: a **current-thread** runtime
->    driven by `block_on` inside the existing blocking `fetch()`, so the
->    observable API stays blocking and no work escapes the call. That is a
->    mitigation, not a repeal — the decision still reverses and must be
->    reversed *deliberately*.
-> 3. **`zstd` (+ `deflate`) content-encoding decoders** — required by I2 to
->    honestly advertise the profile's `Accept-Encoding`. Note the sting: the
->    rustls swap *removes* `zstd-sys` (craftls's incidental cert-compression
->    dep), and this **puts a zstd dependency straight back**. The net C-dep story
->    is therefore `ring` → `aws-lc-sys`, with zstd unchanged, not removed.
->
-> Until this is approved, `bl-abca` is blocked. `bl-5191` and `bl-20ec` are not
-> (§13) — they need no new dependency.
+The checkpoint this section once carried gated three items. Two are now settled
+by Mark's rulings of 2026-07-20 (async, and the C-stack choice, both below); the
+third — content-encoding decoders — is an owed *measurement*, not an open
+*approval*. So the dependency checkpoint is discharged with evidence here rather
+than left pending. `bl-abca` unblocks once the decoder measurement (item 3) lands.
+
+#### Item 1 — the C stack: `aws-lc-rs`, measured 2026-07-20
+
+> **Correction (Mark's ruling, 2026-07-20). `ring` is not pure Rust**, and the
+> earlier framing of this move as "pure Rust → C" was wrong. ring 0.17.14 carries
+> **17 C files (5,413 lines), 90 pregenerated asm files (156,641 lines) and 38
+> perlasm generators** against 28,240 lines of Rust — most of it BoringSSL-derived.
+> The migration is **C+asm → C+asm**, not "pure Rust → C". (The same error is
+> corrected in `Cargo.toml`'s comment and in `ARCHITECTURE.md`.)
+
+frot was built **for real in three configurations**, static musl, stripped, each
+verified fetching live sites 2026-07-20:
+
+| config | stack | binary | crates | vs today |
+|---|---|---|---|---|
+| **(a)** today | ureq + craftls/`ring` | **7,328,856 B** | 111 | — |
+| **(b) — SELECTED** | rustls 0.23 + `aws-lc-rs` at `firefox_tls.rs` | **7,296,312 B** | 96 | **−32 KiB, −15 crates** |
+| **(c)** preserved fallback | rustls 0.23 + `ring` + `libcrux-ml-kem` custom kx group | **5,538,872 B** | — | −1.71 MiB |
+
+**Mark selected (b)** on 2026-07-20. So the selected path is **32 KiB smaller
+than today and sheds 15 crates.** The earlier
+"+2.1 MiB for aws-lc-sys" / "+291 KiB for the route" figures were arithmetically
+right and both misleading: `aws-lc-sys` genuinely costs ~2.1 MiB in isolation,
+but retiring craftls sheds ~2.13 MiB of baggage (`zstd-sys` + `zstd` +
+`zstd-safe` + `brotli 3.5` + a second `brotli-decompressor` + `ring` +
+`rustls-webpki 0.102`), almost exactly cancelling it.
+
+Config **(c)** — the pure-Rust ML-KEM path — **works and is preserved as a
+fallback, not a hypothesis.** A ~90-line custom `SupportedKxGroup` over the ring
+provider backed by `libcrux-ml-kem` links static-pie musl and completes real
+handshakes against google.com and cloudflare.com with
+`negotiated_kx: X25519MLKEM768`. `libcrux-ml-kem` is formally verified **and
+vendored by NSS**, so it is the ML-KEM implementation Firefox itself uses. It was
+**not selected** (it is the preserved fallback) because it keeps semi-abandoned
+`ring` (self-described "an
+experiment", no release in 16 months) and takes permanent custody of hybrid-KEM
+glue plus an unbuilt HPKE shim for ECH — the craftls failure mode one layer down.
+
+#### Item 2 — async runtime: **SETTLED** (Mark's ruling, 2026-07-20)
+
+> **Superseded — the old position.** `ARCHITECTURE.md` recorded *"Blocking I/O,
+> no async runtime — a single-shot process fetching a handful of resources gains
+> nothing from tokio and pays startup + size for it."* Mark superseded it in part
+> on 2026-07-20; it is not deleted, it is amended.
+
+Mark ruled: *"it's okay to run async internally to resolve a request more
+efficiently, just the returns to the user must be posix-compliant,
+lifecycle-deterministic."* An internal `tokio` current-thread runtime is
+therefore **permitted** where it buys real concurrency (h2 multiplexing,
+`bl-08f6`). The constraint is on the **observable contract**, not the
+implementation — and it is **testable, so assert it** (a new I-class invariant
+for `bl-d66b`'s oracle):
+
+- the public fetch API stays **blocking**;
+- **no work escapes the call** — no detached tasks;
+- **no runtime outlives the invocation** — no background reactor surviving return;
+- process lifecycle stays **deterministic**.
+
+Startup + RSS delta is still **unmeasured** and stays a **live cost to record
+once the runtime lands** — that half of the old rationale is a real cost, not a
+prohibition. Measure it in `bl-abca`/`bl-08f6` and record it here.
+
+#### Item 3 — content-encoding decoders: still owed (honest caveat)
+
+`zstd` (+ `deflate`) content-encoding decoders are required by **I2** to honestly
+advertise the profile's `Accept-Encoding` (`gzip, deflate, br, zstd`). **Config
+(b) above is the seam-swap only** — it does *not* yet include them. craftls's
+`zstd` was **cert-compression, not content-encoding**, and frot today advertises
+only `gzip, br`. So the final figure is **(b) + decoders**, and that has not been
+measured. **Do not present −32 KiB as the settled number.** `bl-abca` owes this
+measurement; until it lands, I2 either gets the decoders or `Accept-Encoding`
+stays a declared residual at `gzip, br` (§14 item 6).
 
 ### 6.2 Route table (measured 2026-07-19; `lto=fat, codegen-units=1, strip, panic=abort`)
 
-frot today: **7,111,056 B (6.78 MiB)**, **111 crates**.
+> **Superseded on the size axis by the 2026-07-20 remeasurement (§6.1 item 1).**
+> The `+291,040 B (+284 KiB)` route figure and the `+1 crate net (51 → 52)` delta
+> below are the 2026-07-19 spike's `r1b` numbers; the three-config rebuild of
+> 2026-07-20 supersedes them with **config (b) at −32 KiB / −15 crates vs today**.
+> The rows are kept for provenance and for the *qualitative* verdicts (which are
+> unchanged); read §6.1 for the authoritative sizes and crate counts. The
+> `7,111,056 B` baseline here was also remeasured to **7,328,856 B** (§6.1).
+
+frot today: **7,111,056 B (6.78 MiB)**, **111 crates** *(remeasured 2026-07-20 to
+7,328,856 B — see §6.1)*.
 
 | route | pure Rust? | last release | static musl | Δ vs current transport (musl) | crates | new C/C++ | verdict |
 |---|---|---|---|---|---|---|---|
-| **R1 as-is** — keep `craftls` | yes (+`ring`, `zstd-sys`) | **2024-01-16**, sole release | yes (ships today) | 0 | 51 | no | **REJECT** — no ML-KEM, no ECH, rustls 0.22, abandoned |
-| **R1-mod** — rustls 0.23 + aws-lc-rs + `h2` | rustls/h2 yes; **aws-lc-sys vendors C+asm** | 2026-07-13 / 07-17 / 06-15 | **YES — built and ran** static-pie; printed `X25519MLKEM768(4588) present: true` | **+291,040 B (+284 KiB)** | 52 | yes (`aws-lc-sys`) | **RECOMMENDED**, two gaps owed |
+| **R1 as-is** — keep `craftls` | **no** — `ring` is C+asm, `zstd-sys` is C | **2024-01-16**, sole release | yes (ships today) | 0 | 51 | yes (`ring`, `zstd-sys`) | **REJECT** — no ML-KEM, no ECH, rustls 0.22, abandoned |
+| **R1-mod** — rustls 0.23 + aws-lc-rs + `h2` | **no** — `aws-lc-sys` vendors C+asm (as `ring` already did) | 2026-07-13 / 07-17 / 06-15 | **YES — built and ran** static-pie; printed `X25519MLKEM768(4588) present: true` | **−32 KiB / −15 crates** *(config (b), §6.1; supersedes the spike's +284 KiB)* | 96 total | yes (`aws-lc-sys`) | **SELECTED** (Mark, 2026-07-20), decoders owed |
 | **R2** — `wreq` | **no — BoringSSL C++** | active | **NO — build fails**, no `x86_64-linux-musl-g++` | +1.29 MiB (glibc); musl n/a | **115** *(> frot's entire tree)* | yes, + cmake | **REJECT on constraints** — best fidelity, fails static musl + blocking I/O |
 | **R3** — curl-impersonate | no (C) | active | not verified — no Rust crate | not measured | n/a | whole C stack + own BoringSSL | **REJECT** — heaviest possible escalation |
 | **R4** — `warpsock` | no — `boring` + `tokio` | 2026-07-07 | **NO** — same C++ blocker | not verified | 84 | yes | **REJECT** — 480 downloads, 11 stars, **2 contributors**, renamed mid-flight; unacceptable for a TLS stack |
 
-Raw stripped musl sizes: `cur` (frot's transport today) 4,227,800 → `r1b`
-(ureq + rustls 0.23/aws-lc-rs + h2 + tokio) 4,518,840, both `static-pie,
-statically linked`, both **ran OK**. Projected frot total **≈ 7.07 MiB** —
-inside the 5–15 MiB envelope with room.
+Raw stripped musl sizes (2026-07-19 spike): `cur` (frot's transport today)
+4,227,800 → `r1b` (ureq + rustls 0.23/aws-lc-rs + h2 + tokio) 4,518,840, both
+`static-pie, statically linked`, both **ran OK**. *(These are the superseded
+spike figures; the 2026-07-20 whole-binary rebuild in §6.1 is authoritative and
+lands config (b) 32 KiB **below** today.)* Projected frot total is inside the
+5–15 MiB envelope with room on every config.
 
-Tree delta (`cargo tree --edges normal`, unique name+version): **+1 crate net**
-(51 → 52). Removes ~18 (`craftls`, `ring`, `rustls-webpki 0.102`, `brotli 3.5`,
-`zstd`/`zstd-safe`/`zstd-sys`, `rand`, `static_init`, `paste`, `home`), adds ~19
-(`h2` + `tokio`). *Caveat: this is the spike's `r1b` build; it does not include
-the content-encoding decoders I2 requires (§6.1 item 3), so treat +284 KiB as a
-floor.*
+Tree delta (`cargo tree --edges normal`, unique name+version): the spike reported
+**+1 crate net** (51 → 52 transport-subtree crates); the 2026-07-20 whole-binary
+rebuild reports **−15 crates** (111 → 96) — the seam swap removes `craftls`,
+`ring`, `rustls-webpki 0.102`, `brotli 3.5`, a second `brotli-decompressor`, and
+`zstd`/`zstd-safe`/`zstd-sys`, and adds `aws-lc-rs`/`aws-lc-sys` plus (under
+stage B) `h2` + `tokio`. *Caveat unchanged: neither figure includes the
+content-encoding decoders I2 requires (§6.1 item 3), so the settled number is
+(b) + decoders and has not been measured.*
 
 ### 6.3 Security maintenance — the independent argument
 
@@ -541,9 +609,21 @@ from the profile. Two viewport constants would be exactly the duplication this
 design exists to prevent, and the existing `inner == outer` (no chrome) choice
 stays as documented in `js.md` §7.
 
-**Out, permanently: fabricated high-entropy rendering.** Canvas, WebGL, audio,
-font metrics, media-device enumeration. `getContext()` continues to return `null`
-(spec-legal). See §10 for why this line is where it is.
+**High-entropy rendering signals: in scope where they match what the server
+requires; unbuilt today, so filed as gaps.** *(Superseded 2026-07-20 by Mark's
+masquerade ruling — the previous line read "Out, permanently: fabricated
+high-entropy rendering … `getContext()` continues to return `null`"; it is
+amended, not deleted.)* Canvas, WebGL, audio, font metrics, and media-device
+enumeration are the surfaces fingerprinters read, and Mark's ruling is that
+**masquerading a capability to match what the server requires is in scope**.
+frot cannot *render* today, so `getContext()` still returns `null` — but that is
+now a **filed gap** (`bl-bd4e` capability-gap measurement, plus its follow-ups),
+not a permanent non-goal. The bar these must clear is coherence: a masqueraded
+value must be a **coherent, profile-derived simulation** (a canvas hash that
+varies across pages that should differ, a GPU string that fits the persona), not
+noise — an *incoherent* fabricated value is a **louder** tell than absence (§10).
+See §10 for the boundary; the VISION principle-5 question this once raised is
+**resolved** (Mark, 2026-07-20 — no conflict; §10).
 
 ---
 
@@ -573,12 +653,27 @@ residual (§11), because non-deterministic output is the worse failure.
 
 ## 10. Scope boundary
 
-This supersedes the blanket non-goal in `js.md` §11. The line is drawn on a
-principle, not a list:
+This supersedes the blanket non-goal in `js.md` §11. The boundary **moved again on
+2026-07-20** (Mark's masquerade ruling), days after `bl-0356` last moved it. The
+line is drawn on a principle, not a list.
 
-> **frot may present a coherent identity for a client that genuinely has the
-> capabilities it claims. It may not fabricate evidence of capabilities it does
-> not have.**
+> **Superseded 2026-07-20 — the old drawing of the line.** This section, and
+> `js.md` §11, previously read: *"frot may present a coherent identity for a
+> client that genuinely has the capabilities it claims. It may not fabricate
+> evidence of capabilities it does not have,"* with canvas/WebGL/audio/font/
+> media-device fabrication listed as **"out, permanently"**. Mark superseded that:
+> *"I don't mind masquerading capabilities. We want to match what the server is
+> requiring as much as possible. If there are gaps on what we can interpret on our
+> side, we should file backlogs for them, to figure out how to simulate/interpret
+> them."* The old text is kept here as superseded, not deleted.
+
+**The line as it now stands** — note it separates *two different axes* that the
+old single rule conflated:
+
+> **Matching what the server requires is in scope, including by masquerading a
+> capability frot does not physically have. What is refused is a different axis:
+> executing or solving a challenge, and evasion loops. A signal frot cannot yet
+> interpret or produce is a *filed gap*, not a permanent non-goal.**
 
 **In scope:**
 
@@ -586,27 +681,74 @@ principle, not a list:
   from one profile, mutually consistent.
 - Genuinely negotiating everything advertised (I2).
 - Low-entropy coherent facts and correct Gecko branding (§8).
+- **Masquerading a capability to match what the server requires** — including the
+  high-entropy rendering surfaces (canvas/WebGL/audio/font metrics/media-device)
+  that were previously refused. The bar is **coherence, not abstinence**: a
+  masqueraded value must be a coherent, profile-derived *simulation*, because an
+  *incoherent* fabricated value (a GPU string that contradicts the persona, a
+  canvas hash that never varies across pages that should differ) is a **louder**
+  tell than absence. "Masquerade" therefore means a deterministic, profile-derived
+  simulation, never noise. *(This coherence bar is an engineering/detectability
+  requirement, not an honesty one — VISION principle 5 is separately resolved as
+  not conflicting, see the box below.)*
 
-**Refused — and this is where the boundary moved *to*, not away from:**
+**Filed gaps — in scope, not yet built** (cross-referenced to the tasks filed
+alongside this one):
+
+- Every rendering/interpretation signal frot cannot yet produce or read is a
+  **backlog item**, per Mark's ruling: canvas/WebGL/audio/font-metric/media-device
+  simulation is owned by **`bl-bd4e`** (capability-gap measurement) and its filed
+  follow-ups. `getContext()` returns `null` **today** because the simulation is
+  unbuilt, not because it is forbidden.
+
+**Refused — a different axis, unchanged by the 2026-07-20 ruling** (the `bl-abe5`
+hard boundary):
 
 - **Executing or solving any challenge.** CAPTCHA, JS proof-of-work, behavioural
   interstitials. A *declared* challenge (`needs.md` §3 — `Retry-After` on a 2xx,
   `cf-mitigated: challenge`) is reported as `needs:["human"]` **before its
   scripts are ever executed**. Detection is refusal to pretend, not a step
   toward evasion.
-- **Fabricating high-entropy rendering signals** — canvas/WebGL/audio/font/
-  media-device values invented to describe hardware frot does not have.
-- **Body-copy classification** of block pages (`needs.md` §5 — fragile, and the
-  first step down the evasion road).
 - **Evasion loops** — no UA rotation, no IP rotation, no retry-until-allowed, no
   backoff-and-try-again. One request, one answer.
+- **Body-copy classification** of block pages (`needs.md` §5 — fragile, and the
+  first step down the evasion road).
 - **Submitting anything.** GET-only, permanently — the frottage rule.
 
-Why this line is principled rather than arbitrary: it explains, from one rule,
-why `webdriver: false` is **in** (truthful — frot really is not remote-controlled)
-while a fake canvas hash is **out** (fabricated — frot really cannot render), and
-why speaking h2 is **in** while claiming h2 without speaking it is **out**. Every
-case falls out of the same test.
+Why this line is principled rather than arbitrary: it separates **matching a
+requirement** (masquerade, now in) from **defeating a defence** (challenge-solving
+and evasion, still out). `webdriver: false` is in because it is *truthful*;
+speaking h2 is in because I2 makes frot *actually* speak it; a simulated canvas
+hash is in *as a filed gap* because it matches what a fingerprinter requires — but
+solving a CAPTCHA stays out because that is defeating a defence, not matching an
+identity.
+
+> ### ✔ RESOLVED — VISION principle 5 does not conflict (Mark, 2026-07-20)
+>
+> VISION principle 5 is *"Honest capability signals … Never silently produce a
+> degraded result that looks complete."* The question raised here — is a
+> fabricated canvas hash a dishonest *impression*? — was **put to Mark and
+> answered: no conflict.** Verbatim: *"principle 5: no, it doesn't [conflict]. be
+> honest to the user about what happened. How that got done is fine. Private
+> browser windows do the same thing all the time; so long as you're safe on the
+> wire, it's up to the client (frot in this case) what you do with what you're
+> delivered."*
+>
+> **The resolution — two audiences, two contracts, one process:**
+> - Principle 5 governs the **delivered impression** to the caller/user — honesty
+>   about *what happened* (the `--out *` payload, `needs`, the `http` block). It
+>   does **not** constrain the **wire persona** frot presents to obtain that
+>   impression.
+> - A masqueraded wire identity is a legitimate client-side choice, analogous to a
+>   private browsing window, provided frot is *safe on the wire*. It does not make
+>   the delivered result dishonest.
+> - Therefore **no exception clause is added to principle 5** — VISION.md carries
+>   only a short dated clarifying note (2026-07-20) saying principle 5 is about the
+>   delivered impression, not the wire persona.
+> - **The coherence constraint stands — but as engineering, not honesty.** A
+>   masqueraded value must be a **deterministic, profile-derived function** (never
+>   random/incoherent), because an incoherent fabricated value is a *louder* tell
+>   than absence. That is a detectability requirement, independent of principle 5.
 
 **The honest-outcome half is unchanged.** If a page defeats the shim, the outcome
 is an honest `needs:["js"]`, `needs:["human"]`, or `error.kind: http.<code>` —
@@ -625,7 +767,7 @@ Permanently out of reach, by design or by constraint:
 | **Required POST telemetry** | Permanently refused — GET-only frottage rule. Sites that gate on a beacon POST cannot be served. `sendBeacon` returns `false` (a legal denial). |
 | **Proof-of-work challenges** | Refused (§10). |
 | **Behavioural challenges** (mouse paths, dwell time, scroll) | Refused — frot dispatches only the `DOMContentLoaded`/`load` lifecycle pair, never synthetic input. |
-| **High-entropy rendering** (canvas/WebGL/audio/font metrics) | Refused (§10). |
+| **High-entropy rendering** (canvas/WebGL/audio/font metrics) | **No longer refused (2026-07-20).** In scope as a coherent masquerade; **unbuilt today**, so a filed gap — `bl-bd4e` and follow-ups (§10). Not a permanent residual. |
 | **Three key shares** | Blocked by rustls (§6.4). |
 | **`m,p,a,s` pseudo-order + HEADERS PRIORITY** | Deferred to stage C (§7). |
 | **UTC timezone** | Deliberate — determinism over realism (§9). |
@@ -692,14 +834,14 @@ stays out of the default run — CI has no network, and determinism is the point
 bl-5191 ──► bl-20ec ──► bl-abca ──┬──► bl-3972 ──┐
 (session)   (profile)   (TLS+h2)  ├──► bl-6dad ──┼──► bl-08f6 ──► bl-d66b
                           ▲       └──► bl-e707 ──┘   (scheduling)  (capstone)
-                    CHECKPOINT
+              checkpoint DISCHARGED (§6.1, 2026-07-20); decoder measurement owed
 ```
 
 | # | task | delivers | why here |
 |---|---|---|---|
 | 1 | **`bl-5191`** per-invocation fetch session | one `Agent` per invocation, not per URL | Prerequisite for everything. Root cause of §3.5 (`fetch_within()` builds a fresh agent per URL). **Needs no new dependency — not blocked by the checkpoint.** |
 | 2 | **`bl-20ec`** request metadata | the `BrowserProfile` constant + the *one* ordered request description, handed to both serializers | The single-source-of-truth core. Dissolves §3.4 by construction and fixes §3.3 rows 1–3, 5, 7, 8. **Also not blocked by the checkpoint** — it is a refactor plus value fixes. |
-| 3 | **`bl-abca`** TLS + h2 | stage A then stage B (§7) | **BLOCKED on §6.1.** Needs I2's decoders too, or `Accept-Encoding` stays a declared residual. |
+| 3 | **`bl-abca`** TLS + h2 | stage A then stage B (§7) | **Checkpoint discharged** (§6.1, 2026-07-20 — async settled, C-stack measured). Still owes I2's content-encoding decoders, or `Accept-Encoding` stays a declared residual at `gzip, br`. |
 | 4 | **`bl-3972`** JS persona | `env.js` facts via one syscall from the profile (§8) | After 2 (the profile must exist). Independent of 3. |
 | 5 | **`bl-6dad`** cookie jar | one per-invocation jar shared by transport and `document.cookie` (§9) | After 1 (needs the session) and 2. |
 | 6 | **`bl-e707`** clocks | precision clamping, locale/TZ (§9) | After 2. Independent of 3–5. |
@@ -724,6 +866,11 @@ Attacking it before committing it, per `~/AGENTS.md`.
    *coherence* and *security maintenance* (§6.3) — not measured access
    improvement. `bl-d66b`'s corpus re-run is the falsifier; if it shows no
    change, that result belongs in this section, not in a drawer.
+   **Filed responses (Mark's ruling, 2026-07-20 — *"on a/b, well we should
+   probably file some tests then!"*):** the A/B gap is now owned by **`bl-46f5`**
+   (field-corpus A/B harness) and capability-gap *measurement* — which signals a
+   server requires and whether frot produces a matching one — by **`bl-bd4e`**.
+   The gap is tracked, not merely noted.
 2. **IP/ASN reputation probably dominates.** Everything here is client identity.
    If a target scores the egress IP, a perfect profile changes nothing.
 3. **Determinism makes frot a cohort.** Pinning `hardwareConcurrency`, timezone,
@@ -731,15 +878,19 @@ Attacking it before committing it, per `~/AGENTS.md`.
    fingerprint — just a *consistent* one rather than a *self-contradictory* one.
    **The goal was never to be unidentifiable; it is to not be incoherent.** Say
    this plainly rather than letting a reader infer stealth.
-4. **The residuals in §11 are permanent under the current constraints**, and two
+4. **Most residuals in §11 are permanent under the current constraints**, and two
    of them (key shares, pseudo-order) are inside the fingerprint a serious
-   defence actually hashes.
+   defence actually hashes. *(One row is no longer permanent: high-entropy
+   rendering became an in-scope, unbuilt gap on 2026-07-20 — §10, `bl-bd4e`.)*
 5. **Profile staleness is silent without I8.** CI has no network, so nothing
    notices Firefox moving. I8's build-time expiry is the mitigation and it is
    coarse — it catches EOL, not mid-line drift.
-6. **`Accept-Encoding` may not reach parity.** If the zstd/deflate decoders are
-   declined at the checkpoint, I2 forces `gzip, br` to stay — an honest but
-   non-matching value. I2 is not negotiable; the *value* is.
+6. **`Accept-Encoding` may not reach parity.** The transport checkpoint is now
+   discharged (§6.1: async settled by Mark, C-stack measured), but the
+   zstd/deflate **content-encoding decoders I2 requires are still owed and
+   unmeasured**. Until `bl-abca` lands them, I2 forces `gzip, br` to stay — an
+   honest but non-matching value. I2 is not negotiable; the *value* is. This is
+   also why config (b)'s −32 KiB is a floor, not the settled size (§6.1 item 3).
 
 ---
 
