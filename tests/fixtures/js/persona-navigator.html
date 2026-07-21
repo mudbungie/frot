@@ -1,0 +1,59 @@
+<!-- persona-navigator contract (identity.md §8 — the deterministic JS-probe half
+     of bl-46f5). The EXECUTABLE contract for frot's `navigator` identity surface:
+     the probe self-checks every §8 fact in JS and records any regression into
+     `data-fail` (empty array == all pass); the Rust gate
+     (src/js/tests/persona_gold.rs) reads that array plus `data-ua`. THIS FILE is
+     the one place to edit when `bl-3972` (JS persona) moves the profile — the
+     version-bound facts are asserted structurally (rv:/Firefox/), so a 121->140
+     UA bump needs no edit; the STABLE identity facts below are pinned exactly.
+     Scripts run strict, so every global is declared via `var`. -->
+<html>
+<body>
+<div id="probe">probe</div>
+<script>
+  var FAILS = [];
+  function eq(name, actual, expected) {
+    if (actual !== expected) FAILS.push(name + ': got ' + JSON.stringify(actual) + ' want ' + JSON.stringify(expected));
+  }
+  function ok(name, cond) { if (!cond) FAILS.push(name); }
+
+  var n = navigator;
+
+  // --- Stable identity facts, pinned exactly (§8) -----------------------------
+  eq('platform', n.platform, 'Linux x86_64');
+  eq('language', n.language, 'en-US');
+  eq('languages.length', n.languages.length, 1);
+  eq('languages[0]', n.languages[0], 'en-US');
+  eq('hardwareConcurrency', n.hardwareConcurrency, 1);
+  eq('productSub', n.productSub, '20100101');
+  eq('product', n.product, 'Gecko');
+  eq('vendor', n.vendor, '');
+  eq('appName', n.appName, 'Netscape');
+  eq('appCodeName', n.appCodeName, 'Mozilla');
+  eq('onLine', n.onLine, true);
+  eq('cookieEnabled', n.cookieEnabled, true);
+  eq('doNotTrack', n.doNotTrack, null);
+  eq('maxTouchPoints', n.maxTouchPoints, 0);
+  // webdriver is defined and false — absence is itself an odd fingerprint (§8).
+  eq('webdriver', n.webdriver, false);
+
+  // --- UA shape, version-agnostic (bl-3972 bumps 121->140 without editing this) -
+  var ua = n.userAgent;
+  ok('ua:prefix', ua.indexOf('Mozilla/5.0 (X11; Linux x86_64; rv:') === 0);
+  ok('ua:gecko', ua.indexOf('Gecko/20100101') !== -1);
+  ok('ua:firefox', ua.indexOf('Firefox/') !== -1);
+  eq('appVersion', n.appVersion, ua.replace(/^Mozilla\//, ''));
+
+  // --- Absent capability surfaces (§8): masquerade does not fabricate these ----
+  eq('serviceWorker', typeof n.serviceWorker, 'undefined');
+  eq('geolocation', typeof n.geolocation, 'undefined');
+  // sendBeacon is a legal denial, never a submission (§6): defined, returns false.
+  ok('sendBeacon:false', n.sendBeacon() === false);
+
+  var de = document.documentElement;
+  de.setAttribute('data-ua', ua);
+  de.setAttribute('data-fail', JSON.stringify(FAILS));
+  de.setAttribute('data-done', '1');
+</script>
+</body>
+</html>

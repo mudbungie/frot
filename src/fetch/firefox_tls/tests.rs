@@ -211,3 +211,75 @@ fn garbage_after_a_good_handshake_fails_the_read_side() {
         "unexpected error: {err:?}"
     );
 }
+
+/// Persona contract, the HTTPS half (identity.md §12 — deterministic oracle for
+/// `bl-46f5`). Two recorded facts about frot's wire identity, captured through
+/// the real connector with no network:
+/// - **§3.4 casing:** over `https://` the request head is Title-Cased (`Host:`,
+///   `User-Agent:`), never the lowercase `http://` tell. `bl-20ec` unifies casing
+///   across schemes and updates this assertion.
+/// - **§3.1 ALPN:** frot advertises `http/1.1` only, so against a server offering
+///   both `h2` and `http/1.1` the negotiated protocol is `http/1.1`. `bl-abca`
+///   moves this to `h2` and updates the expected value here.
+#[test]
+fn https_persona_head_is_title_cased_and_alpn_is_http1() {
+    let leaf = CertificateDer::from(include_bytes!("testdata/leaf.der").to_vec());
+    let key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(
+        include_bytes!("testdata/leaf.key.der").to_vec(),
+    ));
+    let mut config = ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(vec![leaf], key)
+        .unwrap();
+    // Offer both protocols; frot's ClientHello advertises only http/1.1, so h1
+    // must win — that is the assertion.
+    config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+    let sc = Arc::new(config);
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let (mut sock, _) = listener.accept().unwrap();
+        let conn = ServerConnection::new(sc).unwrap();
+        let mut tls = StreamOwned::new(conn, &mut sock);
+        let mut buf = [0u8; 4096];
+        let n = tls.read(&mut buf).unwrap();
+        let text = String::from_utf8_lossy(&buf[..n]).to_string();
+        let head = text.split("\r\n\r\n").next().unwrap().to_string();
+        let alpn = tls.conn.alpn_protocol().map(<[u8]>::to_vec);
+        tls.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi")
+            .unwrap();
+        let _ = tls.flush();
+        tx.send((head, alpn)).unwrap();
+    });
+
+    let connector =
+        ().chain(TcpConnector::default())
+            .chain(FirefoxTlsConnector::with_roots(test_roots()));
+    let config = Agent::config_builder()
+        .user_agent(crate::fetch::user_agent(&[]))
+        .build();
+    let agent = Agent::with_parts(config, connector, DefaultResolver::default());
+    let mut res = agent
+        .get(&format!("https://localhost:{port}/"))
+        .call()
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let _ = res.body_mut().read_to_string();
+
+    let (head, alpn) = rx.recv().unwrap();
+    assert!(
+        head.contains("\r\nHost:"),
+        "Host must be Title-Cased: {head}"
+    );
+    assert!(
+        head.contains("User-Agent: Mozilla/5.0 (X11; Linux x86_64;"),
+        "User-Agent Title-Cased persona UA: {head}"
+    );
+    assert!(
+        !head.contains("\r\nhost:") && !head.contains("\r\nuser-agent:"),
+        "no lowercase header tell over https: {head}"
+    );
+    assert_eq!(alpn.as_deref(), Some(b"http/1.1".as_ref()));
+}

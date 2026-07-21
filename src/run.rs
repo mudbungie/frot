@@ -225,3 +225,6 @@ mod js_tests;
 
 #[cfg(test)]
 mod golden_tests;
+
+#[cfg(test)]
+mod persona_tests;

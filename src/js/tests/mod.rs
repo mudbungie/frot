@@ -14,6 +14,7 @@ mod envgold;
 mod evloop;
 mod facade;
 mod net;
+mod persona_gold;
 
 fn test_env() -> Env {
     Env {
