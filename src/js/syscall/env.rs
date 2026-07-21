@@ -32,13 +32,25 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
     let ua = host.env.user_agent.clone();
     bind!(ctx, g, "__frot_env_ua", move || ua.clone());
     let url = host.env.url.clone();
-    bind!(ctx, g, "__frot_location", move |ctx: Ctx<'js>| location_obj(&ctx, &url));
-    bind!(ctx, g, "__frot_url_parse", |ctx: Ctx<'js>, spec: String, base: Option<String>| {
-        url_parse(&ctx, &spec, base.as_deref())
-    });
+    bind!(
+        ctx,
+        g,
+        "__frot_location",
+        move |ctx: Ctx<'js>| location_obj(&ctx, &url)
+    );
+    bind!(
+        ctx,
+        g,
+        "__frot_url_parse",
+        |ctx: Ctx<'js>, spec: String, base: Option<String>| {
+            url_parse(&ctx, &spec, base.as_deref())
+        }
+    );
     bind!(ctx, g, "__frot_viewport_width", || VIEWPORT_WIDTH);
     bind!(ctx, g, "__frot_viewport_height", || VIEWPORT_HEIGHT);
-    bind!(ctx, g, "__frot_media_matches", |q: String| crate::css::media::matches(&q));
+    bind!(ctx, g, "__frot_media_matches", |q: String| {
+        crate::css::media::matches(&q)
+    });
     let d = denials.clone();
     bind!(ctx, g, "__frot_denied", move || *d.borrow_mut() += 1);
     Ok(())
@@ -59,8 +71,14 @@ fn decompose<'js>(obj: &Object<'js>, u: &Url) -> rquickjs::Result<()> {
     obj.set("hostname", host)?;
     obj.set("port", u.port().map(|p| p.to_string()).unwrap_or_default())?;
     obj.set("pathname", u.path())?;
-    obj.set("search", u.query().map(|q| format!("?{q}")).unwrap_or_default())?;
-    obj.set("hash", u.fragment().map(|f| format!("#{f}")).unwrap_or_default())?;
+    obj.set(
+        "search",
+        u.query().map(|q| format!("?{q}")).unwrap_or_default(),
+    )?;
+    obj.set(
+        "hash",
+        u.fragment().map(|f| format!("#{f}")).unwrap_or_default(),
+    )?;
     obj.set("origin", u.origin().ascii_serialization())?;
     Ok(())
 }
@@ -74,8 +92,9 @@ fn location_obj<'js>(ctx: &Ctx<'js>, raw: &str) -> rquickjs::Result<Object<'js>>
         Ok(u) => decompose(&obj, &u)?,
         Err(_) => {
             obj.set("href", raw)?;
-            for k in ["protocol", "host", "hostname", "port", "pathname", "search", "hash", "origin"]
-            {
+            for k in [
+                "protocol", "host", "hostname", "port", "pathname", "search", "hash", "origin",
+            ] {
                 obj.set(k, "")?;
             }
         }

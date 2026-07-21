@@ -50,7 +50,13 @@ mod tests {
         }
         let v = sink.borrow();
         assert_eq!(v.len(), MESSAGES_MAX);
-        assert_eq!(v[0], Message { kind: "throw".into(), text: "e0".into() });
+        assert_eq!(
+            v[0],
+            Message {
+                kind: "throw".into(),
+                text: "e0".into()
+            }
+        );
         // The last accepted message is the MESSAGES_MAX-th (index MAX-1); the
         // overflow past the bound is dropped, not rotated.
         assert_eq!(v[MESSAGES_MAX - 1].text, format!("e{}", MESSAGES_MAX - 1));

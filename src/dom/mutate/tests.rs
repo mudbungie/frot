@@ -25,7 +25,10 @@ fn create_element_appends_a_detached_lowercased_node() {
     let mut doc = Document::parse("<body></body>");
     let before = doc.len();
     let id = doc.create_element("DIV");
-    assert_eq!(id as usize, before, "new node lands at the end of the arena");
+    assert_eq!(
+        id as usize, before,
+        "new node lands at the end of the arena"
+    );
     assert_eq!(el_name(&doc, id), "div");
     assert_eq!(doc.node(id).parent, None);
     assert!(!doc.roots().contains(&id), "detached: not a root");
@@ -45,9 +48,21 @@ fn set_attr_adds_then_overwrites() {
     let mut doc = Document::default();
     let id = doc.create_element("a");
     doc.set_attr(id, "HREF", "one"); // None arm: new attribute
-    assert_eq!(attrs(&doc, id), vec![Attr { name: "href".into(), value: "one".into() }]);
+    assert_eq!(
+        attrs(&doc, id),
+        vec![Attr {
+            name: "href".into(),
+            value: "one".into()
+        }]
+    );
     doc.set_attr(id, "href", "two"); // Some arm: overwrite in place
-    assert_eq!(attrs(&doc, id), vec![Attr { name: "href".into(), value: "two".into() }]);
+    assert_eq!(
+        attrs(&doc, id),
+        vec![Attr {
+            name: "href".into(),
+            value: "two".into()
+        }]
+    );
 }
 
 #[test]
@@ -58,7 +73,13 @@ fn remove_attr_drops_the_named_attribute() {
     doc.set_attr(id, "rel", "y");
     doc.remove_attr(id, "href");
     doc.remove_attr(id, "absent"); // retain no-op still bumps generation
-    assert_eq!(attrs(&doc, id), vec![Attr { name: "rel".into(), value: "y".into() }]);
+    assert_eq!(
+        attrs(&doc, id),
+        vec![Attr {
+            name: "rel".into(),
+            value: "y".into()
+        }]
+    );
 }
 
 #[test]
@@ -82,7 +103,11 @@ fn attr_and_text_ops_are_total_no_ops_on_the_wrong_kind() {
     doc.set_text(elem, "y");
     assert_eq!(doc.node(text).kind, NodeKind::Text("t".into()));
     assert_eq!(attrs(&doc, elem), vec![]);
-    assert_eq!(doc.generation(), g + 3, "no-op ops still count as mutations");
+    assert_eq!(
+        doc.generation(),
+        g + 3,
+        "no-op ops still count as mutations"
+    );
 }
 
 #[test]
@@ -151,7 +176,11 @@ fn parse_fragment_absorbs_detached_top_level_nodes() {
     let ids = doc.parse_fragment("<p>hi</p><span>yo</span>");
     assert_eq!(ids.len(), 2);
     for &id in &ids {
-        assert_eq!(doc.node(id).parent, None, "top-level fragment nodes are detached");
+        assert_eq!(
+            doc.node(id).parent,
+            None,
+            "top-level fragment nodes are detached"
+        );
         assert!(!doc.roots().contains(&id));
     }
     assert_eq!(el_name(&doc, ids[0]), "p");

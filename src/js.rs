@@ -125,7 +125,10 @@ fn run_script_queue(session: &Session, report: &mut Report) {
             Script::Skip => {}
             // Inline classic body, or an inline module whose imports resolve
             // against the page URL (js.md §4.1).
-            Script::Inline { module: false, body } => run_script(session, &body, report),
+            Script::Inline {
+                module: false,
+                body,
+            } => run_script(session, &body, report),
             Script::Inline { module: true, body } => {
                 run_module(session, session.page_url(), &body, report)
             }
@@ -252,9 +255,15 @@ fn classify(doc: &Document, id: NodeId) -> Script {
     if el.attr("nomodule").is_some() || !is_js_type(el.attr("type")) {
         Script::Skip
     } else if let Some(src) = el.attr("src").filter(|s| !s.is_empty()) {
-        Script::External { module: is_module(el.attr("type")), src: src.to_string() }
+        Script::External {
+            module: is_module(el.attr("type")),
+            src: src.to_string(),
+        }
     } else {
-        Script::Inline { module: is_module(el.attr("type")), body: doc.text_content(id) }
+        Script::Inline {
+            module: is_module(el.attr("type")),
+            body: doc.text_content(id),
+        }
     }
 }
 

@@ -23,7 +23,11 @@ fn parse_envelope(s: &str) -> Value {
 
 fn serve_and_run(body: &str, args: &[&str]) -> Value {
     let mut server = mockito::Server::new();
-    let _m = server.mock("GET", "/").with_status(200).with_body(body).create();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_body(body)
+        .create();
     let url = server.url();
     let mut argv = vec![url.as_str()];
     argv.extend_from_slice(args);

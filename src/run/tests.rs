@@ -225,7 +225,11 @@ fn css_fetches_external_stylesheets_best_effort() {
          <link rel=stylesheet href=\"{dead}\">\
          <p>shown</p><p class=hide>secret</p>"
     );
-    let _page = server.mock("GET", "/").with_status(200).with_body(body).create();
+    let _page = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_body(body)
+        .create();
     let _sheet = server
         .mock("GET", "/s.css")
         .with_status(200)

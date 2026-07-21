@@ -41,7 +41,10 @@ pub fn meta(doc: &Document, page_url: &str) -> Value {
                 }
                 "link" => {
                     let rel = el.attr("rel").unwrap_or("");
-                    if rel.split_whitespace().any(|t| t.eq_ignore_ascii_case("canonical")) {
+                    if rel
+                        .split_whitespace()
+                        .any(|t| t.eq_ignore_ascii_case("canonical"))
+                    {
                         canonical = el.attr("href").map(|s| s.to_string());
                     }
                 }
@@ -52,9 +55,7 @@ pub fn meta(doc: &Document, page_url: &str) -> Value {
                         }
                     }
                     if let Some(http_equiv) = el.attr("http-equiv") {
-                        if charset.is_none()
-                            && http_equiv.eq_ignore_ascii_case("content-type")
-                        {
+                        if charset.is_none() && http_equiv.eq_ignore_ascii_case("content-type") {
                             if let Some(content) = el.attr("content") {
                                 if let Some(cs) = extract_charset(content) {
                                     charset = Some(cs.to_ascii_lowercase());

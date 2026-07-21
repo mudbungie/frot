@@ -30,10 +30,17 @@ fn env_contract_golden_pins_the_js_surface() {
     assert_eq!(fails, "[]", "env-contract regressions: {fails}");
     // Proof the run reached the post-load timer (the final phase), so no earlier
     // phase silently short-circuited the self-checks.
-    assert_eq!(de_attr(&doc, "data-done").as_deref(), Some("1"), "probe did not reach the post-load timer");
+    assert_eq!(
+        de_attr(&doc, "data-done").as_deref(),
+        Some("1"),
+        "probe did not reach the post-load timer"
+    );
     // Facts only the host sees: both scripts ran (the inline probe + the `defer`
     // one, §4.2), the whole run settled (§5), and the single deliberate
     // reportError counted into js.errors as exactly one — pinning the §10 channel
     // and that nothing else in the probe threw uncaught.
-    assert_eq!((report.scripts, report.errors, report.settled), (2, 1, true));
+    assert_eq!(
+        (report.scripts, report.errors, report.settled),
+        (2, 1, true)
+    );
 }

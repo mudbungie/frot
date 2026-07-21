@@ -8,21 +8,39 @@ use crate::dom::Document;
 #[test]
 fn document_facade_queries_and_reads_the_tree() {
     let s = sess("<html><body><p id='x' class='lead'>hi</p></body></html>");
-    assert_eq!(s.eval("document.querySelector('p').textContent").unwrap(), "hi");
+    assert_eq!(
+        s.eval("document.querySelector('p').textContent").unwrap(),
+        "hi"
+    );
     assert_eq!(s.eval("document.querySelector('#x').tagName").unwrap(), "P");
-    assert_eq!(s.eval("document.querySelector('.lead').className").unwrap(), "lead");
+    assert_eq!(
+        s.eval("document.querySelector('.lead').className").unwrap(),
+        "lead"
+    );
     assert_eq!(s.eval("document.body.tagName").unwrap(), "BODY");
     assert_eq!(s.eval("document.documentElement.tagName").unwrap(), "HTML");
-    assert_eq!(s.eval("document.querySelectorAll('p').length").unwrap(), "1");
+    assert_eq!(
+        s.eval("document.querySelectorAll('p').length").unwrap(),
+        "1"
+    );
     assert_eq!(s.eval("document.getElementById('x').id").unwrap(), "x");
-    assert_eq!(s.eval("document.querySelector('#x').hasAttribute('class')").unwrap(), "true");
+    assert_eq!(
+        s.eval("document.querySelector('#x').hasAttribute('class')")
+            .unwrap(),
+        "true"
+    );
 }
 
 #[test]
 fn innerhtml_and_construction_mutate_the_shared_arena() {
     let s = sess("<html><body><div id='host'></div></body></html>");
-    s.eval("document.querySelector('#host').innerHTML = '<p>one</p><p>two</p>'").unwrap();
-    assert_eq!(s.eval("document.querySelectorAll('#host p').length").unwrap(), "2");
+    s.eval("document.querySelector('#host').innerHTML = '<p>one</p><p>two</p>'")
+        .unwrap();
+    assert_eq!(
+        s.eval("document.querySelectorAll('#host p').length")
+            .unwrap(),
+        "2"
+    );
     // Build a node the other way: createElement + textContent + appendChild.
     s.eval("var el = document.createElement('span'); el.textContent = 'z'; document.body.appendChild(el);")
         .unwrap();
@@ -31,22 +49,46 @@ fn innerhtml_and_construction_mutate_the_shared_arena() {
     assert_eq!(s.document().find_by_tag("p").len(), 2);
     assert!(s.eval("document.body.textContent").unwrap().contains("one"));
     // innerHTML round-trips through the arena serializer.
-    assert_eq!(s.eval("document.querySelector('#host').innerHTML").unwrap(), "<p>one</p><p>two</p>");
+    assert_eq!(
+        s.eval("document.querySelector('#host').innerHTML").unwrap(),
+        "<p>one</p><p>two</p>"
+    );
 }
 
 #[test]
 fn geometry_facade_exposes_rects_offsets_and_computed_style() {
-    let s = sess("<html><body><div id='a'>hi</div><div id='b' style='display:none'>x</div></body></html>");
+    let s = sess(
+        "<html><body><div id='a'>hi</div><div id='b' style='display:none'>x</div></body></html>",
+    );
     // getBoundingClientRect shapes the [x,y,w,h] syscall into a DOMRect.
-    assert_eq!(s.eval("document.querySelector('#a').getBoundingClientRect().width").unwrap(), "1280");
-    assert_eq!(s.eval("document.querySelector('#a').getBoundingClientRect().bottom").unwrap(), "20");
-    // offset* read the same box; a display:none element is all-zero.
-    assert_eq!(s.eval("document.querySelector('#a').offsetHeight").unwrap(), "20");
-    assert_eq!(s.eval("document.querySelector('#b').offsetWidth").unwrap(), "0");
-    // getComputedStyle exposes the §8 subset (camelCase + getPropertyValue).
-    assert_eq!(s.eval("getComputedStyle(document.querySelector('#b')).display").unwrap(), "none");
     assert_eq!(
-        s.eval("getComputedStyle(document.querySelector('#a')).getPropertyValue('display')").unwrap(),
+        s.eval("document.querySelector('#a').getBoundingClientRect().width")
+            .unwrap(),
+        "1280"
+    );
+    assert_eq!(
+        s.eval("document.querySelector('#a').getBoundingClientRect().bottom")
+            .unwrap(),
+        "20"
+    );
+    // offset* read the same box; a display:none element is all-zero.
+    assert_eq!(
+        s.eval("document.querySelector('#a').offsetHeight").unwrap(),
+        "20"
+    );
+    assert_eq!(
+        s.eval("document.querySelector('#b').offsetWidth").unwrap(),
+        "0"
+    );
+    // getComputedStyle exposes the §8 subset (camelCase + getPropertyValue).
+    assert_eq!(
+        s.eval("getComputedStyle(document.querySelector('#b')).display")
+            .unwrap(),
+        "none"
+    );
+    assert_eq!(
+        s.eval("getComputedStyle(document.querySelector('#a')).getPropertyValue('display')")
+            .unwrap(),
         "block"
     );
 }
@@ -54,7 +96,8 @@ fn geometry_facade_exposes_rects_offsets_and_computed_style() {
 #[test]
 fn console_routes_every_level_through_the_prelude() {
     let s = sess("<html></html>");
-    s.eval("console.log('a', 1, {k:2}); console.error('boom');").unwrap();
+    s.eval("console.log('a', 1, {k:2}); console.error('boom');")
+        .unwrap();
     let logs = s.console();
     assert_eq!(logs.len(), 2);
     assert_eq!(logs[0].level, "log");
@@ -79,7 +122,10 @@ fn run_executes_inline_scripts_and_reclaims_the_mutated_document() {
 #[test]
 fn a_throwing_script_still_counts_as_executed_and_errored() {
     let (_doc, report) = drive("<body><script>throw new Error('x')</script></body>");
-    assert_eq!((report.scripts, report.errors, report.settled), (1, 1, true));
+    assert_eq!(
+        (report.scripts, report.errors, report.settled),
+        (1, 1, true)
+    );
 }
 
 #[test]
@@ -87,9 +133,14 @@ fn a_failed_external_src_is_skipped_and_counted() {
     // §4.2: a `file://` page whose sibling bundle is absent — the §6 subfetch
     // fails, so the external script is skipped-and-counted (deterministic,
     // offline). The run-and-execute path is proven end to end in `run::js_tests`.
-    let (_doc, report) =
-        drive_at("<body><script src='app.js'></script></body>", "file:///frot-no-such-dir/page.html");
-    assert_eq!((report.scripts, report.errors, report.settled), (0, 1, true));
+    let (_doc, report) = drive_at(
+        "<body><script src='app.js'></script></body>",
+        "file:///frot-no-such-dir/page.html",
+    );
+    assert_eq!(
+        (report.scripts, report.errors, report.settled),
+        (0, 1, true)
+    );
 }
 
 #[test]
@@ -101,7 +152,10 @@ fn non_js_type_and_nomodule_scripts_are_skipped_uncounted() {
          <script type='application/json'>{not json}</script>\
          <script nomodule>should.not.run()</script></body>",
     );
-    assert_eq!((report.scripts, report.errors, report.settled), (0, 0, true));
+    assert_eq!(
+        (report.scripts, report.errors, report.settled),
+        (0, 0, true)
+    );
 }
 
 #[test]

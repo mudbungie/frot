@@ -25,7 +25,10 @@ fn a_budget_trip_stops_the_queue_and_marks_unsettled() {
          <script>document.body.appendChild(document.createElement('hr'))</script></body>",
         20,
     );
-    assert_eq!((report.scripts, report.errors, report.settled), (1, 1, false));
+    assert_eq!(
+        (report.scripts, report.errors, report.settled),
+        (1, 1, false)
+    );
     assert_eq!(doc.find_by_tag("hr").len(), 0);
 }
 
@@ -38,7 +41,10 @@ fn a_settimeout_callback_fires_against_virtual_time() {
          setTimeout(function () { document.body.appendChild(document.createElement('hr')); }, 500);\
          </script></body>",
     );
-    assert_eq!((report.scripts, report.errors, report.settled), (1, 0, true));
+    assert_eq!(
+        (report.scripts, report.errors, report.settled),
+        (1, 0, true)
+    );
     assert_eq!(doc.find_by_tag("hr").len(), 1);
 }
 
@@ -221,7 +227,10 @@ fn a_reported_error_is_counted() {
          try { throw new Error('render boom'); } catch (e) { reportError(e); }\
          </script></body>",
     );
-    assert_eq!((report.scripts, report.errors, report.settled), (1, 1, true));
+    assert_eq!(
+        (report.scripts, report.errors, report.settled),
+        (1, 1, true)
+    );
 }
 
 #[test]

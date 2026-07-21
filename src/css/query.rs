@@ -29,7 +29,15 @@ pub fn query_all(
     let mut out = Vec::new();
     let mut ancestors: Vec<&Element> = Vec::new();
     for &r in doc.roots() {
-        walk(doc, r, root, root.is_none(), &mut ancestors, &sels, &mut out);
+        walk(
+            doc,
+            r,
+            root,
+            root.is_none(),
+            &mut ancestors,
+            &sels,
+            &mut out,
+        );
     }
     Ok(out)
 }

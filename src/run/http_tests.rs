@@ -161,5 +161,8 @@ fn declared_challenge_flips_every_view_and_skips_js() {
     let v = parse_envelope(&out);
     assert_eq!(v["status"], "needs");
     assert_eq!(v["needs"], serde_json::json!(["human"]));
-    assert!(v.get("js").is_none(), "challenge scripts are never executed");
+    assert!(
+        v.get("js").is_none(),
+        "challenge scripts are never executed"
+    );
 }

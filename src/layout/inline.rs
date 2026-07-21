@@ -116,7 +116,12 @@ fn break_lines(words: &[Word], block_y: i32, width_px: i32) -> (Vec<Rect>, i32) 
             line += 1;
             x = 0;
         }
-        rects.push(Rect { x, y: block_y + line * LINE_HEIGHT, w, h: LINE_HEIGHT });
+        rects.push(Rect {
+            x,
+            y: block_y + line * LINE_HEIGHT,
+            w,
+            h: LINE_HEIGHT,
+        });
         x += w + GLYPH_ADVANCE;
     }
     let line_count = if words.is_empty() { 0 } else { line + 1 };

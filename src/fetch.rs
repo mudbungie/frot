@@ -22,8 +22,7 @@ mod firefox_tls;
 
 pub(crate) use decode::decode_body;
 
-const USER_AGENT: &str =
-    "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
+const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
 
 /// Firefox-121 document-navigation default headers, layered under the caller's
 /// `-H` on the top-level page GET so the request shape matches the
@@ -93,10 +92,7 @@ impl FetchError {
 /// names replaces the default rather than duplicating it (same precedence as
 /// [`user_agent`]). Subresource subfetches (stylesheets, `fetch`/XHR, external
 /// `<script>`) call [`fetch`] directly and do not carry the navigation set.
-pub fn fetch_document(
-    url: &str,
-    headers: &[(String, String)],
-) -> Result<FetchResult, FetchError> {
+pub fn fetch_document(url: &str, headers: &[(String, String)]) -> Result<FetchResult, FetchError> {
     let mut effective = headers.to_vec();
     for (name, value) in DOCUMENT_HEADERS {
         if !headers.iter().any(|(n, _)| n.eq_ignore_ascii_case(name)) {
@@ -138,13 +134,16 @@ pub(crate) fn fetch_within(
         .timeout_global(Some(timeout))
         .http_status_as_error(false)
         .build();
-    let connector = ()
-        .chain(TcpConnector::default())
-        .chain(firefox_tls::FirefoxTlsConnector::default());
+    let connector =
+        ().chain(TcpConnector::default())
+            .chain(firefox_tls::FirefoxTlsConnector::default());
     let agent = Agent::with_parts(config, connector, DefaultResolver::default());
 
     let mut request = agent.get(url);
-    for (n, v) in headers.iter().filter(|(n, _)| !n.eq_ignore_ascii_case("user-agent")) {
+    for (n, v) in headers
+        .iter()
+        .filter(|(n, _)| !n.eq_ignore_ascii_case("user-agent"))
+    {
         request = request.header(n.as_str(), v.as_str());
     }
     let mut response = request.call().map_err(map_ureq_error)?;
@@ -154,12 +153,7 @@ pub(crate) fn fetch_within(
     let headers: Vec<(String, String)> = response
         .headers()
         .iter()
-        .map(|(n, v)| {
-            (
-                n.as_str().to_string(),
-                v.to_str().unwrap_or("").to_string(),
-            )
-        })
+        .map(|(n, v)| (n.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
         .collect();
     let content_type = header_value(&headers, "content-type");
     let bytes = response

@@ -53,10 +53,15 @@ fn eval_setup_is_exempt_from_the_page_budget() {
     // the exemption is scoped to setup, not a disabled interrupt.
     let engine = short_budget(0);
     assert_eq!(
-        engine.eval_setup("globalThis.__setup = 7; String(__setup)").unwrap(),
+        engine
+            .eval_setup("globalThis.__setup = 7; String(__setup)")
+            .unwrap(),
         "7"
     );
-    assert_eq!(engine.eval("while (true) {}").unwrap_err(), EvalError::Budget);
+    assert_eq!(
+        engine.eval("while (true) {}").unwrap_err(),
+        EvalError::Budget
+    );
 }
 
 #[test]

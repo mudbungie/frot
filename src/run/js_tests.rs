@@ -60,7 +60,10 @@ fn js_runs_inline_scripts_populates_content_and_emits_the_js_block() {
     let v = parse_envelope(&out);
     assert_eq!(v["status"], "ok");
     assert_eq!(v["out"], "hello world");
-    assert_eq!(v["js"], serde_json::json!({"scripts": 1, "errors": 0, "settled": true}));
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 1, "errors": 0, "settled": true})
+    );
 }
 
 #[test]
@@ -86,7 +89,10 @@ fn a_shell_whose_bundle_does_not_load_still_needs_js_with_the_block() {
     let v = parse_envelope(&out);
     assert_eq!(v["status"], "needs");
     assert_eq!(v["needs"], serde_json::json!(["js"]));
-    assert_eq!(v["js"], serde_json::json!({"scripts": 0, "errors": 1, "settled": true}));
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 0, "errors": 1, "settled": true})
+    );
 }
 
 #[test]
@@ -111,7 +117,10 @@ fn an_external_bundle_is_fetched_and_run_clearing_needs_js() {
     let v = parse_envelope(&out);
     assert_eq!(v["status"], "ok");
     assert_eq!(v["out"], "hydrated");
-    assert_eq!(v["js"], serde_json::json!({"scripts": 1, "errors": 0, "settled": true}));
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 1, "errors": 0, "settled": true})
+    );
 }
 
 #[test]
@@ -129,7 +138,11 @@ fn a_page_that_fetches_json_populates_from_the_response() {
              </script></body></html>",
         )
         .create();
-    let _data = server.mock("GET", "/data").with_status(200).with_body("from-fetch").create();
+    let _data = server
+        .mock("GET", "/data")
+        .with_status(200)
+        .with_body("from-fetch")
+        .create();
     let url = server.url();
     let (code, out, _) = run_capture(&[&url, "--js", "--out", "text"]);
     assert_eq!(code, 0);
@@ -154,7 +167,10 @@ fn js_with_css_seeds_the_authored_style_source() {
     let v = parse_envelope(&out);
     assert_eq!(v["status"], "ok");
     assert_eq!(v["out"], "styled");
-    assert_eq!(v["js"], serde_json::json!({"scripts": 1, "errors": 0, "settled": true}));
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 1, "errors": 0, "settled": true})
+    );
 }
 
 #[test]
@@ -162,15 +178,17 @@ fn a_failed_external_src_is_skipped_and_counted() {
     // §4.2: the `/app.js` subfetch fails (unmocked → non-2xx), so the external
     // script is skipped-and-counted like a failed stylesheet — `errors: 1`, and
     // the static DOM is otherwise untouched.
-    let (_s, _m, url) = serve(
-        "<html><body><p>static</p><script src='/app.js'></script></body></html>",
-    );
+    let (_s, _m, url) =
+        serve("<html><body><p>static</p><script src='/app.js'></script></body></html>");
     let (code, out, _) = run_capture(&[&url, "--js", "--out", "text"]);
     assert_eq!(code, 0);
     let v = parse_envelope(&out);
     assert_eq!(v["status"], "ok");
     assert_eq!(v["out"], "static");
-    assert_eq!(v["js"], serde_json::json!({"scripts": 0, "errors": 1, "settled": true}));
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 0, "errors": 1, "settled": true})
+    );
 }
 
 // A page whose first inline script throws and whose second reports a caught
@@ -190,10 +208,16 @@ fn js_errors_surfaces_throw_and_report_messages_in_order() {
     // The count is unchanged (a throw + a reported error); the messages array is
     // the new detail, in occurrence order: the throw first, then the report.
     assert_eq!(v["js"]["errors"], 2);
-    let msgs = v["js"]["messages"].as_array().expect("messages array under --js-errors");
+    let msgs = v["js"]["messages"]
+        .as_array()
+        .expect("messages array under --js-errors");
     assert_eq!(msgs.len(), 2);
     assert_eq!(msgs[0]["kind"], "throw");
-    assert!(msgs[0]["text"].as_str().unwrap().contains("boom-throw"), "got {:?}", msgs[0]);
+    assert!(
+        msgs[0]["text"].as_str().unwrap().contains("boom-throw"),
+        "got {:?}",
+        msgs[0]
+    );
     // reportError is the whole point (bl-249c): its message reaches js.messages.
     assert_eq!(msgs[1]["kind"], "report");
     assert_eq!(msgs[1]["text"], "boom-report");
@@ -207,7 +231,10 @@ fn without_the_flag_the_js_block_stays_count_only() {
     let (code, out, _) = run_capture(&[&url, "--js", "--out", "text"]);
     assert_eq!(code, 0);
     let v = parse_envelope(&out);
-    assert_eq!(v["js"], serde_json::json!({"scripts": 2, "errors": 2, "settled": true}));
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 2, "errors": 2, "settled": true})
+    );
 }
 
 #[test]
@@ -222,7 +249,11 @@ fn js_errors_names_the_failed_external_bundle() {
     let msgs = v["js"]["messages"].as_array().unwrap();
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0]["kind"], "subfetch");
-    assert!(msgs[0]["text"].as_str().unwrap().contains("app.js"), "got {:?}", msgs[0]);
+    assert!(
+        msgs[0]["text"].as_str().unwrap().contains("app.js"),
+        "got {:?}",
+        msgs[0]
+    );
 }
 
 #[test]

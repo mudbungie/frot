@@ -1,5 +1,7 @@
 # frot
 
+[![CI](https://github.com/mudbungie/frot/actions/workflows/ci.yml/badge.svg)](https://github.com/mudbungie/frot/actions/workflows/ci.yml)
+
 Take an impression of a web page — structure, text, accessibility tree — without rendering or executing it. Like a gravestone rubbing for the web.
 
 `frot` is the curl that renders: a stateless, single-binary CLI (~7 MB, no runtime deps — the embedded JS engine and a browser-matching TLS stack are compiled in unconditionally) that sits in the gap between `curl` and a headless browser. You give it a URL, a capability recipe, and one output view; it gives you back a machine-parseable JSON envelope. Built for harnesses that need to look at pages programmatically without standing up a browser pool.
@@ -90,6 +92,24 @@ make build
 make test
 make cov             # 100% line coverage gate (matches the pre-commit hook)
 ```
+
+## CI/CD
+
+GitHub Actions runs the same gates as the local pre-commit hook, so nothing
+lands ungated even if the hook is skipped or absent:
+
+- **`.github/workflows/ci.yml`** (every push + pull request) — `cargo fmt
+  --check`, `make lint` (clippy `-D warnings`), `make cov` (100% lines +
+  regions), and the source-file line cap. The gate values are never re-typed in
+  CI: coverage delegates to `make cov`, and the 300-line limit is enforced by
+  `scripts/line-limit.sh`, the same script the pre-commit hook calls.
+- **`.github/workflows/release.yml`** (on a `v*` tag) — builds the stripped,
+  static `x86_64-unknown-linux-musl` binary, asserts its size sits inside the
+  documented 5-15 MiB envelope (`scripts/check-size.sh`), and uploads it as a
+  GitHub Release asset.
+
+`rust-toolchain.toml` pins the compiler (and the `llvm-tools-preview` component
+and musl target) so local and CI agree.
 
 ## License
 

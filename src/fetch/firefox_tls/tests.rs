@@ -28,7 +28,9 @@ fn server_config() -> Arc<ServerConfig> {
 fn test_roots() -> RootCertStore {
     let mut roots = RootCertStore::empty();
     roots
-        .add(CertificateDer::from(include_bytes!("testdata/ca.der").to_vec()))
+        .add(CertificateDer::from(
+            include_bytes!("testdata/ca.der").to_vec(),
+        ))
         .unwrap();
     roots
 }
@@ -94,9 +96,9 @@ fn firefox_connector_serves_https_over_keepalive() {
 }
 
 fn firefox_agent() -> Agent {
-    let connector = ()
-        .chain(TcpConnector::default())
-        .chain(FirefoxTlsConnector::with_roots(test_roots()));
+    let connector =
+        ().chain(TcpConnector::default())
+            .chain(FirefoxTlsConnector::with_roots(test_roots()));
     Agent::with_parts(
         ureq::config::Config::default(),
         connector,
@@ -142,7 +144,10 @@ fn an_ipv6_literal_authority_is_rejected_as_a_dns_name() {
         .get(&format!("https://[::1]:{port}/"))
         .call()
         .unwrap_err();
-    assert!(matches!(err, Error::Tls(m) if m == "invalid dns name"), "unexpected");
+    assert!(
+        matches!(err, Error::Tls(m) if m == "invalid dns name"),
+        "unexpected"
+    );
 }
 
 /// `ClientConnection::new` can refuse the config itself, before a single byte
@@ -159,9 +164,9 @@ fn a_config_the_connection_rejects_is_a_tls_error() {
 
     let mut config = firefox_config(test_roots());
     config.max_fragment_size = Some(16);
-    let connector = ()
-        .chain(TcpConnector::default())
-        .chain(FirefoxTlsConnector::with_config(config));
+    let connector =
+        ().chain(TcpConnector::default())
+            .chain(FirefoxTlsConnector::with_config(config));
     let agent = Agent::with_parts(
         ureq::config::Config::default(),
         connector,

@@ -74,10 +74,7 @@ fn walk_yields_enter_and_exit_in_source_order() {
         (WalkEvent::Enter(_), NodeKind::Text(t)) => log.push(format!("t:{}", t)),
         _ => {}
     });
-    assert_eq!(
-        log,
-        vec!["+p", "+a", "t:1", "-a", "+b", "t:2", "-b", "-p"]
-    );
+    assert_eq!(log, vec!["+p", "+a", "t:1", "-a", "+b", "t:2", "-b", "-p"]);
 }
 
 #[test]

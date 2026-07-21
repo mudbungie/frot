@@ -45,8 +45,7 @@ fn empty_body_without_scripts_does_not_signal_js() {
 
 #[test]
 fn page_with_scripts_and_text_does_not_signal_js() {
-    let doc =
-        parse("<html><body><p>real content</p><script src=app.js></script></body></html>");
+    let doc = parse("<html><body><p>real content</p><script src=app.js></script></body></html>");
     assert!(detect(View::Text, &doc).is_empty());
 }
 

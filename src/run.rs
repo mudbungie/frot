@@ -8,7 +8,6 @@
 use std::io::Write;
 
 use crate::ax;
-use crate::run::gather::external_css;
 use crate::cli;
 use crate::dom::Document;
 use crate::envelope::{
@@ -17,6 +16,7 @@ use crate::envelope::{
 use crate::fetch::{self, FetchResult};
 use crate::js::{Env, StyleSource};
 use crate::needs;
+use crate::run::gather::external_css;
 use crate::views;
 use serde_json::Value;
 
@@ -49,9 +49,7 @@ pub(crate) fn run_io(argv: &[String], out: &mut dyn Write, err: &mut dyn Write) 
 fn build_envelope(args: &cli::Args) -> Envelope {
     let initial_url = UrlBlock::requested(&args.url);
     match fetch::fetch_document(&args.url, &args.headers) {
-        Err(e) => {
-            Envelope::error(initial_url, args.out, ErrorInfo::new(&e.kind, e.message))
-        }
+        Err(e) => Envelope::error(initial_url, args.out, ErrorInfo::new(&e.kind, e.message)),
         Ok(fetched) => {
             let http = fetched.status.map(HttpInfo::new);
             let url = UrlBlock::resolved(&args.url, &fetched.final_url);
@@ -91,14 +89,14 @@ fn build_envelope(args: &cli::Args) -> Envelope {
             // layout is skipped. Both paths have a `Styles` here (`bboxes`
             // always, `ax` because `--css` built one), so layout is built iff
             // the view demands it.
-            let wants_layout =
-                args.out == View::Bboxes || (args.out == View::Ax && args.css);
+            let wants_layout = args.out == View::Bboxes || (args.out == View::Ax && args.css);
             let layout = wants_layout
                 .then(|| styles.as_ref().map(|s| build_layout(s, &doc)))
                 .flatten();
-            let payload =
-                build_payload(args.out, &doc, &fetched, styles.as_ref(), layout.as_ref());
-            Envelope::ok(url, args.out, payload).with_http(http).with_js(js)
+            let payload = build_payload(args.out, &doc, &fetched, styles.as_ref(), layout.as_ref());
+            Envelope::ok(url, args.out, payload)
+                .with_http(http)
+                .with_js(js)
         }
     }
 }
@@ -131,7 +129,10 @@ fn run_scripts(
     let mut info = JsInfo::new(r.scripts, r.errors, r.settled);
     if args.js_errors {
         info = info.with_messages(
-            r.messages.iter().map(|m| JsMessage::new(&m.kind, &m.text)).collect(),
+            r.messages
+                .iter()
+                .map(|m| JsMessage::new(&m.kind, &m.text))
+                .collect(),
         );
     }
     (doc, Some(info))

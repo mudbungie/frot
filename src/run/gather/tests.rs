@@ -50,7 +50,11 @@ fn sheets_are_fetched_concurrently_not_serially() {
     let elapsed = started.elapsed();
     assert_eq!(got.len(), MAX_IN_FLIGHT);
     // Serial would be MAX_IN_FLIGHT x 300ms = 1.8s; concurrent is ~300ms.
-    assert!(elapsed < Duration::from_millis(1500), "serial: {:?}", elapsed);
+    assert!(
+        elapsed < Duration::from_millis(1500),
+        "serial: {:?}",
+        elapsed
+    );
 }
 
 #[test]

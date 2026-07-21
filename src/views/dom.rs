@@ -25,11 +25,7 @@ fn node_json(doc: &Document, id: NodeId) -> Value {
             for a in &el.attrs {
                 attrs.insert(a.name.clone(), Value::String(a.value.clone()));
             }
-            let children: Vec<Value> = entry
-                .children
-                .iter()
-                .map(|&c| node_json(doc, c))
-                .collect();
+            let children: Vec<Value> = entry.children.iter().map(|&c| node_json(doc, c)).collect();
             json!({
                 "type": "element",
                 "name": el.name,

@@ -50,7 +50,15 @@ fn cascade(doc: &Document, sheets: &[Stylesheet], js: bool) -> Styles {
     let mut nodes = vec![ComputedStyle::default(); doc.len()];
     let mut ancestors: Vec<&Element> = Vec::new();
     for &root in doc.roots() {
-        walk(doc, root, &mut ancestors, &index, Visibility::Visible, js, &mut nodes);
+        walk(
+            doc,
+            root,
+            &mut ancestors,
+            &index,
+            Visibility::Visible,
+            js,
+            &mut nodes,
+        );
     }
     Styles::from_nodes(nodes)
 }

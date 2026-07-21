@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gates:
+    name: gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Registry + build cache. rust-toolchain.toml pins the compiler, so the
+      # first cargo invocation auto-installs 1.95.0 + components + musl target.
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # Same tooling install as local (`make setup`): cargo-llvm-cov.
+      - name: Install dev tooling
+        run: make setup
+
+      - name: Format check
+        run: cargo fmt --check
+
+      # Delegates to the Makefile so the gate lives in one place.
+      - name: Lint (clippy -D warnings)
+        run: make lint
+
+      # Delegates to `make cov` — the 100% lines+regions threshold has one home.
+      - name: Coverage (100% lines + regions)
+        run: make cov
+
+      # Feeds every tracked .rs file to the shared line-cap script — the same
+      # script the pre-commit hook calls, so the 300 limit is never duplicated.
+      - name: Source-file line limit
+        run: git ls-files '*.rs' | scripts/line-limit.sh

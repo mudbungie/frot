@@ -20,11 +20,20 @@ fn defaults_are_rendered_visible_and_contentless() {
 #[test]
 fn flex_direction_parse_maps_keywords_and_coerces_the_rest() {
     assert_eq!(FlexDirection::parse("row"), FlexDirection::Row);
-    assert_eq!(FlexDirection::parse("row-reverse"), FlexDirection::RowReverse);
+    assert_eq!(
+        FlexDirection::parse("row-reverse"),
+        FlexDirection::RowReverse
+    );
     assert_eq!(FlexDirection::parse("column"), FlexDirection::Column);
-    assert_eq!(FlexDirection::parse("column-reverse"), FlexDirection::ColumnReverse);
+    assert_eq!(
+        FlexDirection::parse("column-reverse"),
+        FlexDirection::ColumnReverse
+    );
     // Case-insensitive and trimmed.
-    assert_eq!(FlexDirection::parse("  COLUMN-Reverse "), FlexDirection::ColumnReverse);
+    assert_eq!(
+        FlexDirection::parse("  COLUMN-Reverse "),
+        FlexDirection::ColumnReverse
+    );
     // Any unknown value coerces to Row.
     assert_eq!(FlexDirection::parse("wat"), FlexDirection::Row);
 }

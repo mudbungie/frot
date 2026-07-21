@@ -65,10 +65,7 @@ pub fn challenge(headers: &[(String, String)]) -> bool {
 
 /// Views whose output materially depends on rendered body content.
 fn view_depends_on_content(view: View) -> bool {
-    matches!(
-        view,
-        View::Text | View::Ax | View::Links | View::Forms
-    )
+    matches!(view, View::Text | View::Ax | View::Links | View::Forms)
 }
 
 pub fn detect(view: View, doc: &Document) -> Vec<NeedsKind> {
@@ -111,7 +108,10 @@ fn starved(view: View, c: Content) -> bool {
 /// label.
 fn content_signals(doc: &Document, body: NodeId) -> Content {
     let mut skip_depth = 0usize;
-    let mut c = Content { text: false, label: false };
+    let mut c = Content {
+        text: false,
+        label: false,
+    };
     doc.walk(Some(body), &mut |ev, entry| match ev {
         WalkEvent::Enter(_) => {
             if let NodeKind::Element(el) = &entry.kind {
@@ -153,14 +153,7 @@ fn has_label(el: &crate::dom::Element) -> bool {
 fn is_non_content(name: &str) -> bool {
     matches!(
         name,
-        "script"
-            | "style"
-            | "noscript"
-            | "template"
-            | "header"
-            | "footer"
-            | "nav"
-            | "aside"
+        "script" | "style" | "noscript" | "template" | "header" | "footer" | "nav" | "aside"
     )
 }
 

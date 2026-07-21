@@ -1,0 +1,6 @@
+[toolchain]
+# Pin so local and CI agree. llvm-tools-preview backs cargo-llvm-cov (the
+# coverage gate); the musl target backs the static release build.
+channel = "1.95.0"
+components = ["rustfmt", "clippy", "llvm-tools-preview"]
+targets = ["x86_64-unknown-linux-musl"]

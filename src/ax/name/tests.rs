@@ -46,7 +46,8 @@ fn empty_aria_label_falls_through() {
 
 #[test]
 fn aria_labelledby_joins_referenced_text() {
-    let html = "<span id='a'>Hello</span><span id='b'>world</span><button aria-labelledby='a b'></button>";
+    let html =
+        "<span id='a'>Hello</span><span id='b'>world</span><button aria-labelledby='a b'></button>";
     assert_eq!(name(html, "button"), Some("Hello world".into()));
 }
 
@@ -64,7 +65,10 @@ fn aria_labelledby_all_missing_falls_through() {
 
 #[test]
 fn button_text_content_is_name() {
-    assert_eq!(name("<button>Submit</button>", "button"), Some("Submit".into()));
+    assert_eq!(
+        name("<button>Submit</button>", "button"),
+        Some("Submit".into())
+    );
 }
 
 #[test]
@@ -210,7 +214,10 @@ fn label_for_mismatch_falls_through() {
 #[test]
 fn css_generated_content_included_in_name() {
     assert_eq!(
-        name_css("<style>h1::before{content:'§ '}</style><h1>Title</h1>", "h1"),
+        name_css(
+            "<style>h1::before{content:'§ '}</style><h1>Title</h1>",
+            "h1"
+        ),
         Some("§ Title".into())
     );
 }
@@ -259,7 +266,10 @@ fn roleless_element_is_not_named_from_contents() {
 #[test]
 fn explicit_role_button_is_named_from_contents() {
     // Gating is role-based, not tag-based: role=button on a span still names.
-    assert_eq!(name("<span role='button'>Go</span>", "span"), Some("Go".into()));
+    assert_eq!(
+        name("<span role='button'>Go</span>", "span"),
+        Some("Go".into())
+    );
 }
 
 #[test]

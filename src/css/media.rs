@@ -24,7 +24,9 @@ pub fn matches(list: &str) -> bool {
     if list.trim().is_empty() {
         return true;
     }
-    split_top(list, ',').iter().any(|q| eval_query(q) == Some(true))
+    split_top(list, ',')
+        .iter()
+        .any(|q| eval_query(q) == Some(true))
 }
 
 enum Tok {

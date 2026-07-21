@@ -39,7 +39,11 @@ fn env(s: &str) -> Value {
 /// is genuinely empty — the honest `needs-js` baseline, js.md §10).
 fn serve(page: &str, assets: &[(&str, &str)]) -> (mockito::ServerGuard, String) {
     let mut server = mockito::Server::new();
-    server.mock("GET", "/").with_status(200).with_body(page).create();
+    server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_body(page)
+        .create();
     for (path, body) in assets {
         server
             .mock("GET", *path)
@@ -63,7 +67,11 @@ const REACT_APP: &str = "var e=React.createElement;function App(){\
 fn react_shell_needs_js_without_and_renders_with() {
     let (_s, url) = serve(
         REACT_PAGE,
-        &[("/react.js", REACT), ("/react-dom.js", REACT_DOM), ("/app.js", REACT_APP)],
+        &[
+            ("/react.js", REACT),
+            ("/react-dom.js", REACT_DOM),
+            ("/app.js", REACT_APP),
+        ],
     );
     // Static shell (no --js): empty body, so the honest signal is needs-js.
     let (_c, before) = run_capture(&[&url, "--out", "text"]);
@@ -75,8 +83,15 @@ fn react_shell_needs_js_without_and_renders_with() {
     assert_eq!(code, 0);
     let v = env(&out);
     assert_eq!(v["status"], "ok");
-    assert!(v["out"].as_str().unwrap().contains("Hello from React"), "{}", v["out"]);
-    assert_eq!(v["js"], serde_json::json!({"scripts": 3, "errors": 0, "settled": true}));
+    assert!(
+        v["out"].as_str().unwrap().contains("Hello from React"),
+        "{}",
+        v["out"]
+    );
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 3, "errors": 0, "settled": true})
+    );
 }
 
 // The capstone (bl-4640): a *modern*-React CSR app must actually render. Unlike
@@ -106,14 +121,26 @@ fn react19_createroot_app_renders_from_empty_root() {
     let text = v["out"].as_str().unwrap();
     // Rendered content is present: the heading, the URL-derived filter line
     // (proves URL/searchParams ran), and the seeded todo items.
-    assert!(text.contains("Todos") && text.contains("Filter: all"), "{text}");
-    assert!(text.contains("Buy milk") && text.contains("Ship frot"), "{text}");
-    assert_eq!(v["js"], serde_json::json!({"scripts": 1, "errors": 0, "settled": true}));
+    assert!(
+        text.contains("Todos") && text.contains("Filter: all"),
+        "{text}"
+    );
+    assert!(
+        text.contains("Buy milk") && text.contains("Ship frot"),
+        "{text}"
+    );
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 1, "errors": 0, "settled": true})
+    );
     // The ax view proves the interactive shape: a named textbox and a 3-item
     // list, mounted where the shell had only an empty div.
     let (_c, ax) = run_capture(&[&url, "--js", "--out", "ax"]);
     let tree = env(&ax)["out"].to_string();
-    assert!(tree.contains("\"textbox\"") && tree.contains("New todo"), "{tree}");
+    assert!(
+        tree.contains("\"textbox\"") && tree.contains("New todo"),
+        "{tree}"
+    );
     assert!(tree.contains("\"list\""), "{tree}");
 }
 
@@ -134,8 +161,15 @@ fn vue_app_renders_and_clears_needs_js() {
     assert_eq!(code, 0);
     let v = env(&out);
     assert_eq!(v["status"], "ok");
-    assert!(v["out"].as_str().unwrap().contains("Hello from Vue"), "{}", v["out"]);
-    assert_eq!(v["js"], serde_json::json!({"scripts": 2, "errors": 0, "settled": true}));
+    assert!(
+        v["out"].as_str().unwrap().contains("Hello from Vue"),
+        "{}",
+        v["out"]
+    );
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 2, "errors": 0, "settled": true})
+    );
 }
 
 const JQUERY_PAGE: &str = "<html><body><div id='root'></div>\
@@ -148,18 +182,31 @@ const JQUERY_APP: &str = "$(function(){\
 
 #[test]
 fn jquery_page_settles_and_mutations_show_in_views() {
-    let (_s, url) = serve(JQUERY_PAGE, &[("/jquery.js", JQUERY), ("/app.js", JQUERY_APP)]);
+    let (_s, url) = serve(
+        JQUERY_PAGE,
+        &[("/jquery.js", JQUERY), ("/app.js", JQUERY_APP)],
+    );
     let (code, out) = run_capture(&[&url, "--js", "--out", "text"]);
     assert_eq!(code, 0);
     let v = env(&out);
     assert_eq!(v["status"], "ok");
-    assert!(v["out"].as_str().unwrap().contains("jQuery mounted"), "{}", v["out"]);
-    assert_eq!(v["js"], serde_json::json!({"scripts": 2, "errors": 0, "settled": true}));
+    assert!(
+        v["out"].as_str().unwrap().contains("jQuery mounted"),
+        "{}",
+        v["out"]
+    );
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 2, "errors": 0, "settled": true})
+    );
     // Structural proof the DOM mutation landed: the raw `dom` view shows the
     // injected element, class and all.
     let (_c, dom) = run_capture(&[&url, "--js", "--out", "dom"]);
     let dom_str = env(&dom)["out"].to_string();
-    assert!(dom_str.contains("mounted"), "dom view missing injected node: {dom_str}");
+    assert!(
+        dom_str.contains("mounted"),
+        "dom view missing injected node: {dom_str}"
+    );
 }
 
 const BEYOND_PAGE: &str = "<html><body><div id='root'></div>\
@@ -182,7 +229,10 @@ const ESM_APP: &str = "import {greet} from './esm-greeter.mjs';\
 
 #[test]
 fn esm_module_page_imports_renders_and_clears_needs_js() {
-    let (_s, url) = serve(ESM_PAGE, &[("/app.mjs", ESM_APP), ("/esm-greeter.mjs", ESM_GREETER)]);
+    let (_s, url) = serve(
+        ESM_PAGE,
+        &[("/app.mjs", ESM_APP), ("/esm-greeter.mjs", ESM_GREETER)],
+    );
     // Static shell (no --js): empty body — the honest signal is needs-js.
     let (_c, before) = run_capture(&[&url, "--out", "text"]);
     assert_eq!(env(&before)["status"], "needs");
@@ -193,8 +243,18 @@ fn esm_module_page_imports_renders_and_clears_needs_js() {
     assert_eq!(code, 0);
     let v = env(&out);
     assert_eq!(v["status"], "ok");
-    assert!(v["out"].as_str().unwrap().contains("Hello from an ES module"), "{}", v["out"]);
-    assert_eq!(v["js"], serde_json::json!({"scripts": 1, "errors": 0, "settled": true}));
+    assert!(
+        v["out"]
+            .as_str()
+            .unwrap()
+            .contains("Hello from an ES module"),
+        "{}",
+        v["out"]
+    );
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 1, "errors": 0, "settled": true})
+    );
 }
 
 // A module whose import is unresolvable (a bare specifier, no import map, js.md
@@ -213,7 +273,10 @@ fn esm_unresolvable_import_counts_one_error_and_still_needs_js() {
     let v = env(&out);
     assert_eq!(v["status"], "needs");
     assert_eq!(v["needs"], serde_json::json!(["js"]));
-    assert_eq!(v["js"], serde_json::json!({"scripts": 1, "errors": 1, "settled": true}));
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 1, "errors": 1, "settled": true})
+    );
 }
 
 #[test]
@@ -226,5 +289,8 @@ fn beyond_shim_page_settles_clean_yet_still_needs_js() {
     assert_eq!(v["needs"], serde_json::json!(["js"]));
     // Outcome-based, not exception-based (§10): the run succeeded and settled;
     // the empty impression alone is the honest trigger.
-    assert_eq!(v["js"], serde_json::json!({"scripts": 1, "errors": 0, "settled": true}));
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 1, "errors": 0, "settled": true})
+    );
 }

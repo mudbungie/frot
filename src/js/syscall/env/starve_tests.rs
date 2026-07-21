@@ -37,7 +37,10 @@ where
 {
     let results: Vec<bool> = (0..range).map(|h| starved(h, f)).collect();
     assert!(results.contains(&false), "starvation never bit");
-    assert!(results.contains(&true), "never succeeded even with headroom");
+    assert!(
+        results.contains(&true),
+        "never succeeded even with headroom"
+    );
 }
 
 /// A parseable URL decomposes into nine allocated members.
@@ -61,6 +64,8 @@ fn url_parse_fails_cleanly_when_starved() {
     sweep(6000, |ctx| {
         url_parse(ctx, "../c?x=1#h", Some("https://example.com:99/a/b"))
     });
-    sweep(4000, |ctx| url_parse(ctx, "https://example.com/plain", None));
+    sweep(4000, |ctx| {
+        url_parse(ctx, "https://example.com/plain", None)
+    });
     sweep(3000, |ctx| url_parse(ctx, "::nonsense::", None));
 }

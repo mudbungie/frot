@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: static-musl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-release-
+
+      # musl-gcc backs the vendored C (quickjs via cc, zstd-sys). The musl
+      # target itself is auto-installed from rust-toolchain.toml.
+      - name: Install musl toolchain
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build static musl binary
+        run: cargo build --release --target x86_64-unknown-linux-musl
+
+      - name: Strip
+        run: strip target/x86_64-unknown-linux-musl/release/frot
+
+      # Fails the release if the stripped binary falls outside 5-15 MiB.
+      - name: Assert size envelope
+        run: scripts/check-size.sh target/x86_64-unknown-linux-musl/release/frot
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/x86_64-unknown-linux-musl/release/frot

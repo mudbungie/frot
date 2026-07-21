@@ -48,7 +48,10 @@ fn shape_with_headroom(outcome: Outcome, headroom: usize) -> bool {
 fn got_shaping_fails_cleanly_at_every_allocation_point() {
     let results: Vec<bool> = (0..6000).map(|h| shape_with_headroom(got(), h)).collect();
     assert!(results.contains(&false), "starvation never bit");
-    assert!(results.contains(&true), "never succeeded even with headroom");
+    assert!(
+        results.contains(&true),
+        "never succeeded even with headroom"
+    );
 }
 
 /// The refusal path allocates too (the object, and the `error` string), and
@@ -60,7 +63,10 @@ fn failed_shaping_fails_cleanly_at_every_allocation_point() {
         .map(|h| shape_with_headroom(Outcome::Failed("refused: not GET".into()), h))
         .collect();
     assert!(results.contains(&false), "starvation never bit");
-    assert!(results.contains(&true), "never succeeded even with headroom");
+    assert!(
+        results.contains(&true),
+        "never succeeded even with headroom"
+    );
 }
 
 /// With a roomy heap the shaped object carries every response field, including

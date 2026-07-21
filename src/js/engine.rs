@@ -14,12 +14,10 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rquickjs::loader::{Loader, Resolver};
 use rquickjs::function::This;
+use rquickjs::loader::{Loader, Resolver};
 use rquickjs::promise::{Promise, PromiseState};
-use rquickjs::{
-    CatchResultExt, Coerced, Context, Ctx, Function, FromJs, Module, Runtime, Value,
-};
+use rquickjs::{CatchResultExt, Coerced, Context, Ctx, FromJs, Function, Module, Runtime, Value};
 
 /// §5 / §13 OQ-1 defaults. Constants, not flags.
 pub const EXEC_BUDGET_MS: u64 = 1_000;
@@ -281,7 +279,9 @@ impl Engine {
 /// empty string rather than surfacing as an [`EvalError::Exception`]. Primitive
 /// completions (the event-loop drivers' integers, string evals) coerce as usual.
 fn coerce_string<'js>(ctx: &Ctx<'js>, v: Value<'js>) -> String {
-    Coerced::<String>::from_js(ctx, v).map(|c| c.0).unwrap_or_default()
+    Coerced::<String>::from_js(ctx, v)
+        .map(|c| c.0)
+        .unwrap_or_default()
 }
 
 impl Default for Engine {

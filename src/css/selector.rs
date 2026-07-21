@@ -117,9 +117,8 @@ fn matches_at(
         Combinator::Child => {
             !ancestors.is_empty() && matches_at(parts, i - 1, ancestors[0], &ancestors[1..])
         }
-        Combinator::Descendant => {
-            (0..ancestors.len()).any(|k| matches_at(parts, i - 1, ancestors[k], &ancestors[k + 1..]))
-        }
+        Combinator::Descendant => (0..ancestors.len())
+            .any(|k| matches_at(parts, i - 1, ancestors[k], &ancestors[k + 1..])),
     }
 }
 

@@ -55,7 +55,10 @@ struct Cached {
 impl Geometry {
     /// A cold cache with the given styling policy.
     pub fn new(source: StyleSource) -> Self {
-        Geometry { source, cache: None }
+        Geometry {
+            source,
+            cache: None,
+        }
     }
 
     /// The tables for `doc`'s current generation, recomputing on a miss (the
@@ -72,9 +75,15 @@ impl Geometry {
                 StyleSource::Authored(ext) => css::compute_with(doc, ext, true),
             };
             let layout = layout::compute(doc, &styles, layout::VIEWPORT_WIDTH);
-            self.cache = Some(Cached { generation, styles, layout });
+            self.cache = Some(Cached {
+                generation,
+                styles,
+                layout,
+            });
         }
-        self.cache.as_ref().expect("cache set when stale, retained when fresh")
+        self.cache
+            .as_ref()
+            .expect("cache set when stale, retained when fresh")
     }
 
     /// The border-box rect for `id` in viewport coordinates as `[x, y, w, h]`;

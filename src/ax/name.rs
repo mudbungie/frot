@@ -154,26 +154,24 @@ fn control_label_text(
     let mut for_match: Option<NodeId> = None;
     let mut label_stack: Vec<NodeId> = Vec::new();
     let mut wrapping_label: Option<NodeId> = None;
-    doc.walk(None, &mut |ev, e| {
-        match ev {
-            WalkEvent::Enter(id) => {
-                if let NodeKind::Element(elx) = &e.kind {
-                    if elx.name == "label" {
-                        label_stack.push(id);
-                        if let Some(t) = target {
-                            if for_match.is_none() && elx.attr("for") == Some(t) {
-                                for_match = Some(id);
-                            }
+    doc.walk(None, &mut |ev, e| match ev {
+        WalkEvent::Enter(id) => {
+            if let NodeKind::Element(elx) = &e.kind {
+                if elx.name == "label" {
+                    label_stack.push(id);
+                    if let Some(t) = target {
+                        if for_match.is_none() && elx.attr("for") == Some(t) {
+                            for_match = Some(id);
                         }
-                    } else if id == control_id && wrapping_label.is_none() {
-                        wrapping_label = label_stack.first().copied();
                     }
+                } else if id == control_id && wrapping_label.is_none() {
+                    wrapping_label = label_stack.first().copied();
                 }
             }
-            WalkEvent::Exit(id) => {
-                if label_stack.last() == Some(&id) {
-                    label_stack.pop();
-                }
+        }
+        WalkEvent::Exit(id) => {
+            if label_stack.last() == Some(&id) {
+                label_stack.pop();
             }
         }
     });

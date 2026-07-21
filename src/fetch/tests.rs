@@ -57,7 +57,10 @@ fn fetch_ok_against_mock_server() {
     assert_eq!(r.status, Some(200));
     assert_eq!(r.body, "hello");
     assert_eq!(r.charset, "utf-8");
-    assert!(r.headers.iter().any(|(n, _)| n.eq_ignore_ascii_case("content-type")));
+    assert!(r
+        .headers
+        .iter()
+        .any(|(n, _)| n.eq_ignore_ascii_case("content-type")));
 }
 
 #[test]
@@ -198,10 +201,7 @@ fn map_body_stalled_is_fetch_body() {
 
 #[test]
 fn map_decompress_is_fetch_body() {
-    let e = map_ureq_error(UE::Decompress(
-        "gzip",
-        std::io::Error::other("decompress"),
-    ));
+    let e = map_ureq_error(UE::Decompress("gzip", std::io::Error::other("decompress")));
     assert_eq!(e.kind, kinds::FETCH_BODY);
 }
 

@@ -15,7 +15,11 @@ fn run_capture(args: &[&str]) -> (u8, String) {
 
 fn serve_ax(body: &str, args: &[&str]) -> Value {
     let mut server = mockito::Server::new();
-    let _m = server.mock("GET", "/").with_status(200).with_body(body).create();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_body(body)
+        .create();
     let url = server.url();
     let mut argv = vec![url.as_str()];
     argv.extend_from_slice(args);

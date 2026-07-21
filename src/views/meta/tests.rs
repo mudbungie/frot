@@ -118,16 +118,16 @@ fn meta_with_http_equiv_collected() {
 
 #[test]
 fn meta_without_content_skipped() {
-    let v = run(
-        "<head><meta name='lonely'></head>",
-        "https://example.com/",
-    );
+    let v = run("<head><meta name='lonely'></head>", "https://example.com/");
     assert_eq!(v["meta"], json!([]));
 }
 
 #[test]
 fn meta_without_classifier_skipped() {
-    let v = run("<head><meta content='orphan'></head>", "https://example.com/");
+    let v = run(
+        "<head><meta content='orphan'></head>",
+        "https://example.com/",
+    );
     assert_eq!(v["meta"], json!([]));
 }
 

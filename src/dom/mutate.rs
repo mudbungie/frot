@@ -86,8 +86,9 @@ impl Document {
     /// [`insert_child`]: Document::insert_child
     pub fn parse_fragment(&mut self, html: &str) -> Vec<NodeId> {
         let ctx = QualName::new(None, ns!(html), local_name!("body"));
-        let rc = html5ever::parse_fragment(RcDom::default(), Default::default(), ctx, vec![], false)
-            .one(html);
+        let rc =
+            html5ever::parse_fragment(RcDom::default(), Default::default(), ctx, vec![], false)
+                .one(html);
         // Fragment parsing nests the result under a synthetic <html> wrapper
         // (`#document > <html> > fragment nodes`); absorb the wrapper's children.
         let wrapper = rc.document.children.borrow()[0].clone();

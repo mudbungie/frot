@@ -50,8 +50,12 @@ fn media_blocks_are_evaluated_against_the_fixed_viewport() {
     assert_eq!(s.rules.len(), 2);
     assert_eq!(s.rules[0].decls, vec![d("a", "b", false)]);
     // …a non-matching one contributes nothing.
-    assert!(Stylesheet::parse("@media (min-width: 2000px) { p{a:b} }").rules.is_empty());
-    assert!(Stylesheet::parse("@media print { p{a:b} }").rules.is_empty());
+    assert!(Stylesheet::parse("@media (min-width: 2000px) { p{a:b} }")
+        .rules
+        .is_empty());
+    assert!(Stylesheet::parse("@media print { p{a:b} }")
+        .rules
+        .is_empty());
     // The at-keyword is case-insensitive.
     assert_eq!(Stylesheet::parse("@MEDIA screen { p{a:b} }").rules.len(), 1);
     // Statement form (no body) contributes nothing.
@@ -65,7 +69,11 @@ fn media_blocks_are_evaluated_against_the_fixed_viewport() {
 fn nested_media_blocks_multiply() {
     let s = Stylesheet::parse("@media screen { @media (max-width: 9999px) { p{a:b} } q{c:d} }");
     assert_eq!(s.rules.len(), 2);
-    assert!(Stylesheet::parse("@media screen { @media print { p{a:b} } }").rules.is_empty());
+    assert!(
+        Stylesheet::parse("@media screen { @media print { p{a:b} } }")
+            .rules
+            .is_empty()
+    );
 }
 
 #[test]

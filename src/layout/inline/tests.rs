@@ -45,7 +45,15 @@ fn over_long_word_takes_one_overflowing_line() {
     // 10 glyphs = 80px, wider than the 50px block: its own line, overflowing.
     let (doc, boxes, h) = flow_p("<p><span>aaaaaaaaaa</span></p>", 50);
     assert_eq!(h, 20);
-    assert_eq!(box_of(&doc, &boxes, "span"), Some(Rect { x: 0, y: 0, w: 80, h: 20 }));
+    assert_eq!(
+        box_of(&doc, &boxes, "span"),
+        Some(Rect {
+            x: 0,
+            y: 0,
+            w: 80,
+            h: 20
+        })
+    );
 }
 
 #[test]
@@ -53,15 +61,39 @@ fn inline_element_rect_unions_its_words_on_one_line() {
     // "hi "→x0..16 cursor24; <a>"one"(x24,w24) "two"(x56,w24)</a>; "bye"(x88).
     let (doc, boxes, h) = flow_p("<p>hi <a>one two</a> bye</p>", 1280);
     assert_eq!(h, 20);
-    assert_eq!(box_of(&doc, &boxes, "a"), Some(Rect { x: 24, y: 0, w: 56, h: 20 }));
+    assert_eq!(
+        box_of(&doc, &boxes, "a"),
+        Some(Rect {
+            x: 24,
+            y: 0,
+            w: 56,
+            h: 20
+        })
+    );
 }
 
 #[test]
 fn nested_inline_boxes_union_own_and_descendant_words() {
     // <a><b>xx</b>yy</a>: b sees "xx"(x0,w16); a sees "xx"+"yy"(x24,w16).
     let (doc, boxes, _) = flow_p("<p><a><b>xx</b>yy</a></p>", 1280);
-    assert_eq!(box_of(&doc, &boxes, "b"), Some(Rect { x: 0, y: 0, w: 16, h: 20 }));
-    assert_eq!(box_of(&doc, &boxes, "a"), Some(Rect { x: 0, y: 0, w: 40, h: 20 }));
+    assert_eq!(
+        box_of(&doc, &boxes, "b"),
+        Some(Rect {
+            x: 0,
+            y: 0,
+            w: 16,
+            h: 20
+        })
+    );
+    assert_eq!(
+        box_of(&doc, &boxes, "a"),
+        Some(Rect {
+            x: 0,
+            y: 0,
+            w: 40,
+            h: 20
+        })
+    );
 }
 
 #[test]
@@ -69,7 +101,15 @@ fn inline_element_wrapping_two_lines_gives_a_taller_union() {
     // <a>aaaa bbbb cccc</a> at 100px: (0,0,32,20)(40,0,32,20)(0,20,32,20).
     let (doc, boxes, h) = flow_p("<p><a>aaaa bbbb cccc</a></p>", 100);
     assert_eq!(h, 40);
-    assert_eq!(box_of(&doc, &boxes, "a"), Some(Rect { x: 0, y: 0, w: 72, h: 40 }));
+    assert_eq!(
+        box_of(&doc, &boxes, "a"),
+        Some(Rect {
+            x: 0,
+            y: 0,
+            w: 72,
+            h: 40
+        })
+    );
 }
 
 #[test]
@@ -81,7 +121,10 @@ fn whitespace_only_block_is_zero_height() {
 #[test]
 fn display_none_inline_child_is_skipped_and_keeps_zero() {
     // The hidden span contributes no word (one line) and keeps its ZERO box.
-    let (doc, boxes, h) = flow_p("<p>hi <span style=\"display:none\">no no no</span> bye</p>", 1280);
+    let (doc, boxes, h) = flow_p(
+        "<p>hi <span style=\"display:none\">no no no</span> bye</p>",
+        1280,
+    );
     assert_eq!(h, 20);
     assert_eq!(box_of(&doc, &boxes, "span"), Some(Rect::ZERO));
 }
@@ -99,6 +142,14 @@ fn compute_fills_inline_rects_through_the_block_pipeline() {
     let (doc, styles) = styled("<p>hi <a>link</a></p>");
     let layout = crate::layout::compute(&doc, &styles, crate::layout::VIEWPORT_WIDTH);
     // "hi "→cursor x24; "link"(4 glyphs=32) → a rect {24,0,32,20}.
-    assert_eq!(layout.rect(id(&doc, "a")), Some(Rect { x: 24, y: 0, w: 32, h: 20 }));
+    assert_eq!(
+        layout.rect(id(&doc, "a")),
+        Some(Rect {
+            x: 24,
+            y: 0,
+            w: 32,
+            h: 20
+        })
+    );
     assert_eq!(layout.rect(id(&doc, "p")).unwrap().h, 20);
 }

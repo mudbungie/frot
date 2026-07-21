@@ -55,8 +55,7 @@ const GLYPH_ADVANCE: i32 = 8;
 /// differently — e.g. `text` also skips `svg`/`math`, while layout also skips
 /// the non-painting document metadata `head`/`title`/`meta`/`link`/`base`).
 const NON_RENDERED_TAGS: &[&str] = &[
-    "head", "title", "meta", "link", "base", "style", "script", "template",
-    "noscript",
+    "head", "title", "meta", "link", "base", "style", "script", "template", "noscript",
 ];
 
 /// A box, in px, border-box, viewport coordinates with y increasing downward
@@ -74,7 +73,12 @@ pub struct Rect {
 impl Rect {
     /// The origin-anchored zero-size box — the placeholder every scaffold box
     /// carries until geometry lands (3.3/3.4/3.5).
-    pub const ZERO: Rect = Rect { x: 0, y: 0, w: 0, h: 0 };
+    pub const ZERO: Rect = Rect {
+        x: 0,
+        y: 0,
+        w: 0,
+        h: 0,
+    };
 }
 
 /// Per-node layout, indexed by [`NodeId`] parallel to the arena

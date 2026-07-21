@@ -85,8 +85,10 @@ fn a_starved_install_panics_rather_than_half_installing() {
     std::panic::set_hook(prior);
 
     assert!(
-        msgs.iter()
-            .any(|m| m.as_ref().err().is_some_and(|s| s.contains("syscall table"))),
+        msgs.iter().any(|m| m
+            .as_ref()
+            .err()
+            .is_some_and(|s| s.contains("syscall table"))),
         "no cap starved the syscall-table binding phase"
     );
     assert!(

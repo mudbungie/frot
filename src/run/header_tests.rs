@@ -38,11 +38,20 @@ fn same_origin_sheet_receives_the_headers() {
         .with_body(".hide{display:none}")
         .create();
     let (code, out, _) = run_capture(&[
-        &server.url(), "-H", "Cookie: auth=1", "--css", "--out", "text",
+        &server.url(),
+        "-H",
+        "Cookie: auth=1",
+        "--css",
+        "--out",
+        "text",
     ]);
     assert_eq!(code, 0);
     let text = parse_envelope(&out)["out"].as_str().unwrap().to_string();
-    assert!(!text.contains("secret"), "cookie not sent to sheet: {}", text);
+    assert!(
+        !text.contains("secret"),
+        "cookie not sent to sheet: {}",
+        text
+    );
     assert!(text.contains("visible"));
 }
 
@@ -64,7 +73,12 @@ fn cross_origin_sheet_does_not_receive_the_headers() {
         .with_body(HIDING_PAGE.replace("{sheet}", &sheet_url))
         .create();
     let (code, out, _) = run_capture(&[
-        &server.url(), "-H", "Cookie: auth=1", "--css", "--out", "text",
+        &server.url(),
+        "-H",
+        "Cookie: auth=1",
+        "--css",
+        "--out",
+        "text",
     ]);
     assert_eq!(code, 0);
     let text = parse_envelope(&out)["out"].as_str().unwrap().to_string();

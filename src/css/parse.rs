@@ -163,7 +163,10 @@ fn read_at_rule(b: &[char], start: usize) -> (String, String, Option<String>, us
     while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == '-') {
         i += 1;
     }
-    let name: String = b[start + 1..i].iter().collect::<String>().to_ascii_lowercase();
+    let name: String = b[start + 1..i]
+        .iter()
+        .collect::<String>()
+        .to_ascii_lowercase();
     let pre_start = i;
     while i < b.len() && b[i] != ';' && b[i] != '{' {
         i += 1;

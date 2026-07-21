@@ -1,26 +1,23 @@
 #!/usr/bin/env bash
-# frot pre-commit: enforce 300-line cap on Rust source and 100% test coverage.
+# frot pre-commit: enforce the source-file line cap and 100% test coverage.
 set -euo pipefail
 
-fail=0
+# Staged .rs files, once. Docs and config are exempt from both gates.
+staged_rs="$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.rs$' || true)"
 
-# 300-line cap on staged .rs files. Docs and config exempt.
-while IFS= read -r f; do
-  [ -f "$f" ] || continue
-  lines=$(wc -l < "$f")
-  if [ "$lines" -gt 300 ]; then
-    echo "pre-commit: $f has $lines lines (limit 300)" >&2
-    fail=1
-  fi
-done < <(git diff --cached --name-only --diff-filter=ACM | grep -E '\.rs$' || true)
-
-if [ "$fail" -ne 0 ]; then
-  exit 1
+# Line cap. The limit itself lives in scripts/line-limit.sh (one home, shared
+# with CI); the hook only feeds it the staged set.
+if [ -n "$staged_rs" ]; then
+  printf '%s\n' "$staged_rs" | scripts/line-limit.sh || exit 1
 fi
 
-# 100% line coverage. Only enforced when the commit touches .rs files —
-# doc / config / hook changes shouldn't be gated on test coverage.
-if git diff --cached --name-only --diff-filter=ACM | grep -qE '\.rs$'; then
+# 100% line + region coverage. Only when the commit touches .rs files —
+# doc / config / hook changes shouldn't be gated on test coverage. The
+# threshold lives in the Makefile `cov` target (one home, shared with CI);
+# regions as well as lines, because a fully-covered line can still hide an
+# untaken branch or an unreached `?` edge — an unreachable region is a design
+# signal to delete the dead path, never to suppress.
+if [ -n "$staged_rs" ]; then
   if ! command -v cargo >/dev/null 2>&1; then
     echo "pre-commit: cargo not found in PATH" >&2
     exit 1
@@ -29,11 +26,7 @@ if git diff --cached --name-only --diff-filter=ACM | grep -qE '\.rs$'; then
     echo "pre-commit: cargo-llvm-cov not installed. Run 'make setup'." >&2
     exit 1
   fi
-  # Regions as well as lines: a fully-covered line can still hide an untaken
-  # branch or an unreached `?` error edge, which is exactly where the blind
-  # spots were. An unreachable region is a design signal — delete the dead path
-  # or restructure it so it can be tested; never suppress it.
-  cargo llvm-cov --fail-under-lines 100 --fail-under-regions 100 >/dev/null || {
+  make cov >/dev/null || {
     echo "pre-commit: line or region coverage below 100%" >&2
     exit 1
   }

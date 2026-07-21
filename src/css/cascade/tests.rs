@@ -28,8 +28,7 @@ fn non_matching_rule_is_inert() {
 fn inline_beats_sheet_but_important_sheet_wins() {
     let (doc, s) = styles("<style>p{display:none}</style><p style='display:block'>x</p>");
     assert!(!s.display_none(first_tag(&doc, "p")));
-    let (doc, s) =
-        styles("<style>p{display:none!important}</style><p style='display:block'>x</p>");
+    let (doc, s) = styles("<style>p{display:none!important}</style><p style='display:block'>x</p>");
     assert!(s.display_none(first_tag(&doc, "p")));
 }
 
@@ -196,7 +195,10 @@ fn order_is_the_winning_integer_else_zero() {
 fn flex_direction_is_the_winning_keyword_else_row() {
     let (doc, s) = styles("<a style='flex-direction:column'>x</a><b>y</b>");
     // A winning declaration is parsed by FlexDirection::parse.
-    assert_eq!(s.flex_direction(first_tag(&doc, "a")), FlexDirection::Column);
+    assert_eq!(
+        s.flex_direction(first_tag(&doc, "a")),
+        FlexDirection::Column
+    );
     // Absent → Row (the default main axis).
     assert_eq!(s.flex_direction(first_tag(&doc, "b")), FlexDirection::Row);
 }

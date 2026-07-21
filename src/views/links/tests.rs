@@ -19,7 +19,10 @@ fn no_links_returns_empty_array() {
 
 #[test]
 fn absolute_anchor_kept_verbatim() {
-    let r = run("<a href='https://other.com/x'>x</a>", "https://example.com/");
+    let r = run(
+        "<a href='https://other.com/x'>x</a>",
+        "https://example.com/",
+    );
     assert_eq!(href_of(&r[0]), "https://other.com/x");
 }
 
@@ -82,10 +85,7 @@ fn rel_split_into_token_list() {
         "<a href='/x' rel='noopener noreferrer external'>x</a>",
         "https://example.com/",
     );
-    assert_eq!(
-        r[0]["rel"],
-        json!(["noopener", "noreferrer", "external"])
-    );
+    assert_eq!(r[0]["rel"], json!(["noopener", "noreferrer", "external"]));
 }
 
 #[test]
@@ -124,7 +124,10 @@ fn base_without_href_falls_back_to_page_url() {
 
 #[test]
 fn multiple_anchors_returned_in_order() {
-    let r = run("<a href='/1'>1</a><a href='/2'>2</a>", "https://example.com/");
+    let r = run(
+        "<a href='/1'>1</a><a href='/2'>2</a>",
+        "https://example.com/",
+    );
     assert_eq!(r.len(), 2);
     assert_eq!(href_of(&r[0]), "https://example.com/1");
     assert_eq!(href_of(&r[1]), "https://example.com/2");

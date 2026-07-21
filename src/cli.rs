@@ -62,7 +62,13 @@ impl std::fmt::Display for CliError {
             CliError::UnknownFlag(s) => write!(f, "unknown flag: {}\n{}", s, USAGE),
             CliError::MissingValue(s) => write!(f, "missing value for {}\n{}", s, USAGE),
             CliError::UnknownView(s) => {
-                write!(f, "unknown view: {} (choose from {})\n{}", s, view_list(), USAGE)
+                write!(
+                    f,
+                    "unknown view: {} (choose from {})\n{}",
+                    s,
+                    view_list(),
+                    USAGE
+                )
             }
             CliError::DuplicateFlag(s) => write!(f, "duplicate flag: {}\n{}", s, USAGE),
             CliError::BadHeader(s) => {
@@ -179,11 +185,20 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
     }
     // Under the same-origin rule headers could never be sent from a file://
     // page, and an accepted flag must do something — reject the combination.
-    let is_file = url.get(..5).is_some_and(|p| p.eq_ignore_ascii_case("file:"));
+    let is_file = url
+        .get(..5)
+        .is_some_and(|p| p.eq_ignore_ascii_case("file:"));
     if is_file && !headers.is_empty() {
         return Err(CliError::HeadersWithFile);
     }
-    Ok(Args { url, css, js, js_errors, out, headers })
+    Ok(Args {
+        url,
+        css,
+        js,
+        js_errors,
+        out,
+        headers,
+    })
 }
 
 #[cfg(test)]

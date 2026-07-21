@@ -25,7 +25,10 @@ fn extract_charset_none_when_absent() {
 
 #[test]
 fn extract_charset_none_when_empty() {
-    assert_eq!(extract_charset_from_content_type("text/html; charset="), None);
+    assert_eq!(
+        extract_charset_from_content_type("text/html; charset="),
+        None
+    );
 }
 
 #[test]

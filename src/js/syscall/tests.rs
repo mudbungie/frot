@@ -20,12 +20,18 @@ fn reads_expose_kind_tag_attr_text_and_links() {
     // roots are the doctype then <html>; kind labels every node variant.
     assert_eq!(s.eval("__frot_kind(__frot_roots()[0])").unwrap(), "doctype");
     // a root has no parent.
-    assert_eq!(s.eval("String(__frot_parent(__frot_roots()[0]))").unwrap(), "undefined");
+    assert_eq!(
+        s.eval("String(__frot_parent(__frot_roots()[0]))").unwrap(),
+        "undefined"
+    );
     s.eval("globalThis.p = __frot_query_doc('p')[0]").unwrap();
     assert_eq!(s.eval("__frot_kind(p)").unwrap(), "element");
     assert_eq!(s.eval("__frot_tag(p)").unwrap(), "p");
     assert_eq!(s.eval("__frot_attr(p, 'id')").unwrap(), "x");
-    assert_eq!(s.eval("String(__frot_attr(p, 'missing'))").unwrap(), "undefined");
+    assert_eq!(
+        s.eval("String(__frot_attr(p, 'missing'))").unwrap(),
+        "undefined"
+    );
     // attrs enumerates an element's [name, value] pairs (the faithful-clone
     // primitive); on a non-element it is the empty list, not an error.
     assert_eq!(
@@ -35,25 +41,44 @@ fn reads_expose_kind_tag_attr_text_and_links() {
     assert_eq!(s.eval("__frot_text(p)").unwrap(), "hi");
     assert_eq!(s.eval("__frot_tag(__frot_parent(p))").unwrap(), "body");
     // p's only child is a text node (the `text` kind arm).
-    assert_eq!(s.eval("__frot_kind(__frot_children(p)[0])").unwrap(), "text");
-    // body's children are the element then the comment (the `comment` arm).
-    s.eval("globalThis.body = __frot_query_doc('body')[0]").unwrap();
     assert_eq!(
-        s.eval("JSON.stringify(__frot_children(body).map(__frot_kind))").unwrap(),
+        s.eval("__frot_kind(__frot_children(p)[0])").unwrap(),
+        "text"
+    );
+    // body's children are the element then the comment (the `comment` arm).
+    s.eval("globalThis.body = __frot_query_doc('body')[0]")
+        .unwrap();
+    assert_eq!(
+        s.eval("JSON.stringify(__frot_children(body).map(__frot_kind))")
+            .unwrap(),
         "[\"element\",\"comment\"]"
     );
     // tag / attr / attrs on a non-element node fall to the empty arms.
-    assert_eq!(s.eval("String(__frot_tag(__frot_children(body)[1]))").unwrap(), "undefined");
-    assert_eq!(s.eval("String(__frot_attr(__frot_children(body)[1], 'x'))").unwrap(), "undefined");
-    assert_eq!(s.eval("__frot_attrs(__frot_children(body)[1]).length").unwrap(), "0");
+    assert_eq!(
+        s.eval("String(__frot_tag(__frot_children(body)[1]))")
+            .unwrap(),
+        "undefined"
+    );
+    assert_eq!(
+        s.eval("String(__frot_attr(__frot_children(body)[1], 'x'))")
+            .unwrap(),
+        "undefined"
+    );
+    assert_eq!(
+        s.eval("__frot_attrs(__frot_children(body)[1]).length")
+            .unwrap(),
+        "0"
+    );
 }
 
 #[test]
 fn mutations_build_relink_and_detach_nodes() {
     let s = sess("<html><body></body></html>");
-    s.eval("globalThis.body = __frot_query_doc('body')[0]").unwrap();
+    s.eval("globalThis.body = __frot_query_doc('body')[0]")
+        .unwrap();
     // create_element lowercases; set_attr + insert_child splice it in.
-    s.eval("globalThis.d = __frot_create_element('DIV')").unwrap();
+    s.eval("globalThis.d = __frot_create_element('DIV')")
+        .unwrap();
     s.eval("__frot_set_attr(d, 'ID', 'main')").unwrap();
     s.eval("__frot_insert_child(body, d, 0)").unwrap();
     assert_eq!(s.eval("__frot_tag(d)").unwrap(), "div");
@@ -69,9 +94,11 @@ fn mutations_build_relink_and_detach_nodes() {
     s.eval("__frot_detach(t)").unwrap();
     assert_eq!(s.eval("__frot_text(d)").unwrap(), "");
     // fragment parsing returns detached top-level ids to splice in.
-    s.eval("globalThis.f = __frot_fragment('<span>a</span><span>b</span>')").unwrap();
+    s.eval("globalThis.f = __frot_fragment('<span>a</span><span>b</span>')")
+        .unwrap();
     assert_eq!(s.eval("f.length").unwrap(), "2");
-    s.eval("f.forEach((id, i) => __frot_insert_child(d, id, i))").unwrap();
+    s.eval("f.forEach((id, i) => __frot_insert_child(d, id, i))")
+        .unwrap();
     assert_eq!(s.eval("__frot_text(d)").unwrap(), "ab");
     // Mutations are visible on the one shared document.
     assert_eq!(s.document().find_by_tag("span").len(), 2);
@@ -100,5 +127,11 @@ fn console_syscall_appends_level_and_text() {
     s.eval("__frot_console('warn', 'hi there')").unwrap();
     let logs = s.console();
     assert_eq!(logs.len(), 1);
-    assert_eq!(logs[0], Log { level: "warn".into(), text: "hi there".into() });
+    assert_eq!(
+        logs[0],
+        Log {
+            level: "warn".into(),
+            text: "hi there".into()
+        }
+    );
 }

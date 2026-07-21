@@ -32,7 +32,15 @@ fn line_height_is_font_size_times_line_height() {
 fn text_leaf_block_gets_one_line_high_full_width_box_at_origin() {
     let (doc, styles) = styled("<p>hi</p>");
     let layout = compute(&doc, &styles, VIEWPORT_WIDTH);
-    assert_eq!(rect(&doc, &layout, "p"), Rect { x: 0, y: 0, w: 1280, h: 20 });
+    assert_eq!(
+        rect(&doc, &layout, "p"),
+        Rect {
+            x: 0,
+            y: 0,
+            w: 1280,
+            h: 20
+        }
+    );
 }
 
 #[test]
@@ -40,8 +48,24 @@ fn html_and_body_are_block_and_full_width_at_origin() {
     // html/body were added to the block set; the page root lays out as block.
     let (doc, styles) = styled("<p>hi</p>");
     let layout = compute(&doc, &styles, VIEWPORT_WIDTH);
-    assert_eq!(rect(&doc, &layout, "html"), Rect { x: 0, y: 0, w: 1280, h: 20 });
-    assert_eq!(rect(&doc, &layout, "body"), Rect { x: 0, y: 0, w: 1280, h: 20 });
+    assert_eq!(
+        rect(&doc, &layout, "html"),
+        Rect {
+            x: 0,
+            y: 0,
+            w: 1280,
+            h: 20
+        }
+    );
+    assert_eq!(
+        rect(&doc, &layout, "body"),
+        Rect {
+            x: 0,
+            y: 0,
+            w: 1280,
+            h: 20
+        }
+    );
 }
 
 #[test]
@@ -51,9 +75,25 @@ fn stacked_block_siblings_get_increasing_y() {
     let ps = doc.find_by_tag("p");
     let first = layout.rect(ps[0]).unwrap();
     let second = layout.rect(ps[1]).unwrap();
-    assert_eq!(first, Rect { x: 0, y: 0, w: 1280, h: 20 });
+    assert_eq!(
+        first,
+        Rect {
+            x: 0,
+            y: 0,
+            w: 1280,
+            h: 20
+        }
+    );
     // The second sibling starts exactly where the first ends.
-    assert_eq!(second, Rect { x: 0, y: 20, w: 1280, h: 20 });
+    assert_eq!(
+        second,
+        Rect {
+            x: 0,
+            y: 20,
+            w: 1280,
+            h: 20
+        }
+    );
     assert_eq!(second.y, first.h);
 }
 
@@ -62,7 +102,15 @@ fn container_height_is_the_sum_of_its_block_children() {
     // div stacks two 20px paragraphs → 40px tall; children keep x=0 w=1280.
     let (doc, styles) = styled("<div><p>a</p><p>b</p></div>");
     let layout = compute(&doc, &styles, VIEWPORT_WIDTH);
-    assert_eq!(rect(&doc, &layout, "div"), Rect { x: 0, y: 0, w: 1280, h: 40 });
+    assert_eq!(
+        rect(&doc, &layout, "div"),
+        Rect {
+            x: 0,
+            y: 0,
+            w: 1280,
+            h: 40
+        }
+    );
     let ps = doc.find_by_tag("p");
     assert_eq!(layout.rect(ps[0]).unwrap().h, 20);
     assert_eq!(layout.rect(ps[1]).unwrap().y, 20);
@@ -83,7 +131,15 @@ fn empty_and_whitespace_only_blocks_are_zero_height() {
     let (doc, styles) = styled("<p>   </p>");
     let layout = compute(&doc, &styles, VIEWPORT_WIDTH);
     // Whitespace-only text is not rendered content.
-    assert_eq!(rect(&doc, &layout, "p"), Rect { x: 0, y: 0, w: 1280, h: 0 });
+    assert_eq!(
+        rect(&doc, &layout, "p"),
+        Rect {
+            x: 0,
+            y: 0,
+            w: 1280,
+            h: 0
+        }
+    );
 }
 
 #[test]
@@ -118,7 +174,15 @@ fn hidden_block_child_is_skipped_but_real_siblings_stack() {
     let layout = compute(&doc, &styles, VIEWPORT_WIDTH);
     let ps = doc.find_by_tag("p");
     assert_eq!(layout.rect(ps[0]), None);
-    assert_eq!(layout.rect(ps[1]).unwrap(), Rect { x: 0, y: 0, w: 1280, h: 20 });
+    assert_eq!(
+        layout.rect(ps[1]).unwrap(),
+        Rect {
+            x: 0,
+            y: 0,
+            w: 1280,
+            h: 20
+        }
+    );
     // The hidden child contributes nothing to the container height.
     assert_eq!(rect(&doc, &layout, "div").h, 20);
 }
@@ -129,7 +193,15 @@ fn non_rendered_tags_and_their_subtrees_generate_no_box() {
     let layout = compute(&doc, &styles, VIEWPORT_WIDTH);
     assert_eq!(layout.rect(id(&doc, "script")), None);
     assert_eq!(layout.rect(id(&doc, "head")), None);
-    assert_eq!(rect(&doc, &layout, "p"), Rect { x: 0, y: 0, w: 1280, h: 20 });
+    assert_eq!(
+        rect(&doc, &layout, "p"),
+        Rect {
+            x: 0,
+            y: 0,
+            w: 1280,
+            h: 20
+        }
+    );
 }
 
 #[test]
@@ -139,7 +211,15 @@ fn inline_child_of_a_block_container_keeps_a_zero_placeholder() {
     let (doc, styles) = styled("<div><span>hi</span><p>x</p></div>");
     let layout = compute(&doc, &styles, VIEWPORT_WIDTH);
     assert_eq!(layout.rect(id(&doc, "span")), Some(Rect::ZERO));
-    assert_eq!(rect(&doc, &layout, "p"), Rect { x: 0, y: 0, w: 1280, h: 20 });
+    assert_eq!(
+        rect(&doc, &layout, "p"),
+        Rect {
+            x: 0,
+            y: 0,
+            w: 1280,
+            h: 20
+        }
+    );
     assert_eq!(rect(&doc, &layout, "div").h, 20);
 }
 
@@ -168,5 +248,13 @@ fn doctype_root_is_skipped_and_html_starts_at_origin() {
     let (doc, styles) = styled("<!doctype html><html><body><p>x</p></body></html>");
     let layout = compute(&doc, &styles, VIEWPORT_WIDTH);
     assert_eq!(rect(&doc, &layout, "html").y, 0);
-    assert_eq!(rect(&doc, &layout, "p"), Rect { x: 0, y: 0, w: 1280, h: 20 });
+    assert_eq!(
+        rect(&doc, &layout, "p"),
+        Rect {
+            x: 0,
+            y: 0,
+            w: 1280,
+            h: 20
+        }
+    );
 }

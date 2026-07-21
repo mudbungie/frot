@@ -85,7 +85,11 @@ fn flex_children_emit_in_reading_order_with_non_monotonic_i() {
     assert_eq!(texts, ["a", "c", "b"]);
     // `c`'s source ordinal is the largest yet it is emitted in the middle — the
     // array is reading order, so `i` is not monotonic.
-    assert!(spans[1].1 > spans[2].1, "expected non-monotonic i: {:?}", spans);
+    assert!(
+        spans[1].1 > spans[2].1,
+        "expected non-monotonic i: {:?}",
+        spans
+    );
 }
 
 #[test]

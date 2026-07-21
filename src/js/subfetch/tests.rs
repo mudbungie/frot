@@ -45,13 +45,19 @@ fn tmpdir(tag: &str) -> PathBuf {
 }
 
 fn file_base(dir: &std::path::Path) -> String {
-    url::Url::from_file_path(dir.join("page.html")).unwrap().to_string()
+    url::Url::from_file_path(dir.join("page.html"))
+        .unwrap()
+        .to_string()
 }
 
 #[test]
 fn a_2xx_get_is_frozen_and_ok() {
     let mut server = mockito::Server::new();
-    let m = server.mock("GET", "/r").with_status(200).with_body("hi").create();
+    let m = server
+        .mock("GET", "/r")
+        .with_status(200)
+        .with_body("hi")
+        .create();
     let mut sf = open(&server.url(), Vec::new());
     let f = got(sf.get("/r"));
     assert!(f.ok);
@@ -63,7 +69,11 @@ fn a_2xx_get_is_frozen_and_ok() {
 #[test]
 fn a_non_2xx_get_freezes_but_is_not_ok() {
     let mut server = mockito::Server::new();
-    let _m = server.mock("GET", "/r").with_status(404).with_body("no").create();
+    let _m = server
+        .mock("GET", "/r")
+        .with_status(404)
+        .with_body("no")
+        .create();
     let mut sf = open(&server.url(), Vec::new());
     let f = got(sf.get("/r"));
     assert!(!f.ok);
@@ -74,7 +84,11 @@ fn a_non_2xx_get_freezes_but_is_not_ok() {
 fn a_url_is_fetched_at_most_once_then_frozen() {
     let mut server = mockito::Server::new();
     // Exactly one network hit even across two gets — the second is served frozen.
-    let m = server.mock("GET", "/r").with_body("once").expect(1).create();
+    let m = server
+        .mock("GET", "/r")
+        .with_body("once")
+        .expect(1)
+        .create();
     let mut sf = open(&server.url(), Vec::new());
     assert_eq!(got(sf.get("/r")).body, "once");
     assert_eq!(got(sf.get("/r")).body, "once");

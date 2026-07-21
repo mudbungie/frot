@@ -77,12 +77,18 @@ fn candidates_cover_every_match() {
 /// last-max tie-break depends on.
 #[test]
 fn candidates_are_in_flat_scan_order() {
-    let sheets = vec![Stylesheet::parse(SHEET), Stylesheet::parse(".k{display:none}")];
+    let sheets = vec![
+        Stylesheet::parse(SHEET),
+        Stylesheet::parse(".k{display:none}"),
+    ];
     let index = Index::build(&sheets);
     let doc = Document::parse(HTML);
     each_element(&doc, |el, _| {
         let seqs: Vec<usize> = index.candidates(el).iter().map(|c| c.seq).collect();
-        assert!(seqs.windows(2).all(|w| w[0] < w[1]), "out of order: {seqs:?}");
+        assert!(
+            seqs.windows(2).all(|w| w[0] < w[1]),
+            "out of order: {seqs:?}"
+        );
     });
 }
 
@@ -91,7 +97,9 @@ fn candidates_are_in_flat_scan_order() {
 /// the rule is still evaluated.
 #[test]
 fn keyless_selectors_land_in_others() {
-    let sheets = vec![Stylesheet::parse("*{display:none} [data-x]{display:none} :hover{color:x}")];
+    let sheets = vec![Stylesheet::parse(
+        "*{display:none} [data-x]{display:none} :hover{color:x}",
+    )];
     let index = Index::build(&sheets);
     assert_eq!(index.others.len(), 3);
     assert!(index.ids.is_empty() && index.classes.is_empty() && index.tags.is_empty());
@@ -113,7 +121,10 @@ fn key_prefers_id_then_class_then_tag() {
 /// past the last author rule.
 #[test]
 fn rule_count_spans_all_sheets() {
-    let sheets = vec![Stylesheet::parse("a{x:y} b{x:y}"), Stylesheet::parse("c{x:y}")];
+    let sheets = vec![
+        Stylesheet::parse("a{x:y} b{x:y}"),
+        Stylesheet::parse("c{x:y}"),
+    ];
     let index = Index::build(&sheets);
     assert_eq!(index.rule_count, 3);
     assert_eq!(index.tags["c"][0].order, 2);
