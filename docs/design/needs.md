@@ -57,6 +57,23 @@ only when **the server itself declares the response is not the resource**:
 - **`cf-mitigated: challenge`** — Cloudflare's documented marker for a
   challenge response, honored at any status < 400 (at ≥ 400 the existing
   error flip already reports honestly).
+- **`x-amzn-waf-action: challenge`** (added `bl-7e34`, 2026-07-22) — AWS
+  WAF's documented marker, the same declaration in a different vendor's
+  spelling. Measured on `www.amazon.com/`: HTTP **202** +
+  `x-amzn-waf-action: challenge` + `server: CloudFront`, body an AWS WAF
+  `challenge.js` loader (`window.gokuProps`) carrying no rendered text.
+  Both vendors reuse their header for non-deferral actions (`block`,
+  `count`, `captcha`), so **only the literal `challenge` value declares**;
+  an unmeasured value is not given an invented verdict.
+
+  This is the fix for the "Amazon 202 is mislabelled `needs:["js"]`" defect
+  (`identity.md` §15 item 2). It needed **no new `needs` kind and no new
+  envelope shape**: the premise that the 202 was an *undiagnosable* withheld
+  body was simply wrong — the server declares the reason in a header, in
+  exactly the shape §3 already recognizes. Before the fix the starvation
+  detector (§4) saw a text-free body with scripts and said `needs:["js"]`,
+  which is a lie — no recipe change renders a page the origin refused to
+  serve. `human` subsumes, per the precedence rule below.
 
 Semantics:
 
@@ -102,14 +119,17 @@ cannot disagree — the declaring header (`retry-after` / `cf-mitigated`) is
 inside the allowlist, so it is always surfaced. The allowlist is bounded to
 the headers a caller or `needs` uses to tell a bot-defence refusal from a
 genuine response: `retry-after`, `cf-mitigated`, `server`, `x-datadome`,
-`content-type` (provenance: `identity.md` §3.7 — reddit's `server:
-snooserv`, g2's `x-datadome: protected` + `server: cloudflare`).
+`x-amzn-waf-action`, `content-type` (provenance: `identity.md` §3.7 —
+reddit's `server: snooserv`, g2's `x-datadome: protected` + `server:
+cloudflare`, Amazon's `x-amzn-waf-action: challenge`).
 `set-cookie` (cookie jar's, `bl-6dad`) and volatile per-request headers
 (`date`, request/trace ids) are excluded so goldens stay deterministic
 (`identity.md` §12). This surfaces the evidence; it does not change the
-`needs` verdict — e.g. Amazon's 202 soft block stays as classified, now
-with its `server` header observable so a reclassification ball can key off
-it.
+`needs` verdict. The reclassification it unblocked landed separately
+(`bl-7e34`): Amazon's 202 is now `needs:["human"]`, keyed on the
+`x-amzn-waf-action` declaration above, not on `server: CloudFront` — a CDN
+name is not a refusal, and keying off one would flag every genuine page
+CloudFront serves.
 
 ## 4. Document: content starvation → `needs:["js"]` (bl-e22e)
 

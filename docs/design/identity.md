@@ -245,6 +245,11 @@ most browser-unlike behaviour measured."
    with no `out` key at all. The body is empty because Amazon *withheld* it, not
    because the page needs JS. This is a `needs.md` defect, not an identity one —
    see §15.
+   > **Corrected 2026-07-22 (`bl-7e34`, §3.9).** "Withheld, cause unknown" was
+   > wrong. The 202 carries **`x-amzn-waf-action: challenge`** — AWS WAF
+   > *declaring* a challenge, the same transport fact as reddit's `retry-after`
+   > in a different vendor's spelling. It is a **declared challenge (§3.7), not
+   > a soft block**, and is now reported `needs:["human"]` pre-parse.
 
 ### 3.7 Negative controls — declared challenges (one request each, never executed)
 
@@ -252,6 +257,7 @@ most browser-unlike behaviour measured."
 |---|---|---|---|
 | reddit.com | `needs:["human"]` — **correct** | 200 | `retry-after: 0`, `server: snooserv` |
 | g2.com | `error{kind:"http.403"}` | 403 | `x-datadome: protected`, `server: cloudflare` |
+| www.amazon.com/ (added `bl-7e34`, 2026-07-22) | `needs:["human"]` — **correct since `bl-7e34`** | 202 | `x-amzn-waf-action: challenge`, `server: CloudFront` |
 
 Both are the same real-world condition — *a bot defence refused us* — and a
 consumer must handle **two envelope shapes** to detect it. A 403 challenge was
@@ -346,6 +352,79 @@ stops before (§3.7, `needs:["human"]`/`error` honesty preserved). The residuals
 set, key shares, pseudo-order) are the Option-C ceiling (§6.4) — a rustls-fork
 cost §6.3 declines to pay for an unproven access gain. IP/ASN reputation (§14
 item 2) is untested here and out of scope.
+
+### 3.9 Amazon re-measured under the full persona (`bl-7e34`, 2026-07-22)
+
+**Question asked.** Every capability ball `bl-bd4e` found Amazon's 202 page
+probing has since landed (canvas `bl-05e6`, WebGL `bl-f624`, audio `bl-8733`,
+crypto `bl-cf3a`, screen `bl-1cb7`, Worker `bl-342a`, `navigator.webdriver =
+false`). §3.8's capstone measured the 202 with `--out text` and no `--js`, so it
+never exercised the masquerade against the fingerprinter. **Does Amazon still
+202 now that the persona answers its probes coherently?**
+
+**Method.** Egress IP `[redacted-egress-ip]` ([redacted-egress-network]) — the same
+IP as §3.1/§3.8, verified. Release binary from the `bl-7e34` worktree.
+`frot https://www.amazon.com/ --js --out text` ×3 and `--out dom` ×1, then the
+same request replayed through `curl` with frot's exact header set (read back
+from `httpbin.org/headers`) to see the response headers frot's allowlist did
+not yet surface.
+
+**Result — yes, still 202, and the cause is now named by the server itself.**
+All 3 `--js` runs: `status:"needs"`, `needs:["js"]`, `http.status: 202`,
+`server: CloudFront`, `js:{scripts:3, errors:2, settled:true}`. The header
+replay is decisive:
+
+```
+HTTP/2 202
+x-amzn-waf-action: challenge
+access-control-expose-headers: x-amzn-waf-action
+server: CloudFront
+content-length: 2007
+```
+
+and the 2007-byte body is an **AWS WAF challenge page**: `window.gokuProps`
+(`key`/`iv`/`context`) plus `<script src=".../token.awswaf.com/…/challenge.js">`.
+
+**Three premises die here.**
+
+1. **The body is not withheld.** frot receives a real 2007-byte document. It
+   reported `needs:["js"]` because that document has scripts and no rendered
+   text — the §4 starvation heuristic doing exactly what it says. The header,
+   not the body, was the missing evidence.
+2. **It is not a "soft block" of unknown cause.** It is a **declared
+   challenge**, the §3.7 category, and belongs in `needs.md` §3's existing
+   mechanism. Fixed there — no new `needs` kind, no third envelope shape
+   (§15 item 3 unaffected).
+3. **`server: CloudFront` is not the separating signal**, contrary to this
+   ball's filing premise. CloudFront fronts an enormous amount of genuine
+   content; keying on it would flag all of it. The vendor **action** header is
+   the signal, and it is structural, not textual (§3.6 Trap #1 respected).
+
+**What actually blocks access — classified by evidence, per the §14 stop
+rule.** Not an absent capability surface: the masquerade never got to speak,
+because Amazon's WAF issues the challenge **at the transport, before any
+fingerprint is read** — the 202 is the *first* response to a bare navigation.
+The gate is a **JS proof-of-work / token challenge**: `challenge.js` computes a
+token from `gokuProps` and posts it to `token.awswaf.com` to mint an
+`aws-waf-token` cookie the retry then carries. Getting past it requires
+**executing the challenge and submitting the result** — both sides of the
+`§10` refused boundary at once (*"Executing or solving any challenge … CAPTCHA,
+JS proof-of-work"* and *"Submitting anything. GET-only, permanently"*), plus a
+retry loop (*"no retry-until-allowed"*).
+
+**So: there is no in-scope capability gap to file for Amazon.** No masquerade
+improvement opens this gate, because the gate is not asking the client what it
+can do — it is asking it to perform work and POST the answer. `needs:["human"]`
+is the honest terminal verdict, and frot now reaches it **without executing the
+challenge at all** (pre-parse flip: 3 fewer script executions and 2 fewer JS
+errors than before this ball). **This is a boundary, not a backlog item** — it
+does not get chased. §14 item 1's "null on access" verdict stands unchanged and
+is, for this target, now *explained* rather than merely observed.
+
+**Open for Mark.** Mark's directive filing this ball was *"ultimately, we need
+to be able to get around it."* The evidence says getting around **this specific
+target** is only reachable by crossing the §10 refused boundary. That boundary
+is Mark's to move, not this ball's — it is recorded here unmoved.
 
 ---
 
@@ -1172,14 +1251,17 @@ Each needs its own ball.
    surfaces a header outside it, or omits a challenge marker inside it, is a
    drift. Additive: the output-schema change was escalated and approved (Mark,
    2026-07-20).
-2. **Amazon's 202 is mislabelled `needs:["js"]`** (§3.6). An empty body the
-   server *withheld* is not a page that needs JS. The starvation detector
-   (`needs.md` §4) cannot currently tell the two apart. **Unblocked, not yet
-   fixed:** the separating signal — the response headers, defect 1 — is now
-   observable (`http.headers` surfaces the `server` header), so the
-   reclassification can key off it; the reclassification itself is a separate
-   ball (per `bl-acec`'s acceptance — additive header-surfacing does not change
-   the `needs` verdict).
+2. **Amazon's 202 is mislabelled `needs:["js"]`** (§3.6). — **DELIVERED
+   (`bl-7e34`, 2026-07-22; evidence §3.9).** The defect was real; its stated
+   *cause* was not. The body is not withheld — Amazon serves a 2007-byte AWS WAF
+   `challenge.js` page and declares it with **`x-amzn-waf-action: challenge`**.
+   So this was never a starvation-detector ambiguity needing a new taxonomy: it
+   is a **declared challenge** (§3.7) whose vendor spelling `needs.md` §3 did
+   not yet recognize. Adding that one declaration reclassifies it to
+   `needs:["human"]` pre-parse, with **no new `needs` kind and no third envelope
+   shape** (defect 3 unaffected). Note the correction to defect 1's parting
+   suggestion: the separating signal is *not* `server: CloudFront` — a CDN name
+   is not a refusal — it is the vendor **action** header, now allowlisted.
 3. **Two envelope shapes for one condition** (§3.7): reddit's declared challenge
    is `needs:["human"]`, g2's is `error{http.403}`. Both mean "a bot defence
    refused us". A consumer must handle both.

@@ -219,6 +219,9 @@ mod cookie_tests;
 mod http_tests;
 
 #[cfg(test)]
+mod challenge_tests;
+
+#[cfg(test)]
 mod bboxes_tests;
 
 #[cfg(test)]

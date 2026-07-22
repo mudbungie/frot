@@ -12,18 +12,19 @@
 //! (`identity.md` §12). So [`SURFACED`] is a fixed allowlist chosen on one
 //! principle: *the headers a caller or `needs` uses to tell a bot-defence
 //! refusal from a genuine response.* Each entry earns its place from the
-//! measured corpus (`identity.md` §3.7): `retry-after` / `cf-mitigated` are the
-//! declared-deferral markers `needs::challenge` keys on (`needs.md` §3),
-//! `server` and `x-datadome` are the CDN / vendor challenge markers that made
-//! reddit and g2 distinguishable, and `content-type` is the response media type.
+//! measured corpus (`identity.md` §3.7): `retry-after` / `cf-mitigated` /
+//! `x-amzn-waf-action` are the declared-deferral markers `needs::challenge`
+//! keys on (`needs.md` §3), `server` and `x-datadome` are the CDN / vendor
+//! challenge markers that made reddit and g2 distinguishable, and
+//! `content-type` is the response media type.
 //!
 //! ## One capture, two consumers
 //!
 //! `needs::challenge` (`needs.md` §3) and `http.headers` read *the same*
 //! [`crate::fetch::FetchResult::headers`] — `needs` decides from it, this field
 //! exposes the allowlisted slice of it. They cannot disagree because there is
-//! one capture; a challenge's declaring header (`retry-after`, `cf-mitigated`)
-//! is inside [`SURFACED`], so it is always the one surfaced (pinned in
+//! one capture; a challenge's declaring header (`retry-after`, `cf-mitigated`,
+//! `x-amzn-waf-action`) is inside [`SURFACED`], so it is always surfaced (pinned in
 //! `run::http_tests`).
 
 use serde::{Deserialize, Serialize};
@@ -44,6 +45,7 @@ pub struct HttpHeader {
 pub const SURFACED: &[&str] = &[
     "retry-after",
     "cf-mitigated",
+    "x-amzn-waf-action",
     "server",
     "x-datadome",
     "content-type",

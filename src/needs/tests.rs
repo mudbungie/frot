@@ -241,6 +241,25 @@ fn other_cf_mitigated_values_are_not_a_challenge() {
 }
 
 #[test]
+fn amzn_waf_challenge_declares_a_challenge_case_insensitively() {
+    // Measured 2026-07-22 (bl-7e34): www.amazon.com answers frot's exact
+    // request headers with 202 + `x-amzn-waf-action: challenge` + an AWS WAF
+    // `challenge.js` body. The declaration, not the empty-looking body, is
+    // the fact.
+    assert!(challenge(&hdr(&[("x-amzn-waf-action", "challenge")])));
+    assert!(challenge(&hdr(&[("X-Amzn-Waf-Action", " Challenge ")])));
+}
+
+#[test]
+fn other_amzn_waf_actions_are_not_a_challenge() {
+    // AWS WAF also spells `captcha` / `block` here; only `challenge` is the
+    // declared deferral this detector recognizes. (`captcha` at a 2xx would
+    // fall through — it is not a deferral the server says to retry, and
+    // inventing a verdict for an unmeasured shape is guessing.)
+    assert!(!challenge(&hdr(&[("x-amzn-waf-action", "block")])));
+}
+
+#[test]
 fn ordinary_response_headers_declare_nothing() {
     assert!(!challenge(&hdr(&[("content-type", "text/html")])));
     assert!(!challenge(&[]));

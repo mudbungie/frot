@@ -45,13 +45,16 @@ use crate::envelope::{NeedsKind, View};
 use crate::fetch::header_value;
 
 /// Transport-declared deferral: the server itself marked a success response
-/// as a stand-in for the page (`docs/design/needs.md` §3). Two declarations
-/// are recognized, neither a body string-match:
+/// as a stand-in for the page (`docs/design/needs.md` §3). Three declarations
+/// are recognized, none a body string-match:
 ///
 /// - `Retry-After` present on the response. RFC 9110 §10.2.3 defines it for
 ///   503 and 3xx; on a success response it says "this body is a placeholder,
 ///   come back" — the shape of a bot-challenge interstitial served at 200.
 /// - `cf-mitigated: challenge`, Cloudflare's documented challenge marker.
+/// - `x-amzn-waf-action: challenge`, AWS WAF's documented marker — the same
+///   declaration in a different vendor's spelling, measured on Amazon's 202
+///   (`bl-7e34`).
 ///
 /// The caller (`run.rs`) consults this only on the < 400 path — at >= 400
 /// the error flip already reports honestly — and returns pre-parse, so a
@@ -59,8 +62,16 @@ use crate::fetch::header_value;
 /// than evasion could begin.
 pub fn challenge(headers: &[(String, String)]) -> bool {
     header_value(headers, "retry-after").is_some()
-        || header_value(headers, "cf-mitigated")
-            .is_some_and(|v| v.trim().eq_ignore_ascii_case("challenge"))
+        || ["cf-mitigated", "x-amzn-waf-action"]
+            .iter()
+            .any(|h| declares_challenge(headers, h))
+}
+
+/// A vendor mitigation header whose value is literally `challenge`. Both
+/// vendors reuse the header for other actions (`block`, `count`), so only the
+/// challenge value declares a deferral.
+fn declares_challenge(headers: &[(String, String)], name: &str) -> bool {
+    header_value(headers, name).is_some_and(|v| v.trim().eq_ignore_ascii_case("challenge"))
 }
 
 /// Views whose output materially depends on rendered body content.

@@ -68,6 +68,20 @@ it probes `crypto`, `screen`, `canvas`(2d + experimental-webgl), `webdriver`,
 `Worker`, and the persona facts — a direct read on what the WAF checks. The
 fingerprint testbeds confirm the rest.
 
+> **Amended 2026-07-22 (`bl-7e34`, `identity.md` §3.9).** Amazon's row above is
+> still an accurate inventory of *what that script reads*, but calling it a
+> "soft block" was wrong and the row is no longer a live measurement target.
+> The 202 carries **`x-amzn-waf-action: challenge`**: it is AWS WAF's
+> **declared JS challenge** (`challenge.js` + `window.gokuProps`), which
+> computes a token and POSTs it to mint an `aws-waf-token` cookie. So its
+> probes are not a gate a coherent persona can pass — they are one half of a
+> challenge whose other half is work-and-submit, the `identity.md` §10 refused
+> boundary. **frot now flips to `needs:["human"]` pre-parse and never executes
+> it**, which is also why this row can no longer be re-harvested live. The
+> capability balls it motivated (`bl-05e6`/`bl-f624`/`bl-cf3a`/`bl-1cb7`/
+> `bl-342a`) all landed and keep their independent justification from the
+> testbed rows below; none of them was ever going to open *this* gate.
+
 ## Three-case classification (union of probed surfaces)
 
 frot's current answer is from a direct inventory (`--js`, this worktree). Firefox
