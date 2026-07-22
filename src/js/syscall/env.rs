@@ -126,6 +126,12 @@ fn persona(ua: &str, accept_language: &str) -> String {
         // limit/extension set. The one channel `webgl.js` draws them from, sourced
         // from the `webgl` SSOT const — no identity literal in the prelude (I1).
         "webgl": crate::fetch::webgl_facts(),
+        // The Web Audio fingerprint persona (bl-8733, identity.md §11): sampleRate,
+        // the derived latencies, the stereo destination, and the FIXED digest seed
+        // `audio.js` expands the rendered buffer from. The one channel it draws them
+        // from, sourced from the `audio` SSOT const — no identity literal in the
+        // prelude (I1), exactly as `webgl` above.
+        "audio": crate::fetch::audio_facts(),
         // A borderless 1280×720 desktop viewport (layout.rs) implies DPR 1 — the
         // CSS px and device px are one. Not a persona field: a fact of that model.
         "devicePixelRatio": 1,

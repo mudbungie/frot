@@ -21,6 +21,7 @@ use std::time::Duration;
 
 use crate::envelope::kinds;
 
+mod audio;
 mod concurrent;
 mod cookie;
 mod decode;
@@ -31,6 +32,7 @@ mod session;
 mod transport;
 mod webgl;
 
+pub(crate) use audio::facts as audio_facts;
 pub(crate) use concurrent::fetch_many;
 pub(crate) use cookie::{CookieJar, SharedJar};
 pub(crate) use decode::decode_body;

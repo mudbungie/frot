@@ -98,6 +98,20 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/webgl.js"),
     "\n",
+    // Web Audio fingerprint (bl-8733): a coherent, deterministic simulation.
+    // audiobuf.js (the FNV digest + xorshift FLOAT expansion + the branded-class
+    // helper) first, then audionode.js (AudioParam, the AudioNode zoo, AudioBuffer,
+    // and the node/buffer factories), then audio.js (BaseAudioContext /
+    // AudioContext / OfflineAudioContext, the create* API, and startRendering whose
+    // rendered buffer is a deterministic function of the graph digest). After
+    // loop.js because OfflineAudioCompletionEvent subclasses its Event; it reads the
+    // always-bound profile syscall for the `audio` SSOT facts.
+    include_str!("prelude/audiobuf.js"),
+    "\n",
+    include_str!("prelude/audionode.js"),
+    "\n",
+    include_str!("prelude/audio.js"),
+    "\n",
     // nativebrand.js LAST: sweeps the whole existing web-API surface into the
     // brand registry so no function's toString discloses prelude source (§8).
     include_str!("prelude/nativebrand.js"),

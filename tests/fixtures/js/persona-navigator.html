@@ -469,6 +469,156 @@
   glv.drawArrays(glv.TRIANGLES, 0, 6);
   ok('webgl:varies', vcv.toDataURL() !== WEBGL_HASH);
 
+  // --- Web Audio: a coherent, DETERMINISTIC fingerprint masquerade (bl-8733) ----
+  // (identity.md §10/§11) Firefox exposes AudioContext/OfflineAudioContext; frot
+  // does too, Firefox-shaped and branded native, with NO webkit-prefixed alias.
+  // OfflineAudioContext.startRendering() resolves an AudioBuffer whose float samples
+  // are a deterministic function of the graph digest — stable across invocations,
+  // varying with the graph, in [-1,1]. sampleRate is Firefox's 44100.
+  ok('AudioContext:type', typeof AudioContext === 'function');
+  ok('OfflineAudioContext:type', typeof OfflineAudioContext === 'function');
+  ok('BaseAudioContext:type', typeof BaseAudioContext === 'function');
+  // NO webkit-prefixed alias (Firefox has none) — its presence would be the tell.
+  eq('audio:no-webkit', typeof webkitAudioContext, 'undefined');
+  native('AudioContext', AudioContext);
+  native('OfflineAudioContext', OfflineAudioContext);
+  // BaseAudioContext is abstract (Illegal constructor); the concrete ones build.
+  eq('BaseAudioContext:illegal', threw(function () { new BaseAudioContext(); }), 'TypeError');
+  var ac = new AudioContext();
+  eq('ac:tag', Object.prototype.toString.call(ac), '[object AudioContext]');
+  ok('ac:instanceof', ac instanceof AudioContext);
+  ok('ac:base-instanceof', ac instanceof BaseAudioContext);
+  eq('ac:sampleRate', ac.sampleRate, 44100);
+  eq('ac:state', ac.state, 'suspended');
+  eq('ac:currentTime', ac.currentTime, 0);
+  ok('ac:baseLatency', typeof ac.baseLatency === 'number' && ac.baseLatency > 0 && ac.baseLatency < 0.02);
+  ok('ac:outputLatency', ac.outputLatency > ac.baseLatency);
+  ok('ac:resume-promise', ac.resume() instanceof Promise);
+  ok('ac:suspend-promise', ac.suspend() instanceof Promise);
+  ok('ac:close-promise', ac.close() instanceof Promise);
+  // destination is a branded AudioDestinationNode with a coherent maxChannelCount.
+  eq('ac:dest-tag', Object.prototype.toString.call(ac.destination), '[object AudioDestinationNode]');
+  ok('ac:dest-node', ac.destination instanceof AudioNode);
+  eq('ac:dest-maxch', ac.destination.maxChannelCount, 2);
+  native('ac:createOscillator', ac.createOscillator);
+  native('ac:createDynamicsCompressor', ac.createDynamicsCompressor);
+  native('ac:createGain', ac.createGain);
+  native('ac:createAnalyser', ac.createAnalyser);
+  // Node zoo presence: analyser / biquad / buffer-source, Firefox-shaped + branded.
+  var an = ac.createAnalyser();
+  eq('an:tag', Object.prototype.toString.call(an), '[object AnalyserNode]');
+  eq('an:bins', an.frequencyBinCount, 1024);
+  eq('an:fft', an.fftSize, 2048);
+  an.getFloatFrequencyData(new Float32Array(1024)); // present, offline no-op (residual).
+  var gain = ac.createGain();
+  ok('gain:param', gain.gain.value === 1 && gain.gain.setValueAtTime(0.5, 0) === gain.gain);
+  eq('gain:param-default', gain.gain.defaultValue, 1);
+  ok('gain:param-range', gain.gain.minValue < 0 && gain.gain.maxValue > 0);
+  var bq = ac.createBiquadFilter();
+  eq('bq:tag', Object.prototype.toString.call(bq), '[object BiquadFilterNode]');
+  bq.getFrequencyResponse(new Float32Array(1), new Float32Array(1), new Float32Array(1));
+  var bs = ac.createBufferSource();
+  eq('bs:tag', Object.prototype.toString.call(bs), '[object AudioBufferSourceNode]');
+  bs.disconnect();
+  // AudioBuffer: constructable, silent when fresh, copy round-trips, OOB throws.
+  native('buf:getChannelData', AudioBuffer.prototype.getChannelData);
+  var sb = ac.createBuffer(1, 16, 44100);
+  eq('buf:tag', Object.prototype.toString.call(sb), '[object AudioBuffer]');
+  eq('buf:len', sb.length, 16);
+  eq('buf:duration', sb.duration, 16 / 44100);
+  eq('buf:silent', sb.getChannelData(0)[0], 0);
+  var wr = new Float32Array(4); wr[0] = 0.5;
+  sb.copyToChannel(wr, 0, 0);
+  var rd = new Float32Array(4); sb.copyFromChannel(rd, 0, 0);
+  ok('buf:copy', rd[0] === 0.5);
+  eq('buf:oob', threw(function () { sb.getChannelData(5); }), 'IndexSizeError');
+  var ab = new AudioBuffer({ length: 8, sampleRate: 44100 });
+  eq('ab:len', ab.length, 8);
+  eq('ab:default-channels', ab.numberOfChannels, 1);
+  eq('ab:missing', threw(function () { new AudioBuffer({}); }), 'TypeError');
+  // OfflineAudioContext requires its 3 args (Firefox: TypeError otherwise).
+  eq('oac:no-arg', threw(function () { new OfflineAudioContext(); }), 'TypeError');
+  // The option-dictionary constructor form, and the `new NodeName(ctx, opts)` form.
+  var ocd = new OfflineAudioContext({ numberOfChannels: 2, length: 128, sampleRate: 44100 });
+  eq('oac:dict-len', ocd.length, 128);
+  eq('oac:dict-dest-maxch', ocd.destination.maxChannelCount, 2);
+  var osc2 = new OscillatorNode(ocd, { type: 'square' });
+  eq('osc2:type', osc2.type, 'square');
+  ok('osc2:node', osc2 instanceof OscillatorNode && osc2 instanceof AudioNode);
+  ok('oac:suspend-promise', ocd.suspend() instanceof Promise);
+  // The classic fingerprint graph: oscillator -> compressor -> destination.
+  function fpGraph(freq) {
+    var oc = new OfflineAudioContext(1, 44100, 44100);
+    eq('oac:tag', Object.prototype.toString.call(oc), '[object OfflineAudioContext]');
+    ok('oac:base-instanceof', oc instanceof BaseAudioContext);
+    eq('oac:length', oc.length, 44100);
+    eq('oac:sampleRate', oc.sampleRate, 44100);
+    var osc = oc.createOscillator();
+    eq('osc:tag', Object.prototype.toString.call(osc), '[object OscillatorNode]');
+    ok('osc:node', osc instanceof AudioNode);
+    eq('osc:freq-param', Object.prototype.toString.call(osc.frequency), '[object AudioParam]');
+    osc.type = 'triangle';
+    eq('osc:type', osc.type, 'triangle');
+    osc.frequency.value = freq;
+    eq('osc:freq-value', osc.frequency.value, freq);
+    var comp = oc.createDynamicsCompressor();
+    eq('comp:tag', Object.prototype.toString.call(comp), '[object DynamicsCompressorNode]');
+    eq('comp:reduction', comp.reduction, 0);
+    comp.threshold.value = -50; comp.knee.value = 40; comp.ratio.value = 12;
+    comp.attack.value = 0; comp.release.value = 0.25;
+    ok('connect:chains', osc.connect(comp) === comp); // connect returns its dest.
+    comp.connect(oc.destination);
+    osc.start(0);
+    return oc;
+  }
+  var AUDIO_HASH = null;
+  function audioDigest(buf) {
+    // Sum the classic fingerprint window (samples 4500..5000), as fingerprinters do.
+    var d = buf.getChannelData(0);
+    var sum = 0;
+    for (var i = 4500; i < 5000; i++) sum += Math.abs(d[i]);
+    return sum;
+  }
+  var completeFired = false;
+  var oc1 = fpGraph(10000);
+  // oncomplete: an Event-shaped OfflineAudioCompletionEvent carrying renderedBuffer
+  // (the fingerprintjs delivery path), fired alongside the startRendering promise.
+  oc1.oncomplete = function (ev) {
+    completeFired = true;
+    eq('oac:complete-tag', Object.prototype.toString.call(ev), '[object OfflineAudioCompletionEvent]');
+    ok('oac:complete-event', ev instanceof Event);
+    eq('oac:complete-type', ev.type, 'complete');
+    ok('oac:complete-buffer', ev.renderedBuffer instanceof AudioBuffer);
+  };
+  eq('oac:oncomplete-set', typeof oc1.oncomplete, 'function');
+  eq('oac:oncomplete-null', new OfflineAudioContext(1, 8, 44100).oncomplete, null);
+  native('oac:startRendering', oc1.startRendering);
+  var audioChecks = oc1.startRendering().then(function (buf) {
+    ok('oac:complete-fired', completeFired);
+    eq('oac:buf-tag', Object.prototype.toString.call(buf), '[object AudioBuffer]');
+    ok('oac:buf-instanceof', buf instanceof AudioBuffer);
+    eq('oac:buf-len', buf.length, 44100);
+    var data = buf.getChannelData(0);
+    var inRange = true;
+    for (var i = 0; i < data.length; i++) { if (data[i] < -1 || data[i] > 1) { inRange = false; break; } }
+    ok('oac:in-range', inRange); // plausible audio samples.
+    ok('oac:stable-within', buf.getChannelData(0)[4567] === data[4567]);
+    var h = String(audioDigest(buf));
+    AUDIO_HASH = h;
+    // Pinned to <html data-audio> so the Rust gate can prove it is byte-identical
+    // ACROSS two independent frot invocations (determinism a real device shows).
+    document.documentElement.setAttribute('data-audio', h);
+    // DETERMINISTIC: an identical graph renders the identical hash.
+    return fpGraph(10000).startRendering().then(function (same) {
+      ok('oac:deterministic', String(audioDigest(same)) === h);
+      // GRAPH-VARYING: a different oscillator frequency renders a different hash.
+      return fpGraph(15000).startRendering().then(function (diff) {
+        ok('oac:graph-varies', String(audioDigest(diff)) !== h);
+      });
+    });
+  });
+  asyncChecks.push(audioChecks);
+
   // --- Absent capability surfaces (§8): masquerade does not fabricate these ----
   eq('serviceWorker', typeof n.serviceWorker, 'undefined');
   eq('geolocation', typeof n.geolocation, 'undefined');

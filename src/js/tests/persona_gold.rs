@@ -79,6 +79,18 @@ fn navigator_persona_contract_holds() {
         webgl.starts_with("data:image/png;base64,") && webgl.len() > 64,
         "webgl fingerprint is not a well-formed, non-trivial PNG data URL"
     );
+    // The Web Audio fingerprint (bl-8733, identity.md §11) carries the same
+    // cross-invocation determinism requirement: OfflineAudioContext.startRendering()
+    // resolves an AudioBuffer whose float samples a fingerprinter hashes must be
+    // byte-identical across independent runs, not merely within one (the in-JS
+    // checks proved the surface shape, the [-1,1] range, within-run stability, and
+    // graph-variance; this is the half the JS cannot see). The hash is a non-empty
+    // numeric string (a rendered, non-silent buffer), guarding a silent regression.
+    let audio = de_attr(&doc, "data-audio").expect("probe wrote data-audio");
+    assert!(
+        !audio.is_empty() && audio.parse::<f64>().is_ok(),
+        "audio fingerprint is not a well-formed numeric digest: {audio:?}"
+    );
     let (doc2, _) = run(
         Document::parse(PERSONA_NAV),
         StyleSource::Bare,
@@ -98,5 +110,10 @@ fn navigator_persona_contract_holds() {
         de_attr(&doc2, "data-webgl").as_deref(),
         Some(webgl.as_str()),
         "webgl fingerprint drifted between two invocations (must be deterministic)"
+    );
+    assert_eq!(
+        de_attr(&doc2, "data-audio").as_deref(),
+        Some(audio.as_str()),
+        "audio fingerprint drifted between two invocations (must be deterministic)"
     );
 }

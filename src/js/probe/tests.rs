@@ -150,7 +150,9 @@ fn recording_preserves_frots_real_values() {
         &crate::fetch::FetchSession::new(Vec::new()),
         log.clone(),
     );
-    assert_eq!(s.eval("typeof AudioContext").unwrap(), "undefined");
+    // AudioContext is now a present masquerade (bl-8733) — the probe still forwards
+    // frot's real value unchanged, and that value is now the constructor.
+    assert_eq!(s.eval("typeof AudioContext").unwrap(), "function");
     // Worker is now a present masquerade (bl-342a) — the probe still forwards
     // frot's real value unchanged, and that value is now the constructor.
     assert_eq!(s.eval("typeof Worker").unwrap(), "function");
