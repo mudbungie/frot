@@ -12,32 +12,32 @@
 //! fork (identity.md §6.1/§6.3). So these TLS/h2 targets are the **persona frot
 //! aims at and the oracle measures against**, not a byte-exact Firefox handshake.
 //! Where stock rustls emits its own shape, the gap is a *declared residual*
-//! asserted in the §12 oracle, never a silent miss. The facts frot enforces from
-//! here — ALPN order, kx-group order, sig-algorithm order, the h2 SETTINGS values
-//! — are wired through `firefox_tls.rs`; the rest (cipher breadth, extension set,
-//! key shares, `m,p,a,s`) are residuals §11/§6.4/§7 enumerate.
+//! asserted in the §12 oracle, never a silent miss. `firefox_tls.rs` wires what
+//! rustls can enforce and `transport.rs` what hyper can; the rest (cipher breadth,
+//! extensions, key shares, `m,p,a,s`, two h2 SETTINGS) are §11/§6.4/§7/§12 residuals.
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::Intent;
 
-/// The h2 wire facts of the persona (identity.md §3.1 akamai text, §12). The
-/// SETTINGS values and the connection-level WINDOW_UPDATE increment are
-/// *enforced* on the h2 client; `pseudo_order` and the HEADERS `PRIORITY` weight
-/// are the persona's values kept here as the **oracle's expected-residual
-/// reference** — the stock `h2` crate emits `m,s,a,p` and no client PRIORITY, so
-/// those two are declared residuals (§7 stage C), not what frot sends.
+/// The h2 wire facts of the persona (identity.md §3.1 akamai text, §12). Each
+/// field's doc says whether frot **enforces** it on the wire, whether only the
+/// `h2_preface.rs` oracle pins it, or whether it is a **declared residual** kept as
+/// that oracle's reference — none claims an enforcement it lacks (`bl-f312`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct H2Profile {
-    /// SETTINGS_HEADER_TABLE_SIZE (id 1).
+    /// SETTINGS_HEADER_TABLE_SIZE (id 1) — **declared residual**: absent from
+    /// frot's wire, `hyper-util` exposes no setter (`transport.rs`).
     pub header_table_size: u32,
-    /// SETTINGS_ENABLE_PUSH (id 2) — Firefox disables push.
+    /// SETTINGS_ENABLE_PUSH (id 2) — Firefox disables push. Oracle-pinned only;
+    /// hyper hardcodes the same value.
     pub enable_push: bool,
-    /// SETTINGS_INITIAL_WINDOW_SIZE (id 4).
+    /// SETTINGS_INITIAL_WINDOW_SIZE (id 4). Enforced.
     pub initial_window_size: u32,
-    /// SETTINGS_MAX_FRAME_SIZE (id 5).
+    /// SETTINGS_MAX_FRAME_SIZE (id 5). Enforced.
     pub max_frame_size: u32,
-    /// The connection-level WINDOW_UPDATE increment sent right after the preface.
+    /// Connection WINDOW_UPDATE increment sent right after the preface. Enforced
+    /// (`transport.rs` turns it into hyper's *target* window size).
     pub connection_window_increment: u32,
     /// Persona pseudo-header order (oracle reference; stock `h2` sends `m,s,a,p`).
     pub pseudo_order: &'static str,

@@ -55,16 +55,39 @@ pub(crate) struct Transport {
     client: HttpsClient,
 }
 
+/// The connection-level flow-control window every h2 endpoint starts with
+/// (RFC 9113 §6.9.2). hyper's `http2_initial_connection_window_size` is a
+/// *target* size, but the wire fact — and what the akamai-h2 fingerprint reads —
+/// is the WINDOW_UPDATE **increment**, which `h2` computes as target minus this.
+/// So the profile's increment is targeted by adding it back.
+const H2_DEFAULT_CONNECTION_WINDOW: u32 = 65_535;
+
 impl Transport {
-    /// Build the transport verifying against `roots`. The h2 SETTINGS frot can
-    /// set are taken from the profile (initial window, max frame); the rest are
-    /// hyper's defaults, a declared residual in the §12 oracle.
+    /// Build the transport verifying against `roots`.
+    ///
+    /// **What of the h2 preface frot enforces from the profile** (`bl-f312`,
+    /// measured by `h2_preface.rs`): SETTINGS id 4 `INITIAL_WINDOW_SIZE`, id 5
+    /// `MAX_FRAME_SIZE`, and the connection WINDOW_UPDATE increment.
+    ///
+    /// **What it cannot** — the two declared §12 residuals, both hyper's call:
+    /// id 1 `HEADER_TABLE_SIZE` is *absent* (Firefox sends 65536; `hyper`'s conn
+    /// builder has `header_table_size`, but `hyper-util`'s pooled `Client`
+    /// builder — the one that gives us connection reuse — exposes no passthrough
+    /// for it, and its `h2_builder` field is private), and id 6
+    /// `MAX_HEADER_LIST_SIZE` is *present* at hyper's default 16384 although
+    /// Firefox sends no such entry (hyper's config types it `u32`, not
+    /// `Option<u32>`, so there is no way to ask for omission). id 2
+    /// `ENABLE_PUSH` matches Firefox only because hyper hardcodes
+    /// `enable_push(false)`; the oracle asserts it against the profile so the
+    /// coincidence is still pinned.
     pub(crate) fn new(roots: RootCertStore) -> Self {
         let https = HttpsConnectorBuilder(roots).build();
         let client = Client::builder(TokioExecutor::new())
             .pool_max_idle_per_host(POOL_PER_HOST)
             .http2_initial_stream_window_size(FIREFOX_140_ESR.h2.initial_window_size)
-            .http2_initial_connection_window_size(FIREFOX_140_ESR.h2.connection_window_increment)
+            .http2_initial_connection_window_size(
+                FIREFOX_140_ESR.h2.connection_window_increment + H2_DEFAULT_CONNECTION_WINDOW,
+            )
             .http2_max_frame_size(FIREFOX_140_ESR.h2.max_frame_size)
             .http1_title_case_headers(true)
             .build(https);
@@ -207,6 +230,8 @@ fn classify(io: Option<std::io::ErrorKind>, is_connect: bool, msg: &str) -> &'st
     }
 }
 
+#[cfg(test)]
+mod h2_preface;
 #[cfg(test)]
 mod multiplex_tests;
 #[cfg(test)]

@@ -296,10 +296,28 @@ incl. `bl-8733` audio), `bl-e707` (clocks) — from the **same egress IP
 | `Accept-Encoding` | `gzip, br` | **`gzip, br`** (declared residual, §14 item 6) | `gzip, deflate, br, zstd` |
 | header casing | scheme-dependent (§3.4) | **one serializer, scheme-independent** | — |
 | `sec-fetch-*` / `priority` / `te` | absent | **present** (`u=0, i` / `trailers`) | present |
-| h2 SETTINGS | none (no h2) | `2:0;4:131072;5:16384;6:16384` | `1:65536;2:0;4:131072;5:16384` |
+| h2 SETTINGS | none (no h2) | `2:0;4:131072;5:16384;6:16384` (declared residual, §11 — see note below) | `1:65536;2:0;4:131072;5:16384` |
 | h2 pseudo-order | none | **`m,s,a,p`** (declared residual, §7 stage C) | `m,p,a,s` |
 | connections / page (`wiki --css`) | **3** (§3.5) | **1** (session pool reuse, `bl-5191`) | 1 (h2 mux) |
 | stripped static-musl size | 7.25 MiB | **7.63 MiB** (hyper+tokio+h2 net +~0.4 MiB) | — |
+
+**h2 SETTINGS follow-up (`bl-f312`, 2026-07-22).** The SETTINGS row above was
+recorded honestly but left *undeclared* — §14 named only pseudo-order/PRIORITY,
+so the set mismatch was a §12 drift by this doc's own rule. It is now confirmed,
+partly fixed and fully declared. Re-measured offline through the production
+transport (`src/fetch/transport/h2_preface.rs`, an ALPN-`h2` throwaway-CA origin
+reading frot's raw preface — no network, so it runs in CI): the wire is exactly
+`2:0; 4:131072; 5:16384; 6:16384`, reproducing the live `tls.peet.ws` capture.
+**Fixed:** the connection WINDOW_UPDATE increment was 12451842, not the 12517377
+the profile declared and Firefox sends — hyper's
+`http2_initial_connection_window_size` is a *target* window, from which `h2`
+subtracts the RFC 9113 default 65535 to get the increment, so frot was off by
+that much in the akamai-h2 fingerprint's second field. `transport.rs` now targets
+increment + 65535 and the wire increment matches Firefox exactly. **Declared:**
+ids 1 and 6 are blocked by `hyper-util` and are now §11 residuals asserted in the
+oracle. **Reconciled:** `profile.rs` no longer claims the whole SETTINGS set is
+enforced — each `H2Profile` field's doc now says which of enforced /
+oracle-enforced / declared-residual it is.
 
 **JS persona coherence (live, `--js`, `js.errors:0 settled:true`):**
 `navigator.userAgent` = the *same* `…rv:140.0…Firefox/140.0` string as the wire
@@ -1109,6 +1127,7 @@ Permanently out of reach, by design or by constraint:
 | **Cipher *list* breadth (9 vs 17) → JA4 cipher component** | rustls advertises only its AEAD suites, not Firefox's legacy CBC/RSA. The cipher *order* matches; the *list* (and thus the JA4 cipher hash) does not. Declared residual (§6.1). |
 | **secp521r1 + FFDHE2048/3072 groups** | Not offered by aws-lc-rs; the other four persona groups match in order (§6.1). |
 | **`m,p,a,s` pseudo-order + HEADERS PRIORITY** | Deferred to stage C (§7); the `h2` crate hardcodes `m,s,a,p` and exposes no client PRIORITY. |
+| **h2 SETTINGS id 1 `HEADER_TABLE_SIZE` absent; id 6 `MAX_HEADER_LIST_SIZE` present** | Blocked by `hyper-util` (`bl-f312`, 2026-07-22). frot sends `2:0; 4:131072; 5:16384; 6:16384`; Firefox 140esr sends `1:65536; 2:0; 4:131072; 5:16384`. ids 4 and 5 are enforced from the profile and the connection WINDOW_UPDATE increment now matches Firefox exactly (12517377). The two that do not: `hyper`'s conn builder has `header_table_size`, but `hyper-util`'s **pooled** `Client` builder — the one giving frot h2 connection reuse (§3.5) — exposes no passthrough and keeps its `h2_builder` private, so id 1 cannot be sent; and hyper types `max_header_list_size` as `u32`, not `Option<u32>`, so id 6 cannot be omitted. Closing either means dropping the pool or forking hyper — the same trade §6.3 refuses for rustls. Both are asserted, with the persona's 65536 kept as the reference, in `src/fetch/transport/h2_preface.rs`. |
 | **UTC timezone** | Deliberate — determinism over realism (§9). |
 | **frot is identifiable *as frot*** | See §14 — this is accepted, not solved. |
 
@@ -1168,9 +1187,18 @@ residual.** Ordered capabilities are identity:
 - ALPN list and order; negotiated protocol
 - `record_size_limit` = 16385; `compress_certificate` = zlib, brotli, zstd
 - absence of GREASE
-- h2 SETTINGS: **4 entries, values and order**; WINDOW_UPDATE 12517377; first
+- h2 SETTINGS: **the entry set, values and order**; WINDOW_UPDATE 12517377; first
   HEADERS on **stream 3**; `PRIORITY` flag with weight 42 / depends_on 0 /
-  exclusive 0; pseudo-order
+  exclusive 0; pseudo-order. **Built and dated (`bl-f312`, 2026-07-22):
+  `src/fetch/transport/h2_preface.rs`** captures frot's real preface off an
+  ALPN-`h2` throwaway-CA origin and pins `2:0; 4:131072; 5:16384; 6:16384` plus
+  the stream-0 WINDOW_UPDATE increment 12517377. The expectations are *derived
+  from* `FIREFOX_140_ESR.h2`, so the profile stays the single source: ids 4/5 and
+  the increment are enforced from it, id 2 is asserted against it (hyper hardcodes
+  the same value, so the match is hyper's — pinned anyway), and the two §11
+  residuals are asserted **as residuals** — id 1's absence, id 6's presence at
+  hyper's default. A fifth entry, a missing one, or a changed value fails the
+  build; no h2 SETTINGS fact is outside the declared set.
 - request header **names, order, and values**, per destination
 - h1 header **casing**, asserted on **both** schemes (I3 — this is the regression
   test for §3.4)
@@ -1270,9 +1298,11 @@ Attacking it before committing it, per `~/AGENTS.md`.
    fingerprint — just a *consistent* one rather than a *self-contradictory* one.
    **The goal was never to be unidentifiable; it is to not be incoherent.** Say
    this plainly rather than letting a reader infer stealth.
-4. **Most residuals in §11 are permanent under the current constraints**, and two
-   of them (key shares, pseudo-order) are inside the fingerprint a serious
-   defence actually hashes. *(One row is no longer permanent: high-entropy
+4. **Most residuals in §11 are permanent under the current constraints**, and
+   three of them (key shares, pseudo-order, and the h2 SETTINGS set — `bl-f312`
+   added that row on 2026-07-22, and its absence from this list was itself the
+   §12 drift that ball closed) are inside the fingerprint a serious defence
+   actually hashes. *(One row is no longer permanent: high-entropy
    rendering became an in-scope, unbuilt gap on 2026-07-20 — §10, `bl-bd4e`.)*
 5. **Profile staleness is silent without I8.** CI has no network, so nothing
    notices Firefox moving. I8's build-time expiry is the mitigation and it is
