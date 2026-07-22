@@ -372,6 +372,22 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   honestly resolves to `[]`; `cmp()` is a real synchronous key comparison. Apps
   that gate on *existence* work; apps that *await* an open fail into the §10
   outcome story.
+- `navigator.permissions` / `Notification`: **present, but no grant (`bl-1548`,
+  LANDED).** Firefox exposes both; the §10 coherence bar makes absence a louder
+  tell than a costume, so `navigator.permissions` is a branded `Permissions`
+  whose `query({name})` returns a `Promise<PermissionStatus>` (branded, `[object
+  PermissionStatus]`, `state`/`name`/`onchange`, EventTarget), and
+  `window.Notification` is a branded, constructable interface (static
+  `permission`/`maxActions`/`requestPermission`). Every value is fixed / never
+  random: on a FRESH profile nothing is granted or denied, so `query()` resolves
+  `state: 'prompt'` for every recognised name (the Firefox 140esr `PermissionName`
+  enum; an unrecognised name **rejects** with the coherent `TypeError`),
+  `Notification.permission` is `'default'`, and `requestPermission()` resolves an
+  honest `'default'`. frot raises no prompt and shows no notification — a
+  constructed `Notification` fires no event; `onchange`/`onclick` **never fire** —
+  the declared residual (`identity.md` §11). This is exactly what a real,
+  un-prompted page sees, so it is coherent, not a wrong value: asking for a grant
+  frot cannot make would be the louder tell. Pure JS over `brand.js`, no syscall.
 - `navigator` / `location`: `location` *assignment* is navigation — a counted
   no-op; frot takes an impression of one document, it does not browse.
   **The `navigator` identity surface derives from the profile (`bl-3972` LANDED,
@@ -583,6 +599,16 @@ Two moves against today's `run.rs`:
   none**. That non-delivery is the one declared residual (identity.md §11), not a
   bug: presence is the coherence requirement (§10), execution stays out of scope
   (GET-only, bounded, stateless all hold — the shim spawns nothing).
+- **No permission grant, no notification prompt** (`bl-1548`, §7). The
+  `navigator.permissions` / `Notification` *surfaces* are present as a coherent
+  masquerade: `navigator.permissions.query({name})` resolves a Firefox-shaped
+  `PermissionStatus`, `typeof Notification === 'function'`. But frot raises no
+  prompt and shows no notification, so every `query()` resolves `'prompt'`,
+  `Notification.permission` is `'default'`, `requestPermission()` resolves
+  `'default'`, and a constructed notification fires no event. That no-grant /
+  no-fire is a declared residual (identity.md §11), not a bug: a real un-prompted
+  page sees exactly this, so it is coherent — inventing a `'granted'` frot cannot
+  back would be the louder tell (§10).
 - **Coherent identity, yes; defeating defences, no** (`docs/design/identity.md`
   §10 — this boundary **moved twice**: `bl-0356` moved it, then Mark's
   masquerade ruling moved it again on 2026-07-20, and this bullet is the latest

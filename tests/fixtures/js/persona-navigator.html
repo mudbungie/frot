@@ -245,6 +245,84 @@
   eq('idbvce:default-new', new IDBVersionChangeEvent('x').newVersion, null);
   eq('idbvce:no-arg', threw(function () { new IDBVersionChangeEvent(); }), 'TypeError');
 
+  // --- Permissions / Notification: coherent presence, no grant (bl-1548) -------
+  // Firefox exposes both; frot masquerades the surface (feature detect passes)
+  // with every value fixed — a fresh profile grants nothing, so query() resolves
+  // 'prompt' and Notification.permission is 'default'. No prompt is ever raised
+  // and no notification shown: the honest no-grant is the declared residual (§11).
+  var perms = navigator.permissions;
+  eq('perm:tag', Object.prototype.toString.call(perms), '[object Permissions]');
+  ok('perm:instanceof', perms instanceof Permissions);
+  ok('perm:proto', Object.getPrototypeOf(perms) === Permissions.prototype);
+  native('perm:query', perms.query);
+  ok('perm:query-promise', perms.query({ name: 'geolocation' }) instanceof Promise);
+  // PermissionStatus is not constructable (Firefox: Illegal constructor).
+  eq('perm:status-illegal', threw(function () { new PermissionStatus(); }), 'TypeError');
+
+  eq('Notification:type', typeof Notification, 'function');
+  native('Notification', Notification);
+  // Static surface: permission 'default', maxActions 2, requestPermission present.
+  eq('Notification:permission', Notification.permission, 'default');
+  eq('Notification:maxActions', Notification.maxActions, 2);
+  native('Notification:requestPermission', Notification.requestPermission);
+  ok('Notification:req-promise', Notification.requestPermission() instanceof Promise);
+  var note = new Notification('hi', { body: 'b', tag: 't' });
+  eq('note:tag', Object.prototype.toString.call(note), '[object Notification]');
+  ok('note:instanceof', note instanceof Notification);
+  eq('note:title', note.title, 'hi');
+  eq('note:body', note.body, 'b');
+  eq('note:tagprop', note.tag, 't');
+  eq('note:dir-default', note.dir, 'auto');
+  // onclick is a native, enumerable prototype accessor defaulting null, settable —
+  // but it never fires (the residual is silence: frot shows no notification).
+  eq('note:onclick-default', note.onclick, null);
+  var nd = Object.getOwnPropertyDescriptor(Notification.prototype, 'onclick');
+  ok('note:onclick-accessor', typeof nd.get === 'function' && typeof nd.set === 'function');
+  ok('note:onclick-enumerable', nd.enumerable === true);
+  native('note:onclick.get', nd.get);
+  var nh = function () {};
+  note.onclick = nh;
+  ok('note:onclick-set', note.onclick === nh);
+  ok('note:close-void', note.close() === undefined);
+  // Firefox throws TypeError when the required title argument is missing.
+  eq('note:no-arg', threw(function () { new Notification(); }), 'TypeError');
+
+  // Async: query()/requestPermission() resolutions and rejections. Their .then
+  // callbacks run in the microtask drain AFTER this script, so they fold into
+  // FAILS and re-write data-fail below — the Rust gate reads it only after settle.
+  function permOk(nm) {
+    return perms.query({ name: nm }).then(function (s) {
+      ok('perm:' + nm + ':status', s instanceof PermissionStatus);
+      eq('perm:' + nm + ':tag', Object.prototype.toString.call(s), '[object PermissionStatus]');
+      eq('perm:' + nm + ':state', s.state, 'prompt');
+      eq('perm:' + nm + ':name', s.name, nm);
+      eq('perm:' + nm + ':onchange', s.onchange, null);
+      native('perm:' + nm + ':addEventListener', s.addEventListener);
+    }, function () { FAILS.push('perm:' + nm + ':rejected'); });
+  }
+  function permRejects(desc, arg) {
+    return perms.query(arg).then(
+      function () { FAILS.push(desc + ':resolved'); },
+      function (e) { ok(desc + ':TypeError', e instanceof TypeError); });
+  }
+  var asyncChecks = [
+    permOk('geolocation'), permOk('notifications'), permOk('camera'),
+    permRejects('perm:bogus', { name: 'bogus' }),   // unknown enum value
+    permRejects('perm:noname', {}),                 // missing required member
+    permRejects('perm:nonobj', 'geolocation'),      // not an object
+    // Zero-argument call: the WebIDL arity error, also a rejected promise.
+    perms.query().then(
+      function () { FAILS.push('perm:zeroarg:resolved'); },
+      function (e) { ok('perm:zeroarg:TypeError', e instanceof TypeError); }),
+    // requestPermission resolves an honest 'default' (no grant), both the promise
+    // and the legacy callback forms — no prompt is ever raised (the residual).
+    Notification.requestPermission(function (p) {
+      eq('Notification:req-callback', p, 'default');
+    }).then(function (p) {
+      eq('Notification:req-value', p, 'default');
+    }),
+  ];
+
   // --- Absent capability surfaces (§8): masquerade does not fabricate these ----
   eq('serviceWorker', typeof n.serviceWorker, 'undefined');
   eq('geolocation', typeof n.geolocation, 'undefined');
@@ -255,6 +333,11 @@
   de.setAttribute('data-ua', ua);
   de.setAttribute('data-fail', JSON.stringify(FAILS));
   de.setAttribute('data-done', '1');
+  // Re-write data-fail after the async permission checks settle (see above): the
+  // microtask drain runs before the gate reads the attribute, so this wins.
+  Promise.all(asyncChecks).then(function () {
+    de.setAttribute('data-fail', JSON.stringify(FAILS));
+  });
 </script>
 </body>
 </html>

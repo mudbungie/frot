@@ -50,6 +50,10 @@ pub const SOURCE: &str = concat!(
     // dom.js (extends document/Node), any order among themselves.
     include_str!("prelude/navigator.js"),
     "\n",
+    // Permissions API + Notification (bl-1548): coherent presence, no grant. AFTER
+    // navigator.js because it extends Navigator.prototype (navigator.permissions).
+    include_str!("prelude/permissions.js"),
+    "\n",
     include_str!("prelude/screen.js"),
     "\n",
     include_str!("prelude/intl.js"),
