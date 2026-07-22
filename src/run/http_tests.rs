@@ -118,35 +118,71 @@ fn headers_of(v: &Value) -> Vec<(String, String)> {
 }
 
 #[test]
-fn ok_response_surfaces_allowlisted_headers_and_strips_set_cookie() {
-    // The additive `http.headers`: the allowlisted response headers ride every
-    // network response, in wire order; `set-cookie` (session material, owned by
-    // the cookie jar) and volatile headers (`date`) never appear.
+fn surfaces_exactly_the_allowlist_and_nothing_else() {
+    // The allowlist pinned end-to-end, not just at the constructor
+    // (`envelope::http::tests`): a response carrying every `SURFACED` entry
+    // plus session material and a per-request volatile must yield those six
+    // and *only* those six. `set-cookie` is the cookie jar's alone (bl-6dad)
+    // and a request id would make golden captures non-deterministic
+    // (identity.md §12) — a leak of either is a regression this catches.
     let mut server = mockito::Server::new();
     let _m = server
         .mock("GET", "/")
         .with_status(200)
-        .with_header("server", "snooserv")
-        .with_header("set-cookie", "sid=secret; HttpOnly")
-        .with_header("date", "Mon, 20 Jul 2026 00:00:00 GMT")
-        .with_header("content-type", "text/html")
-        .with_body("<p>hi</p>")
+        .with_header("Retry-After", "0")
+        .with_header("CF-Mitigated", "challenge")
+        .with_header("x-amzn-waf-action", "challenge")
+        .with_header("Server", "snooserv")
+        .with_header("X-DataDome", "protected")
+        .with_header("Content-Type", "text/html")
+        .with_header("Set-Cookie", "sid=secret; HttpOnly")
+        .with_header("X-Request-Id", "e3b0c442")
+        .with_body("<html><body><p>hi</p></body></html>")
         .create();
-    let (code, out, _) = run_capture(&[&server.url(), "--out", "text"]);
-    assert_eq!(code, 0);
+    let (_c, out, _) = run_capture(&[&server.url(), "--out", "text"]);
     let v = parse_envelope(&out);
-    let hs = headers_of(&v);
-    assert!(hs.contains(&("server".into(), "snooserv".into())), "{hs:?}");
-    assert!(
-        hs.iter().any(|(n, _)| n == "content-type"),
-        "content-type surfaced: {hs:?}"
-    );
-    assert!(
-        hs.iter().all(|(n, _)| n != "set-cookie"),
-        "set-cookie must never surface: {hs:?}"
-    );
-    assert!(
-        hs.iter().all(|(n, _)| n != "date"),
-        "volatile date must not surface: {hs:?}"
-    );
+    // Compared as a multiset, not a sequence: the capture is hyper's
+    // `HeaderMap::iter()`, whose order across *distinct* names is documented
+    // as arbitrary, so a fixed sequence here would pin a hyper hash detail
+    // rather than a frot contract. Order within one name is guaranteed and is
+    // pinned by `repeated_header_keeps_wire_order` below; order preservation
+    // through the filter itself is pinned in `envelope::http::tests`.
+    let mut got = headers_of(&v);
+    got.sort();
+    let mut want: Vec<(String, String)> = [
+        ("retry-after", "0"),
+        ("cf-mitigated", "challenge"),
+        ("x-amzn-waf-action", "challenge"),
+        ("server", "snooserv"),
+        ("x-datadome", "protected"),
+        ("content-type", "text/html"),
+    ]
+    .iter()
+    .map(|(n, x)| (n.to_string(), x.to_string()))
+    .collect();
+    want.sort();
+    assert_eq!(got, want, "the allowlist, lower-cased, and nothing else");
+}
+
+#[test]
+fn repeated_header_keeps_wire_order() {
+    // One name sent twice: HTTP allows it, so `http.headers` is a list and not
+    // a map (bl-acec). Both values survive, in the order the server sent them
+    // — a map would silently collapse them to one.
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_header("retry-after", "0")
+        .with_header("retry-after", "120")
+        .with_body("<html><body><p>hi</p></body></html>")
+        .create();
+    let (_c, out, _) = run_capture(&[&server.url(), "--out", "text"]);
+    let v = parse_envelope(&out);
+    let retries: Vec<String> = headers_of(&v)
+        .into_iter()
+        .filter(|(n, _)| n == "retry-after")
+        .map(|(_, x)| x)
+        .collect();
+    assert_eq!(retries, vec!["0".to_string(), "120".to_string()]);
 }

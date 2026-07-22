@@ -38,7 +38,8 @@ use crate::envelope::kinds;
 
 type HttpsClient = Client<HttpsConnector<HttpConnector>, Empty<Bytes>>;
 
-/// One raw HTTP response: status, headers (wire order preserved), and the body
+/// One raw HTTP response: status, headers (hyper's `HeaderMap` order — wire
+/// order within a repeated name, arbitrary across names), and the body
 /// bytes exactly as received (still content-encoded — the caller inflates).
 #[derive(Debug)]
 pub(crate) struct RawResponse {

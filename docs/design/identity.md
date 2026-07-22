@@ -1146,10 +1146,16 @@ residual.** Ordered capabilities are identity:
   test for §3.4)
 - the §8 `navigator` fact set
 - the envelope `http.headers` allowlist (`bl-acec`): `retry-after`,
-  `cf-mitigated`, `server`, `x-datadome`, `content-type` — lower-cased names in
-  wire order, repeats preserved. Deterministic by construction (`set-cookie`
-  and volatile per-request headers are excluded), so it is a golden field, not a
-  normalized one; a surfaced header outside the allowlist is a drift.
+  `cf-mitigated`, `x-amzn-waf-action`, `server`, `x-datadome`, `content-type` —
+  lower-cased names, repeats preserved in wire order. Deterministic by
+  construction (`set-cookie` and volatile per-request headers are excluded), so
+  it is a golden field, not a normalized one; a surfaced header outside the
+  allowlist is a drift. **Order across distinct names is not a contract**
+  (measured, `bl-160d`): the capture is hyper's `HeaderMap::iter()`, whose
+  cross-name order is documented as arbitrary, so the offline pin
+  (`run::http_tests::surfaces_exactly_the_allowlist_and_nothing_else`) asserts
+  the allowlist's *contents* as a multiset and pins sequence only for a
+  repeated name.
 
 **Hashes are assertions, not fixtures.** JA3/JA3N/JA4/JA4_r/JA4_ro/peetprint/
 akamai values are **computed from the capture and compared to the profile's

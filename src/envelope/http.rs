@@ -30,9 +30,19 @@
 use serde::{Deserialize, Serialize};
 
 /// One surfaced response header. A flat `{name, value}` pair, not a map entry:
-/// HTTP allows a header name to repeat, and an ordered list preserves repeats
-/// and wire order honestly where a map would silently collapse them (`bl-acec`).
-/// `name` is lower-cased so callers match without case folding.
+/// HTTP allows a header name to repeat, and an ordered list preserves those
+/// repeats and their relative order honestly where a map would silently
+/// collapse them to one (`bl-acec`). `name` is lower-cased so callers match
+/// without case folding.
+///
+/// How far the ordering guarantee reaches (measured, `bl-160d`): [`surfaced`]
+/// preserves the capture's order exactly, and the transport captures from
+/// hyper's `HeaderMap::iter()`, which yields a repeated name's values in wire
+/// order but whose order *across distinct names* is documented as arbitrary.
+/// So a caller may rely on the relative order of repeats and must not rely on
+/// the order between different names — the pins split the same way
+/// (`run::http_tests::repeated_header_keeps_wire_order` asserts the sequence,
+/// `surfaces_exactly_the_allowlist_and_nothing_else` asserts the contents).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HttpHeader {
     pub name: String,
@@ -55,8 +65,8 @@ pub const SURFACED: &[&str] = &[
 /// `file://` read carries none — no response happened). Additive to the
 /// envelope: the envelope `status` describes the impression operation, `status`
 /// here reports the raw transport code the server returned, and `headers`
-/// surfaces the allowlisted response headers in wire order (module docs) — the
-/// evidence behind frot's own `needs` signal, no longer discarded.
+/// surfaces the allowlisted response headers in capture order (module docs) —
+/// the evidence behind frot's own `needs` signal, no longer discarded.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HttpInfo {
     pub status: u16,
@@ -65,7 +75,7 @@ pub struct HttpInfo {
 
 impl HttpInfo {
     /// Build from the one response capture: keep the raw status and the
-    /// [`SURFACED`] slice of `headers`, in the order the server sent them.
+    /// [`SURFACED`] slice of `headers`, in the order they were captured.
     pub fn new(status: u16, headers: &[(String, String)]) -> Self {
         Self {
             status,
