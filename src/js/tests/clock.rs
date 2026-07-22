@@ -16,7 +16,7 @@ use super::{test_env, Session, StyleSource};
 /// A session whose engine reads the injected `clock` — the test keeps its own
 /// clone (a manual clock shares state), so advancing it moves the run's one clock.
 fn sess_clock(clock: Clock) -> Session {
-    Session::with_clock(
+    Session::with_budget(
         Document::parse("<html><body></body></html>"),
         StyleSource::Bare,
         test_env(),

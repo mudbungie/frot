@@ -23,7 +23,7 @@ use std::time::Duration;
 
 use crate::dom::{Document, NodeId};
 use crate::fetch::FetchSession;
-use engine::EXEC_BUDGET_MS;
+use engine::{Clock, EXEC_BUDGET_MS};
 use script::{next_script, Script};
 
 pub use engine::EvalError;
@@ -82,19 +82,24 @@ pub fn run(
         env,
         fetch,
         Duration::from_millis(EXEC_BUDGET_MS),
+        Clock::real(),
     )
 }
 
-/// [`run`] with an explicit wall-clock budget; the tests dial it down so the
-/// budget-trip paths stay deterministic and fast (the 4.1 spike's pattern).
+/// [`run`] with an explicit wall-clock budget measured on an explicit [`Clock`].
+/// The budget-trip tests dial the budget down against [`Clock::real`] so those
+/// paths stay deterministic and fast (the 4.1 spike's pattern); every other test
+/// drives on [`Clock::manual`], whose reading only the test moves — so a run
+/// whose subject is *not* timing cannot be failed by a loaded host.
 fn run_with(
     doc: Document,
     styles: StyleSource,
     env: Env,
     fetch: &FetchSession,
     budget: Duration,
+    clock: Clock,
 ) -> (Document, Report) {
-    let session = Session::with_budget(doc, styles, env, fetch, budget);
+    let session = Session::with_budget(doc, styles, env, fetch, budget, clock);
     session.begin();
     let report = run_session(&session);
     (session.into_document(), report)

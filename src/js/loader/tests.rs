@@ -1,5 +1,5 @@
 //! ES-module resolver/loader tests (js.md §4.1/§6). Every resolve and load
-//! branch is driven as real module evaluation through [`run`] — the honest path
+//! branch is driven as real module evaluation through [`run_with`] — the honest path
 //! a `type="module"` page takes — over `file://` sibling fixtures and a local
 //! `mockito` server (never the real network, the repo test rule). Counts are the
 //! §10 contract: a resolved import is `errors: 0`; an unresolvable specifier or a
@@ -9,7 +9,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use super::super::{run, run_with, Env, Report, StyleSource};
+use super::super::engine::{Clock, EXEC_BUDGET_MS};
+use super::super::{run_with, Env, Report, StyleSource};
 use crate::dom::Document;
 use crate::fetch::FetchSession;
 
@@ -38,13 +39,19 @@ fn env(url: &str) -> Env {
     }
 }
 
-/// Drive a page whose module imports resolve against `url`.
+/// Drive a page whose module imports resolve against `url`, on a manual clock
+/// (bl-1e54): these assert what the load produced, never how long it took, so
+/// the shipping clock only let a loaded host expire the §5 budget mid-run and
+/// fail them. The budget-trip tests below keep [`Clock::real`] — there the
+/// timing is the subject.
 fn drive_at(html: &str, url: &str) -> (Document, Report) {
-    run(
+    run_with(
         Document::parse(html),
         StyleSource::Bare,
         env(url),
         &FetchSession::new(Vec::new()),
+        Duration::from_millis(EXEC_BUDGET_MS),
+        Clock::manual(),
     )
 }
 
@@ -197,6 +204,7 @@ fn an_endless_module_trips_the_budget_and_is_unsettled() {
         env(&page_url(&dir)),
         &FetchSession::new(Vec::new()),
         Duration::from_millis(20),
+        Clock::real(),
     );
     assert_eq!((r.scripts, r.errors, r.settled), (1, 1, false));
     fs::remove_dir_all(&dir).unwrap();
@@ -218,6 +226,7 @@ fn a_dead_deadline_refuses_module_loads_and_the_run_is_unsettled() {
         env(&page_url(&dir)),
         &FetchSession::new(Vec::new()),
         Duration::ZERO,
+        Clock::real(),
     );
     assert_eq!((r.scripts, r.errors, r.settled), (1, 1, false));
     fs::remove_dir_all(&dir).unwrap();

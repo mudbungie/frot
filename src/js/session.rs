@@ -48,27 +48,17 @@ impl Session {
             env,
             fetch,
             Duration::from_millis(EXEC_BUDGET_MS),
+            Clock::real(),
         )
     }
 
-    /// [`Session::new`] with an explicit wall-clock budget for the engine — the
-    /// event loop's single deadline (§5), dialed down by the budget-trip tests.
+    /// [`Session::new`] with the engine's wall-clock budget — the event loop's
+    /// single deadline (§5), dialed down by the budget-trip tests — measured on
+    /// an injected `clock` (`bl-e707`). Shipping passes [`Clock::real`]; a test
+    /// passes [`Clock::manual`], so the same clock feeds both the deadline and
+    /// the observable `performance.now`/`Date.now` and no verdict can depend on
+    /// host load or real sleeping.
     pub fn with_budget(
-        doc: Document,
-        styles: StyleSource,
-        env: Env,
-        fetch: &FetchSession,
-        budget: Duration,
-    ) -> Self {
-        Self::build(doc, styles, env, fetch, budget, Clock::real(), None)
-    }
-
-    /// [`with_budget`](Self::with_budget) over an injected [`Clock`] (`bl-e707`):
-    /// the same manual clock the test advances feeds both the run's deadline and
-    /// the observable `performance.now`/`Date.now`, proving their coherence with
-    /// no real sleeping.
-    #[cfg(test)]
-    pub fn with_clock(
         doc: Document,
         styles: StyleSource,
         env: Env,
