@@ -265,6 +265,88 @@ not — the two are now distinguishable in one envelope shape. The *reporting*
 still differs (one `needs`, one `error`); only the evidence gap is closed. See
 §15.
 
+### 3.8 Post-transport capstone re-measurement (`bl-d66b`, 2026-07-21)
+
+Measured after **every** identity sibling landed — `bl-abca` (Option C: stock
+`rustls 0.23` + `aws-lc-rs` + real h2), `bl-20ec` (one request serializer),
+`bl-5191` (per-invocation session), `bl-3972`/capability balls (JS persona,
+incl. `bl-8733` audio), `bl-e707` (clocks) — from the **same egress IP
+`[redacted-egress-ip]`** as §3.1 (verified identical), release binary from the
+`bl-d66b` worktree, `cargo build --release`. Wire persona read black-box through
+`tls.peet.ws/api/all` (the §3.1 tool). This is the §14 falsifier run.
+
+**Transport, frot then → now (same oracle, same egress):**
+
+| field | frot 2026-07-19 (pre-transport) | **frot 2026-07-21 (as-built)** | Firefox 140.12.0esr (the pin) |
+|---|---|---|---|
+| negotiated version | HTTP/1.1 | **h2** | h2 |
+| ALPN | `["http/1.1"]` | **`["h2","http/1.1"]`** (h2 selected) | `["h2","http/1.1"]` |
+| JA4 | `t13d1714h1_5b57614c22b0_abe81bfac2ff` | **`t13d1011h2_61a7ad8aa9b6_f9531d972513`** | `t13d1717h2_5b57614c22b0_3cbfd9057e0d` |
+| cipher count | 17 | **10** | 17 |
+| TLS extension count | 14 | **11** | 17 |
+| key shares | 1 | **≤2** | 3 |
+| advertised UA | Firefox 121.0 | **Firefox 140.0** | Firefox 140.0 |
+| `Accept` value | `…image/avif,image/webp…` (Chrome-shaped) | **`text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8`** | *identical* |
+| `Accept-Encoding` | `gzip, br` | **`gzip, br`** (declared residual, §14 item 6) | `gzip, deflate, br, zstd` |
+| header casing | scheme-dependent (§3.4) | **one serializer, scheme-independent** | — |
+| `sec-fetch-*` / `priority` / `te` | absent | **present** (`u=0, i` / `trailers`) | present |
+| h2 SETTINGS | none (no h2) | `2:0;4:131072;5:16384;6:16384` | `1:65536;2:0;4:131072;5:16384` |
+| h2 pseudo-order | none | **`m,s,a,p`** (declared residual, §7 stage C) | `m,p,a,s` |
+| connections / page (`wiki --css`) | **3** (§3.5) | **1** (session pool reuse, `bl-5191`) | 1 (h2 mux) |
+| stripped static-musl size | 7.25 MiB | **7.63 MiB** (hyper+tokio+h2 net +~0.4 MiB) | — |
+
+**JS persona coherence (live, `--js`, `js.errors:0 settled:true`):**
+`navigator.userAgent` = the *same* `…rv:140.0…Firefox/140.0` string as the wire
+UA header (no version contradiction, the §3.3/§3.5-era tell), `platform`
+`Linux x86_64`, `language` `en-US` (matches `Accept-Language`),
+`hardwareConcurrency` 8; `canvas.toDataURL()` a real PNG, `WebGLRenderingContext`
+and `OfflineAudioContext` both `function`, `webkitAudioContext` `undefined`
+(coherent — Firefox has no alias). The deterministic half of this is asserted in
+CI (`src/js/tests/persona_gold.rs`, cross-invocation stable).
+
+**The §14 verdict — measured, not dressed up.**
+
+1. **Coherence: achieved.** The pre-phase capture's dominant tells are gone —
+   the h1-under-a-Firefox-UA contradiction (h2 now), the Chrome-shaped `Accept`,
+   the scheme-dependent header casing, the Firefox-121/140-cipher mismatch, and
+   the one-connection-per-request anomaly (3→1). frot now presents *one*
+   internally consistent Firefox-140esr identity across TLS, ALPN, HTTP/2,
+   headers, and `navigator`. This is the win the epic was actually premised on
+   (§6.3/§14) and it is real.
+2. **Byte-exact fingerprint: not achieved, by design (Option C).** JA4 is
+   `t13d1011h2_…`, **not** the pin's `t13d1717h2_…`: stock rustls emits 10
+   ciphers (not 17), 11 extensions (not 17), ≤2 key shares (not 3); the `h2`
+   crate emits `m,s,a,p` (not `m,p,a,s`); `Accept-Encoding` stays `gzip, br`.
+   Every one of these is a **declared residual** (§6.4/§7/§11/§14), asserted in
+   the §12 oracle — never a silent miss. Consistent with §1's "coherent, current,
+   maintained — explicitly **not** byte-identical."
+3. **Access outcomes: NULL — no gate changed.** The field corpus is
+   **byte-for-outcome identical** to the pre-transport §3.6/§3.7 baseline:
+   controls (wikipedia/lobste.rs/HN/react.dev) still `ok` with real content;
+   StackOverflow still `200` real content (its gate **still does not reproduce**
+   from this IP — do not cite it); Amazon still `202` soft-block (still
+   mislabelled `needs:["js"]` — the `needs.md`/§15 defect, unchanged and now
+   carrying `server: CloudFront`); reddit still `needs:["human"]`, g2 still
+   `error{http.403}` carrying `x-datadome: protected`. **No target that failed
+   before now succeeds, and none that succeeded now fails.** This is the
+   publishable null §14 item 1 predicted. The justification standing on measured
+   ground is **coherence + security maintenance (§6.3)**, not access improvement.
+4. **Controls and gates intact.** All 757 tests pass, 100% line+region coverage,
+   clippy clean, static-musl links (`static-pie`, `ldd` = not a dynamic
+   executable) and fetches live over h2; size 7.63 MiB, inside the 5–15 MiB
+   envelope. No artificial delays, no bypass, no per-site shim was added to force
+   a result — the harness reports the null honestly (`examples/ab_harness.rs`).
+
+**Residual failure classification (by evidence, per the stop rule).** The
+soft-2xx and challenge cases that remain are not client-profile failures: Amazon
+202 is a *withheld body* the server chose (a `needs`-labelling defect, §15
+item 2, owned elsewhere), reddit/g2 are *declared challenges* frot correctly
+stops before (§3.7, `needs:["human"]`/`error` honesty preserved). The residuals
+*inside* the fingerprint a serious defence hashes (cipher breadth, extension
+set, key shares, pseudo-order) are the Option-C ceiling (§6.4) — a rustls-fork
+cost §6.3 declines to pay for an unproven access gain. IP/ASN reputation (§14
+item 2) is untested here and out of scope.
+
 ---
 
 ## 4. The one profile
@@ -1037,18 +1119,18 @@ position.
 
 Attacking it before committing it, per `~/AGENTS.md`.
 
-1. **It is not proven to change any outcome.** No A/B was run. The one hard case
-   that reproduces (Amazon 202) is **not** shown to be fingerprint-caused, and
-   the case that motivated the whole masquerade (StackOverflow) **no longer
-   reproduces** (§3.6). The justification standing on measured ground is
-   *coherence* and *security maintenance* (§6.3) — not measured access
-   improvement. `bl-d66b`'s corpus re-run is the falsifier; if it shows no
-   change, that result belongs in this section, not in a drawer.
-   **Filed responses (Mark's ruling, 2026-07-20 — *"on a/b, well we should
-   probably file some tests then!"*):** the A/B gap is now owned by **`bl-46f5`**
-   (field-corpus A/B harness) and capability-gap *measurement* — which signals a
-   server requires and whether frot produces a matching one — by **`bl-bd4e`**.
-   The gap is tracked, not merely noted.
+1. **It changes no measured access outcome — the falsifier ran and this is the
+   result (`bl-d66b`, 2026-07-21, §3.8).** The corpus re-run after every sibling
+   landed is **outcome-identical** to the pre-transport baseline: no gate that
+   failed now succeeds, none that succeeded now fails. StackOverflow still does
+   not reproduce its gate from this IP; Amazon 202 is still a withheld body, not
+   fingerprint-caused. **This null belongs here, not in a drawer** — recorded as
+   promised. The justification standing on measured ground is *coherence* (the
+   §3.8 tells are gone) and *security maintenance* (§6.3), **not** access
+   improvement; that was always the honest claim (§1) and the measurement holds
+   it to it. The A/B instrument is `examples/ab_harness.rs` (`bl-46f5`) and the
+   capability-gap measurement is `docs/design/probe-evidence.md` (`bl-bd4e`);
+   both report the null without adding a bypass to force one.
 2. **IP/ASN reputation probably dominates.** Everything here is client identity.
    If a target scores the egress IP, a perfect profile changes nothing.
 3. **Determinism makes frot a cohort.** Pinning `hardwareConcurrency`, timezone,
@@ -1102,5 +1184,8 @@ Each needs its own ball.
    is `needs:["human"]`, g2's is `error{http.403}`. Both mean "a bot defence
    refused us". A consumer must handle both.
 4. **`ARCHITECTURE.md`'s StackOverflow justification is stale** — corrected in
-   this pass, but the underlying question (does the TLS masquerade earn its
-   keep?) is open until `bl-d66b`.
+   this pass. The underlying question (does the TLS masquerade earn its keep?)
+   is now **answered** by `bl-d66b` (§3.8/§14 item 1): **not on access** (a
+   measured null), but **yes on coherence and security maintenance** — the axis
+   the epic was actually filed on. It earns its keep as engineering, not as a
+   gate-opener; the docs now say that plainly rather than implying access value.
