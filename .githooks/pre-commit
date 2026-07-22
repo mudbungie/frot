@@ -22,6 +22,17 @@ if [ -n "$staged_rs" ]; then
   printf '%s\n' "$staged_rs" | scripts/line-limit.sh || exit 1
 fi
 
+# Clippy. Runs before coverage so a lint error fails faster than the
+# instrumented build. Calls the Makefile `lint` target (one home, shared with
+# CI's `make lint`); without it here, a warning passes `bl close` and only
+# reddens CI afterward.
+if [ -n "$staged_rs" ]; then
+  make lint || {
+    echo "pre-commit: clippy reported warnings (make lint)" >&2
+    exit 1
+  }
+fi
+
 # 100% line + region coverage. Only when the commit touches .rs files —
 # doc / config / hook changes shouldn't be gated on test coverage. The
 # threshold lives in the Makefile `cov` target (one home, shared with CI);
