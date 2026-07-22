@@ -483,6 +483,18 @@ Startup + RSS delta is still **unmeasured** and stays a **live cost to record
 once the runtime lands** — that half of the old rationale is a real cost, not a
 prohibition. Measure it in `bl-abca`/`bl-08f6` and record it here.
 
+**Landed (`bl-08f6`).** The concurrency this ruling permits is now exercised: one
+bounded primitive (`fetch::fetch_many`) fans a wave of subresource fetches over
+the shared pool from `std::thread::scope`, which **joins every worker before it
+returns** — the "no work escapes the call" invariant, asserted directly (a wave
+against a dead host with a short deadline returns promptly with nothing, no
+request left running). It drives both the CSS gather and the JS initial-script
+preload warm; the runtime still lives on the `Transport` inside the
+`FetchSession`, so it dies with the invocation. h2 multiplexing is proven by a
+barrier oracle: four requests that each wedge until all four are present come
+back over **one** accepted connection — reason 3 of the §7 h2 call confirmed,
+overturning-condition (c) not met.
+
 #### Item 3 — content-encoding decoders: RESOLVED (Mark's steer, 2026-07-21)
 
 **Decision: keep advertising only `gzip, br` — what frot actually decodes — and

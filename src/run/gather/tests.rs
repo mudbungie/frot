@@ -4,6 +4,7 @@
 //! concurrent from serial, not measure either.
 
 use super::*;
+use crate::fetch::POOL_PER_HOST;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
@@ -50,7 +51,7 @@ fn plain() -> FetchSession {
 
 /// A keep-alive CSS origin that counts accepted TCP connections, so a gather's
 /// pool reuse is observable: workers on one bounded pool open at most
-/// `MAX_IN_FLIGHT` connections, and later same-origin fetches reuse them.
+/// `POOL_PER_HOST` connections, and later same-origin fetches reuse them.
 fn counting_origin() -> (String, Arc<AtomicUsize>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
@@ -87,12 +88,12 @@ fn keepalive(stream: TcpStream) {
 #[test]
 fn sheets_are_fetched_concurrently_not_serially() {
     let base = stub_origin(Duration::from_millis(300), Some("a{}"));
-    let hrefs = sheets(&base, MAX_IN_FLIGHT);
+    let hrefs = sheets(&base, POOL_PER_HOST);
     let started = Instant::now();
     let got = gather_within(&hrefs, &base, &plain(), GENEROUS);
     let elapsed = started.elapsed();
-    assert_eq!(got.len(), MAX_IN_FLIGHT);
-    // Serial would be MAX_IN_FLIGHT x 300ms = 1.8s; concurrent is ~300ms.
+    assert_eq!(got.len(), POOL_PER_HOST);
+    // Serial would be POOL_PER_HOST x 300ms = 1.8s; concurrent is ~300ms.
     assert!(
         elapsed < Duration::from_millis(1500),
         "serial: {:?}",
@@ -106,16 +107,16 @@ fn six_workers_share_one_bounded_pool() {
     let session = plain();
     // A full wave of six sheets, then three more sequential same-origin fetches.
     // Six isolated agents (the old fetch_within-per-URL) would open nine
-    // connections; one bounded pool opens at most MAX_IN_FLIGHT and reuses them.
-    let wave = gather_within(&sheets(&base, MAX_IN_FLIGHT), &base, &session, GENEROUS);
-    assert_eq!(wave.len(), MAX_IN_FLIGHT);
+    // connections; one bounded pool opens at most POOL_PER_HOST and reuses them.
+    let wave = gather_within(&sheets(&base, POOL_PER_HOST), &base, &session, GENEROUS);
+    assert_eq!(wave.len(), POOL_PER_HOST);
     for i in 0..3 {
         session
             .subresource(&format!("{base}/x{i}.css"), &base, Intent::Style, GENEROUS)
             .unwrap();
     }
     let n = conns.load(AtomicOrdering::SeqCst);
-    assert!(n <= MAX_IN_FLIGHT, "opened {n} connections");
+    assert!(n <= POOL_PER_HOST, "opened {n} connections");
 }
 
 #[test]
@@ -153,7 +154,7 @@ fn budget_bounds_the_phase_when_a_host_never_answers() {
     let base = stub_origin(Duration::from_millis(0), None);
     // More sheets than workers, so the queued ones meet an expired deadline
     // rather than a free slot.
-    let hrefs = sheets(&base, MAX_IN_FLIGHT + 1);
+    let hrefs = sheets(&base, POOL_PER_HOST + 1);
     let started = Instant::now();
     let got = gather_within(&hrefs, &base, &plain(), Duration::from_millis(400));
     let elapsed = started.elapsed();

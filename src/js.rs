@@ -22,7 +22,7 @@ mod syscall;
 use std::time::Duration;
 
 use crate::dom::{Document, NodeId};
-use crate::fetch::{FetchSession, Intent};
+use crate::fetch::FetchSession;
 use engine::EXEC_BUDGET_MS;
 use script::{next_script, Script};
 
@@ -110,6 +110,13 @@ pub(crate) fn run_session(session: &Session) -> Report {
         settled: true,
         messages: Vec::new(),
     };
+    // Preload-scan (bl-08f6): warm the §6 cache concurrently with the initial
+    // external scripts discovered after parse, under the run's *one* armed
+    // deadline and byte pool, so the source-ordered queue below finds each
+    // external `src` already frozen instead of blocking on it serially. It only
+    // warms statically present scripts — a script a script inserts is fetched
+    // when discovered, never speculatively.
+    session.warm_initial_scripts();
     run_script_queue(session, &mut report);
     if report.settled {
         run_event_loop(session, &mut report);
@@ -167,12 +174,7 @@ fn run_script_queue(session: &Session, report: &mut Report) {
 /// for `type="module"` — as a module named by its own fetched URL, so its
 /// imports resolve against it (§4.1).
 fn run_external(session: &Session, module: bool, src: &str, report: &mut Report) {
-    let intent = if module {
-        Intent::Module
-    } else {
-        Intent::ClassicScript
-    };
-    match session.subfetch(src, intent) {
+    match session.subfetch(src, script::external_intent(module)) {
         subfetch::Outcome::Got(f) if f.ok && module => run_module(session, &f.url, &f.body, report),
         subfetch::Outcome::Got(f) if f.ok => run_script(session, &f.body, report),
         // A failed or non-2xx external `src` leaves nothing to run: counted (§4.2)

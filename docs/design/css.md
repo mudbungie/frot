@@ -64,14 +64,17 @@ attempted, in document order, until time runs out.
   per-request `fetch::TIMEOUT_SECS = 15` that was previously the phase's
   effective limit, so `--css` can no longer cost 15 s × N. On the measured
   worst real page (linear.app, 68 chunks) it does not trip at all.
-- **`MAX_IN_FLIGHT = 6`** — simultaneous requests, via `std::thread::scope`
-  over the existing synchronous `fetch::fetch` (no async runtime, no
-  thread-pool dependency). This bounds *sockets and OS threads*, which are
-  real resources, and is not a count cap in the retired-`SUBFETCH_MAX` sense:
-  nothing is dropped for being the Nth sheet. Six is Firefox's per-server
-  limit (`network.http.max-persistent-connections-per-server`), and frot
-  already presents as Firefox — 68 parallel connections would be both a
-  fingerprint tell and rude to the origin.
+- **`POOL_PER_HOST = 6`** — simultaneous requests, via `std::thread::scope`
+  over the blocking `FetchSession` surface (`bl-08f6` moved this into the one
+  shared `fetch::fetch_many` primitive the JS initial-script warm also rides —
+  gather no longer owns its own worker loop). This bounds *sockets and OS
+  threads*, which are real resources, and is not a count cap in the
+  retired-`SUBFETCH_MAX` sense: nothing is dropped for being the Nth sheet.
+  Six is Firefox's per-server limit
+  (`network.http.max-persistent-connections-per-server`), the same constant
+  the h1 connection pool keeps warm; frot already presents as Firefox — 68
+  parallel connections would be both a fingerprint tell and rude to the origin.
+  On h2 the wave multiplexes onto one connection; on h1 it opens at most six.
 
 Both are constants, not flags: same severability posture as the 1280 px
 viewport (`layout.md` §4) and `EXEC_BUDGET_MS`. Nothing about a caller's page

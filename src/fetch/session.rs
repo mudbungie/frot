@@ -23,7 +23,9 @@
 //!   navigation is never cached. A cache hit costs no network and no phase
 //!   budget, so `--css --js` fetches an unchanged stylesheet once across the
 //!   JS-phase gather and the final cascade, while a JS-inserted new stylesheet
-//!   is still a miss and is fetched.
+//!   is still a miss and is fetched. A content-negotiated response (a `Vary` on
+//!   any header frot's requests differ on) is **refused reuse** rather than
+//!   risk the wrong body ([`vary_permits_reuse`], bl-08f6).
 //!
 //! - **the per-invocation cookie jar** (bl-6dad) — born empty, the single
 //!   authority for `Set-Cookie`, applicable `Cookie` headers, and
@@ -152,7 +154,7 @@ impl FetchSession {
             &self.headers,
             timeout,
         )?;
-        if cacheable {
+        if cacheable && vary_permits_reuse(&result.headers) {
             self.cache
                 .lock()
                 .unwrap()
@@ -161,6 +163,29 @@ impl FetchSession {
         Ok(result)
     }
 }
+
+/// Whether a response may be re-served for a later equivalent-URL request
+/// (bl-08f6). A `Vary` that names any request header frot's requests differ on —
+/// `Accept`, `Sec-Fetch-*`, `Cookie`/credentials, `Priority` — means the body is
+/// content-negotiated, so the cached copy could be the *wrong* body for the next
+/// request's intent or cookies: frot conservatively REFUSES to cache it rather
+/// than risk a mismatched reuse (task acceptance). `Vary: Accept-Encoding` alone
+/// is safe — the derivation sends one fixed `Accept-Encoding` on every request,
+/// so it never varies; an empty/absent `Vary` is unconditionally reusable;
+/// `Vary: *` never reuses.
+fn vary_permits_reuse(headers: &[(String, String)]) -> bool {
+    match super::header_value(headers, "vary") {
+        None => true,
+        Some(v) => v
+            .split(',')
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+            .all(|t| t.eq_ignore_ascii_case("accept-encoding")),
+    }
+}
+
+#[cfg(test)]
+mod cache_tests;
 
 #[cfg(test)]
 mod policy_tests;

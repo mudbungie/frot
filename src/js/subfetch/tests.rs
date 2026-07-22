@@ -149,6 +149,86 @@ fn past_the_deadline_dispatch_is_refused() {
 }
 
 #[test]
+fn warm_prefetches_so_a_later_get_is_a_cache_hit() {
+    let mut server = mockito::Server::new();
+    // One network hit total: warm fetches `/a.js`, and the execution `get` that
+    // follows re-serves it frozen — the preload-scanner shape (bl-08f6).
+    let m = server
+        .mock("GET", "/a.js")
+        .with_body("A")
+        .expect(1)
+        .create();
+    let mut sf = open(&server.url(), Vec::new());
+    sf.warm(&[("/a.js".into(), Intent::ClassicScript)]);
+    assert_eq!(got(get(&mut sf, "/a.js")).body, "A");
+    m.assert();
+}
+
+#[test]
+fn warm_skips_already_cached_and_duplicate_and_unresolvable_specs() {
+    let mut server = mockito::Server::new();
+    // `/a.js` is fetched exactly once despite: a prior get already caching it, a
+    // duplicate in the warm list, and an unresolvable remote→local `file:` spec
+    // riding alongside (dropped, not fetched, no panic).
+    let m = server
+        .mock("GET", "/a.js")
+        .with_body("A")
+        .expect(1)
+        .create();
+    let mut sf = open(&server.url(), Vec::new());
+    assert_eq!(got(get(&mut sf, "/a.js")).body, "A");
+    sf.warm(&[
+        ("/a.js".into(), Intent::ClassicScript),
+        ("/a.js".into(), Intent::ClassicScript),
+        ("file:///etc/passwd".into(), Intent::ClassicScript),
+    ]);
+    m.assert();
+}
+
+#[test]
+fn warm_stops_at_the_byte_pool() {
+    let mut server = mockito::Server::new();
+    for i in 0..8 {
+        server
+            .mock("GET", format!("/s{i}.js").as_str())
+            .with_body("body")
+            .create();
+    }
+    // A one-byte pool: the parallel wave commits before the budget is seen spent,
+    // so at most one bounded wave lands and never all eight — the 64 MiB pool
+    // stays authoritative across the concurrent warm (js.md §6).
+    let mut sf = Subfetch::with_budget(
+        FetchSession::new(Vec::new()),
+        &server.url(),
+        Deadline::never(),
+        1,
+    );
+    let specs: Vec<_> = (0..8)
+        .map(|i| (format!("/s{i}.js"), Intent::ClassicScript))
+        .collect();
+    sf.warm(&specs);
+    let cached = (0..8)
+        .filter(|i| matches!(get(&mut sf, &format!("/s{i}.js")), Outcome::Got(_)))
+        .count();
+    assert!(cached < 8, "byte pool ignored: {cached} cached");
+}
+
+#[test]
+fn warm_past_the_deadline_fetches_nothing() {
+    // An already-expired armed window: warm's remaining budget is zero, so the
+    // concurrent dispatch does no work — the one deadline governs warm too.
+    let engine = Engine::with_limits(JS_MEM_LIMIT, Duration::ZERO);
+    engine.arm();
+    let mut sf = Subfetch::new(
+        FetchSession::new(Vec::new()),
+        "https://example.com/",
+        engine.deadline(),
+    );
+    sf.warm(&[("/late.js".into(), Intent::ClassicScript)]);
+    assert!(failed(get(&mut sf, "/late.js")).contains("run budget exhausted"));
+}
+
+#[test]
 fn same_origin_requests_carry_the_headers() {
     let mut server = mockito::Server::new();
     // The mock matches only when the -H header rode along.

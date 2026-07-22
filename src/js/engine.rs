@@ -1,12 +1,11 @@
 //! Embedded JS engine seam (rquickjs / quickjs-ng).
 //!
 //! Proves the four bounding primitives `docs/design/js.md` §1 requires of the
-//! engine: `eval`, a wall-clock interrupt hook (`EXEC_BUDGET_MS`), a memory
-//! cap (`JS_MEM_LIMIT`), and a host-driven microtask queue. Everything the
-//! rest of Phase 4 builds sits behind this narrow surface. The binding layer
-//! (`js::syscall`) reaches the realm through [`Engine::context`]; no `rquickjs`
-//! type escapes `src/js/` (js.md §1), mirroring how no `markup5ever` type leaks
-//! past `dom.rs`.
+//! engine: `eval`, a wall-clock interrupt hook (`EXEC_BUDGET_MS`), a memory cap
+//! (`JS_MEM_LIMIT`), and a host-driven microtask queue. Everything the rest of
+//! Phase 4 builds sits behind this narrow surface; the binding layer
+//! (`js::syscall`) reaches the realm through [`Engine::context`]. No `rquickjs`
+//! type escapes `src/js/` (js.md §1), as no `markup5ever` type leaks past `dom.rs`.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -26,11 +25,10 @@ pub const EXEC_BUDGET_MS: u64 = 1_000;
 pub const JS_MEM_LIMIT: usize = 64 * 1024 * 1024;
 
 /// A shareable read handle on the engine's armed wall-clock window — the same
-/// `base`/deadline pair the §5 interrupt handler reads, so the run's clock has
-/// one authoritative home. The §6 subfetch cache consults it before dispatching
-/// network work: the interrupt can only fire between JS instructions, so a
-/// chain of blocking host fetches (a module graph loading through the §4.1
-/// loader) would otherwise outrun the budget unchecked.
+/// `base`/deadline pair the §5 interrupt handler reads, one authoritative home.
+/// The §6 subfetch cache consults it before dispatching network: the interrupt
+/// fires only between JS instructions, so a blocking host-fetch chain (a module
+/// graph via the §4.1 loader) would else outrun the budget unchecked.
 pub struct Deadline {
     base: Instant,
     deadline: Arc<AtomicU64>,
@@ -49,6 +47,15 @@ impl Deadline {
     /// Whether the armed window has passed.
     pub fn expired(&self) -> bool {
         self.base.elapsed().as_nanos() as u64 >= self.deadline.load(Ordering::Relaxed)
+    }
+
+    /// Time left in the armed window; `None` once passed. The concurrent warm
+    /// (`bl-08f6`) times each parallel request from this, so the wave obeys the
+    /// run's *one* deadline (js.md §5/§6) — nothing outlives it.
+    pub fn remaining(&self) -> Option<Duration> {
+        let dl = self.deadline.load(Ordering::Relaxed);
+        let now = self.base.elapsed().as_nanos() as u64;
+        (dl > now).then(|| Duration::from_nanos(dl - now))
     }
 }
 
@@ -99,10 +106,9 @@ impl Engine {
                 false
             }
         })));
-        // Unhandled promise rejection tracking (js.md §10). quickjs reports a
-        // rejection with no handler (`is_handled == false`) and, if one is later
-        // attached, a matching handle (`is_handled == true`); the running net is
-        // the count of still-unhandled rejections, read after the settle loop.
+        // Unhandled promise rejection tracking (js.md §10). quickjs reports an
+        // unhandled rejection (`is_handled == false`) and a later handle (`true`);
+        // the running net is the still-unhandled count, read after the settle loop.
         let rejections = Rc::new(Cell::new(0));
         let rej = rejections.clone();
         rt.set_host_promise_rejection_tracker(Some(Box::new(

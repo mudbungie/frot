@@ -286,6 +286,25 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   `SUBFETCH_BYTES`. A page that genuinely needs more than the budget allows
   now dies honestly of time (`settled: false`), not of an arbitrary count
   masquerading as completion.
+- **Concurrent initial-script warm (landed, `bl-08f6`).** *(Supersedes the
+  "fetches sequentially… deliberately not built" note below — the principled
+  lever it named is now built.)* Before the source-ordered script queue drains,
+  the run **preload-scans** the parsed document for its initial external
+  `<script src>` (classic + module) and warms the frozen cache for all of them
+  **concurrently** — `Subfetch::warm` → the one `fetch::fetch_many` primitive the
+  CSS gather also rides, at most `POOL_PER_HOST` in flight, folded into the cache
+  in one single-threaded pass. It is *parallel dispatch under the same deadline
+  and byte pool*: each request is timed out at the §5 deadline's remainder and
+  the wave is capped at the `SUBFETCH_BYTES` remainder, so neither bound is
+  weakened — only the *latency* is, N serial round trips collapsing toward one
+  h2-multiplexed wave. Execution order is untouched: the queue still runs each
+  script in document order (a warmed URL is a plain cache hit, served even past
+  the deadline since no network is left), so a slow first script and a fast
+  second still evaluate first-then-second. Only *statically present* scripts are
+  warmed — a script a running script inserts is discovered and fetched when it
+  appears, never speculatively prefetched. Transitive module imports stay a
+  serial loader chain (they are unknown until their importer is parsed); the
+  preload-scanner set is the top-level externals, exactly as in a browser.
 - **Per-destination request metadata (landed, `bl-20ec`).** *(Supersedes the
   earlier "subfetches stay honest-minimal" deferral: full per-`Dest` subresource
   fidelity is now cheap because it derives from one place.)* One derivation —
@@ -636,9 +655,12 @@ the falsifiable check on §1.
      emit `needs-js` correctly. `settled: false` is the honesty contract
      working, not a defect.
   4. The chunk-heavy conversion (refused-chunks → `settled: false`) is a
-     *latency* shape, not a budget-size shape: the §6 cache fetches
-     sequentially, so N chunks cost N round-trips and doubling the budget buys
-     linear chunk count for doubled wall time. If a filed need ever demands
-     more inside the same promise, the principled lever is subfetch
-     concurrency (parallel dispatch under the same deadline and byte pool),
-     not more time — noted, deliberately not built.
+     *latency* shape, not a budget-size shape. **Update (`bl-08f6`, landed):**
+     the principled lever this reason named — subfetch concurrency (parallel
+     dispatch under the same deadline and byte pool) — is now built: the
+     initial external scripts are warmed concurrently through `fetch_many`
+     (§6), so a wave of chunks costs roughly one h2-multiplexed round trip
+     instead of N serial ones. The budget still stands at 1 s; concurrency,
+     not more time, is what buys the chunk-heavy case its latency back. (A
+     transitive module-import *chain* remains serial — unknown until parsed —
+     so a deep import graph can still exhaust the budget honestly.)

@@ -6,6 +6,7 @@
 //! only the "what kind of script is this" question.
 
 use crate::dom::{Document, NodeId, NodeKind};
+use crate::fetch::Intent;
 
 use super::Session;
 
@@ -20,6 +21,33 @@ pub(super) enum Script {
     External { module: bool, src: String },
     /// Non-JS `type` or `nomodule`: intentionally not run, not counted.
     Skip,
+}
+
+/// The request intent an external `<script>` fetches under (§4.1): a module
+/// graph edge vs a classic script. One mapping, shared by the discovery warm
+/// (bl-08f6) and the serial execution path (`super::run_external`).
+pub(super) fn external_intent(module: bool) -> Intent {
+    if module {
+        Intent::Module
+    } else {
+        Intent::ClassicScript
+    }
+}
+
+/// The initial external `<script src>` (classic + module) in document order —
+/// the preload-scanner set the run warms concurrently before draining the queue
+/// (bl-08f6). Only scripts statically present in the parsed document: a script a
+/// script inserts later is not here, so it is never speculatively prefetched
+/// (js.md §6 / the task's explicit non-goal). Inline and non-JS scripts have no
+/// resource to fetch and are skipped.
+pub(super) fn initial_externals(doc: &Document) -> Vec<(String, Intent)> {
+    doc.find_by_tag("script")
+        .into_iter()
+        .filter_map(|id| match classify(doc, id) {
+            Script::External { module, src } => Some((src, external_intent(module))),
+            _ => None,
+        })
+        .collect()
 }
 
 /// The next `<script>` (document order) not already in `done`, classified.

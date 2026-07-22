@@ -14,7 +14,7 @@ use crate::fetch::FetchSession;
 
 use super::engine::{self, Engine, EXEC_BUDGET_MS};
 use super::probe::ProbeLog;
-use super::{geometry, subfetch, syscall};
+use super::{geometry, script, subfetch, syscall};
 use super::{Env, EvalError, Log, StyleSource};
 
 /// A JS execution session bound to one document. It owns the engine, shares the
@@ -244,5 +244,16 @@ impl Session {
     /// the `__frot_subfetch` syscall.
     pub(super) fn subfetch(&self, spec: &str, intent: crate::fetch::Intent) -> subfetch::Outcome {
         self.subfetch.borrow_mut().get(spec, intent)
+    }
+
+    /// Warm the §6 cache concurrently with the initial external scripts (bl-08f6):
+    /// a preload-scanner pass over the parsed document so the source-ordered
+    /// script queue finds each external `src` already frozen instead of blocking
+    /// on it one round trip at a time. Discovery releases the document borrow
+    /// before the cache's parallel dispatch, which rides the run's one deadline
+    /// and byte pool.
+    pub(super) fn warm_initial_scripts(&self) {
+        let reqs = script::initial_externals(&self.doc.borrow());
+        self.subfetch.borrow_mut().warm(&reqs);
     }
 }

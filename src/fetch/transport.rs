@@ -207,6 +207,8 @@ fn classify(io: Option<std::io::ErrorKind>, is_connect: bool, msg: &str) -> &'st
 }
 
 #[cfg(test)]
+mod multiplex_tests;
+#[cfg(test)]
 mod recorder;
 #[cfg(test)]
 mod tests;

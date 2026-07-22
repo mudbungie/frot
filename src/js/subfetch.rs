@@ -18,13 +18,13 @@
 //! with the [`super::Session`]).
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use url::Url;
 
-use crate::fetch::{FetchResult, FetchSession, Intent, TIMEOUT_SECS};
+use crate::fetch::{fetch_many, FetchResult, FetchSession, Intent, TIMEOUT_SECS};
 
 use super::engine::Deadline;
 
@@ -135,6 +135,45 @@ impl Subfetch {
                 Outcome::Got(frozen)
             }
             Err(e) => Outcome::Failed(e.message),
+        }
+    }
+
+    /// Warm the cache concurrently with `specs` — the initial external scripts
+    /// discovered after parse (bl-08f6) — so the source-ordered queue that runs
+    /// next finds each already frozen. Each spec is resolved and the not-yet-cached
+    /// absolute URLs are fetched in parallel through the shared [`fetch_many`]
+    /// primitive, under this cache's *same* deadline and the byte pool's
+    /// remainder, then folded into the cache in one single-threaded pass that
+    /// charges `spent` exactly as a serial [`get`](Self::get) would. Freezing here
+    /// means a later `get` for a warmed URL is a plain cache hit — served even
+    /// past the deadline, since no network is left to gate. Failures are dropped:
+    /// execution re-attempts and counts them (§4.2), never a warm-time error.
+    pub fn warm(&mut self, specs: &[(String, Intent)]) {
+        let mut seen = HashSet::new();
+        let mut reqs = Vec::new();
+        for (spec, intent) in specs {
+            if let Ok(url) = self.resolve(spec) {
+                if !self.cache.contains_key(&url) && seen.insert(url.clone()) {
+                    reqs.push((url, *intent));
+                }
+            }
+        }
+        let left = self
+            .deadline
+            .remaining()
+            .unwrap_or_default()
+            .min(Duration::from_secs(TIMEOUT_SECS));
+        let budget = self.budget.saturating_sub(self.spent);
+        for (i, r) in fetch_many(
+            &self.session,
+            &reqs,
+            &self.base,
+            Instant::now() + left,
+            budget,
+        ) {
+            let frozen = freeze(r);
+            self.spent += frozen.body.len();
+            self.cache.insert(reqs[i].0.clone(), frozen);
         }
     }
 

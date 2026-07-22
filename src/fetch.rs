@@ -21,6 +21,7 @@ use std::time::Duration;
 
 use crate::envelope::kinds;
 
+mod concurrent;
 mod cookie;
 mod decode;
 mod firefox_tls;
@@ -29,6 +30,7 @@ mod request;
 mod session;
 mod transport;
 
+pub(crate) use concurrent::fetch_many;
 pub(crate) use cookie::{CookieJar, SharedJar};
 pub(crate) use decode::decode_body;
 pub use profile::{BrowserProfile, H2Profile, TlsProfile, FIREFOX_140_ESR};
