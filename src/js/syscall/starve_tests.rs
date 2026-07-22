@@ -81,14 +81,48 @@ fn install_capped(mem_limit: usize) -> Result<(), String> {
 /// and any cap landing in the binding phase exercises it. That is why a coarse
 /// walk suffices here — no hunt for the narrow band that starves one particular
 /// group.
+///
+/// The sweep raises ~2 300 *deliberate* panics, so it silences the panic hook to
+/// keep the test output readable. The hook is **process-global** and libtest runs
+/// tests concurrently, so a blanket `set_hook(|_| {})` silences every *other*
+/// test's panic message for the whole (multi-second) window — which is exactly why
+/// `bl-a0e7`'s `persona_gold` flake surfaced as a test name in the summary with an
+/// **empty** `failures:` block, no panic text even under `--nocapture` and
+/// `RUST_BACKTRACE=full`. So the silencer is scoped to the sweeping thread and
+/// every other thread's panic is forwarded to the hook we displaced; the probe
+/// below pins that forwarding, since a regression here is invisible by definition.
 #[test]
 fn a_starved_install_panics_rather_than_half_installing() {
-    let prior = std::panic::take_hook();
-    std::panic::set_hook(Box::new(|_| {}));
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    let sweeper = std::thread::current().id();
+    // `Arc` so the displaced hook survives the silencer and can be reinstated: a
+    // `set_hook` closure owning it outright could never give it back.
+    let prior = Arc::new(std::panic::take_hook());
+    let forwarded = Arc::new(AtomicBool::new(false));
+    let (fwd, seen) = (Arc::clone(&prior), Arc::clone(&forwarded));
+    std::panic::set_hook(Box::new(move |info| {
+        // Silence *this* thread's deliberate starvation panics only; anyone else
+        // panicking during the window still gets their message printed.
+        if std::thread::current().id() != sweeper {
+            seen.store(true, Ordering::Relaxed);
+            fwd(info);
+        }
+    }));
     let msgs: Vec<Result<(), String>> =
         (110_000..260_000).step_by(64).map(install_capped).collect();
     let roomy = install_capped(crate::js::engine::JS_MEM_LIMIT);
-    std::panic::set_hook(prior);
+    // Still inside the silenced window: a foreign thread's panic must reach the
+    // displaced hook. Its message printing to stderr is the assertion succeeding.
+    let probe = std::thread::spawn(|| panic!("bl-a0e7 probe: this message MUST be visible"));
+    assert!(probe.join().is_err(), "the probe thread did not panic");
+    std::panic::set_hook(Box::new(move |info| prior(info)));
+    assert!(
+        forwarded.load(Ordering::Relaxed),
+        "the sweep's silencer swallowed a concurrent thread's panic — \
+         every other test's failures would be invisible while it runs"
+    );
 
     assert!(
         msgs.iter().any(|m| m
