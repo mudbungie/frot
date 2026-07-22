@@ -678,6 +678,26 @@ from the profile. Two viewport constants would be exactly the duplication this
 design exists to prevent, and the existing `inner == outer` (no chrome) choice
 stays as documented in `js.md` §7.
 
+**LANDED (`bl-3972`, the Phase-5 framework task).** The whole supported subset
+above is built and gated. All facts flow through **one** channel —
+`__frot_env_profile()` returns a JSON payload the prelude parses once — so no
+identity literal lives in `env.js` (I1), and `userAgent`/`appVersion` +
+`language`/`languages` derive from the *effective* UA / `Accept-Language` (the
+same source as the HTTP headers, `bl-20ec`), closing the UA-coherence gap. The
+surface is **Firefox-shaped, not just correct in value**: `navigator`/`screen`/
+`crypto` are branded interface instances (`[object Navigator]`, `instanceof`,
+`@@toStringTag`) with facts as enumerable accessors on the prototype, and every
+frot web API reads `function name() { [native code] }` through one
+`Function.prototype.toString` wrapper + registry (`bl-3926`). Absorbed alongside:
+`screen`/`devicePixelRatio`/visibility (`bl-1cb7`, geometry from the 1280×720
+layout viewport, depth/DPR from the profile), the minimal `Intl.DateTimeFormat`
+`resolvedOptions()` locale/UTC surface (`bl-ac8d`), and `crypto.getRandomValues`/
+`randomUUID` from OS randomness (`bl-cf3a`). The golden oracle is
+`tests/fixtures/js/persona-navigator.html` (brand/prototype/descriptor/function-
+source checks, not only values). The registry (`__frot_brand`/`__frot_iface`) is
+the extension point the six later capability balls (canvas/WebGL/audio/indexedDB/
+Worker/permissions) plug into.
+
 **High-entropy rendering signals: in scope where they match what the server
 requires; unbuilt today, so filed as gaps.** *(Superseded 2026-07-20 by Mark's
 masquerade ruling — the previous line read "Out, permanently: fabricated
@@ -878,7 +898,10 @@ Permanently out of reach, by design or by constraint:
 | **Behavioural challenges** (mouse paths, dwell time, scroll) | Refused — frot dispatches only the `DOMContentLoaded`/`load` lifecycle pair, never synthetic input. |
 | **High-entropy rendering** (canvas/WebGL/audio/font metrics) | **No longer refused (2026-07-20).** In scope as a coherent masquerade; **unbuilt today**, so a filed gap — `bl-bd4e` and follow-ups (§10). Not a permanent residual. |
 | **Font metrics via `offsetWidth` measurement loops** | The `document.fonts` / FontFaceSet API is a filed gap (a follow-up of `bl-bd4e`), but the **`offsetWidth`-based glyph-width channel is a residual**: frot's layout is a structural approximation (`layout.md` §6), so per-glyph text widths cannot be reproduced faithfully, and a *wrong* width is a louder tell than a missing font (§10's coherence bar). It is also unobservable to the `bl-bd4e` instrument (indistinguishable from ordinary layout reads), so no page can be cited as probing it — it is out by the no-folklore rule, not measured in. |
-| **`crypto.subtle` (WebCrypto)** | `crypto.getRandomValues`/`randomUUID` are cheap capabilities frot can genuinely provide (a `bl-bd4e` follow-up owns them); the full `SubtleCrypto` surface is a large capability that may stay residual — the filed gap decides. |
+| **`crypto.getRandomValues` / `randomUUID`** | **Provided (`bl-3972`/`bl-cf3a`, LANDED)** — real OS randomness, not a fake, with the browser argument/quota/error contract. |
+| **`crypto.subtle` (WebCrypto)** | Residual. The full `SubtleCrypto` surface is a large capability left absent (`crypto` has no `.subtle`); a filed gap decides if/when it lands. Its absence is a mild coherence tell, accepted. |
+| **`Intl` beyond `DateTimeFormat.resolvedOptions()`** | Residual. quickjs-ng ships without `Intl`; frot provides the low-entropy locale/timezone subset a page reads (`DateTimeFormat` + `resolvedOptions`, `timeZone` pinned UTC). `NumberFormat`/`Collator`/`RelativeTimeFormat`/real locale-aware formatting are unbuilt — a filed gap, not a permanent non-goal. |
+| **`__frot_*` syscall names enumerable on `globalThis`** | Residual. `Function.prototype.toString` no longer leaks their source or the name (`bl-3926` branding), but the syscall **names** are still enumerable globals (`Object.getOwnPropertyNames(window)`). Making them non-enumerable touches every `bind!` site and is tracked as a separate concern. |
 | **Three key shares** | Blocked by rustls (§6.4). |
 | **ClientHello extension order/set** | Stock rustls emits its own order and omits Firefox's `compress_certificate`/SCT/`record_size_limit`/ECH shaping. Declared residual under Option C (§6.1); would need a rustls fork, which §6.3 forbids on security grounds. |
 | **Cipher *list* breadth (9 vs 17) → JA4 cipher component** | rustls advertises only its AEAD suites, not Firefox's legacy CBC/RSA. The cipher *order* matches; the *list* (and thus the JA4 cipher hash) does not. Declared residual (§6.1). |

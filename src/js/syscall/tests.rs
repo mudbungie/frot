@@ -10,6 +10,7 @@ fn sess(html: &str) -> Session {
     let env = Env {
         url: "https://example.com/".into(),
         user_agent: "frot-test/1".into(),
+        accept_language: "en-US,en;q=0.5".into(),
     };
     Session::new(
         Document::parse(html),

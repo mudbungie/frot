@@ -68,6 +68,16 @@ fn user_agent_defaults_to_the_persona_and_a_caller_overrides() {
 }
 
 #[test]
+fn accept_language_defaults_to_the_persona_and_a_caller_overrides() {
+    // The JS `navigator.language(s)` derive from this same string (bl-3972), so
+    // the default matches the profile's derived header and a `-H` override wins.
+    assert_eq!(accept_language(&[]), FIREFOX_140_ESR.accept_language());
+    assert_eq!(accept_language(&[]), "en-US,en;q=0.5");
+    let h = vec![("Accept-Language".to_string(), "fr-CA,fr;q=0.8".to_string())];
+    assert_eq!(accept_language(&h), "fr-CA,fr;q=0.8");
+}
+
+#[test]
 fn a_non_redirect_status_has_no_target() {
     assert_eq!(
         redirect_target(200, &[], "http://a.example/").unwrap(),

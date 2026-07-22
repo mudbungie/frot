@@ -3,10 +3,11 @@
 // navigator/location are the static facts frot already has (UA it sends, final
 // URL); matchMedia delegates to the Rust media-query evaluator (the one @media
 // blocks cascade through — src/css/media.rs); the rest are spec-legal denials
-// (null/false/absent), never silent lies. Layered on the __frot_env_ua /
-// __frot_location / __frot_viewport_width / __frot_media_matches /
-// __frot_denied syscalls; runs after dom.js so it can extend `document` and
-// `Node`.
+// (null/false/absent), never silent lies. Layered on the __frot_location /
+// __frot_viewport_width / __frot_media_matches / __frot_denied syscalls; runs
+// after dom.js so it can extend `document` and `Node`. The navigator/screen/
+// Intl/crypto identity surface moved to its own modules (bl-3972), all derived
+// from the __frot_env_profile channel.
 (function (g) {
   'use strict';
 
@@ -82,33 +83,11 @@
     },
   });
 
-  // --- navigator: the UA frot sends, plus static facts (§7) -----------------
-  var UA = g.__frot_env_ua();
-  g.navigator = Object.freeze({
-    userAgent: UA,
-    appName: 'Netscape',
-    appCodeName: 'Mozilla',
-    appVersion: UA.replace(/^Mozilla\//, ''),
-    product: 'Gecko',
-    productSub: '20100101',
-    vendor: '',
-    platform: 'Linux x86_64',
-    language: 'en-US',
-    languages: Object.freeze(['en-US']),
-    onLine: true,
-    cookieEnabled: true,
-    doNotTrack: null,
-    // False is the truth: frot is not under WebDriver remote control, and
-    // real browsers define the field (absence is itself an odd fingerprint).
-    webdriver: false,
-    hardwareConcurrency: 1,
-    maxTouchPoints: 0,
-    // Legal denial, not an exception (§6): frot reads, never submits.
-    sendBeacon: function () {
-      return false;
-    },
-    // serviceWorker / geolocation / clipboard: absent (undefined) per §7.
-  });
+  // --- navigator / screen / Intl / crypto: the identity surface (§7, §8) -----
+  // Moved out of this file (bl-3972): every navigator/screen/Intl/crypto fact now
+  // derives from the one BrowserProfile SSOT through __frot_env_profile, so no
+  // identity literal lives here and the JS persona cannot contradict the wire
+  // (identity.md §4/§8). See navigator.js / screen.js / intl.js / crypto.js.
 
   // --- location: the final URL; assignment is navigation = counted no-op ----
   var L = g.__frot_location();

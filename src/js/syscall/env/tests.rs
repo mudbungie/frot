@@ -10,6 +10,7 @@ fn sess(url: &str, ua: &str) -> Session {
     let env = Env {
         url: url.into(),
         user_agent: ua.into(),
+        accept_language: "en-US,en;q=0.5".into(),
     };
     Session::new(
         Document::parse("<html><body></body></html>"),
@@ -20,16 +21,97 @@ fn sess(url: &str, ua: &str) -> Session {
 }
 
 #[test]
-fn env_ua_feeds_navigator() {
+fn env_profile_feeds_navigator() {
+    // The effective UA rides through to navigator.userAgent — the shim never lies
+    // about who fetched (identity.md §8, I5): a caller `-H User-Agent` override is
+    // the value in JS too, and appVersion is it minus the `Mozilla/` prefix.
     let s = sess("https://example.com/", "custom-ua/9");
-    assert_eq!(s.eval("__frot_env_ua()").unwrap(), "custom-ua/9");
     assert_eq!(s.eval("navigator.userAgent").unwrap(), "custom-ua/9");
+    assert_eq!(s.eval("navigator.appVersion").unwrap(), "custom-ua/9");
     assert_eq!(s.eval("navigator.sendBeacon('/x', 'y')").unwrap(), "false");
     assert_eq!(
         s.eval("typeof navigator.serviceWorker").unwrap(),
         "undefined"
     );
     assert_eq!(s.eval("navigator.webdriver").unwrap(), "false");
+}
+
+/// A session with an explicit effective `Accept-Language`, to drive the
+/// `navigator.language(s)` derivation from a non-default header (I5).
+fn sess_lang(accept_language: &str) -> Session {
+    let env = Env {
+        url: "https://example.com/".into(),
+        user_agent: crate::fetch::user_agent(&[]),
+        accept_language: accept_language.into(),
+    };
+    Session::new(
+        Document::parse("<html><body></body></html>"),
+        StyleSource::Bare,
+        env,
+        &FetchSession::new(Vec::new()),
+    )
+}
+
+#[test]
+fn persona_serializes_the_pinned_facts_from_the_profile() {
+    // The pure builder is the single derivation site; asserting its JSON directly
+    // covers every field in Rust (no JS, no starvation edges). The UA/appVersion
+    // come from the effective UA — here the pinned Firefox 140esr persona.
+    let ua = crate::fetch::user_agent(&[]);
+    let json = super::persona(&ua, "en-US,en;q=0.5");
+    let v: serde_json::Value = serde_json::from_str(&json).expect("persona is valid JSON");
+    assert_eq!(v["userAgent"], serde_json::Value::String(ua.clone()));
+    assert_eq!(
+        v["appVersion"],
+        serde_json::json!(ua.strip_prefix("Mozilla/").unwrap())
+    );
+    assert!(
+        ua.contains("rv:140.0"),
+        "the pinned persona UA drives JS too"
+    );
+    assert_eq!(v["platform"], "Linux x86_64");
+    assert_eq!(v["oscpu"], "Linux x86_64");
+    assert_eq!(v["appName"], "Netscape");
+    assert_eq!(v["appCodeName"], "Mozilla");
+    assert_eq!(v["product"], "Gecko");
+    assert_eq!(v["productSub"], "20100101");
+    assert_eq!(v["vendor"], "");
+    assert_eq!(v["vendorSub"], "");
+    assert_eq!(v["buildID"], "20181001000000");
+    assert_eq!(v["hardwareConcurrency"], 8);
+    assert_eq!(v["maxTouchPoints"], 0);
+    assert_eq!(v["doNotTrack"], "unspecified");
+    assert_eq!(v["cookieEnabled"], true);
+    assert_eq!(v["onLine"], true);
+    assert_eq!(v["pdfViewerEnabled"], true);
+    assert_eq!(v["colorDepth"], 24);
+    assert_eq!(v["devicePixelRatio"], 1);
+    assert_eq!(v["locale"], "en-US");
+    assert_eq!(v["timeZone"], "UTC");
+    assert_eq!(v["languages"], serde_json::json!(["en-US", "en"]));
+    assert_eq!(v["language"], "en-US");
+}
+
+#[test]
+fn navigator_languages_derive_from_the_effective_accept_language() {
+    // Default persona header → the two-tag list Firefox reports, same source as
+    // the HTTP `Accept-Language`, so they cannot disagree (identity.md §8).
+    let s = sess_lang("en-US,en;q=0.5");
+    assert_eq!(s.eval("navigator.languages.join(',')").unwrap(), "en-US,en");
+    assert_eq!(s.eval("navigator.language").unwrap(), "en-US");
+    // A caller `-H Accept-Language` override updates only these derived facts:
+    // the q-weights are stripped and order preserved.
+    let f = sess_lang("fr-CA,fr;q=0.8,en;q=0.5");
+    assert_eq!(
+        f.eval("navigator.languages.join(',')").unwrap(),
+        "fr-CA,fr,en"
+    );
+    assert_eq!(f.eval("navigator.language").unwrap(), "fr-CA");
+    // An empty header degrades to an empty list and an empty primary language
+    // (the None arm of the primary-language pick).
+    let e = sess_lang("");
+    assert_eq!(e.eval("navigator.languages.length").unwrap(), "0");
+    assert_eq!(e.eval("navigator.language").unwrap(), "");
 }
 
 #[test]

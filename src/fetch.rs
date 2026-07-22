@@ -64,6 +64,19 @@ pub fn user_agent(headers: &[(String, String)]) -> String {
         .map_or_else(|| FIREFOX_140_ESR.user_agent(), |(_, v)| v.clone())
 }
 
+/// The effective `Accept-Language`: a `-H "Accept-Language: …"` override when the
+/// caller supplied one, else the persona's derived value
+/// ([`BrowserProfile::accept_language`], `en-US,en;q=0.5`). The JS layer derives
+/// `navigator.language`/`.languages` from this *same* string (`bl-3972`,
+/// identity.md §4.2/§8), so the header and the `navigator` facts can never
+/// disagree — an override updates only the facts those headers imply (I5).
+pub fn accept_language(headers: &[(String, String)]) -> String {
+    headers
+        .iter()
+        .find(|(n, _)| n.eq_ignore_ascii_case("accept-language"))
+        .map_or_else(|| FIREFOX_140_ESR.accept_language(), |(_, v)| v.clone())
+}
+
 #[derive(Debug, Clone)]
 pub struct FetchResult {
     pub final_url: String,

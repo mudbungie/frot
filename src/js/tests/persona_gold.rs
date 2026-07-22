@@ -28,6 +28,7 @@ fn navigator_persona_contract_holds() {
     let env = Env {
         url: "https://example.com/".into(),
         user_agent: ua.clone(),
+        accept_language: crate::fetch::accept_language(&[]),
     };
     let (doc, report) = run(
         Document::parse(PERSONA_NAV),

@@ -27,6 +27,11 @@ pub type SharedDoc = Rc<RefCell<Document>>;
 pub struct Env {
     pub url: String,
     pub user_agent: String,
+    /// The effective `Accept-Language` (default persona value, or the caller's
+    /// `-H` override — [`crate::fetch::accept_language`]). `navigator.language`/
+    /// `.languages` derive from *this* string (`bl-3972`, identity.md §8), the
+    /// same source as the HTTP header, so the two can never disagree.
+    pub accept_language: String,
 }
 
 /// The counted-no-op sink (js.md §7/§11/§10): the prelude bumps it each time the

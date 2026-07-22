@@ -1,0 +1,115 @@
+// navigator — the Firefox 140esr identity surface, every fact derived from the
+// one __frot_env_profile() channel (identity.md §4/§8, bl-3972). No literal here
+// duplicates an HTTP fact: userAgent/appVersion and language(s) ride the same
+// effective UA / Accept-Language the transport sent, so wire and JS cannot
+// disagree (the UA-coherence fix). Firefox-shaped: a real Navigator constructor,
+// @@toStringTag, and every property an enumerable accessor on Navigator.prototype
+// (not an own data prop) — brand/prototype/descriptor probes pass, not just
+// values. Runs after brand.js (needs __frot_iface) and dom.js (extends document).
+(function (g) {
+  'use strict';
+  var P = JSON.parse(g.__frot_env_profile());
+
+  // --- plugins / mimeTypes: the uniform Gecko PDF-viewer shim set --------------
+  // Modern browsers report an identical 5-plugin / 2-mimeType PDF set for anti-
+  // fingerprinting; frot mirrors it. Backing data lives in non-enumerable fields
+  // so a page reading mimeTypes[0] sees only the spec surface, never a `_type`.
+  function hidden(o, k, v) {
+    Object.defineProperty(o, k, { value: v, configurable: true });
+  }
+  var MimeType = g.__frot_iface('MimeType', {
+    type: function () { return this._type; },
+    suffixes: function () { return this._suffixes; },
+    description: function () { return this._description; },
+    enabledPlugin: function () { return this._plugin; },
+  });
+  var Plugin = g.__frot_iface('Plugin', {
+    name: function () { return this._name; },
+    filename: function () { return this._filename; },
+    description: function () { return this._description; },
+    version: function () { return null; },
+    length: function () { return this._mimes.length; },
+  });
+
+  // A branded array-like collection (PluginArray / MimeTypeArray): fixed items,
+  // integer-indexed + name-keyed, with native item()/namedItem(). @@toStringTag
+  // gives `[object <tag>]`; length is a prototype accessor, as in Firefox.
+  function collection(tag, items, key) {
+    var Ctor = g.__frot_iface(tag, { length: function () { return items.length; } });
+    var arr = Object.create(Ctor.prototype);
+    items.forEach(function (it, i) {
+      Object.defineProperty(arr, i, { value: it, enumerable: true, configurable: true });
+      hidden(arr, key(it), it);
+    });
+    Ctor.prototype.item = g.__frot_brand(function item(i) { return items[i >>> 0] || null; });
+    Ctor.prototype.namedItem = g.__frot_brand(function namedItem(n) {
+      return Object.prototype.hasOwnProperty.call(arr, n) ? arr[n] : null;
+    });
+    return arr;
+  }
+
+  var mimes = [['application/pdf', 'pdf'], ['text/pdf', 'pdf']].map(function (m) {
+    var mt = Object.create(MimeType.prototype);
+    hidden(mt, '_type', m[0]);
+    hidden(mt, '_suffixes', m[1]);
+    hidden(mt, '_description', 'Portable Document Format');
+    return mt;
+  });
+  var pluginItems = [
+    'PDF Viewer', 'Chrome PDF Viewer', 'Chromium PDF Viewer',
+    'Microsoft Edge PDF Viewer', 'WebKit built-in PDF',
+  ].map(function (name) {
+    var pl = Object.create(Plugin.prototype);
+    hidden(pl, '_name', name);
+    hidden(pl, '_filename', 'internal-pdf-viewer');
+    hidden(pl, '_description', 'Portable Document Format');
+    hidden(pl, '_mimes', mimes);
+    mimes.forEach(function (mt, i) {
+      Object.defineProperty(pl, i, { value: mt, enumerable: true, configurable: true });
+    });
+    return pl;
+  });
+  var pluginArray = collection('PluginArray', pluginItems, function (p) { return p.name; });
+  var mimeArray = collection('MimeTypeArray', mimes, function (m) { return m.type; });
+  mimes.forEach(function (mt) { hidden(mt, '_plugin', pluginItems[0]); });
+
+  // --- Navigator: every fact an accessor on the prototype (Firefox shape) -------
+  // languages is a frozen array (Firefox reports it immutable), one copy shared.
+  var LANGS = Object.freeze(P.languages.slice());
+  var Navigator = g.__frot_iface('Navigator', {
+    userAgent: function () { return P.userAgent; },
+    appVersion: function () { return P.appVersion; },
+    appName: function () { return P.appName; },
+    appCodeName: function () { return P.appCodeName; },
+    product: function () { return P.product; },
+    productSub: function () { return P.productSub; },
+    vendor: function () { return P.vendor; },
+    vendorSub: function () { return P.vendorSub; },
+    platform: function () { return P.platform; },
+    oscpu: function () { return P.oscpu; },
+    language: function () { return P.language; },
+    languages: function () { return LANGS; },
+    onLine: function () { return P.onLine; },
+    cookieEnabled: function () { return P.cookieEnabled; },
+    doNotTrack: function () { return P.doNotTrack; },
+    // Truthful: frot is under no WebDriver remote control. Real Firefox defines
+    // the field false (absence is itself an odd fingerprint) — identity.md §8.
+    webdriver: function () { return false; },
+    hardwareConcurrency: function () { return P.hardwareConcurrency; },
+    maxTouchPoints: function () { return P.maxTouchPoints; },
+    buildID: function () { return P.buildID; },
+    pdfViewerEnabled: function () { return P.pdfViewerEnabled; },
+    plugins: function () { return pluginArray; },
+    mimeTypes: function () { return mimeArray; },
+  });
+  Navigator.prototype.javaEnabled = g.__frot_brand(function javaEnabled() { return false; });
+  // A legal denial, never a submission (js.md §6): frot reads, it never POSTs.
+  Navigator.prototype.sendBeacon = g.__frot_brand(function sendBeacon() { return false; });
+
+  var navigator = Object.create(Navigator.prototype);
+  Object.defineProperty(g, 'navigator', {
+    get: function () { return navigator; },
+    configurable: true,
+    enumerable: true,
+  });
+})(globalThis);

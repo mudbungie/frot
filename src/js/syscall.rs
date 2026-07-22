@@ -16,6 +16,7 @@ use crate::css::query_all;
 use crate::dom::{Document, NodeKind};
 
 mod cookie;
+mod crypto;
 mod env;
 mod host;
 mod messages;
@@ -39,6 +40,7 @@ const GROUPS: &[Group] = &[
     env::install,
     net::install,
     cookie::install,
+    crypto::install,
 ];
 
 macro_rules! bind {

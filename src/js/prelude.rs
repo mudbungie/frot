@@ -32,6 +32,10 @@
 /// standalone (it extends no other module, only the `__frot_url_parse` syscall),
 /// so its position is free.
 pub const SOURCE: &str = concat!(
+    // brand.js FIRST: the one Function#toString wrapper + branding registry every
+    // later module (and the six later capability balls) registers through (§8).
+    include_str!("prelude/brand.js"),
+    "\n",
     include_str!("prelude/console.js"),
     "\n",
     include_str!("prelude/dom.js"),
@@ -42,6 +46,16 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/geometry.js"),
     "\n",
+    // The identity surface (bl-3972), derived from __frot_env_profile: after
+    // dom.js (extends document/Node), any order among themselves.
+    include_str!("prelude/navigator.js"),
+    "\n",
+    include_str!("prelude/screen.js"),
+    "\n",
+    include_str!("prelude/intl.js"),
+    "\n",
+    include_str!("prelude/crypto.js"),
+    "\n",
     include_str!("prelude/env.js"),
     "\n",
     include_str!("prelude/url.js"),
@@ -49,4 +63,8 @@ pub const SOURCE: &str = concat!(
     include_str!("prelude/loop.js"),
     "\n",
     include_str!("prelude/net.js"),
+    "\n",
+    // nativebrand.js LAST: sweeps the whole existing web-API surface into the
+    // brand registry so no function's toString discloses prelude source (§8).
+    include_str!("prelude/nativebrand.js"),
 );

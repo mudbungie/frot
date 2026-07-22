@@ -92,6 +92,7 @@ fn main() {
         let env = Env {
             url: fetched.final_url.clone(),
             user_agent: fetch::user_agent(&[]).to_string(),
+            accept_language: fetch::accept_language(&[]),
         };
         let m = measure(Document::parse(&fetched.body), StyleSource::Bare, env);
         println!(

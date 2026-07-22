@@ -20,6 +20,7 @@ fn test_env() -> Env {
     Env {
         url: "https://example.com/".into(),
         user_agent: "frot-test/1".into(),
+        accept_language: "en-US,en;q=0.5".into(),
     }
 }
 
@@ -48,6 +49,7 @@ fn drive_at(html: &str, url: &str) -> (Document, Report) {
     let env = Env {
         url: url.into(),
         user_agent: "frot-test/1".into(),
+        accept_language: "en-US,en;q=0.5".into(),
     };
     run(
         Document::parse(html),

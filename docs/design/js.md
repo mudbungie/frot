@@ -340,19 +340,55 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   separate string. HttpOnly cookies never enter JS; a JS write feeds a later
   same-origin GET (OQ-3, resolved).
 - `indexedDB`: absent. Apps that require it fail into the §10 outcome story.
-- `navigator` / `location`: static facts frot already has (the UA string it
-  sends, the final URL, `webdriver: false` — truthful: no remote control). `location` *assignment* is navigation — a counted
+- `navigator` / `location`: `location` *assignment* is navigation — a counted
   no-op; frot takes an impression of one document, it does not browse.
-  **Superseded in part by `docs/design/identity.md` §4/§8 (bl-3972):** the
-  `navigator` facts stop being literals in `env.js` and become derivations of
-  the one `BrowserProfile`, delivered through a syscall the way the UA already
-  is. That closes measured incoherences this file's original list carried —
-  `languages: ['en-US']` where Firefox reports `['en-US','en']` (and where the
-  `Accept-Language` header disagreed), `doNotTrack: null` where Firefox reports
-  `'unspecified'`, and missing `oscpu`/`vendorSub`/`buildID`/`pdfViewerEnabled`.
-  Screen/viewport geometry does **not** move: it stays derived from
-  `layout.rs`'s 1280×720 constant, because two viewport constants would be the
-  duplication the profile exists to prevent.
+  **The `navigator` identity surface derives from the profile (`bl-3972` LANDED,
+  `docs/design/identity.md` §4/§8).** Every fact — `userAgent`/`appVersion`/
+  `appName`/`appCodeName`/`product`/`productSub`/`vendor`/`vendorSub`/`platform`/
+  `oscpu`/`language`/`languages`/`doNotTrack`/`buildID`/`hardwareConcurrency`/
+  `maxTouchPoints`/`cookieEnabled`/`onLine`/`pdfViewerEnabled` and the
+  `plugins`/`mimeTypes` PDF-viewer arrays — flows through **one** syscall,
+  `__frot_env_profile()`, which returns a JSON payload the prelude parses once
+  (`src/js/prelude/navigator.js`). No identity literal lives in the prelude (I1).
+  `userAgent`/`appVersion` and `language`/`languages` come from the *effective*
+  UA and `Accept-Language` (the `-H`-overridable strings on `Env`), the **same
+  source** as the HTTP headers, so wire and JS cannot disagree — closing the
+  measured incoherences (`languages: ['en-US']` vs Firefox's `['en-US','en']`,
+  `doNotTrack: null` vs `'unspecified'`, the old UA/JS-UA gap, missing
+  `oscpu`/`vendorSub`/`buildID`/`pdfViewerEnabled`). `webdriver: false` stays —
+  *truthful*, not a costume. The shim is **Firefox-shaped**: `navigator` is a
+  branded `Navigator` instance (`[object Navigator]`, `instanceof Navigator`) with
+  every fact an enumerable accessor on `Navigator.prototype` (not an own data
+  prop), matching Firefox's descriptor shape — so brand/prototype/descriptor
+  probes pass, not just values.
+- `screen` / `devicePixelRatio` / visibility (`bl-1cb7`, LANDED): a branded
+  `Screen` (`screen.width`/`height`/`availWidth`/`availHeight` = the 1280×720
+  layout viewport, **not** a second constant, identity.md §8), `colorDepth`/
+  `pixelDepth` = 24 and `devicePixelRatio` = 1 from the profile, `screenX`/`Y` and
+  the scroll offsets 0, `document.visibilityState: 'visible'` / `hidden: false` /
+  `hasFocus(): true` (one foreground impression). Coherent by construction: screen
+  == avail == window viewport.
+- `Intl` (`bl-ac8d`, LANDED): quickjs-ng ships without `Intl`, whose absence is a
+  loud tell, so the prelude provides the low-entropy subset a page reads to detect
+  locale/timezone — `Intl.DateTimeFormat().resolvedOptions()` returns `{locale,
+  calendar:'gregory', numberingSystem:'latn', timeZone, …}` with `locale` the
+  profile locale and `timeZone` pinned `UTC` (§9 determinism; a declared residual,
+  §11). Full `NumberFormat`/`Collator`/relative-time formatting is a residual.
+- `crypto` (`bl-cf3a`, LANDED): `crypto.getRandomValues`/`randomUUID` from **real
+  OS randomness** (`/dev/urandom` via `__frot_random_bytes`), with the browser
+  argument/quota/error contract (integer-typed view or `TypeMismatchError`, >65536
+  bytes → `QuotaExceededError`) enforced in JS. Not deterministic and not pinned;
+  separate calls share no state (OQ-2). `crypto.subtle` stays a residual (§11).
+- **Native-code branding** (`bl-3926`, LANDED): frot's web APIs are JS over
+  `__frot_*` syscalls, so an un-branded `fetch.toString()` would leak prelude
+  source and the name `frot`. **One** `Function.prototype.toString` wrapper backed
+  by **one** WeakMap registry (`src/js/prelude/brand.js`) makes every registered
+  web API read `function name() { [native code] }`; a non-enumerable
+  `__frot_brand`/`__frot_iface` pair is the registry the persona surface and the
+  six later capability balls extend — no second wrapper, no per-call-site patch.
+  `nativebrand.js` sweeps the whole existing surface last. *(Residual: the raw
+  `__frot_*` syscall **names** remain enumerable on `globalThis`; hiding them is a
+  separate concern, tracked apart from this branding of `toString`.)*
 - `history`: in-memory, born fresh (`state: null`, `length: 1`,
   `scrollRestoration: 'auto'`), discarded at exit. SPA routers read
   `history.state` on first render; absent, they throw. `pushState`/

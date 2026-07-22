@@ -1,11 +1,12 @@
-<!-- persona-navigator contract (identity.md §8 — the deterministic JS-probe half
-     of bl-46f5). The EXECUTABLE contract for frot's `navigator` identity surface:
-     the probe self-checks every §8 fact in JS and records any regression into
-     `data-fail` (empty array == all pass); the Rust gate
-     (src/js/tests/persona_gold.rs) reads that array plus `data-ua`. THIS FILE is
-     the one place to edit when `bl-3972` (JS persona) moves the profile — the
-     version-bound facts are asserted structurally (rv:/Firefox/), so a 121->140
-     UA bump needs no edit; the STABLE identity facts below are pinned exactly.
+<!-- persona identity contract (identity.md §8 — the deterministic JS-probe half
+     of bl-46f5, extended by bl-3972). The VENDORED GOLDEN ORACLE for frot's JS
+     persona: the values below are what a real Firefox 140esr on linux-x86_64
+     en-US reports for the supported subset, and the probe self-checks each in JS,
+     recording any regression into `data-fail` (empty array == all pass). The Rust
+     gate (src/js/tests/persona_gold.rs) reads that array plus `data-ua`. Brand /
+     prototype / descriptor / function-source checks pass, not just values. THIS
+     FILE is the one place to edit when the profile moves: version-bound facts are
+     asserted structurally (rv:/Firefox/), the stable identity facts exactly.
      Scripts run strict, so every global is declared via `var`. -->
 <html>
 <body>
@@ -16,24 +17,37 @@
     if (actual !== expected) FAILS.push(name + ': got ' + JSON.stringify(actual) + ' want ' + JSON.stringify(expected));
   }
   function ok(name, cond) { if (!cond) FAILS.push(name); }
+  // A frot web API must read as native code and never disclose prelude source or
+  // the syscall name `frot` (identity.md §8, the branding contract).
+  function native(name, fn) {
+    var s = Function.prototype.toString.call(fn);
+    ok(name + ':native', s.indexOf('[native code]') !== -1);
+    ok(name + ':no-frot', s.indexOf('frot') === -1);
+    ok(name + ':no-source', s.indexOf('return') === -1);
+  }
 
   var n = navigator;
 
   // --- Stable identity facts, pinned exactly (§8) -----------------------------
   eq('platform', n.platform, 'Linux x86_64');
+  eq('oscpu', n.oscpu, 'Linux x86_64');
   eq('language', n.language, 'en-US');
-  eq('languages.length', n.languages.length, 1);
+  eq('languages.length', n.languages.length, 2);
   eq('languages[0]', n.languages[0], 'en-US');
-  eq('hardwareConcurrency', n.hardwareConcurrency, 1);
+  eq('languages[1]', n.languages[1], 'en');
+  eq('hardwareConcurrency', n.hardwareConcurrency, 8);
   eq('productSub', n.productSub, '20100101');
   eq('product', n.product, 'Gecko');
   eq('vendor', n.vendor, '');
+  eq('vendorSub', n.vendorSub, '');
   eq('appName', n.appName, 'Netscape');
   eq('appCodeName', n.appCodeName, 'Mozilla');
   eq('onLine', n.onLine, true);
   eq('cookieEnabled', n.cookieEnabled, true);
-  eq('doNotTrack', n.doNotTrack, null);
+  eq('doNotTrack', n.doNotTrack, 'unspecified');
   eq('maxTouchPoints', n.maxTouchPoints, 0);
+  eq('buildID', n.buildID, '20181001000000');
+  eq('pdfViewerEnabled', n.pdfViewerEnabled, true);
   // webdriver is defined and false — absence is itself an odd fingerprint (§8).
   eq('webdriver', n.webdriver, false);
 
@@ -43,6 +57,75 @@
   ok('ua:gecko', ua.indexOf('Gecko/20100101') !== -1);
   ok('ua:firefox', ua.indexOf('Firefox/') !== -1);
   eq('appVersion', n.appVersion, ua.replace(/^Mozilla\//, ''));
+
+  // --- plugins / mimeTypes: the Gecko PDF-viewer shim set (§8) -----------------
+  eq('plugins.length', n.plugins.length, 5);
+  eq('plugins[0].name', n.plugins[0].name, 'PDF Viewer');
+  eq('plugins.item(0).name', n.plugins.item(0).name, 'PDF Viewer');
+  eq('plugins.named', n.plugins.namedItem('PDF Viewer').name, 'PDF Viewer');
+  eq('mimeTypes.length', n.mimeTypes.length, 2);
+  eq('mimeTypes[0].type', n.mimeTypes[0].type, 'application/pdf');
+  eq('mimeTypes[1].type', n.mimeTypes[1].type, 'text/pdf');
+  eq('plugintag', Object.prototype.toString.call(n.plugins), '[object PluginArray]');
+
+  // --- Firefox-shaped brand / prototype / descriptor (§8, §12) ----------------
+  eq('nav:tag', Object.prototype.toString.call(n), '[object Navigator]');
+  ok('nav:instanceof', n instanceof Navigator);
+  ok('nav:proto', Object.getPrototypeOf(n) === Navigator.prototype);
+  var d = Object.getOwnPropertyDescriptor(Navigator.prototype, 'userAgent');
+  ok('nav:accessor', typeof d.get === 'function');
+  ok('nav:no-set', d.set === undefined);
+  ok('nav:enumerable', d.enumerable === true);
+  ok('nav:configurable', d.configurable === true);
+  // The getter is native, and it is NOT an own data property on the instance.
+  native('nav:userAgent.get', d.get);
+  ok('nav:not-own', Object.getOwnPropertyNames(n).indexOf('userAgent') === -1);
+
+  // --- function-source branding (§8): the web APIs read native -----------------
+  native('Navigator', Navigator);
+  native('sendBeacon', n.sendBeacon);
+  native('javaEnabled', n.javaEnabled);
+  native('getRandomValues', crypto.getRandomValues);
+  native('randomUUID', crypto.randomUUID);
+  native('fetch', fetch);
+  native('querySelector', document.querySelector);
+  native('setTimeout', setTimeout);
+  native('addEventListener', addEventListener);
+  native('toString', Function.prototype.toString);
+
+  // --- screen / devicePixelRatio / visibility (§8, bl-1cb7) --------------------
+  eq('screen:tag', Object.prototype.toString.call(screen), '[object Screen]');
+  eq('screen.width', screen.width, 1280);
+  eq('screen.height', screen.height, 720);
+  eq('screen.availWidth', screen.availWidth, 1280);
+  eq('screen.availHeight', screen.availHeight, 720);
+  eq('screen.colorDepth', screen.colorDepth, 24);
+  eq('screen.pixelDepth', screen.pixelDepth, 24);
+  eq('devicePixelRatio', devicePixelRatio, 1);
+  eq('orientation', screen.orientation.type, 'landscape-primary');
+  eq('visibilityState', document.visibilityState, 'visible');
+  eq('hidden', document.hidden, false);
+  ok('hasFocus', document.hasFocus() === true);
+  // screen agrees with the window viewport (no contradiction across surfaces).
+  eq('screen==inner', screen.width, window.innerWidth);
+
+  // --- Intl: minimal DateTimeFormat resolvedOptions matching the profile (§8) --
+  eq('intl:tag', Object.prototype.toString.call(Intl), '[object Intl]');
+  var ro = new Intl.DateTimeFormat().resolvedOptions();
+  eq('intl:locale', ro.locale, 'en-US');
+  eq('intl:timeZone', ro.timeZone, 'UTC');
+  eq('intl:calendar', ro.calendar, 'gregory');
+  eq('intl:numberingSystem', ro.numberingSystem, 'latn');
+  // A requested locale is honoured (resolvedOptions reflects it).
+  eq('intl:requested', new Intl.DateTimeFormat('fr').resolvedOptions().locale, 'fr');
+
+  // --- crypto: real OS randomness, browser behaviour (§8, bl-cf3a) -------------
+  eq('crypto:tag', Object.prototype.toString.call(crypto), '[object Crypto]');
+  var buf = new Uint8Array(16);
+  ok('crypto:returns-view', crypto.getRandomValues(buf) === buf);
+  eq('crypto:len', buf.length, 16);
+  ok('uuid:v4', /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(crypto.randomUUID()));
+  ok('uuid:distinct', crypto.randomUUID() !== crypto.randomUUID());
 
   // --- Absent capability surfaces (§8): masquerade does not fabricate these ----
   eq('serviceWorker', typeof n.serviceWorker, 'undefined');
