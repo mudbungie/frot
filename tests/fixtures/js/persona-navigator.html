@@ -323,6 +323,66 @@
     }),
   ];
 
+  // --- Canvas 2D: a coherent, DETERMINISTIC fingerprint masquerade (bl-05e6) ---
+  // (identity.md §11) Firefox returns a 2D context; frot does too, and folds the
+  // draw sequence into a deterministic, profile-seeded digest. getContext('2d') is
+  // branded native; toDataURL/getImageData are STABLE per draw sequence, VARY with
+  // content, and are well-formed (image/png, right dimensions) — never random per
+  // call (the tell privacy tools show), never a wrong value. WebGL stays null.
+  var cv = document.createElement('canvas');
+  cv.width = 200; cv.height = 50;
+  eq('canvas:instanceof', cv instanceof HTMLCanvasElement, true);
+  eq('canvas:width', cv.width, 200);
+  eq('canvas:height', cv.height, 50);
+  var cx = cv.getContext('2d');
+  eq('canvas:ctx-tag', Object.prototype.toString.call(cx), '[object CanvasRenderingContext2D]');
+  ok('canvas:ctx-instanceof', cx instanceof CanvasRenderingContext2D);
+  ok('canvas:ctx-canvas', cx.canvas === cv);
+  native('canvas:getContext', cv.getContext);
+  native('canvas:toDataURL', cv.toDataURL);
+  native('canvas:fillText', cx.fillText);
+  native('canvas:getImageData', cx.getImageData);
+  // getContext('webgl') stays null (bl-f624); a non-canvas element gets undefined.
+  eq('canvas:webgl-null', String(cv.getContext('webgl')), 'null');
+  eq('canvas:div-getContext', document.createElement('div').getContext('2d'), undefined);
+  // Draw a standard fingerprint sequence, then read it back two ways.
+  cx.textBaseline = 'top';
+  cx.font = '14px sans-serif';
+  cx.fillStyle = '#069';
+  cx.fillText('frot-Cwm fjord \u{1f600}', 2, 2);
+  cx.fillStyle = 'rgba(102,204,0,0.7)';
+  cx.fillRect(8, 8, 40, 20);
+  var url = cv.toDataURL();
+  ok('canvas:png-prefix', url.indexOf('data:image/png;base64,') === 0);
+  // STABLE: the same draw sequence hashes identically on repeat reads.
+  eq('canvas:stable', cv.toDataURL(), url);
+  // VARIES with content: one changed glyph yields a different image.
+  var cv2 = document.createElement('canvas');
+  cv2.width = 200; cv2.height = 50;
+  var cx2 = cv2.getContext('2d');
+  cx2.textBaseline = 'top'; cx2.font = '14px sans-serif'; cx2.fillStyle = '#069';
+  cx2.fillText('frot-Cwm fjard \u{1f600}', 2, 2); // 'fjord' -> 'fjard'
+  cx2.fillStyle = 'rgba(102,204,0,0.7)'; cx2.fillRect(8, 8, 40, 20);
+  ok('canvas:varies', cv2.toDataURL() !== url);
+  // getImageData: well-formed ImageData of the right size, and CONSISTENT with the
+  // data URL (both derive from the one deterministic bitmap).
+  var img = cx.getImageData(0, 0, 200, 50);
+  eq('canvas:img-tag', Object.prototype.toString.call(img), '[object ImageData]');
+  ok('canvas:img-instanceof', img instanceof ImageData);
+  eq('canvas:img-w', img.width, 200);
+  eq('canvas:img-h', img.height, 50);
+  eq('canvas:img-len', img.data.length, 200 * 50 * 4);
+  eq('canvas:img-colorspace', img.colorSpace, 'srgb');
+  ok('canvas:img-stable', cx.getImageData(0, 0, 200, 50).data[123] === img.data[123]);
+  // A never-drawn canvas is transparent, exactly like a real one (all-zero pixels).
+  ok('canvas:blank-transparent', document.createElement('canvas').getContext('2d').getImageData(0, 0, 1, 1).data[3] === 0);
+  // measureText: deterministic width, stable and text-varying (font channel).
+  eq('canvas:measure-stable', cx.measureText('abc').width, cx.measureText('abc').width);
+  ok('canvas:measure-varies', cx.measureText('abc').width !== cx.measureText('abcd').width);
+  // The digest a fingerprinter hashes — pinned to <html data-canvas> so the Rust
+  // gate can prove it is byte-identical ACROSS two independent frot invocations.
+  var CANVAS_HASH = url;
+
   // --- Absent capability surfaces (§8): masquerade does not fabricate these ----
   eq('serviceWorker', typeof n.serviceWorker, 'undefined');
   eq('geolocation', typeof n.geolocation, 'undefined');
@@ -331,6 +391,10 @@
 
   var de = document.documentElement;
   de.setAttribute('data-ua', ua);
+  // The deterministic canvas fingerprint (bl-05e6): the Rust gate runs this page
+  // twice and asserts this attribute is byte-identical, proving determinism holds
+  // ACROSS invocations (not merely within one), the property a real device shows.
+  de.setAttribute('data-canvas', CANVAS_HASH);
   de.setAttribute('data-fail', JSON.stringify(FAILS));
   de.setAttribute('data-done', '1');
   // Re-write data-fail after the async permission checks settle (see above): the

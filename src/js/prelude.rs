@@ -77,6 +77,17 @@ pub const SOURCE: &str = concat!(
     // `g.Event`; open()/deleteDatabase() hand out a permanently-pending request.
     include_str!("prelude/idb.js"),
     "\n",
+    // Canvas 2D fingerprint (bl-05e6): a coherent, deterministic simulation.
+    // canvaspng.js (the PNG serialiser) first, then canvas.js (the context +
+    // deterministic bitmap, seeded by the profile's fixed `canvasSeed`), then
+    // canvaselem.js (getContext/toDataURL on the element). After dom.js (extends
+    // Node) and env.js is immaterial — it reads the always-bound profile syscall.
+    include_str!("prelude/canvaspng.js"),
+    "\n",
+    include_str!("prelude/canvas.js"),
+    "\n",
+    include_str!("prelude/canvaselem.js"),
+    "\n",
     // nativebrand.js LAST: sweeps the whole existing web-API surface into the
     // brand registry so no function's toString discloses prelude source (§8).
     include_str!("prelude/nativebrand.js"),

@@ -117,6 +117,10 @@ fn persona(ua: &str, accept_language: &str) -> String {
         "onLine": true,
         "pdfViewerEnabled": true,
         "colorDepth": p.color_depth,
+        // The FIXED 2D-canvas digest seed (bl-05e6, identity.md §11): the one
+        // channel canvas.js draws its determinism from. A profile const, never
+        // host entropy, so `toDataURL`/`getImageData` match across invocations.
+        "canvasSeed": p.canvas_seed,
         // A borderless 1280×720 desktop viewport (layout.rs) implies DPR 1 — the
         // CSS px and device px are one. Not a persona field: a fact of that model.
         "devicePixelRatio": 1,

@@ -466,8 +466,12 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   Width/height queries in `px`/`em`/`rem` (`em`/`rem` at a **16px** root
   font-size, so `80em == 1280px`) evaluate against the fixed viewport;
   `screen`/`all` match, `print` does not; `and`/comma/`not`/`only` are
-  understood; anything unknown matches never. `getContext()` on canvas returns
-  `null` (spec-legal). `Worker`/`SharedWorker` are **present as coherent,
+  understood; anything unknown matches never. `getContext('2d')` on canvas is a
+  **coherent, deterministic fingerprint masquerade** (`bl-05e6`, identity.md §11):
+  a branded `CanvasRenderingContext2D` whose draws fold into a profile-seeded
+  digest, so `toDataURL`/`getImageData` are stable across invocations and vary with
+  content; `getContext('webgl')` stays `null` (`bl-f624`). `Worker`/`SharedWorker`
+  are **present as coherent,
   non-executing constructors** (`bl-342a`, §11): feature detection sees a
   Firefox-shaped surface, but no thread is spawned. `WebAssembly`,
   `serviceWorker`: absent.
@@ -591,7 +595,14 @@ Two moves against today's `run.rs`:
 - **No persistence** across calls, of any kind (§7).
 - **No iframes.** Frame documents are not fetched or executed;
   `contentWindow`/`contentDocument` are `null`.
-- **No worker *execution*, no WASM, no media, no canvas rendering** (§7). The
+- **No canvas *rasterisation*** (`bl-05e6`, §7). `getContext('2d')` is a coherent
+  masquerade: a branded `CanvasRenderingContext2D` accepts the drawing API and
+  folds each call into a fixed-`canvas_seed`-seeded digest, so `toDataURL()`
+  (a well-formed `image/png`) and `getImageData()` are DETERMINISTIC across
+  invocations and vary with content — never random per call (the privacy-tool
+  tell). **The residual is pixel realism:** the bitmap is a digest expansion, not
+  a glyph raster (identity.md §11); WebGL stays null (`bl-f624`). No syscall.
+- **No worker *execution*, no WASM, no media** (§7). The
   `Worker`/`SharedWorker` *constructors* are present as a coherent masquerade
   (`bl-342a`, §7): `typeof Worker === 'function'`, `new Worker(url)` returns a
   Firefox-shaped instance with native `postMessage`/`terminate`/`onmessage`, but

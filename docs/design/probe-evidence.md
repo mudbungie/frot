@@ -118,7 +118,7 @@ a measured gap → one follow-up ball, governed by `bl-4896`'s coherence bar.
 
 | surface | frot | Firefox | probed by | ball |
 |---|---|---|---|---|
-| canvas 2D (`getContext('2d')`) | `null` | context | amazon, fingerprintjs, webbrowsertools | **bl-05e6** |
+| canvas 2D (`getContext('2d')`) | ~~`null`~~ → **context (bl-05e6, LANDED)**: deterministic, profile-seeded `toDataURL`/`getImageData` | context | amazon, fingerprintjs, webbrowsertools | **bl-05e6 ✓** |
 | WebGL (`getContext('webgl'…)`, `WebGL(2)RenderingContext`) | `null` / undefined | context / present | fingerprintjs, browserleaks/webgl, amazon | **bl-f624** |
 | audio (`OfflineAudioContext`/`AudioContext`) | undefined | present | fingerprintjs | **bl-8733** |
 | `screen.*` + `devicePixelRatio` | undefined | present | amazon, fingerprintjs, webbrowsertools | **bl-1cb7** |

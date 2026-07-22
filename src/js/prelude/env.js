@@ -211,12 +211,9 @@
     };
   };
 
-  // --- canvas getContext: spec-legal null, not an exception (§7) ------------
-  if (g.Node) {
-    g.Node.prototype.getContext = function () {
-      return this.tagName === 'CANVAS' ? null : undefined;
-    };
-  }
+  // canvas `getContext`/`toDataURL` are the 2D-fingerprint masquerade, owned by
+  // canvas.js (bl-05e6): getContext('2d') returns a branded, deterministic
+  // context; getContext('webgl') stays null (bl-f624). Not defined here.
   // WebSocket, EventSource, WebAssembly, navigator.serviceWorker: never defined
   // -> `typeof` is 'undefined', so feature detection falls through (§6, §7).
   // Absence is the denial; no code lies otherwise. (indexedDB and Worker/

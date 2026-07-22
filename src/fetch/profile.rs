@@ -1,26 +1,21 @@
 //! The one browser persona — single source of truth (`docs/design/identity.md`
-//! §4). Every persona fact has exactly one definition site here; downstream
-//! tasks *derive* from this const and store nothing twice.
+//! §4). Every fact has one definition site here; tasks *derive*, storing nothing twice.
 //!
-//! This ball (`bl-abca`) lands the **transport subset**: the pinned version, the
-//! end-of-life tripwire (I8), the ALPN target order, the TLS capability targets,
-//! and the h2 wire facts. The struct is designed to be extended *additively* —
-//! `bl-20ec` adds the ordered request-header description (and rewires the live
-//! `User-Agent`, which this ball deliberately does **not** touch), `bl-3972` the
-//! JS-facing `navigator` facts, `bl-e707` the clock precision. New fields, not
-//! new files.
+//! This ball (`bl-abca`) landed the **transport subset** (version, EOL tripwire
+//! I8, ALPN order, TLS targets, h2 facts). The struct extends *additively* —
+//! `bl-20ec` request headers, `bl-3972` the JS `navigator` facts, `bl-e707` clock
+//! precision, `bl-05e6` the canvas seed. New fields, not new files.
 //!
 //! ## What Option C (Mark, 2026-07-21) makes this const mean
 //!
 //! frot's transport is stock `rustls 0.23` + `aws-lc-rs` — no ClientHello-crafting
 //! fork (identity.md §6.1/§6.3). So these TLS/h2 targets are the **persona frot
-//! aims at and the oracle measures against**, not a promise of a byte-exact
-//! Firefox handshake. Where stock rustls emits its own shape, the gap is a
-//! *declared residual* asserted in the §12 oracle, never a silent miss. The facts
-//! frot genuinely enforces from here — ALPN order, kx-group order, signature-
-//! algorithm order, the h2 SETTINGS values — are wired through `firefox_tls.rs`;
-//! the rest (cipher list breadth, extension order/set, three key shares,
-//! `m,p,a,s` pseudo-order) are the residuals §11/§6.4/§7 enumerate.
+//! aims at and the oracle measures against**, not a byte-exact Firefox handshake.
+//! Where stock rustls emits its own shape, the gap is a *declared residual*
+//! asserted in the §12 oracle, never a silent miss. The facts frot enforces from
+//! here — ALPN order, kx-group order, sig-algorithm order, the h2 SETTINGS values
+//! — are wired through `firefox_tls.rs`; the rest (cipher breadth, extension set,
+//! key shares, `m,p,a,s`) are residuals §11/§6.4/§7 enumerate.
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -95,6 +90,10 @@ pub struct BrowserProfile {
     pub hardware_concurrency: u8,
     /// JS `screen.colorDepth`/`pixelDepth` — 24-bit truecolor (identity.md §8).
     pub color_depth: u8,
+    /// JS 2D-canvas fingerprint digest seed (`bl-05e6`, identity.md §11): a FIXED
+    /// persona const (never host entropy) so `toDataURL`/`getImageData` are a
+    /// deterministic function of (seed + draw sequence), stable across invocations.
+    pub canvas_seed: u32,
     /// JS clock precision, µs — the `performance.now`/`Date.now` quantum (`bl-e707`).
     pub timer_precision_us: u32,
     /// End-of-life tripwire (I8): once `now` reaches this, the pin is stale and
@@ -260,6 +259,7 @@ pub const FIREFOX_140_ESR: BrowserProfile = BrowserProfile {
     build_id: "20181001000000",
     hardware_concurrency: 8,
     color_depth: 24,
+    canvas_seed: 0x_f00d_c0de, // opaque fixed seed; mixed with draws, never raw.
     timer_precision_us: 1_000, // 1 ms — Firefox's reduceTimerPrecision default
     // ESR 140 is the sole current ESR line (`FIREFOX_ESR_NEXT` empty, §2); when
     // its successor lands this trips and forces a re-capture + re-pin.

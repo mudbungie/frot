@@ -77,11 +77,12 @@
   });
 
   // --- canvas.getContext: record the requested context type ------------------
-  // getContext already returns null (env.js, spec-legal). The requested type is
-  // the branch signal: `2d` is canvas fingerprinting, `webgl`/`webgl2` is WebGL
-  // fingerprinting. WebGL getParameter / getExtension / debug-renderer strings
-  // are unreachable behind the null context, so getContext(type) is the correct,
-  // sufficient WebGL probe. Behaviour preserved: still returns the original.
+  // getContext('2d') is now the branded canvas masquerade (canvas.js, bl-05e6);
+  // 'webgl'/'webgl2' still return null (bl-f624). The requested type is the branch
+  // signal: `2d` is canvas fingerprinting, `webgl`/`webgl2` is WebGL. WebGL
+  // getParameter / debug-renderer strings are unreachable behind the null context,
+  // so getContext(type) is the correct WebGL probe. Behaviour preserved: still
+  // returns the original (now a 2D context for '2d', still null for webgl).
   if (g.Node) {
     var realGetContext = g.Node.prototype.getContext;
     g.Node.prototype.getContext = function (type) {

@@ -85,6 +85,9 @@ fn transport_targets_are_the_pinned_persona_facts() {
     assert_eq!(FIREFOX_140_ESR.language, "en-US");
     assert_eq!(FIREFOX_140_ESR.name, "Firefox");
     assert_eq!(FIREFOX_140_ESR.version, "140.12.0esr");
+    // The canvas digest seed is a fixed persona constant (bl-05e6): pinned here so
+    // a silent change — which would shift every deterministic canvas hash — fails.
+    assert_eq!(FIREFOX_140_ESR.canvas_seed, 0x_f00d_c0de);
 }
 
 #[test]

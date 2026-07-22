@@ -137,9 +137,9 @@ fn an_uninstrumented_page_records_nothing() {
 }
 
 /// The honesty line (`identity.md` §10): wrapping a surface to record it must not
-/// change what frot returns. Absent globals stay `undefined`, `getContext` stays
-/// `null`, and the identity facts stay exactly what the shim reports — the read
-/// is merely counted.
+/// change what frot returns. Absent globals stay `undefined`, the identity facts
+/// stay exactly what the shim reports, and a present masquerade (Worker, the 2D
+/// canvas context) is forwarded unchanged — the read is merely counted.
 #[test]
 fn recording_preserves_frots_real_values() {
     let log = ProbeLog::default();
@@ -154,8 +154,16 @@ fn recording_preserves_frots_real_values() {
     // Worker is now a present masquerade (bl-342a) — the probe still forwards
     // frot's real value unchanged, and that value is now the constructor.
     assert_eq!(s.eval("typeof Worker").unwrap(), "function");
+    // getContext('2d') is now a present masquerade (bl-05e6) — the probe still
+    // forwards frot's real value unchanged, and that value is now the branded 2D
+    // context. WebGL stays null (bl-f624), which the else path below still shows.
     assert_eq!(
         s.eval("String(document.createElement('canvas').getContext('2d'))")
+            .unwrap(),
+        "[object CanvasRenderingContext2D]"
+    );
+    assert_eq!(
+        s.eval("String(document.createElement('canvas').getContext('webgl'))")
             .unwrap(),
         "null"
     );

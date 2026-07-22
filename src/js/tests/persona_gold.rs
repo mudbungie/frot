@@ -54,4 +54,33 @@ fn navigator_persona_contract_holds() {
         (report.scripts, report.errors, report.settled),
         (1, 0, true)
     );
+
+    // The 2D-canvas fingerprint (bl-05e6, identity.md §11) must be DETERMINISTIC
+    // across independent invocations — the property a real device shows and the
+    // whole point of seeding from a fixed profile const, not host entropy. Drive
+    // the same page a SECOND time and assert the digest a fingerprinter would hash
+    // is byte-identical. The in-JS checks above already proved it is well-formed
+    // (image/png prefix), stable within a run, and content-varying; this is the
+    // cross-invocation half the JS cannot see. A non-trivial hash guards against a
+    // regression that silently emptied it.
+    let canvas = de_attr(&doc, "data-canvas").expect("probe wrote data-canvas");
+    assert!(
+        canvas.starts_with("data:image/png;base64,") && canvas.len() > 64,
+        "canvas fingerprint is not a well-formed, non-trivial PNG data URL"
+    );
+    let (doc2, _) = run(
+        Document::parse(PERSONA_NAV),
+        StyleSource::Bare,
+        Env {
+            url: "https://example.com/".into(),
+            user_agent: ua,
+            accept_language: crate::fetch::accept_language(&[]),
+        },
+        &FetchSession::new(Vec::new()),
+    );
+    assert_eq!(
+        de_attr(&doc2, "data-canvas").as_deref(),
+        Some(canvas.as_str()),
+        "canvas fingerprint drifted between two invocations (must be deterministic)"
+    );
 }

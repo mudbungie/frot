@@ -85,6 +85,9 @@ fn persona_serializes_the_pinned_facts_from_the_profile() {
     assert_eq!(v["onLine"], true);
     assert_eq!(v["pdfViewerEnabled"], true);
     assert_eq!(v["colorDepth"], 24);
+    // The fixed canvas digest seed rides the same one channel (bl-05e6): canvas.js
+    // reads it to seed a deterministic, profile-derived `toDataURL`/`getImageData`.
+    assert_eq!(v["canvasSeed"], 0x_f00d_c0de_u32);
     assert_eq!(v["devicePixelRatio"], 1);
     assert_eq!(v["locale"], "en-US");
     assert_eq!(v["timeZone"], "UTC");
