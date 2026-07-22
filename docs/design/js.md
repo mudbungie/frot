@@ -470,7 +470,11 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   **coherent, deterministic fingerprint masquerade** (`bl-05e6`, identity.md §11):
   a branded `CanvasRenderingContext2D` whose draws fold into a profile-seeded
   digest, so `toDataURL`/`getImageData` are stable across invocations and vary with
-  content; `getContext('webgl')` stays `null` (`bl-f624`). `Worker`/`SharedWorker`
+  content; `getContext('webgl')`/`'webgl2'` are the **same masquerade** (`bl-f624`,
+  §11): branded `WebGL`/`WebGL2RenderingContext` contexts with masked
+  `VENDOR`/`RENDERER` (`"Mozilla"`), coherent Mesa/llvmpipe `UNMASKED_*` via
+  `WEBGL_debug_renderer_info`, and deterministic `readPixels`/`toDataURL`.
+  `Worker`/`SharedWorker`
   are **present as coherent,
   non-executing constructors** (`bl-342a`, §11): feature detection sees a
   Firefox-shaped surface, but no thread is spawned. `WebAssembly`,
@@ -601,7 +605,18 @@ Two moves against today's `run.rs`:
   (a well-formed `image/png`) and `getImageData()` are DETERMINISTIC across
   invocations and vary with content — never random per call (the privacy-tool
   tell). **The residual is pixel realism:** the bitmap is a digest expansion, not
-  a glyph raster (identity.md §11); WebGL stays null (`bl-f624`). No syscall.
+  a glyph raster (identity.md §11). No syscall.
+- **No WebGL *rendering*** (`bl-f624`, §7). `getContext('webgl')`/`'webgl2')` (and
+  `'experimental-webgl'`) return branded `WebGL`/`WebGL2RenderingContext` contexts:
+  `getParameter(VENDOR)`/`(RENDERER)` are Firefox's masked `"Mozilla"`, the real GPU
+  strings surface only through `WEBGL_debug_renderer_info` and name **Mesa llvmpipe**
+  (software — coherent for headless Linux Firefox, never over-claiming hardware),
+  and the limit/extension/precision set is one real llvmpipe build's (the `webgl`
+  SSOT, `src/fetch/webgl.rs`, via `__frot_env_profile`). `readPixels`/`toDataURL`
+  are the same deterministic digest expansion as 2D (`webglpix.js`), stable across
+  invocations and content-varying. **The residual is pixel realism** (no GL runs);
+  a canvas binds one context type for life, so a cross-type `getContext` is null. No
+  syscall.
 - **No worker *execution*, no WASM, no media** (§7). The
   `Worker`/`SharedWorker` *constructors* are present as a coherent masquerade
   (`bl-342a`, §7): `typeof Worker === 'function'`, `new Worker(url)` returns a

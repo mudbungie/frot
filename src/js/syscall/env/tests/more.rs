@@ -189,18 +189,20 @@ fn absent_apis_stay_undefined_and_window_aliases_the_global() {
     assert_eq!(s.eval("typeof Worker").unwrap(), "function");
     assert_eq!(s.eval("typeof SharedWorker").unwrap(), "function");
     assert_eq!(s.eval("typeof WebSocket").unwrap(), "undefined");
-    // Canvas getContext('2d') is a present masquerade (bl-05e6) — a branded,
-    // deterministic 2D context; 'webgl' stays a legal null (bl-f624); a non-canvas
-    // element has no context.
+    // Canvas getContext('2d') and getContext('webgl') are present masquerades
+    // (bl-05e6 / bl-f624) — branded, deterministic 2D and WebGL contexts; a
+    // non-canvas element has no context.
     assert_eq!(
         s.eval("Object.prototype.toString.call(document.createElement('canvas').getContext('2d'))")
             .unwrap(),
         "[object CanvasRenderingContext2D]"
     );
     assert_eq!(
-        s.eval("String(document.createElement('canvas').getContext('webgl'))")
-            .unwrap(),
-        "null"
+        s.eval(
+            "Object.prototype.toString.call(document.createElement('canvas').getContext('webgl'))"
+        )
+        .unwrap(),
+        "[object WebGLRenderingContext]"
     );
     assert_eq!(
         s.eval("String(document.createElement('div').getContext('2d'))")

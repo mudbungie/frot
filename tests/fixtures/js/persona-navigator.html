@@ -342,8 +342,9 @@
   native('canvas:toDataURL', cv.toDataURL);
   native('canvas:fillText', cx.fillText);
   native('canvas:getImageData', cx.getImageData);
-  // getContext('webgl') stays null (bl-f624); a non-canvas element gets undefined.
-  eq('canvas:webgl-null', String(cv.getContext('webgl')), 'null');
+  // A canvas binds ONE context type (bl-f624): this one is 2D, so getContext('webgl')
+  // now returns null by exclusivity. A non-canvas element gets undefined.
+  eq('canvas:webgl-excluded', String(cv.getContext('webgl')), 'null');
   eq('canvas:div-getContext', document.createElement('div').getContext('2d'), undefined);
   // Draw a standard fingerprint sequence, then read it back two ways.
   cx.textBaseline = 'top';
@@ -383,6 +384,91 @@
   // gate can prove it is byte-identical ACROSS two independent frot invocations.
   var CANVAS_HASH = url;
 
+  // --- WebGL: a coherent, DETERMINISTIC fingerprint masquerade (bl-f624) --------
+  // (identity.md §10/§11) Firefox exposes WebGL(2)RenderingContext and a context;
+  // frot does too, Firefox-shaped and branded native. VENDOR/RENDERER are masked to
+  // "Mozilla"; the real GPU strings surface only via WEBGL_debug_renderer_info and
+  // name Mesa llvmpipe (software, coherent for Firefox-on-Linux, never over-claiming
+  // hardware). Limits/extensions/precision are one real llvmpipe build's set;
+  // readPixels/toDataURL are deterministic across invocations and vary with content.
+  ok('WebGLRenderingContext:type', typeof WebGLRenderingContext === 'function');
+  ok('WebGL2RenderingContext:type', typeof WebGL2RenderingContext === 'function');
+  native('WebGLRenderingContext', WebGLRenderingContext);
+  var gcv = document.createElement('canvas');
+  gcv.width = 128; gcv.height = 128;
+  var gl = gcv.getContext('webgl');
+  ok('webgl:ctx-instanceof', gl instanceof WebGLRenderingContext);
+  eq('webgl:ctx-tag', Object.prototype.toString.call(gl), '[object WebGLRenderingContext]');
+  ok('webgl:ctx-canvas', gl.canvas === gcv);
+  // experimental-webgl aliases the same version -> the same context object.
+  ok('webgl:experimental-same', gcv.getContext('experimental-webgl') === gl);
+  native('webgl:getParameter', gl.getParameter);
+  native('webgl:getExtension', gl.getExtension);
+  // Masked vendor/renderer (Firefox's anti-fingerprint default), never the GPU.
+  eq('webgl:vendor-masked', gl.getParameter(gl.VENDOR), 'Mozilla');
+  eq('webgl:renderer-masked', gl.getParameter(gl.RENDERER), 'Mozilla');
+  eq('webgl:version', gl.getParameter(gl.VERSION), 'WebGL 1.0');
+  eq('webgl:glsl', gl.getParameter(gl.SHADING_LANGUAGE_VERSION), 'WebGL GLSL ES 1.0');
+  // UNMASKED via the debug-renderer extension: coherent Mesa/llvmpipe, Linux-plausible.
+  var dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  ok('webgl:dbg-ext', !!dbg);
+  eq('webgl:unmasked-vendor', gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL), 'Mesa');
+  var UNR = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
+  ok('webgl:unmasked-renderer', UNR.indexOf('llvmpipe') === 0);
+  // Coherence: the masked slots must NOT leak the real GPU string.
+  ok('webgl:mask-no-leak', gl.getParameter(gl.VENDOR).indexOf('llvmpipe') === -1);
+  // Limits: scalar, and range/dims as the right typed array.
+  eq('webgl:max-texture', gl.getParameter(gl.MAX_TEXTURE_SIZE), 16384);
+  eq('webgl:max-attribs', gl.getParameter(gl.MAX_VERTEX_ATTRIBS), 16);
+  var vp = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+  ok('webgl:viewport-int32', vp instanceof Int32Array && vp[0] === 16384 && vp[1] === 16384);
+  var lw = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE);
+  ok('webgl:linewidth-float32', lw instanceof Float32Array && lw[0] === 1 && lw[1] === 255);
+  // Unknown enum -> null, exactly as Firefox answers.
+  eq('webgl:unknown-null', gl.getParameter(0x9999), null);
+  eq('webgl:ext-unknown-null', gl.getExtension('WEBGL_nonexistent'), null);
+  // Extension list: coherent with software llvmpipe (anisotropy present, ASTC not).
+  var exts = gl.getSupportedExtensions();
+  ok('webgl:ext-debug', exts.indexOf('WEBGL_debug_renderer_info') !== -1);
+  ok('webgl:ext-aniso', exts.indexOf('EXT_texture_filter_anisotropic') !== -1);
+  ok('webgl:ext-no-astc', exts.join(',').indexOf('astc') === -1);
+  // Precision: desktop GL signature — every float qualifier is highp {127,127,23}.
+  var hf = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
+  eq('webgl:precision-high', hf.precision, 23);
+  var mf = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_FLOAT);
+  eq('webgl:precision-medium', mf.precision, 23);
+  // WebGL2: separate branded interface, coherent WebGL2 facts.
+  var g2cv = document.createElement('canvas'); g2cv.width = 128; g2cv.height = 128;
+  var gl2 = g2cv.getContext('webgl2');
+  ok('webgl2:instanceof', gl2 instanceof WebGL2RenderingContext);
+  eq('webgl2:version', gl2.getParameter(gl2.VERSION), 'WebGL 2.0');
+  eq('webgl2:max-3d', gl2.getParameter(gl2.MAX_3D_TEXTURE_SIZE), 2048);
+  // Exclusivity + legacy names: a webgl canvas refuses 2d; moz-webgl is null.
+  eq('webgl:excl-2d', String(gcv.getContext('2d')), 'null');
+  eq('webgl:moz-null', String(gcv.getContext('moz-webgl')), 'null');
+  // Deterministic render: a fixed sequence, read two ways, stable and opaque.
+  gl.clearColor(0.1, 0.2, 0.3, 1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  var sh = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(sh, 'void main(){gl_Position=vec4(0.0,0.0,0.0,1.0);}');
+  gl.compileShader(sh);
+  ok('webgl:compile-ok', gl.getShaderParameter(sh, gl.COMPILE_STATUS) === true);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  var b1 = new Uint8Array(128 * 128 * 4);
+  gl.readPixels(0, 0, 128, 128, gl.RGBA, gl.UNSIGNED_BYTE, b1);
+  var b2 = new Uint8Array(128 * 128 * 4);
+  gl.readPixels(0, 0, 128, 128, gl.RGBA, gl.UNSIGNED_BYTE, b2);
+  ok('webgl:readpixels-stable', b1[100] === b2[100] && b1[3] === 255);
+  var WEBGL_HASH = gcv.toDataURL();
+  ok('webgl:png-prefix', WEBGL_HASH.indexOf('data:image/png;base64,') === 0);
+  eq('webgl:toDataURL-stable', gcv.toDataURL(), WEBGL_HASH);
+  // Content-varies: a different draw sequence yields a different image.
+  var vcv = document.createElement('canvas'); vcv.width = 128; vcv.height = 128;
+  var glv = vcv.getContext('webgl');
+  glv.clearColor(0.9, 0.1, 0.1, 1.0); glv.clear(glv.COLOR_BUFFER_BIT);
+  glv.drawArrays(glv.TRIANGLES, 0, 6);
+  ok('webgl:varies', vcv.toDataURL() !== WEBGL_HASH);
+
   // --- Absent capability surfaces (§8): masquerade does not fabricate these ----
   eq('serviceWorker', typeof n.serviceWorker, 'undefined');
   eq('geolocation', typeof n.geolocation, 'undefined');
@@ -395,6 +481,9 @@
   // twice and asserts this attribute is byte-identical, proving determinism holds
   // ACROSS invocations (not merely within one), the property a real device shows.
   de.setAttribute('data-canvas', CANVAS_HASH);
+  // The deterministic WebGL fingerprint (bl-f624): same cross-invocation proof as
+  // canvas — the gate runs this page twice and asserts byte-identical.
+  de.setAttribute('data-webgl', WEBGL_HASH);
   de.setAttribute('data-fail', JSON.stringify(FAILS));
   de.setAttribute('data-done', '1');
   // Re-write data-fail after the async permission checks settle (see above): the

@@ -154,9 +154,9 @@ fn recording_preserves_frots_real_values() {
     // Worker is now a present masquerade (bl-342a) — the probe still forwards
     // frot's real value unchanged, and that value is now the constructor.
     assert_eq!(s.eval("typeof Worker").unwrap(), "function");
-    // getContext('2d') is now a present masquerade (bl-05e6) — the probe still
-    // forwards frot's real value unchanged, and that value is now the branded 2D
-    // context. WebGL stays null (bl-f624), which the else path below still shows.
+    // getContext('2d') and getContext('webgl') are now present masquerades (bl-05e6
+    // / bl-f624) — the probe still forwards frot's real value unchanged, and those
+    // values are now the branded 2D and WebGL contexts.
     assert_eq!(
         s.eval("String(document.createElement('canvas').getContext('2d'))")
             .unwrap(),
@@ -165,7 +165,7 @@ fn recording_preserves_frots_real_values() {
     assert_eq!(
         s.eval("String(document.createElement('canvas').getContext('webgl'))")
             .unwrap(),
-        "null"
+        "[object WebGLRenderingContext]"
     );
     // A non-CANVAS element's getContext stays undefined (the else arm).
     assert_eq!(

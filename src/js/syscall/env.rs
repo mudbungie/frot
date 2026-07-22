@@ -121,6 +121,11 @@ fn persona(ua: &str, accept_language: &str) -> String {
         // channel canvas.js draws its determinism from. A profile const, never
         // host entropy, so `toDataURL`/`getImageData` match across invocations.
         "canvasSeed": p.canvas_seed,
+        // The WebGL fingerprint persona (bl-f624, identity.md §11): masked
+        // VENDOR/RENDERER, the coherent Mesa/llvmpipe UNMASKED strings, and the
+        // limit/extension set. The one channel `webgl.js` draws them from, sourced
+        // from the `webgl` SSOT const — no identity literal in the prelude (I1).
+        "webgl": crate::fetch::webgl_facts(),
         // A borderless 1280×720 desktop viewport (layout.rs) implies DPR 1 — the
         // CSS px and device px are one. Not a persona field: a fact of that model.
         "devicePixelRatio": 1,

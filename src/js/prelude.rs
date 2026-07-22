@@ -88,6 +88,16 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/canvaselem.js"),
     "\n",
+    // WebGL fingerprint (bl-f624): a coherent, deterministic simulation. webglpix.js
+    // (the shared FNV digest + xorshift bitmap expansion) first, then webgl.js (the
+    // branded WebGL/WebGL2 contexts, masked VENDOR/RENDERER, coherent Mesa/llvmpipe
+    // UNMASKED via WEBGL_debug_renderer_info, limits/extensions/precision, and the
+    // deterministic readPixels/toDataURL). After canvaselem.js (which routes
+    // getContext('webgl'…) here) and canvaspng.js (reuses its PNG serialiser).
+    include_str!("prelude/webglpix.js"),
+    "\n",
+    include_str!("prelude/webgl.js"),
+    "\n",
     // nativebrand.js LAST: sweeps the whole existing web-API surface into the
     // brand registry so no function's toString discloses prelude source (§8).
     include_str!("prelude/nativebrand.js"),

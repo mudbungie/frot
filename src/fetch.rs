@@ -29,6 +29,7 @@ mod profile;
 mod request;
 mod session;
 mod transport;
+mod webgl;
 
 pub(crate) use concurrent::fetch_many;
 pub(crate) use cookie::{CookieJar, SharedJar};
@@ -36,6 +37,7 @@ pub(crate) use decode::decode_body;
 pub use profile::{BrowserProfile, H2Profile, TlsProfile, FIREFOX_140_ESR};
 pub use session::{FetchSession, Intent};
 pub(crate) use transport::Transport;
+pub(crate) use webgl::facts as webgl_facts;
 
 /// Redirects followed before giving up with [`kinds::FETCH_REDIRECT`] — ureq's
 /// old default, so behaviour is unchanged.

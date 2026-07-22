@@ -68,6 +68,17 @@ fn navigator_persona_contract_holds() {
         canvas.starts_with("data:image/png;base64,") && canvas.len() > 64,
         "canvas fingerprint is not a well-formed, non-trivial PNG data URL"
     );
+    // The WebGL fingerprint (bl-f624, identity.md §11) carries the same
+    // cross-invocation determinism requirement: a coherent Firefox-on-Linux WebGL
+    // masquerade whose `toDataURL` a fingerprinter hashes must be byte-identical
+    // across independent runs, not merely within one (the in-JS checks proved the
+    // vendor/renderer masking, the coherent Mesa/llvmpipe UNMASKED strings, and
+    // within-run stability; this is the half the JS cannot see).
+    let webgl = de_attr(&doc, "data-webgl").expect("probe wrote data-webgl");
+    assert!(
+        webgl.starts_with("data:image/png;base64,") && webgl.len() > 64,
+        "webgl fingerprint is not a well-formed, non-trivial PNG data URL"
+    );
     let (doc2, _) = run(
         Document::parse(PERSONA_NAV),
         StyleSource::Bare,
@@ -82,5 +93,10 @@ fn navigator_persona_contract_holds() {
         de_attr(&doc2, "data-canvas").as_deref(),
         Some(canvas.as_str()),
         "canvas fingerprint drifted between two invocations (must be deterministic)"
+    );
+    assert_eq!(
+        de_attr(&doc2, "data-webgl").as_deref(),
+        Some(webgl.as_str()),
+        "webgl fingerprint drifted between two invocations (must be deterministic)"
     );
 }
