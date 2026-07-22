@@ -1,7 +1,7 @@
 .PHONY: setup build test fmt lint cov precommit-install precommit-run clean
 
 setup:
-	cargo install cargo-llvm-cov --locked
+	@command -v cargo-llvm-cov >/dev/null 2>&1 || cargo install cargo-llvm-cov --locked
 
 precommit-install:
 	@mkdir -p .git/hooks
