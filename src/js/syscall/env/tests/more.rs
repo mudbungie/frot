@@ -179,7 +179,11 @@ fn absent_apis_stay_undefined_and_window_aliases_the_global() {
         "true"
     );
     assert_eq!(s.eval("top === self && parent === self").unwrap(), "true");
-    assert_eq!(s.eval("typeof indexedDB").unwrap(), "undefined");
+    // indexedDB is a present masquerade (bl-8dde) — a coherent IDBFactory with no
+    // backing store; only *persistence* stays absent (open() never completes).
+    assert_eq!(s.eval("typeof indexedDB").unwrap(), "object");
+    assert_eq!(s.eval("indexedDB instanceof IDBFactory").unwrap(), "true");
+    assert_eq!(s.eval("typeof indexedDB.open").unwrap(), "function");
     // Worker/SharedWorker are a present masquerade (bl-342a) — coherent
     // constructor presence with no thread; only their *execution* stays absent.
     assert_eq!(s.eval("typeof Worker").unwrap(), "function");

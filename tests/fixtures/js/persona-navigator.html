@@ -169,6 +169,82 @@
   native('sharedworker:port.postMessage', sw.port.postMessage);
   ok('sharedworker:port-void', sw.port.postMessage('x') === undefined);
 
+  // --- IndexedDB: coherent factory + interface-zoo presence, no persistence ----
+  // (bl-8dde) Firefox exposes indexedDB; frot masquerades the surface so feature
+  // detection passes, but is stateless — open() returns a Firefox-shaped
+  // IDBOpenDBRequest that stays 'pending' forever (onsuccess/onupgradeneeded never
+  // fire: the declared residual, identity.md §11). Less detectable than an error,
+  // which a real fresh open() never produces.
+  ok('idb:in', 'indexedDB' in window);
+  ok('idb:instanceof', indexedDB instanceof IDBFactory);
+  eq('idb:tag', Object.prototype.toString.call(indexedDB), '[object IDBFactory]');
+  eq('idb:open-type', typeof indexedDB.open, 'function');
+  native('idb:open', indexedDB.open);
+  native('idb:deleteDatabase', indexedDB.deleteDatabase);
+  native('idb:cmp', indexedDB.cmp);
+  native('idb:databases', indexedDB.databases);
+  // cmp: a real, coherent synchronous key comparison (type ranking + values).
+  eq('idb:cmp-num', indexedDB.cmp(1, 2), -1);
+  eq('idb:cmp-eq', indexedDB.cmp(5, 5), 0);
+  eq('idb:cmp-str', indexedDB.cmp('b', 'a'), 1);
+  eq('idb:cmp-rank', indexedDB.cmp(9, 'a'), -1);   // number < string
+  eq('idb:cmp-date', indexedDB.cmp(new Date(2), new Date(1)), 1);
+  eq('idb:cmp-arr', indexedDB.cmp([1, 2], [1, 2, 3]), -1);
+  eq('idb:cmp-invalid', threw(function () { indexedDB.cmp(null, 1); }), 'DataError');
+  eq('idb:cmp-arity', threw(function () { indexedDB.cmp(1); }), 'TypeError');
+  // databases() honestly resolves to [] (a stateless store has none).
+  ok('idb:databases-promise', indexedDB.databases() instanceof Promise);
+
+  // open() returns a Firefox-shaped, permanently-pending IDBOpenDBRequest.
+  var req = indexedDB.open('frot');
+  eq('idb:req-tag', Object.prototype.toString.call(req), '[object IDBOpenDBRequest]');
+  ok('idb:req-open-instanceof', req instanceof IDBOpenDBRequest);
+  ok('idb:req-req-instanceof', req instanceof IDBRequest);
+  eq('idb:req-readyState', req.readyState, 'pending');
+  eq('idb:req-source', req.source, null);
+  eq('idb:req-transaction', req.transaction, null);
+  // While pending, result/error throw InvalidStateError — exactly like Firefox.
+  eq('idb:req-result-throws', threw(function () { return req.result; }), 'InvalidStateError');
+  eq('idb:req-error-throws', threw(function () { return req.error; }), 'InvalidStateError');
+  // onupgradeneeded/onsuccess: native, enumerable prototype accessors defaulting
+  // null and settable — but they NEVER fire (the residual is silence).
+  eq('idb:onupgradeneeded-default', req.onupgradeneeded, null);
+  var od = Object.getOwnPropertyDescriptor(IDBOpenDBRequest.prototype, 'onupgradeneeded');
+  ok('idb:onupgradeneeded-accessor', typeof od.get === 'function' && typeof od.set === 'function');
+  ok('idb:onupgradeneeded-enumerable', od.enumerable === true);
+  native('idb:onupgradeneeded.get', od.get);
+  var oh = function () {};
+  req.onsuccess = oh;
+  ok('idb:onsuccess-set', req.onsuccess === oh);
+  // Firefox throws TypeError for a missing name and for an illegal version (0).
+  eq('idb:open-no-arg', threw(function () { indexedDB.open(); }), 'TypeError');
+  eq('idb:open-bad-version', threw(function () { indexedDB.open('x', 0); }), 'TypeError');
+  ok('idb:open-good-version', indexedDB.open('x', 3) instanceof IDBOpenDBRequest);
+  eq('idb:delete-no-arg', threw(function () { indexedDB.deleteDatabase(); }), 'TypeError');
+  ok('idb:delete-req', indexedDB.deleteDatabase('x') instanceof IDBOpenDBRequest);
+
+  // Interface zoo: present, native, Firefox-shaped, non-constructable (Illegal).
+  ['IDBFactory', 'IDBRequest', 'IDBOpenDBRequest', 'IDBDatabase', 'IDBTransaction',
+    'IDBObjectStore', 'IDBIndex', 'IDBCursor', 'IDBCursorWithValue', 'IDBKeyRange'
+  ].forEach(function (nm) {
+    eq('idbzoo:' + nm + '-type', typeof window[nm], 'function');
+    native('idbzoo:' + nm, window[nm]);
+    eq('idbzoo:' + nm + '-illegal', threw(function () { new window[nm](); }), 'TypeError');
+    eq('idbzoo:' + nm + '-tag', Object.prototype.toString.call(window[nm].prototype), '[object ' + nm + ']');
+  });
+  ok('idb:cursorvalue-chain', IDBCursorWithValue.prototype instanceof IDBCursor);
+  // IDBVersionChangeEvent IS constructable (an Event subtype), unlike the zoo.
+  eq('idbvce:type', typeof IDBVersionChangeEvent, 'function');
+  native('idbvce', IDBVersionChangeEvent);
+  var vce = new IDBVersionChangeEvent('versionchange', { oldVersion: 1, newVersion: 2 });
+  ok('idbvce:instanceof-event', vce instanceof Event);
+  eq('idbvce:tag', Object.prototype.toString.call(vce), '[object IDBVersionChangeEvent]');
+  eq('idbvce:old', vce.oldVersion, 1);
+  eq('idbvce:new', vce.newVersion, 2);
+  eq('idbvce:default-old', new IDBVersionChangeEvent('x').oldVersion, 0);
+  eq('idbvce:default-new', new IDBVersionChangeEvent('x').newVersion, null);
+  eq('idbvce:no-arg', threw(function () { new IDBVersionChangeEvent(); }), 'TypeError');
+
   // --- Absent capability surfaces (§8): masquerade does not fabricate these ----
   eq('serviceWorker', typeof n.serviceWorker, 'undefined');
   eq('geolocation', typeof n.geolocation, 'undefined');

@@ -217,7 +217,8 @@
       return this.tagName === 'CANVAS' ? null : undefined;
     };
   }
-  // indexedDB, Worker, WebSocket, EventSource, WebAssembly, navigator.service-
-  // Worker: never defined -> `typeof` is 'undefined', so feature detection
-  // falls through (§6, §7). Absence is the denial; no code lies otherwise.
+  // WebSocket, EventSource, WebAssembly, navigator.serviceWorker: never defined
+  // -> `typeof` is 'undefined', so feature detection falls through (§6, §7).
+  // Absence is the denial; no code lies otherwise. (indexedDB and Worker/
+  // SharedWorker are instead a coherent PRESENCE masquerade — idb.js/worker.js.)
 })(globalThis);

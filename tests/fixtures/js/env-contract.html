@@ -93,7 +93,7 @@
 
   // --- Absent by design: `typeof` is 'undefined' so detection falls through --
   ['IntersectionObserver', 'MutationObserver', 'ResizeObserver', 'customElements',
-    'MessageChannel', 'TextEncoder', 'indexedDB'].forEach(function (n) {
+    'MessageChannel', 'TextEncoder'].forEach(function (n) {
     eq('absent:' + n, typeof globalThis[n], 'undefined');
   });
 

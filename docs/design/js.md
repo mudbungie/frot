@@ -339,7 +339,19 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   owns (`bl-6dad`, `identity.md` §9), born empty, discarded at exit — not a
   separate string. HttpOnly cookies never enter JS; a JS write feeds a later
   same-origin GET (OQ-3, resolved).
-- `indexedDB`: absent. Apps that require it fail into the §10 outcome story.
+- `indexedDB`: **present, but stateless (`bl-8dde`, LANDED).** The §10 coherence
+  bar makes absence a louder tell than a costume (Firefox has it), so `indexedDB`
+  is a Firefox-shaped `IDBFactory` (branded native, the `IDB*` interface zoo with
+  `[object …]` tags and "Illegal constructor" throws; `IDBVersionChangeEvent` an
+  `Event` subtype) and feature detection passes. frot persists nothing (§7), so
+  there is no backing store: `open()`/`deleteDatabase()` return a real,
+  permanently-`pending` `IDBOpenDBRequest` whose `onsuccess`/`onupgradeneeded`/
+  `onerror` **never fire** — the declared residual (`identity.md` §11). That
+  silence is *less* detectable than an error, because a real fresh `open()`
+  succeeds, so an error callback would contradict the persona. `databases()`
+  honestly resolves to `[]`; `cmp()` is a real synchronous key comparison. Apps
+  that gate on *existence* work; apps that *await* an open fail into the §10
+  outcome story.
 - `navigator` / `location`: `location` *assignment* is navigation — a counted
   no-op; frot takes an impression of one document, it does not browse.
   **The `navigator` identity surface derives from the profile (`bl-3972` LANDED,

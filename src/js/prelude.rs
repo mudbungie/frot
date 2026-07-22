@@ -68,6 +68,11 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/net.js"),
     "\n",
+    // IndexedDB (bl-8dde): coherent IDBFactory + interface-zoo presence, no
+    // persistence. AFTER loop.js because IDBVersionChangeEvent subclasses its
+    // `g.Event`; open()/deleteDatabase() hand out a permanently-pending request.
+    include_str!("prelude/idb.js"),
+    "\n",
     // nativebrand.js LAST: sweeps the whole existing web-API surface into the
     // brand registry so no function's toString discloses prelude source (§8).
     include_str!("prelude/nativebrand.js"),
