@@ -2,7 +2,7 @@
 //! `-H` layering, the same-origin credential scoping for subresources, and the
 //! `file://` read path — the header/`-H`/scheme decisions the session owns.
 
-use super::super::{MAX_BODY_BYTES, USER_AGENT};
+use super::super::{FIREFOX_140_ESR, MAX_BODY_BYTES};
 use super::*;
 use crate::envelope::kinds;
 
@@ -15,12 +15,13 @@ fn navigation_sends_the_firefox_set_layered_under_h() {
         .mock("GET", "/")
         .match_header(
             "accept",
-            "text/html,application/xhtml+xml,application/xml;q=0.9,\
-             image/avif,image/webp,*/*;q=0.8",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         )
         .match_header("accept-language", "en-US,en;q=0.5")
         .match_header("sec-fetch-mode", "navigate")
-        .match_header("user-agent", USER_AGENT)
+        .match_header("sec-fetch-site", "none")
+        .match_header("priority", "u=0, i")
+        .match_header("user-agent", FIREFOX_140_ESR.user_agent().as_str())
         .with_body("ok")
         .create();
     FetchSession::new(Vec::new())

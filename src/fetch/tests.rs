@@ -55,8 +55,14 @@ fn body_len_gate_accepts_at_limit_and_rejects_over() {
 }
 
 #[test]
-fn user_agent_defaults_and_overrides() {
-    assert_eq!(user_agent(&[]), USER_AGENT);
+fn user_agent_defaults_to_the_persona_and_a_caller_overrides() {
+    // The default is derived from the pinned persona (Firefox 140esr), not a
+    // stale literal; a `-H` override wins verbatim.
+    assert_eq!(user_agent(&[]), FIREFOX_140_ESR.user_agent());
+    assert_eq!(
+        user_agent(&[]),
+        "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
+    );
     let h = vec![("User-Agent".to_string(), "custom/1".to_string())];
     assert_eq!(user_agent(&h), "custom/1");
 }

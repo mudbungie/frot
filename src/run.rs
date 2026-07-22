@@ -131,7 +131,7 @@ fn run_scripts(
     };
     let env = Env {
         url: fetched.final_url.clone(),
-        user_agent: fetch::user_agent(&args.headers).to_string(),
+        user_agent: fetch::user_agent(&args.headers),
     };
     let (doc, r) = crate::js::run(doc, styles, env, session);
     let mut info = JsInfo::new(r.scripts, r.errors, r.settled);

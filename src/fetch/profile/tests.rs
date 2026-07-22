@@ -86,3 +86,26 @@ fn transport_targets_are_the_pinned_persona_facts() {
     assert_eq!(FIREFOX_140_ESR.name, "Firefox");
     assert_eq!(FIREFOX_140_ESR.version, "140.12.0esr");
 }
+
+#[test]
+fn derived_headers_come_from_the_pinned_facts() {
+    // UA and Accept-Language are computed from `platform`/`major`/`language`, so a
+    // re-pin needs no second edit (§4.2). The region `en-US` rides at q=0.5.
+    assert_eq!(
+        FIREFOX_140_ESR.user_agent(),
+        "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
+    );
+    assert_eq!(FIREFOX_140_ESR.accept_language(), "en-US,en;q=0.5");
+    // A region-less locale degrades to itself (the fallback arm).
+    let mut bare = FIREFOX_140_ESR;
+    bare.language = "en";
+    assert_eq!(bare.accept_language(), "en");
+    // Every intent maps to its own destination/mode; navigation alone is a
+    // user-activated, upgrade-insecure document.
+    assert_eq!(
+        FIREFOX_140_ESR.request_meta(Intent::Navigation).dest,
+        "document"
+    );
+    assert!(FIREFOX_140_ESR.request_meta(Intent::Navigation).uir);
+    assert_eq!(FIREFOX_140_ESR.request_meta(Intent::FetchXhr).user, None);
+}

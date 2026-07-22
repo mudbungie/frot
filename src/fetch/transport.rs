@@ -102,13 +102,14 @@ impl Transport {
             builder = builder.header(n.as_str(), v.as_str());
         }
         // Defaults hyper does not add for us: the persona UA and the honest
-        // `Accept-Encoding` (only what `decode::inflate` decodes). A caller `-H`
-        // override already in `headers` wins — these fill in only when absent.
+        // `Accept-Encoding` (only what `decode::inflate` decodes). The request
+        // derivation supplies both for a real page load; this fills them in only
+        // for a bare direct call (recorder/transport tests), from the same SSOTs.
         if !has_header(headers, "user-agent") {
-            builder = builder.header("user-agent", super::USER_AGENT);
+            builder = builder.header("user-agent", FIREFOX_140_ESR.user_agent());
         }
         if !has_header(headers, "accept-encoding") {
-            builder = builder.header("accept-encoding", "gzip, br");
+            builder = builder.header("accept-encoding", super::decode::ACCEPT_ENCODING);
         }
         let req = builder
             .body(Empty::<Bytes>::new())

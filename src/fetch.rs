@@ -24,6 +24,7 @@ use crate::envelope::kinds;
 mod decode;
 mod firefox_tls;
 mod profile;
+mod request;
 mod session;
 mod transport;
 
@@ -36,8 +37,6 @@ pub(crate) use transport::Transport;
 /// old default, so behaviour is unchanged.
 const MAX_REDIRECTS: usize = 10;
 
-const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
-
 pub(crate) const TIMEOUT_SECS: u64 = 15;
 pub(crate) const MAX_BODY_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -48,14 +47,17 @@ pub(crate) const MAX_BODY_BYTES: u64 = 16 * 1024 * 1024;
 /// browser it presents as.
 pub(crate) const POOL_PER_HOST: usize = 6;
 
-/// The User-Agent frot sends: a `-H "User-Agent: …"` override when the caller
-/// supplied one, else the built-in default. `navigator.userAgent` (js.md §7)
-/// reports the same string, so the shim never lies about who fetched.
-pub fn user_agent(headers: &[(String, String)]) -> &str {
+/// The effective User-Agent: a `-H "User-Agent: …"` override when the caller
+/// supplied one, else the pinned persona's derived UA
+/// ([`BrowserProfile::user_agent`], Firefox 140esr). `navigator.userAgent`
+/// (js.md §7) reports this same string, so the shim never lies about who
+/// fetched; wiring the *JS-visible* UA to 140esr is bl-3972's, so a transient
+/// HTTP-UA/JS-UA gap within this epic is expected and reconciles then.
+pub fn user_agent(headers: &[(String, String)]) -> String {
     headers
         .iter()
         .find(|(n, _)| n.eq_ignore_ascii_case("user-agent"))
-        .map_or(USER_AGENT, |(_, v)| v.as_str())
+        .map_or_else(|| FIREFOX_140_ESR.user_agent(), |(_, v)| v.clone())
 }
 
 #[derive(Debug, Clone)]
@@ -90,15 +92,19 @@ pub(crate) fn build_transport() -> Transport {
     Transport::new(firefox_tls::webpki_roots())
 }
 
-/// GET `url` over the session's shared `transport` with `headers` attached, each
-/// exchange under `timeout`. `headers` is the fully-resolved request set the
-/// session prepared (nav headers layered, or same-origin `-H` scoped). Follows
-/// up to [`MAX_REDIRECTS`] redirects, stripping `Authorization` when a redirect
-/// crosses origin. `file://` reads take the read path and ignore the pool.
+/// GET `url` over the session's shared `transport`, deriving the protocol-correct
+/// request metadata for each hop (`request::derive_headers`) from `intent`, the
+/// `initiator` (the caller-`-H` origin anchor), and the caller overrides. Each
+/// exchange runs under `timeout`. Follows up to [`MAX_REDIRECTS`] redirects,
+/// **recomputing** `Sec-Fetch-Site`/`Referer` and the same-origin caller scope
+/// for the new target (so cross-origin credentials, `Authorization` included,
+/// never leak). `file://` reads take the read path and ignore the pool.
 pub(crate) fn dispatch(
     transport: &Transport,
     url: &str,
-    headers: &[(String, String)],
+    intent: Intent,
+    initiator: &str,
+    caller: &[(String, String)],
     timeout: Duration,
 ) -> Result<FetchResult, FetchError> {
     let parsed = validate_url(url)?;
@@ -106,13 +112,21 @@ pub(crate) fn dispatch(
         return fetch_file(&parsed);
     }
     let mut current = url.to_string();
-    let mut headers = headers.to_vec();
+    // The referrer source: a user navigation starts with none (site `none`, no
+    // referer); a subresource references its document across every hop. A
+    // navigation redirect adopts the pre-redirect hop as the new source.
+    let mut referrer = match intent {
+        Intent::Navigation => None,
+        _ => Some(initiator.to_string()),
+    };
     for _ in 0..MAX_REDIRECTS {
+        let headers =
+            request::derive_headers(intent, &current, initiator, referrer.as_deref(), caller);
         let resp = transport.request_once(&current, &headers, MAX_BODY_BYTES, timeout)?;
         match redirect_target(resp.status, &resp.headers, &current)? {
             Some(next) => {
-                if !same_origin(&current, &next) {
-                    headers.retain(|(n, _)| !n.eq_ignore_ascii_case("authorization"));
+                if matches!(intent, Intent::Navigation) {
+                    referrer = Some(current.clone());
                 }
                 current = next;
             }

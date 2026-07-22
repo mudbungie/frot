@@ -7,13 +7,20 @@
 //! network.
 //!
 //! Two recorded contracts live here:
-//! - **`persona-http-head.txt`** — the h1 request head over plain `http://`
-//!   (§3.3 header set/order/values). Since `bl-abca` moved the transport to
-//!   hyper, the head is **Title-Cased on both schemes** (hyper's
+//! - **`persona-http-head.txt`** — the h1 request head over plain `http://`,
+//!   the navigation set `bl-20ec` derives from the persona (identity.md §3.3/§4:
+//!   Firefox 140esr UA, Firefox-shaped `Accept` with no `image/avif`, the RFC
+//!   9218 `Priority`). Title-Cased on both schemes (hyper's
 //!   `http1_title_case_headers`), dissolving §3.4's old scheme-dependent
-//!   lowercase `http://` tell. This is the CURRENT contract, not a frozen one:
-//!   `bl-20ec` (request metadata) changes the header values/order and updates
-//!   this one golden file. Each is a single-file edit.
+//!   lowercase tell. The declared h1-fallback residuals of hyper's pooled
+//!   abstraction (`request.rs`) show here: the synthesised `Host` lands **last**
+//!   (not Firefox's first position), `Te: trailers` — Firefox's h2-only trailer
+//!   advertisement — rides too, and Firefox's h1 `Connection: keep-alive` is
+//!   absent (it would corrupt the h2 `te` order). The negotiated h2 path is fully
+//!   correct (`:authority`, `te` last). The exact ordered wire set for every
+//!   intent on **both** protocols is asserted in
+//!   `fetch::request::recorder`; this file is the navigation golden, updated as a
+//!   single-file edit when the derivation changes.
 //! - **the declared-challenge negative control** (§3.7): a `Retry-After` 200 is
 //!   detected pre-parse, so frot makes EXACTLY ONE request, emits `needs:["human"]`
 //!   with no `out`/`js` block, and exits 0. Proven offline by counting the

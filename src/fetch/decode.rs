@@ -13,6 +13,12 @@ use std::io::Read;
 use super::{header_value, FetchError, MAX_BODY_BYTES};
 use crate::envelope::kinds;
 
+/// The `Accept-Encoding` frot advertises — exactly the decoders [`inflate`]
+/// implements (I2, identity.md §14). The single source both the request
+/// derivation and the transport fallback read, so what frot advertises can never
+/// drift from what it can inflate; `deflate`/`zstd` are a declared residual.
+pub(crate) const ACCEPT_ENCODING: &str = "gzip, br";
+
 /// Inflate `body` per its `Content-Encoding`. gzip and br are decoded (capped at
 /// [`MAX_BODY_BYTES`] to bound a decompression bomb); everything else — identity,
 /// absent, or an encoding frot never advertised — passes through unchanged.

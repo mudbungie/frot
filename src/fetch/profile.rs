@@ -24,6 +24,8 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use super::Intent;
+
 /// The h2 wire facts of the persona (identity.md §3.1 akamai text, §12). The
 /// SETTINGS values and the connection-level WINDOW_UPDATE increment are
 /// *enforced* on the h2 client; `pseudo_order` and the HEADERS `PRIORITY` weight
@@ -95,6 +97,36 @@ pub struct BrowserProfile {
     pub tls: TlsProfile,
     /// h2 wire facts.
     pub h2: H2Profile,
+    /// `Accept` for a document navigation (identity.md §4.1 `accept_document`).
+    /// Firefox-shaped: no `image/avif,image/webp` (that pair is the Chrome tell
+    /// §3.3 row 5 removes).
+    pub accept_document: &'static str,
+    /// `Accept` for an external stylesheet (`<link rel=stylesheet>`).
+    pub accept_style: &'static str,
+    /// `Accept` for scripts, modules, and `fetch`/XHR — Firefox sends `*/*`.
+    pub accept_default: &'static str,
+}
+
+/// The per-request-class header facts the persona sends (identity.md §4.1/§4.2),
+/// derived from one [`Intent`]. `Accept`, `Sec-Fetch-Dest`/`-Mode`, whether a
+/// `Sec-Fetch-User`/`Upgrade-Insecure-Requests` rides, and the RFC 9218
+/// `Priority` all follow from the request's role; `Sec-Fetch-Site` and `Referer`
+/// depend on URL facts and are computed in `request.rs`, not here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RequestMeta {
+    /// `Accept` value for this class.
+    pub accept: &'static str,
+    /// `Sec-Fetch-Dest` (Fetch Metadata destination).
+    pub dest: &'static str,
+    /// `Sec-Fetch-Mode` (Fetch Metadata mode).
+    pub mode: &'static str,
+    /// `Sec-Fetch-User` — `Some("?1")` only for a user-activated navigation.
+    pub user: Option<&'static str>,
+    /// Whether `Upgrade-Insecure-Requests: 1` rides (navigations only).
+    pub uir: bool,
+    /// RFC 9218 `Priority`: document `u=0, i` (§3.3 row 8); render-blocking
+    /// leaders (CSS, blocking scripts, modules) `u=2`; `fetch`/XHR `u=4`.
+    pub priority: &'static str,
 }
 
 /// A calendar date, compared without a date dependency.
@@ -131,6 +163,75 @@ impl BrowserProfile {
             .as_secs() as i64
             / 86_400;
         today < self.eol.days_since_epoch()
+    }
+
+    /// The HTTP `User-Agent` this persona sends, and the sole source
+    /// `navigator.userAgent` derives from (identity.md §4.2). Built from the
+    /// pinned `major` and `platform` so a re-pin (§4.1) has exactly one edit and
+    /// nothing to regenerate — an ESR UA reports `rv:<major>.0` / `Firefox/<major>.0`.
+    pub fn user_agent(&self) -> String {
+        format!(
+            "Mozilla/5.0 (X11; {}; rv:{}.0) Gecko/20100101 Firefox/{}.0",
+            self.platform, self.major, self.major
+        )
+    }
+
+    /// The `Accept-Language` header, derived from `language` (identity.md §4.2:
+    /// `en-US,en;q=0.5` is Gecko's rendering of the `en-US` UI locale). The base
+    /// language rides at `q=0.5`; a bare locale with no region degrades to itself.
+    pub fn accept_language(&self) -> String {
+        match self.language.split_once('-') {
+            Some((base, _)) => format!("{},{base};q=0.5", self.language),
+            None => self.language.to_string(),
+        }
+    }
+
+    /// The per-class request metadata for one [`Intent`] (identity.md §4.1). The
+    /// one place navigation vs style vs classic-script vs module vs fetch/XHR
+    /// diverge in `Accept`, Fetch Metadata, and `Priority`.
+    pub fn request_meta(&self, intent: Intent) -> RequestMeta {
+        match intent {
+            Intent::Navigation => RequestMeta {
+                accept: self.accept_document,
+                dest: "document",
+                mode: "navigate",
+                user: Some("?1"),
+                uir: true,
+                priority: "u=0, i",
+            },
+            Intent::Style => RequestMeta {
+                accept: self.accept_style,
+                dest: "style",
+                mode: "no-cors",
+                user: None,
+                uir: false,
+                priority: "u=2",
+            },
+            Intent::ClassicScript => RequestMeta {
+                accept: self.accept_default,
+                dest: "script",
+                mode: "no-cors",
+                user: None,
+                uir: false,
+                priority: "u=2",
+            },
+            Intent::Module => RequestMeta {
+                accept: self.accept_default,
+                dest: "script",
+                mode: "cors",
+                user: None,
+                uir: false,
+                priority: "u=2",
+            },
+            Intent::FetchXhr => RequestMeta {
+                accept: self.accept_default,
+                dest: "empty",
+                mode: "cors",
+                user: None,
+                uir: false,
+                priority: "u=4",
+            },
+        }
     }
 }
 
@@ -174,6 +275,9 @@ pub const FIREFOX_140_ESR: BrowserProfile = BrowserProfile {
         pseudo_order: "m,p,a,s",
         priority_weight: 42,
     },
+    accept_document: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    accept_style: "text/css,*/*;q=0.1",
+    accept_default: "*/*",
 };
 
 #[cfg(test)]

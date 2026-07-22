@@ -24,7 +24,7 @@ fn de_attr(doc: &Document, name: &str) -> Option<String> {
 fn navigator_persona_contract_holds() {
     // Drive with the REAL UA frot sends (not the test stub `envgold` uses), so
     // the host-visible `navigator.userAgent` is asserted against the wire persona.
-    let ua = user_agent(&[]).to_string();
+    let ua = user_agent(&[]);
     let env = Env {
         url: "https://example.com/".into(),
         user_agent: ua.clone(),

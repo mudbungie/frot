@@ -177,6 +177,29 @@ fn redirects_are_followed_through_the_session() {
 }
 
 #[test]
+fn a_subresource_redirect_is_followed_without_a_navigation_referrer_bump() {
+    // A non-navigation redirect exercises the derivation's `matches!(Navigation)`
+    // false arm: the referrer source stays the document across the hop.
+    let mut server = mockito::Server::new();
+    let _m1 = server
+        .mock("GET", "/sheet")
+        .with_status(301)
+        .with_header("location", "/final.css")
+        .create();
+    let _m2 = server
+        .mock("GET", "/final.css")
+        .with_status(200)
+        .with_body("body{}")
+        .create();
+    let base = server.url();
+    let r = FetchSession::new(Vec::new())
+        .subresource(&format!("{base}/sheet"), &base, Intent::Style, GENEROUS)
+        .unwrap();
+    assert_eq!(r.status, Some(200));
+    assert!(r.final_url.ends_with("/final.css"));
+}
+
+#[test]
 fn a_dead_port_is_a_connect_or_timeout_error() {
     let e = FetchSession::new(Vec::new())
         .navigate("http://127.0.0.1:1/")

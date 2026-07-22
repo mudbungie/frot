@@ -286,28 +286,27 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   `SUBFETCH_BYTES`. A page that genuinely needs more than the budget allows
   now dies honestly of time (`settled: false`), not of an arbitrary count
   masquerading as completion.
-- **No document-navigation header set.** *(Version literal superseded: the
-  navigation set is pinned to Firefox **140.12.0esr** by
-  `docs/design/identity.md` §4, and per-destination subresource header sets —
-  the "more mechanism than this pass warrants" deferral below — are now
-  `bl-20ec`'s job under invariant I4. The rule this bullet states is unchanged
-  and was right: a subresource is not a navigation.)* The Firefox navigation
-  defaults
-  (`Accept: text/html,…`, `Accept-Language`, `Upgrade-Insecure-Requests`,
-  `Sec-Fetch-Dest: document` / `Mode: navigate` / `Site: none` / `User: ?1` —
-  `fetch::DOCUMENT_HEADERS`) attach only on the **top-level page GET**
-  (`fetch::fetch_document`). Subfetches — stylesheets, `fetch`/XHR, and external
-  `<script src>` — go through `fetch::fetch`, which sends only the shared
-  `User-Agent` and ureq's negotiated `Accept-Encoding`, plus same-origin `-H`.
-  Rationale: a subresource load is not a navigation, so replaying the
-  navigation set on it (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-User: ?1`,
-  `Upgrade-Insecure-Requests`) would be *affirmatively* inconsistent — no real
-  browser sends navigate-mode `Sec-Fetch` on a `fetch()`/stylesheet/script.
-  Full per-`Dest` subresource fidelity (`style` vs `empty` vs `script`, same-
-  vs cross-site) is more mechanism than this consistency pass warrants and
-  would not flip the trial's hard cases (which fail on TLS fingerprint, not
-  headers — see bl-0eba). Subfetches therefore stay honest-minimal; the
-  masquerade is completed at the one navigation that gates access.
+- **Per-destination request metadata (landed, `bl-20ec`).** *(Supersedes the
+  earlier "subfetches stay honest-minimal" deferral: full per-`Dest` subresource
+  fidelity is now cheap because it derives from one place.)* One derivation —
+  `fetch::request::derive_headers` — builds the protocol-correct ordered header
+  set for **every** request from `(Intent, target, initiator, caller -H)` against
+  the pinned Firefox 140.12.0esr persona (`identity.md` §4), replacing the old
+  `DOCUMENT_HEADERS` const and the ad-hoc `fetch::fetch` subfetch policy. A
+  navigation carries `Accept: text/html,…`, `Upgrade-Insecure-Requests`,
+  `Sec-Fetch-Dest: document` / `Mode: navigate` / `Site: none` / `User: ?1`,
+  `Priority: u=0, i`; each subresource carries its own honest set instead — a
+  stylesheet `Sec-Fetch-Dest: style` / `Mode: no-cors`, a classic script
+  `script` / `no-cors`, a module `script` / `cors`, a `fetch`/XHR `empty` /
+  `cors`, each with its own `Accept` and `Priority`, and a `Referer` /
+  `Sec-Fetch-Site` computed from URL facts (`none` / `same-origin` / `same-site`
+  / `cross-site`) under Firefox's `strict-origin-when-cross-origin` policy. The
+  rule the old bullet stated still holds — a subresource is *not* a navigation,
+  so it never carries navigate-mode `Sec-Fetch` — but the fix is now to send the
+  *right* per-destination metadata, not the minimal one. Credentials and custom
+  `-H` never leak cross-origin; the caller `-H` is the final same-origin
+  override. The exact ordered wire set is pinned for all five intents on both h1
+  and h2 by `fetch::request::recorder`.
 - Absent-by-design channels: `WebSocket`/`EventSource` are undefined (feature
   detection falls through); `navigator.sendBeacon` returns `false` — where the
   platform spec offers a legal denial, prefer it over an exception.
