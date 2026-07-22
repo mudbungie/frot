@@ -419,7 +419,10 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   font-size, so `80em == 1280px`) evaluate against the fixed viewport;
   `screen`/`all` match, `print` does not; `and`/comma/`not`/`only` are
   understood; anything unknown matches never. `getContext()` on canvas returns
-  `null` (spec-legal). `Worker`, `WebAssembly`, `serviceWorker`: absent.
+  `null` (spec-legal). `Worker`/`SharedWorker` are **present as coherent,
+  non-executing constructors** (`bl-342a`, §11): feature detection sees a
+  Firefox-shaped surface, but no thread is spawned. `WebAssembly`,
+  `serviceWorker`: absent.
 
 ## 8. Geometry reads — the third layout trigger
 
@@ -540,7 +543,14 @@ Two moves against today's `run.rs`:
 - **No persistence** across calls, of any kind (§7).
 - **No iframes.** Frame documents are not fetched or executed;
   `contentWindow`/`contentDocument` are `null`.
-- **No workers, no WASM, no media, no canvas rendering** (§7).
+- **No worker *execution*, no WASM, no media, no canvas rendering** (§7). The
+  `Worker`/`SharedWorker` *constructors* are present as a coherent masquerade
+  (`bl-342a`, §7): `typeof Worker === 'function'`, `new Worker(url)` returns a
+  Firefox-shaped instance with native `postMessage`/`terminate`/`onmessage`, but
+  no thread runs — a page that constructs a worker and awaits a reply **gets
+  none**. That non-delivery is the one declared residual (identity.md §11), not a
+  bug: presence is the coherence requirement (§10), execution stays out of scope
+  (GET-only, bounded, stateless all hold — the shim spawns nothing).
 - **Coherent identity, yes; defeating defences, no** (`docs/design/identity.md`
   §10 — this boundary **moved twice**: `bl-0356` moved it, then Mark's
   masquerade ruling moved it again on 2026-07-20, and this bullet is the latest

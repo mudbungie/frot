@@ -17,6 +17,7 @@
     if (actual !== expected) FAILS.push(name + ': got ' + JSON.stringify(actual) + ' want ' + JSON.stringify(expected));
   }
   function ok(name, cond) { if (!cond) FAILS.push(name); }
+  function threw(fn) { try { fn(); return null; } catch (e) { return e.name; } }
   // A frot web API must read as native code and never disclose prelude source or
   // the syscall name `frot` (identity.md §8, the branding contract).
   function native(name, fn) {
@@ -126,6 +127,47 @@
   eq('crypto:len', buf.length, 16);
   ok('uuid:v4', /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(crypto.randomUUID()));
   ok('uuid:distinct', crypto.randomUUID() !== crypto.randomUUID());
+
+  // --- Worker / SharedWorker: coherent constructor presence, no execution ------
+  // (bl-342a) Firefox exposes these; frot masquerades the surface (feature detect
+  // passes) but spawns no thread — a constructed worker never delivers a message
+  // (the declared residual, identity.md §11). Present, native, Firefox-shaped.
+  eq('Worker:type', typeof Worker, 'function');
+  ok('Worker:in', 'Worker' in window);
+  native('Worker', Worker);
+  var w = new Worker('data:,');
+  eq('worker:tag', Object.prototype.toString.call(w), '[object Worker]');
+  ok('worker:instanceof', w instanceof Worker);
+  ok('worker:proto', Object.getPrototypeOf(w) === Worker.prototype);
+  native('worker:postMessage', w.postMessage);
+  native('worker:terminate', w.terminate);
+  // No thread behind them: the calls are honest no-ops returning undefined.
+  ok('worker:postMessage-void', w.postMessage('x') === undefined);
+  ok('worker:terminate-void', w.terminate() === undefined);
+  // onmessage is a native, enumerable prototype accessor defaulting null, and
+  // settable — but it never fires (the residual is silence, not a wrong value).
+  eq('worker:onmessage-default', w.onmessage, null);
+  var wd = Object.getOwnPropertyDescriptor(Worker.prototype, 'onmessage');
+  ok('worker:onmessage-accessor', typeof wd.get === 'function' && typeof wd.set === 'function');
+  ok('worker:onmessage-enumerable', wd.enumerable === true);
+  native('worker:onmessage.get', wd.get);
+  var wh = function () {};
+  w.onmessage = wh;
+  ok('worker:onmessage-set', w.onmessage === wh);
+  // Firefox throws TypeError when the required scriptURL argument is missing.
+  eq('worker:no-arg', threw(function () { new Worker(); }), 'TypeError');
+
+  eq('SharedWorker:type', typeof SharedWorker, 'function');
+  native('SharedWorker', SharedWorker);
+  var sw = new SharedWorker('data:,');
+  eq('sharedworker:tag', Object.prototype.toString.call(sw), '[object SharedWorker]');
+  ok('sharedworker:instanceof', sw instanceof SharedWorker);
+  // port is a MessagePort-shaped object (SharedWorker's coherent shape); it too
+  // never delivers, since there is no thread on the other end.
+  eq('sharedworker:port-tag', Object.prototype.toString.call(sw.port), '[object MessagePort]');
+  ok('sharedworker:port-instanceof', sw.port instanceof MessagePort);
+  native('sharedworker:port.postMessage', sw.port.postMessage);
+  ok('sharedworker:port-void', sw.port.postMessage('x') === undefined);
 
   // --- Absent capability surfaces (§8): masquerade does not fabricate these ----
   eq('serviceWorker', typeof n.serviceWorker, 'undefined');

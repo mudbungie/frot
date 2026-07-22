@@ -56,6 +56,10 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/crypto.js"),
     "\n",
+    // Worker/SharedWorker (bl-342a): coherent constructor presence, no thread —
+    // needs only brand.js, so its position among the identity surface is free.
+    include_str!("prelude/worker.js"),
+    "\n",
     include_str!("prelude/env.js"),
     "\n",
     include_str!("prelude/url.js"),

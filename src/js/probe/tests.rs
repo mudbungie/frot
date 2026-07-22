@@ -151,7 +151,9 @@ fn recording_preserves_frots_real_values() {
         log.clone(),
     );
     assert_eq!(s.eval("typeof AudioContext").unwrap(), "undefined");
-    assert_eq!(s.eval("typeof Worker").unwrap(), "undefined");
+    // Worker is now a present masquerade (bl-342a) — the probe still forwards
+    // frot's real value unchanged, and that value is now the constructor.
+    assert_eq!(s.eval("typeof Worker").unwrap(), "function");
     assert_eq!(
         s.eval("String(document.createElement('canvas').getContext('2d'))")
             .unwrap(),

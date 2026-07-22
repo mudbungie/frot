@@ -180,7 +180,10 @@ fn absent_apis_stay_undefined_and_window_aliases_the_global() {
     );
     assert_eq!(s.eval("top === self && parent === self").unwrap(), "true");
     assert_eq!(s.eval("typeof indexedDB").unwrap(), "undefined");
-    assert_eq!(s.eval("typeof Worker").unwrap(), "undefined");
+    // Worker/SharedWorker are a present masquerade (bl-342a) — coherent
+    // constructor presence with no thread; only their *execution* stays absent.
+    assert_eq!(s.eval("typeof Worker").unwrap(), "function");
+    assert_eq!(s.eval("typeof SharedWorker").unwrap(), "function");
     assert_eq!(s.eval("typeof WebSocket").unwrap(), "undefined");
     // Canvas getContext is a legal null; non-canvas has no context method.
     assert_eq!(
