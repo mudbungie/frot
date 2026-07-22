@@ -4,12 +4,40 @@
 //! offline `make cov` gates so an identity regression fails the build with no
 //! network. `bl-3972` (JS persona) edits the fixture, not this driver.
 
-use super::super::{run, Env, StyleSource};
+use std::time::Duration;
+
+use super::super::{run_with, Env, Report, StyleSource};
 use crate::dom::{Document, NodeKind};
 use crate::fetch::{user_agent, FetchSession};
 
 /// The pinned probe page — data, not a dependency (its assertions live in JS).
 const PERSONA_NAV: &str = include_str!("../../../tests/fixtures/js/persona-navigator.html");
+
+/// This fixture asserts *identity facts*, never timing, so it takes the deadline
+/// through the call signature rather than inheriting the 1s shipping
+/// `EXEC_BUDGET_MS`. The probe renders canvas/WebGL/audio fingerprints and is by
+/// far the heaviest page in the suite; under a saturated default-parallelism
+/// `cargo test` it can overrun a second of *wall* clock and report
+/// `errors: 1, settled: false` — a load-dependent flake that gates releases
+/// (bl-701b). A budget this generous can only be reached by a genuine hang.
+const GOLD_BUDGET: Duration = Duration::from_secs(60);
+
+/// Drive the pinned probe once under the generous gold budget, with the REAL UA
+/// frot sends (not the test stub `envgold` uses), so the host-visible
+/// `navigator.userAgent` is asserted against the wire persona.
+fn probe(ua: &str) -> (Document, Report) {
+    run_with(
+        Document::parse(PERSONA_NAV),
+        StyleSource::Bare,
+        Env {
+            url: "https://example.com/".into(),
+            user_agent: ua.into(),
+            accept_language: crate::fetch::accept_language(&[]),
+        },
+        &FetchSession::new(Vec::new()),
+        GOLD_BUDGET,
+    )
+}
 
 /// Read a `data-*` attribute the probe wrote onto `<html>` (the documentElement).
 fn de_attr(doc: &Document, name: &str) -> Option<String> {
@@ -22,20 +50,8 @@ fn de_attr(doc: &Document, name: &str) -> Option<String> {
 
 #[test]
 fn navigator_persona_contract_holds() {
-    // Drive with the REAL UA frot sends (not the test stub `envgold` uses), so
-    // the host-visible `navigator.userAgent` is asserted against the wire persona.
     let ua = user_agent(&[]);
-    let env = Env {
-        url: "https://example.com/".into(),
-        user_agent: ua.clone(),
-        accept_language: crate::fetch::accept_language(&[]),
-    };
-    let (doc, report) = run(
-        Document::parse(PERSONA_NAV),
-        StyleSource::Bare,
-        env,
-        &FetchSession::new(Vec::new()),
-    );
+    let (doc, report) = probe(&ua);
     // The probe self-checks every §8 fact in JS; `data-fail` is the JSON array of
     // any that regressed. Empty == all held.
     let fails = de_attr(&doc, "data-fail").expect("probe wrote data-fail");
@@ -91,16 +107,7 @@ fn navigator_persona_contract_holds() {
         !audio.is_empty() && audio.parse::<f64>().is_ok(),
         "audio fingerprint is not a well-formed numeric digest: {audio:?}"
     );
-    let (doc2, _) = run(
-        Document::parse(PERSONA_NAV),
-        StyleSource::Bare,
-        Env {
-            url: "https://example.com/".into(),
-            user_agent: ua,
-            accept_language: crate::fetch::accept_language(&[]),
-        },
-        &FetchSession::new(Vec::new()),
-    );
+    let (doc2, _) = probe(&ua);
     assert_eq!(
         de_attr(&doc2, "data-canvas").as_deref(),
         Some(canvas.as_str()),
