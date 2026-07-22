@@ -12,8 +12,34 @@ guard). This is the working-out of VISION principle 5:
 `status:"needs"` with `needs:[...]` means: **this recipe cannot render this
 page.** Each member names the missing capability. `js` and `css` are recipe
 flags the caller can add; `human` is the capability past the end of the flag
-list — the page demands interactive verification that no frot recipe will
-ever provide, so the honest advice is "escalate out of frot".
+list — no frot recipe will render this, so the honest advice is "escalate out
+of frot".
+
+> **`human` redefined 2026-07-22 (`bl-017a`) — the old wording was itself a false
+> signal.** This paragraph previously read: *"`human` is the capability past the
+> end of the flag list — **the page demands interactive verification that no frot
+> recipe will ever provide**, so the honest advice is 'escalate out of frot'."*
+> **The ball's argument is confirmed, with one correction.** For Amazon's AWS WAF
+> challenge (§3, `identity.md` §3.9) *both halves of that sentence are false*: no
+> interactive verification is demanded — a human browsing there passes it with
+> zero involvement and never learns it happened — and a recipe change *does* help.
+> Telling a caller "escalate to a person" about a gate a browser clears silently
+> is exactly the class of defect VISION principle 5 forbids, one layer above the
+> one `bl-7e34` just fixed.
+>
+> The correction to the framing: the *status* was never a lie — "this recipe
+> cannot render this page" was true — the **taxonomy member** was. So `human` is
+> not deleted or replaced; it is narrowed to what it can honestly carry:
+>
+> **`human` = no recipe frot offers renders this, *and frot has already tried the
+> automatable route*.** It no longer asserts that a person is required before
+> anything was attempted. Concretely (`challenge.md` §5.2): a declared challenge
+> with `--js` **off** is `needs:["js"]`, because adding the flag genuinely helps;
+> with `--js` on and the challenge unpassed it is `needs:["human"]` — the same
+> spelling, now **earned**, with `challenge:{passed:false}` as the evidence. No
+> new `needs` kind and no new envelope shape, the same result `bl-7e34` reached.
+> *(Proposal awaiting Mark's sign-off; the shipped behaviour is the superseded
+> wording until the challenge design lands.)*
 
 `needs` is not an error. The transport succeeded and frot did its job; what
 it refuses to do is present a placeholder as the page. Exit code stays 0,
@@ -86,6 +112,30 @@ Semantics:
   `js.md` §11) enforced in code: detection is refusal to pretend, not a
   step toward evasion. If that boundary ever moves, it moves in its own
   ball — not by this detector growing capabilities.
+
+  > **Superseded 2026-07-22 (`bl-017a`) — that ball was filed, and this is it.**
+  > The bullet above is kept verbatim as the shipped behaviour and as the
+  > superseded line. Under `docs/design/challenge.md` (**proposal, awaiting
+  > sign-off**) the sequence becomes: a declared challenge with `--js` off →
+  > `needs:["js"]`; with `--js` on → the page's *own* challenge script runs in the
+  > existing sandbox, and **iff it changed the request frot would now send** (the
+  > per-invocation cookie jar differs — `bl-6dad`) the original navigation is
+  > re-issued, at most `CHALLENGE_ROUNDS = 1` time. Success is `ok` plus an
+  > additive `challenge` block; failure is `needs:["human"]` plus
+  > `challenge:{passed:false}` — earned rather than assumed.
+  >
+  > **This detector still does not grow capabilities**, and that constraint is
+  > respected exactly as written: §3's job is unchanged — recognize a *server's
+  > own declaration*, from headers, pre-parse. What changes is only what `run.rs`
+  > does *with* that verdict. The declaration remains the sole recognition
+  > mechanism, and no body-copy or vendor-algorithm knowledge enters here or
+  > anywhere else.
+  >
+  > **Why this is not the retry loop `identity.md` §10 refuses:** a round trip
+  > answers a challenge the server posed; a retry loop re-asks an unchanged
+  > question. The jar-delta precondition makes that structural — an identical
+  > request is never re-sent, which excludes retry-until-allowed *and* UA/IP
+  > rotation by construction (`challenge.md` §4.1).
 - **Precedence over starvation**: a challenge page may also be starved,
   but `needs:["js"]` would be a lie there — no recipe change helps a page
   the origin refused to serve. `human` subsumes.
@@ -175,6 +225,15 @@ Accepted residuals:
   changes per site and per locale; declarations and structure do not.
 - No challenge solving, token computation, or form submission — the
   detector's whole job is to stop *earlier* than that.
+  > **Amended 2026-07-22 (`bl-017a`), proposal awaiting sign-off.** Still true
+  > **of this detector**, and that scoping is the whole point: §3 recognizes a
+  > declaration and reports it; it computes nothing. What moved is elsewhere —
+  > `run.rs` may now hand a declared challenge to the *page's own* script rather
+  > than exiting pre-parse (`challenge.md` §4.2). frot still performs **no token
+  > computation of its own** and ships **no vendor algorithm**: the page computes
+  > its token, as it does in a browser. "No form submission" is likewise unmoved —
+  > frot originates nothing; only a page-initiated `fetch`/XHR POST is permitted,
+  > and the top-level navigation stays GET permanently (`challenge.md` §2–§3).
 - No text-length thresholds. A 37-character page and a 37-kilobyte page
   are both either declared stand-ins or they are not.
 - No new flags. Both signals ride the existing `status`/`needs` shape;

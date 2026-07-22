@@ -268,6 +268,18 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   not penalised. (As built: the once-frozen cache is `src/js/subfetch.rs`; the
   `__frot_subfetch` syscall and the `fetch`/`XMLHttpRequest` prelude ride it,
   and so does the external-`<script src>` runner.)
+  > **Superseded in part 2026-07-22 (`bl-017a`), proposal awaiting sign-off.**
+  > The bullet above is the shipped behaviour and stays accurate until the
+  > challenge design lands. Under `docs/design/challenge.md` §3 the rule becomes:
+  > **GET only, except a POST the page's own script initiated through
+  > `fetch`/XHR** — capped at a new `REQ_BODY_BYTES` request-body constant,
+  > excluded from the once-then-frozen cache (a POST is not idempotent and the
+  > invocation cache is keyed by URL alone), and available on `Intent::FetchXhr`
+  > only. The **navigation stays GET permanently** — that is the frottage rule,
+  > and it is unmoved. What "frot does not submit to it" now means precisely:
+  > frot *originates* nothing; a page script that POSTs is the browser acting,
+  > and frot cannot construct such a request from the host side by
+  > construction (`challenge.md` §2).
 - **Once-then-frozen.** Each absolute URL is fetched at most once per call and
   its response cached for the call's lifetime. Deterministic within the call,
   nothing persists past it.
@@ -593,9 +605,21 @@ Two moves against today's `run.rs`:
   events, no scrolling. The lifecycle events (`DOMContentLoaded`, `load`) are
   the only events the host ever dispatches. "Click X if Y" is a different
   tool (VISION non-goals).
+  > **Reaffirmed and load-bearing as of 2026-07-22 (`bl-017a`).** This bullet is
+  > **unchanged** by the challenge-boundary movement, and it is now the *whole
+  > enforcement* of that boundary's human clause: a browser never produces a
+  > click or a `mousemove` unattended — the person does, through it. A
+  > behavioural interstitial that wants a mouse-move therefore stays out for
+  > exactly the reason it always did. `form.submit()`/`requestSubmit()` remain
+  > no-ops even once the transport can carry a verb (`challenge.md` §2, §6).
 - **No navigation.** `location` writes, `history` pushes, meta-refresh:
   no-ops (counted where a page could observe the lie). One URL, one document,
   one impression.
+  > **Clarified 2026-07-22 (`bl-017a`).** Still true as written: frot never
+  > follows a page to a *different* URL. The proposed challenge round trip
+  > re-issues **the caller's own URL** after a server-posed challenge minted new
+  > state — not a script-chosen navigation. "One URL, one impression" holds; "one
+  > request" does not, and never governed redirects either (`challenge.md` §4).
 - **No persistence** across calls, of any kind (§7).
 - **No iframes.** Frame documents are not fetched or executed;
   `contentWindow`/`contentDocument` are `null`.
@@ -666,15 +690,37 @@ Two moves against today's `run.rs`:
     principle-5 question is resolved** (Mark, 2026-07-20 — no conflict: principle
     5 governs honesty of the delivered impression, not the wire persona; see
     identity.md §10 and VISION.md principle 5).
-  - **Out — a different axis, unchanged:** executing or solving a challenge —
-    CAPTCHA, JS proof-of-work, behavioural interstitials — and evasion loops of
-    any kind (no UA rotation, no retry-until-allowed). This is the `bl-abe5` hard
-    boundary and the 2026-07-20 ruling did not touch it.
+  - **Out — a different axis, redrawn 2026-07-22 (`bl-017a`):** *doing what the
+    human does* — CAPTCHA and every interactive gate, and any synthesized click,
+    input event, or form submission — plus evasion loops of any kind (no UA
+    rotation, no retry-until-allowed). The authority is
+    `docs/design/challenge.md`; the line is **automatable vs. human-requiring**,
+    and its test is **origination**.
+    > **Superseded 2026-07-22 (`bl-017a`).** This sub-bullet previously read, and
+    > this is the `bl-abe5` hard boundary verbatim: *"**Out — a different axis,
+    > unchanged:** executing or solving a challenge — CAPTCHA, JS proof-of-work,
+    > behavioural interstitials — and evasion loops of any kind (no UA rotation,
+    > no retry-until-allowed). This is the `bl-abe5` hard boundary and the
+    > 2026-07-20 ruling did not touch it."* Mark superseded it (*"It's time for
+    > that scope creep … 'the content at this url, as a human browser would get
+    > it' … okay to do multiple round trips"*). Kept as superseded, not deleted.
+    > Note the incoherence the movement fixed: frot **already** executed
+    > challenge scripts under `--js` (that is how `bl-bd4e` learned Amazon's
+    > probe set); only a pre-parse *header* check stopped it, and it fired on a
+    > declaration, not on the work. **Proposal awaiting sign-off — until it lands,
+    > the superseded text is the shipped behaviour.**
   - **Unchanged — the honest outcome.** If a challenge script defeats the shim,
-    the outcome is an honest `needs-js` or `error.kind: http.403`; and a
-    *declared* challenge (`needs.md` §3, e.g. `Retry-After` on a 200) is
-    reported as `needs: ["human"]` **before its scripts are ever executed**.
-    Detection is refusal to pretend, not a step toward evasion.
+    the outcome is an honest `needs-js` or `error.kind: http.403`.
+    > **Amended 2026-07-22 (`bl-017a`).** The rest of this bullet previously read:
+    > *"and a *declared* challenge (`needs.md` §3, e.g. `Retry-After` on a 200) is
+    > reported as `needs: ["human"]` **before its scripts are ever executed**.
+    > Detection is refusal to pretend, not a step toward evasion."* Under the new
+    > line, a declared challenge with `--js` **off** is `needs:["js"]` (a recipe
+    > change genuinely helps); with `--js` on, its script runs, and
+    > `needs:["human"]` is reported only **after** the automatable route was tried
+    > and failed — where it is finally true (`needs.md` §1/§3, `challenge.md`
+    > §5.2). Refusal to pretend is unchanged as the principle; what changed is
+    > that asserting "a person is required" before trying was itself the pretence.
 
 ## 12. Decomposition (proposed subtasks for bl-b3c5)
 

@@ -948,9 +948,25 @@ the same clock the §5/§6 deadline bounds the run with (`js.md` §5).
 
 ## 10. Scope boundary
 
-This supersedes the blanket non-goal in `js.md` §11. The boundary **moved again on
-2026-07-20** (Mark's masquerade ruling), days after `bl-0356` last moved it. The
-line is drawn on a principle, not a list.
+This supersedes the blanket non-goal in `js.md` §11. The boundary **moved a third
+time on 2026-07-22** (`bl-017a`, Mark's round-trip ruling), after the 2026-07-20
+masquerade ruling, which itself followed `bl-0356`. The line is drawn on a
+principle, not a list.
+
+> **Superseded 2026-07-22 (`bl-017a`) — the refused list's first and fourth items
+> moved.** The "Refused" list below previously read, verbatim: *"**Executing or
+> solving any challenge.** CAPTCHA, JS proof-of-work, behavioural interstitials. A
+> *declared* challenge (`needs.md` §3 …) is reported as `needs:["human"]` **before
+> its scripts are ever executed**. Detection is refusal to pretend, not a step
+> toward evasion."* and *"**Submitting anything.** GET-only, permanently — the
+> frottage rule."* and, in the evasion-loop item, *"One request, one answer."*
+> Mark superseded that: *"It's time for that scope creep. The value of this
+> project is in letting an agent quietly ask for 'the content at this url, as a
+> human browser would get it'. It's okay to do multiple round trips to get
+> there."* The old text is kept here as superseded, not deleted. The new line and
+> its full argument are `docs/design/challenge.md` (**proposal, awaiting
+> sign-off** — until it is signed off and implemented, the shipped behaviour is
+> still the superseded text above).
 
 > **Superseded 2026-07-20 — the old drawing of the line.** This section, and
 > `js.md` §11, previously read: *"frot may present a coherent identity for a
@@ -996,27 +1012,41 @@ alongside this one):
   follow-ups. `getContext()` returns `null` **today** because the simulation is
   unbuilt, not because it is forbidden.
 
-**Refused — a different axis, unchanged by the 2026-07-20 ruling** (the `bl-abe5`
-hard boundary):
+**Refused — a different axis** (2026-07-22, `bl-017a`: this axis is now drawn at
+*automatable vs. human-requiring*, not at *execute vs. refuse*; full argument in
+`docs/design/challenge.md`):
 
-- **Executing or solving any challenge.** CAPTCHA, JS proof-of-work, behavioural
-  interstitials. A *declared* challenge (`needs.md` §3 — `Retry-After` on a 2xx,
-  `cf-mitigated: challenge`) is reported as `needs:["human"]` **before its
-  scripts are ever executed**. Detection is refusal to pretend, not a step
-  toward evasion.
+- **Doing what the human does.** CAPTCHA and every interactive gate; any
+  synthesized click, input event, scroll, or form submission. A browser never
+  produces those unattended — a person does, through it. Enforced structurally:
+  frot originates no request and dispatches no input event; the only events are
+  the `DOMContentLoaded`/`load` pair (`js.md` §11).
 - **Evasion loops** — no UA rotation, no IP rotation, no retry-until-allowed, no
-  backoff-and-try-again. One request, one answer.
+  backoff-and-try-again. *(Excluded by construction rather than by prohibition: a
+  second navigation is warranted only when the server's own challenge minted new
+  state — `challenge.md` §4.1. Rotation changes the request without the server
+  having asked for anything, so it never qualifies.)*
 - **Body-copy classification** of block pages (`needs.md` §5 — fragile, and the
   first step down the evasion road).
-- **Submitting anything.** GET-only, permanently — the frottage rule.
+- **Originating a submission.** The top-level navigation is GET, permanently —
+  the frottage rule. What is now permitted is narrower and different in kind: a
+  **page-initiated** non-GET, issued by the page's own script through the existing
+  sandbox (`challenge.md` §2–§3).
+- **Vendor-specific challenge knowledge.** frot runs *the page's* script; it ships
+  no vendor algorithm. Needing one means the line was crossed — that is *solving*
+  a challenge, not executing it.
 
-Why this line is principled rather than arbitrary: it separates **matching a
-requirement** (masquerade, now in) from **defeating a defence** (challenge-solving
-and evasion, still out). `webdriver: false` is in because it is *truthful*;
-speaking h2 is in because I2 makes frot *actually* speak it; a simulated canvas
-hash is in *as a filed gap* because it matches what a fingerprinter requires — but
-solving a CAPTCHA stays out because that is defeating a defence, not matching an
-identity.
+Why this line is principled rather than arbitrary: it separates **what the browser
+does unattended** from **what the human does**, and it confines the former to
+delivering the requested URL's impression. `webdriver: false` is in because it is
+*truthful*; speaking h2 is in because I2 makes frot *actually* speak it; a
+simulated canvas hash is in *as a filed gap* because it matches what a
+fingerprinter requires; executing a WAF challenge script is in because a human
+browsing that URL passes it with **zero involvement and no knowledge that it
+happened** — but a CAPTCHA stays out because a person is genuinely required, and
+frot filling a form stays out because frot, not the page, would be originating it.
+The test in every case is **origination**, which is structural rather than a
+judgement call.
 
 > ### ✔ RESOLVED — VISION principle 5 does not conflict (Mark, 2026-07-20)
 >
@@ -1216,6 +1246,23 @@ Attacking it before committing it, per `~/AGENTS.md`.
    it to it. The A/B instrument is `examples/ab_harness.rs` (`bl-46f5`) and the
    capability-gap measurement is `docs/design/probe-evidence.md` (`bl-bd4e`);
    both report the null without adding a bypass to force one.
+
+   > **Amended 2026-07-22 (`bl-017a`) — this verdict is no longer universal in
+   > scope, and must be re-measured, not left standing.** The null above is
+   > correct **for the Phase 5 identity work** and stays as written: nothing in
+   > the transport/persona epic changed an access outcome. But `bl-017a` moves the
+   > §10 boundary (`docs/design/challenge.md`), and its whole premise is that a
+   > *different* class of change — executing a declared challenge and completing
+   > the round trip it poses — may change an outcome that no persona improvement
+   > could. **The scope of the null is therefore narrowed to the identity epic**,
+   > and the challenge design owes its own measurement (`challenge.md` §8), on the
+   > same egress IP and the same corpus, with the same standing obligation to
+   > record a null as loudly as a win. Until that measurement runs, the honest
+   > statement is *"no measured access improvement from identity work; the
+   > challenge path is unmeasured"* — not *"no measured access improvement,
+   > period."* If the challenge path also nulls, item 2 below is the likely cause
+   > and the result belongs in a new §3.10.
+
 2. **IP/ASN reputation probably dominates.** Everything here is client identity.
    If a target scores the egress IP, a perfect profile changes nothing.
 3. **Determinism makes frot a cohort.** Pinning `hardwareConcurrency`, timezone,
