@@ -21,6 +21,7 @@ use std::time::Duration;
 
 use crate::envelope::kinds;
 
+mod cookie;
 mod decode;
 mod firefox_tls;
 mod profile;
@@ -28,6 +29,7 @@ mod request;
 mod session;
 mod transport;
 
+pub(crate) use cookie::{CookieJar, SharedJar};
 pub(crate) use decode::decode_body;
 pub use profile::{BrowserProfile, H2Profile, TlsProfile, FIREFOX_140_ESR};
 pub use session::{FetchSession, Intent};
@@ -101,6 +103,7 @@ pub(crate) fn build_transport() -> Transport {
 /// never leak). `file://` reads take the read path and ignore the pool.
 pub(crate) fn dispatch(
     transport: &Transport,
+    jar: &SharedJar,
     url: &str,
     intent: Intent,
     initiator: &str,
@@ -120,9 +123,24 @@ pub(crate) fn dispatch(
         _ => Some(initiator.to_string()),
     };
     for _ in 0..MAX_REDIRECTS {
-        let headers =
-            request::derive_headers(intent, &current, initiator, referrer.as_deref(), caller);
+        // The jar's applicable Cookie for this hop; `apply_caller` still layers a
+        // caller `-H Cookie` over it as a single same-origin line (bl-6dad).
+        let cookie = jar
+            .lock()
+            .unwrap()
+            .header_for(&current, referrer.as_deref(), intent);
+        let headers = request::derive_headers(
+            intent,
+            &current,
+            initiator,
+            referrer.as_deref(),
+            caller,
+            cookie.as_deref(),
+        );
         let resp = transport.request_once(&current, &headers, MAX_BODY_BYTES, timeout)?;
+        // Store this hop's Set-Cookie before following the redirect, so a
+        // redirect-set cookie rides the landing request (acceptance #1).
+        jar.lock().unwrap().store(&resp.headers, &current);
         match redirect_target(resp.status, &resp.headers, &current)? {
             Some(next) => {
                 if matches!(intent, Intent::Navigation) {

@@ -19,7 +19,7 @@ const PAGE: &str = "https://site.example/page";
 
 #[test]
 fn a_navigation_carries_the_document_set_in_firefox_order() {
-    let h = derive_headers(Intent::Navigation, PAGE, PAGE, None, &[]);
+    let h = derive_headers(Intent::Navigation, PAGE, PAGE, None, &[], None);
     assert_eq!(
         names(&h),
         [
@@ -66,7 +66,7 @@ fn each_subresource_intent_gets_its_own_dest_mode_accept_priority() {
         (Intent::FetchXhr, "empty", "cors", "*/*", "u=4"),
     ];
     for (intent, dest, mode, accept, prio) in table {
-        let h = derive_headers(intent, PAGE, PAGE, Some(PAGE), &[]);
+        let h = derive_headers(intent, PAGE, PAGE, Some(PAGE), &[], None);
         assert_eq!(value(&h, "Sec-Fetch-Dest"), Some(dest));
         assert_eq!(value(&h, "Sec-Fetch-Mode"), Some(mode));
         assert_eq!(value(&h, "Accept"), Some(accept));
@@ -86,6 +86,7 @@ fn sec_fetch_site_is_a_fact_of_the_two_urls() {
         "https://cdn.site.example/a.css",
         Some(PAGE),
         &[],
+        None,
     );
     assert_eq!(value(&sub, "Sec-Fetch-Site"), Some("same-site"));
     // Same origin exactly.
@@ -95,6 +96,7 @@ fn sec_fetch_site_is_a_fact_of_the_two_urls() {
         "https://site.example/a.css",
         Some(PAGE),
         &[],
+        None,
     );
     assert_eq!(value(&same, "Sec-Fetch-Site"), Some("same-origin"));
     // Different registrable domain → cross-site.
@@ -104,6 +106,7 @@ fn sec_fetch_site_is_a_fact_of_the_two_urls() {
         "https://other.test/a.css",
         Some(PAGE),
         &[],
+        None,
     );
     assert_eq!(value(&cross, "Sec-Fetch-Site"), Some("cross-site"));
 }
@@ -162,7 +165,7 @@ fn a_caller_override_is_final_case_insensitive_and_never_duplicates() {
         ("accept".to_string(), "application/json".to_string()),
         ("X-Frot".to_string(), "1".to_string()),
     ];
-    let h = derive_headers(Intent::Navigation, PAGE, PAGE, None, &caller);
+    let h = derive_headers(Intent::Navigation, PAGE, PAGE, None, &caller, None);
     // The derived Accept is replaced in place (one line, canonical name kept).
     assert_eq!(value(&h, "Accept"), Some("application/json"));
     assert_eq!(
@@ -180,7 +183,7 @@ fn caller_headers_do_not_leak_cross_origin() {
     // Anchor is the page; a cross-origin target (a redirect hop) carries none of
     // the caller set — Authorization included.
     let caller = vec![("Authorization".to_string(), "secret".to_string())];
-    let same = derive_headers(Intent::Navigation, PAGE, PAGE, None, &caller);
+    let same = derive_headers(Intent::Navigation, PAGE, PAGE, None, &caller, None);
     assert_eq!(value(&same, "Authorization"), Some("secret"));
     let cross = derive_headers(
         Intent::Navigation,
@@ -188,6 +191,7 @@ fn caller_headers_do_not_leak_cross_origin() {
         PAGE,
         None,
         &caller,
+        None,
     );
     assert_eq!(value(&cross, "Authorization"), None);
 }

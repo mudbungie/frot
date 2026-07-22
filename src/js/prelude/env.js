@@ -67,36 +67,18 @@
   g.localStorage = makeStorage();
   g.sessionStorage = makeStorage();
 
-  // --- document.cookie: in-memory jar, born empty (§13 OQ-3) ----------------
-  // Not seeded from Set-Cookie; a jar (name->value) presented as the cookie
-  // string. Setting parses the leading name=value pair and honours a past
-  // expiry (max-age<=0 / an expires in the past) as a delete.
-  var jar = Object.create(null);
-  function expired(attrs) {
-    for (var i = 1; i < attrs.length; i++) {
-      var kv = attrs[i].split('=');
-      var name = kv[0].trim().toLowerCase();
-      if (name === 'max-age') return parseInt(kv[1], 10) <= 0;
-      if (name === 'expires') return new Date(kv.slice(1).join('=')) < new Date();
-    }
-    return false;
-  }
+  // --- document.cookie: the one shared jar (bl-6dad, identity.md §9) ---------
+  // Not a second in-memory string: get/set delegate to the Rust cookie jar the
+  // transport owns (__frot_cookie_get/set at the final document URL). So a
+  // Set-Cookie from the document GET is visible here iff non-HttpOnly, a JS
+  // write feeds a later same-origin GET, and HttpOnly never enters JS.
   Object.defineProperty(g.document, 'cookie', {
     configurable: true,
     get: function () {
-      return Object.keys(jar)
-        .map(function (k) {
-          return k + '=' + jar[k];
-        })
-        .join('; ');
+      return g.__frot_cookie_get();
     },
     set: function (v) {
-      var attrs = String(v).split(';');
-      var pair = attrs[0].split('=');
-      var name = pair[0].trim();
-      if (!name) return;
-      if (expired(attrs)) delete jar[name];
-      else jar[name] = pair.slice(1).join('=').trim();
+      g.__frot_cookie_set(String(v));
     },
   });
 

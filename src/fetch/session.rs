@@ -25,16 +25,24 @@
 //!   JS-phase gather and the final cascade, while a JS-inserted new stylesheet
 //!   is still a miss and is fetched.
 //!
-//! Cookies are a later sibling (bl-6dad); the per-destination header derivation
-//! (bl-20ec) now lives in [`super::request`], reached through the
-//! [`Intent`]/initiator seam this module hands to `dispatch` — the session holds
-//! no header policy of its own.
+//! - **the per-invocation cookie jar** (bl-6dad) — born empty, the single
+//!   authority for `Set-Cookie`, applicable `Cookie` headers, and
+//!   `document.cookie`; shared by `dispatch` (wire) and the JS syscalls (via
+//!   [`FetchSession::cookie_jar`]) so one page's cookies are coherent, and dropped
+//!   with the session so a fresh invocation starts empty.
+//!
+//! The per-destination header derivation (bl-20ec) lives in [`super::request`],
+//! reached through the [`Intent`]/initiator seam this module hands to `dispatch`
+//! — the session holds no header policy of its own.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use super::{build_transport, dispatch, FetchError, FetchResult, Transport, TIMEOUT_SECS};
+use super::{
+    build_transport, dispatch, CookieJar, FetchError, FetchResult, SharedJar, Transport,
+    TIMEOUT_SECS,
+};
 
 /// A request's role in the page load (`identity.md` §4.2: destination ∈
 /// {document, style, script, empty}). The session carries it on every request as
@@ -64,19 +72,31 @@ pub struct FetchSession {
     transport: Arc<Transport>,
     headers: Arc<Vec<(String, String)>>,
     cache: Arc<Mutex<HashMap<String, FetchResult>>>,
+    /// The born-empty cookie jar (bl-6dad): the single authority for `Set-Cookie`,
+    /// applicable `Cookie` headers, and `document.cookie`. Shared across every
+    /// clone (gather threads, JS syscalls) so one page's cookies are coherent;
+    /// dropped with the session, so a fresh invocation starts empty.
+    jar: SharedJar,
 }
 
 impl FetchSession {
     /// Open a session with the caller's `-H` overrides, building the one shared
-    /// transport ([`super::build_transport`]). One call per invocation, in
-    /// `run.rs`. The transport owns the tokio runtime; dropping the session drops
-    /// it, so no runtime outlives the invocation.
+    /// transport ([`super::build_transport`]) and an empty cookie jar. One call
+    /// per invocation, in `run.rs`. The transport owns the tokio runtime; dropping
+    /// the session drops it, so no runtime outlives the invocation.
     pub fn new(headers: Vec<(String, String)>) -> Self {
         FetchSession {
             transport: Arc::new(build_transport()),
             headers: Arc::new(headers),
             cache: Arc::new(Mutex::new(HashMap::new())),
+            jar: Arc::new(Mutex::new(CookieJar::new())),
         }
+    }
+
+    /// A handle to the shared cookie jar, so the JS layer's `document.cookie`
+    /// syscalls read/write the *same* jar the transport does (bl-6dad).
+    pub(crate) fn cookie_jar(&self) -> SharedJar {
+        self.jar.clone()
     }
 
     /// GET the top-level document: the derivation builds the Firefox navigation
@@ -125,6 +145,7 @@ impl FetchSession {
         }
         let result = dispatch(
             &self.transport,
+            &self.jar,
             url,
             intent,
             initiator,

@@ -38,8 +38,10 @@ fn install_capped(mem_limit: usize) -> Result<(), String> {
             reported: Rc::new(RefCell::new(0)),
             messages: Rc::new(RefCell::new(Vec::new())),
         };
+        let session = FetchSession::new(Vec::new());
+        let cookie = session.cookie_jar();
         let sf = Rc::new(RefCell::new(subfetch::Subfetch::new(
-            FetchSession::new(Vec::new()),
+            session,
             "https://example.com/",
             engine.deadline(),
         )));
@@ -52,6 +54,7 @@ fn install_capped(mem_limit: usize) -> Result<(), String> {
                 env: env(),
                 counters,
                 subfetch: sf,
+                cookie,
                 probe: None,
             },
         );

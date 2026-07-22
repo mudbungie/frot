@@ -686,15 +686,55 @@ See §10 for the boundary; the VISION principle-5 question this once raised is
 
 ## 9. Cookies and clocks
 
-**Cookies (`bl-6dad`).** One per-invocation jar, born empty, discarded at exit —
-shared by the transport (`Set-Cookie` / `Cookie`) and `document.cookie`, which is
-today an isolated in-memory string in `env.js`. This is **state within a call**,
-which VISION principle 1 explicitly permits (*"State within a call — redirects,
-JS event loop, etc. — is fine; nothing persists across calls"*). It is not a
-session model: nothing is written to disk, nothing survives the process, and
-there is no `--cookie-jar` flag. The coherence win is that a server that sets a
-cookie on the document GET sees it returned on subresource fetches, as a browser
-would — today it never does.
+**Cookies (`bl-6dad`) — LANDED.** One per-invocation jar
+(`src/fetch/cookie.rs`, `CookieJar`), born empty, owned by the `FetchSession` and
+discarded at exit — the single authority for `Set-Cookie` (redirects, the final
+document, subresources), the applicable `Cookie` header on later requests, and
+`document.cookie` (previously an isolated in-memory string in `env.js`). This is
+**state within a call**, which VISION principle 1 explicitly permits (*"State
+within a call — redirects, JS event loop, etc. — is fine; nothing persists across
+calls"*). It is not a session model: nothing is written to disk, nothing survives
+the process, and there is no `--cookie-jar` flag. The coherence win is realised: a
+server that sets a cookie on the document GET now sees it returned on subresource
+fetches, and a JS `document.cookie` write feeds a later same-origin GET.
+
+*As-built specifics:*
+
+- **The jar threads explicitly, no globals.** `FetchSession` holds
+  `Arc<Mutex<CookieJar>>`; `dispatch` reads/writes it per hop; the JS layer reaches
+  the *same* jar through `FetchSession::cookie_jar()` → the `Host` → the
+  `__frot_cookie_get`/`set` syscalls (`src/js/syscall/cookie.rs`). One authority,
+  race-safe under the mutex across the concurrent gather threads.
+- **The `Cookie` header** is computed by `CookieJar::header_for` and threaded into
+  `request::derive_headers` as its `cookie: Option<&str>` argument, placed after
+  `Referer` and before `Upgrade-Insecure-Requests` (Firefox's position). It
+  honours Domain, Path, Secure (https only), Expires/Max-Age, and SameSite against
+  a site context derived once per hop: a **navigation** is a top-level context
+  (Lax/Strict ride; a first hop is same-site with itself); a **fetch/XHR** is
+  same-origin only; **style/script/module** subresources are credentialed
+  cross-origin but SameSite still gates a third-party context to `SameSite=None`.
+  The registrable-domain "same-site" test reuses `request::registrable` (one
+  definition), and Expires reuses `profile::CivilDate::days_since_epoch` (one
+  civil→epoch algorithm).
+- **Caller `-H Cookie` policy, decided once:** the jar supplies the default
+  `Cookie` line; `request::apply_caller` layers the caller's `-H Cookie` *last* as
+  a same-origin value override, replacing that one line in place — never a
+  duplicate, never sent cross-origin, never stored in the jar.
+- **`document.cookie`:** `CookieJar::document_cookie` at the final document URL
+  omits HttpOnly and non-applicable cookies; `CookieJar::write_script` parses
+  browser-allowed attributes but can never mint an HttpOnly cookie — so **HttpOnly
+  never enters JS**, while the wire still carries it.
+- **No new dependency.** A focused hand-rolled RFC 6265 parser (Path, Domain,
+  Secure, HttpOnly, Max-Age, Expires, SameSite) replaced the option of a `cookie`
+  crate — smaller, coverage-friendly, and it needs none of the crate's transitive
+  tree. Declared residuals: the relaxed RFC 6265 §5.1.1 date tokenizer and
+  2-digit-year mapping (an unparseable `Expires` degrades to a session cookie, as
+  browsers do); schemeful-same-site and the `SameSite=None`-requires-`Secure`
+  storage rule are not enforced.
+- **Challenge boundary held:** `dispatch` may `store` a `Set-Cookie` received with
+  a declared challenge, but `run.rs` still exits at the `needs:["human"]` verdict
+  before parse/JS/subfetch, and the session (hence the jar) then drops. frot never
+  retries, so a challenge cookie is never replayed.
 
 **Clocks (`bl-e707`).** Clocks derive from the profile plus the existing virtual
 clock (`js.md` §5), not from a second source. Two facts to settle in that ball:

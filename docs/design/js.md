@@ -316,7 +316,10 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
 - `localStorage` / `sessionStorage`: real `Storage` semantics, in-memory,
   born empty, discarded at exit. Pages that gate on its *existence* work;
   nothing survives the process (VISION: no persistence).
-- `document.cookie`: in-memory string, born empty (OQ-3).
+- `document.cookie`: reads/writes the one per-invocation cookie jar the transport
+  owns (`bl-6dad`, `identity.md` §9), born empty, discarded at exit — not a
+  separate string. HttpOnly cookies never enter JS; a JS write feeds a later
+  same-origin GET (OQ-3, resolved).
 - `indexedDB`: absent. Apps that require it fail into the §10 outcome story.
 - `navigator` / `location`: static facts frot already has (the UA string it
   sends, the final URL, `webdriver: false` — truthful: no remote control). `location` *assignment* is navigation — a counted
@@ -588,8 +591,15 @@ the falsifiable check on §1.
   reproducibility-within-a-call is what the virtual clock and frozen fetches
   give. Seeding `Math.random` is speculative hardening.
 - **OQ-3 — seed `document.cookie` from the response's `Set-Cookie`?**
-  Recommended: **no** until a pinned fixture demands it; born-empty is
-  simpler and honest (frot is not a cookie jar).
+  **Resolved: yes, and superseded by `identity.md` §9 (`bl-6dad`, landed).** The
+  "born-empty, frot is not a cookie jar" recommendation was reversed once the
+  transport gained one per-invocation jar: an *isolated* `document.cookie` string
+  is a browser contradiction (a server that `Set-Cookie`s on the document GET
+  never sees it back on subresources). `document.cookie` now reads/writes the same
+  jar the transport owns (`src/js/syscall/cookie.rs` → `src/fetch/cookie.rs`) at
+  the final document URL — reads omit HttpOnly/non-applicable cookies, writes can
+  never mint HttpOnly, and the jar is still born-empty and dies with the process
+  (state within a call, not a session model).
 - **OQ-4 — ES modules in the first cut?** Recommended: **yes** (subtask 6) —
   the 2026 web is module-first; skipping them guts coverage. If the spike
   shows module loading is disproportionately heavy, demote to a follow-up and

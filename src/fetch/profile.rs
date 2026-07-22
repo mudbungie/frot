@@ -142,7 +142,9 @@ impl CivilDate {
     /// specialised to the CE dates a persona pin uses (year ≥ 1), so the
     /// negative-year era adjustment of the general form is dropped rather than
     /// left as an unreachable branch. `const` so the tripwire is compile-time.
-    const fn days_since_epoch(self) -> i64 {
+    /// `pub(crate)` so the cookie jar's `Expires` parser (`super::cookie`) reuses
+    /// the one civil→epoch algorithm rather than growing a second copy.
+    pub(crate) const fn days_since_epoch(self) -> i64 {
         let (y, m, d) = (self.year, self.month, self.day);
         let y = if m <= 2 { y - 1 } else { y };
         let era = y / 400;

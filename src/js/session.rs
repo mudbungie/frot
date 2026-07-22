@@ -115,6 +115,10 @@ impl Session {
             &env.url,
             engine.deadline(),
         )));
+        // The shared cookie jar (bl-6dad): the same jar the transport writes
+        // `Set-Cookie` into, so `document.cookie` at `env.url` reads it and a JS
+        // write feeds a later same-origin subfetch.
+        let cookie = fetch.cookie_jar();
         // The ES-module resolver/loader (js.md §4.1/§6) rides the same §6 cache as
         // fetch/XHR/external-src, installed before any module evaluates.
         super::loader::install(&engine, &subfetch);
@@ -128,6 +132,7 @@ impl Session {
                 env,
                 counters: counters.clone(),
                 subfetch: subfetch.clone(),
+                cookie,
                 probe,
             },
         );

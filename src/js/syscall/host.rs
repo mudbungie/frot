@@ -10,6 +10,7 @@ use std::rc::Rc;
 
 use super::Messages;
 use crate::dom::Document;
+use crate::fetch::SharedJar;
 use crate::js::geometry::SharedGeometry;
 use crate::js::probe::ProbeLog;
 use crate::js::subfetch::SharedSubfetch;
@@ -73,6 +74,11 @@ pub struct Host {
     pub env: Env,
     pub counters: Counters,
     pub subfetch: SharedSubfetch,
+    /// The shared cookie jar (bl-6dad): the `document.cookie` syscalls read/write
+    /// the *same* jar the transport does, at `env.url` (the final document). One
+    /// authority, so a `Set-Cookie` from the document GET is visible to JS (iff
+    /// non-HttpOnly) and a JS write feeds a later same-origin GET.
+    pub cookie: SharedJar,
     /// The capability-surface probe sink (`bl-bd4e`), present only when the
     /// [`super::super::probe::measure`] instrument built this host. `Some` binds
     /// the `__frot_probe` syscall and evaluates the instrumentation prelude

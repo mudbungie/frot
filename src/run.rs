@@ -212,6 +212,9 @@ mod file_tests;
 mod header_tests;
 
 #[cfg(test)]
+mod cookie_tests;
+
+#[cfg(test)]
 mod http_tests;
 
 #[cfg(test)]

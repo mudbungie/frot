@@ -39,12 +39,19 @@ use super::{same_origin, Intent};
 /// - `referrer_source` drives both `Sec-Fetch-Site` and `Referer`: `None` is a
 ///   user navigation (site `none`, no referer); `Some(url)` is the document (a
 ///   subresource) or the pre-redirect hop (a navigation redirect).
+/// - `cookie` is the jar's applicable `Cookie` value for this hop (bl-6dad),
+///   computed by [`super::cookie::CookieJar::header_for`] and threaded in so the
+///   caller `-H Cookie` override ([`apply_caller`]) still fires last as a single
+///   line. `None` (no jar, or nothing applicable) emits no `Cookie` header.
+///   Placed after `Referer` and before `Upgrade-Insecure-Requests`, the position
+///   Firefox sends it (`identity.md` §4.1/§9).
 pub(crate) fn derive_headers(
     intent: Intent,
     target: &str,
     anchor: &str,
     referrer_source: Option<&str>,
     caller: &[(String, String)],
+    cookie: Option<&str>,
 ) -> Vec<(String, String)> {
     let p = &FIREFOX_140_ESR;
     let meta = p.request_meta(intent);
@@ -55,6 +62,9 @@ pub(crate) fn derive_headers(
     push(&mut h, "Accept-Encoding", ACCEPT_ENCODING.to_string());
     if let Some(referer) = referer(referrer_source, target) {
         push(&mut h, "Referer", referer);
+    }
+    if let Some(cookie) = cookie {
+        push(&mut h, "Cookie", cookie.to_string());
     }
     if meta.uir {
         push(&mut h, "Upgrade-Insecure-Requests", "1".to_string());
@@ -127,8 +137,10 @@ fn same_site(a: &str, b: &str) -> bool {
 
 /// The registrable domain: the last two labels of a domain host; an IP literal
 /// (or a host with no domain) is its own registrable identity, never split — so
-/// two distinct IPs are never mistaken for same-site.
-fn registrable(u: &Url) -> String {
+/// two distinct IPs are never mistaken for same-site. `pub(crate)` so the cookie
+/// jar's SameSite site-context (`super::cookie`) derives "same-site" from the one
+/// registrable-domain definition, not a second copy.
+pub(crate) fn registrable(u: &Url) -> String {
     match u.host() {
         Some(url::Host::Domain(d)) => {
             let mut labels: Vec<&str> = d.rsplitn(3, '.').collect();
