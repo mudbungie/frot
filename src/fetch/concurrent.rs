@@ -36,23 +36,33 @@ pub(crate) fn fetch_many(
     deadline: Instant,
     byte_budget: usize,
 ) -> Vec<(usize, FetchResult)> {
+    // The one real seam: each index becomes a live subresource fetch, timed out
+    // at the deadline remainder (`None` past the deadline, so the worker treats a
+    // lapsed request as a non-result and moves on). Everything else — the wave
+    // bound, the byte pool, the join — is the network-agnostic scheduler.
+    fetch_wave(reqs.len(), byte_budget, |i| {
+        let (url, intent) = &reqs[i];
+        let left = deadline.checked_duration_since(Instant::now())?;
+        session.subresource(url, initiator, *intent, left).ok()
+    })
+}
+
+/// The bounded concurrent scheduler with the network lifted out: run `fetch` over
+/// `0..n` across at most [`POOL_PER_HOST`] workers, capping the wave at
+/// `byte_budget` response bytes and returning each `Some` result paired with its
+/// index. `fetch(i)` is the sole I/O — a live subresource in production, a fixed
+/// body in a test — so the byte-budget cap is provable without a real origin's
+/// timing. Injecting the fetch is the seam that makes the pool deterministic.
+fn fetch_wave(
+    n: usize,
+    byte_budget: usize,
+    fetch: impl Fn(usize) -> Option<FetchResult> + Sync,
+) -> Vec<(usize, FetchResult)> {
     let cursor = AtomicUsize::new(0);
     let spent = AtomicUsize::new(0);
     std::thread::scope(|scope| {
-        let workers: Vec<_> = (0..reqs.len().min(POOL_PER_HOST))
-            .map(|_| {
-                scope.spawn(|| {
-                    drain(
-                        session,
-                        reqs,
-                        initiator,
-                        deadline,
-                        byte_budget,
-                        &cursor,
-                        &spent,
-                    )
-                })
-            })
+        let workers: Vec<_> = (0..n.min(POOL_PER_HOST))
+            .map(|_| scope.spawn(|| drain(n, byte_budget, &fetch, &cursor, &spent)))
             .collect();
         workers
             .into_iter()
@@ -61,38 +71,30 @@ pub(crate) fn fetch_many(
     })
 }
 
-/// One worker: claim the next unclaimed request and fetch it through the shared
-/// `session`, until the list is exhausted, the byte budget is reached, or the
-/// deadline passes. Each fetch gets exactly the budget's remainder, so no
-/// in-flight request can outlive the phase; the session owns dedup and `-H`
-/// scoping. Once `spent` crosses `byte_budget` (or the deadline lapses) the
+/// One worker: claim the next unclaimed index and run `fetch` on it, until the
+/// list is exhausted or the byte budget is reached. A `None` result (a failed or
+/// past-deadline fetch) is dropped and the worker moves on; a `Some` spends its
+/// body length against the shared pool. Once `spent` crosses `byte_budget` the
 /// worker stops — a bounded overshoot of at most the in-flight wave.
-#[allow(clippy::too_many_arguments)]
 fn drain(
-    session: &FetchSession,
-    reqs: &[(String, Intent)],
-    initiator: &str,
-    deadline: Instant,
+    n: usize,
     byte_budget: usize,
+    fetch: &(impl Fn(usize) -> Option<FetchResult> + Sync),
     cursor: &AtomicUsize,
     spent: &AtomicUsize,
 ) -> Vec<(usize, FetchResult)> {
     let mut got = Vec::new();
-    loop {
-        if spent.load(Ordering::Relaxed) >= byte_budget {
-            return got;
-        }
+    while spent.load(Ordering::Relaxed) < byte_budget {
         let i = cursor.fetch_add(1, Ordering::Relaxed);
-        let (Some((url, intent)), Some(left)) =
-            (reqs.get(i), deadline.checked_duration_since(Instant::now()))
-        else {
-            return got;
-        };
-        if let Ok(r) = session.subresource(url, initiator, *intent, left) {
+        if i >= n {
+            break;
+        }
+        if let Some(r) = fetch(i) {
             spent.fetch_add(r.body.len(), Ordering::Relaxed);
             got.push((i, r));
         }
     }
+    got
 }
 
 #[cfg(test)]

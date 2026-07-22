@@ -44,21 +44,16 @@ fn barrier_origin(parties: usize) -> String {
     base
 }
 
-/// A keep-alive origin returning a fixed body immediately, counting accepted
-/// connections — for the byte-budget wave.
-fn fast_origin() -> String {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let base = format!("http://{}", listener.local_addr().unwrap());
-    std::thread::spawn(move || {
-        for stream in listener.incoming().flatten() {
-            std::thread::spawn(move || {
-                let mut s: TcpStream = stream;
-                let _ = s.read(&mut [0u8; 1024]);
-                let _ = s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
-            });
-        }
-    });
-    base
+/// A two-byte result, the fixed payload the byte-budget scheduler test fetches
+/// with no I/O — so the only variable is the budget gate, never a live origin.
+fn two_bytes(i: usize) -> Option<FetchResult> {
+    Some(FetchResult {
+        final_url: format!("http://x/r{i}"),
+        status: Some(200),
+        headers: Vec::new(),
+        body: "ok".to_string(),
+        charset: "utf-8".to_string(),
+    })
 }
 
 /// A dead origin: it accepts the connection but never answers, so a request can
@@ -102,16 +97,21 @@ fn a_full_wave_overlaps_proven_by_a_barrier_not_a_clock() {
 
 #[test]
 fn the_byte_budget_caps_a_wave_but_a_large_one_does_not() {
-    let base = fast_origin();
-    let many = reqs(&base, POOL_PER_HOST * 2);
-    // A one-byte budget curtails dispatch after the first wave commits (each
-    // body is two bytes): at most POOL_PER_HOST land, never all twelve.
-    let capped = fetch_many(&plain(), &many, &base, far(), 1);
+    let n = POOL_PER_HOST * 2;
+    // The scheduler seam: real POOL_PER_HOST-worker concurrency and the real
+    // byte-pool gate, but each fetch returns a fixed two-byte body with no
+    // network — so the outcome is a property of the budget, not of origin timing.
+    //
+    // A one-byte budget curtails dispatch after the first wave commits (each body
+    // is two bytes): every worker lands at most one, so at most POOL_PER_HOST of
+    // the twelve arrive — the second wave is never dispatched.
+    let capped = fetch_wave(n, 1, two_bytes);
     assert!(capped.len() <= POOL_PER_HOST, "got {}", capped.len());
+    assert!(!capped.is_empty());
     // With the budget lifted the same wave fetches every request — the count is
     // never itself a bound.
-    let full = fetch_many(&plain(), &many, &base, far(), usize::MAX);
-    assert_eq!(full.len(), POOL_PER_HOST * 2);
+    let full = fetch_wave(n, usize::MAX, two_bytes);
+    assert_eq!(full.len(), n);
 }
 
 #[test]
