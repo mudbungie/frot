@@ -80,3 +80,39 @@ fn decode_body_sniff_empty_when_charset_eq_then_garbage() {
     let (_, c) = decode_body(bytes, None);
     assert_eq!(c, "utf-8");
 }
+
+#[test]
+fn inflate_gunzips_a_gzip_body() {
+    use std::io::Write as _;
+    let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    enc.write_all(b"hello gzip").unwrap();
+    let gz = enc.finish().unwrap();
+    let h = vec![("Content-Encoding".to_string(), "gzip".to_string())];
+    assert_eq!(inflate(&h, gz).unwrap(), b"hello gzip");
+}
+
+#[test]
+fn inflate_unbrotlis_a_br_body() {
+    use std::io::Write as _;
+    let mut out = Vec::new();
+    {
+        let mut w = brotli::CompressorWriter::new(&mut out, 4096, 5, 22);
+        w.write_all(b"hello brotli").unwrap();
+    }
+    let h = vec![("content-encoding".to_string(), "br".to_string())];
+    assert_eq!(inflate(&h, out).unwrap(), b"hello brotli");
+}
+
+#[test]
+fn inflate_passes_identity_and_unadvertised_encodings_through() {
+    assert_eq!(inflate(&[], b"raw".to_vec()).unwrap(), b"raw");
+    let h = vec![("content-encoding".to_string(), "zstd".to_string())];
+    assert_eq!(inflate(&h, b"raw".to_vec()).unwrap(), b"raw");
+}
+
+#[test]
+fn inflate_reports_corrupt_gzip_as_a_body_error() {
+    let h = vec![("content-encoding".to_string(), "gzip".to_string())];
+    let e = inflate(&h, b"this is not gzip".to_vec()).unwrap_err();
+    assert_eq!(e.kind, crate::envelope::kinds::FETCH_BODY);
+}

@@ -21,19 +21,27 @@ serde_json = { version = "1", features = ["preserve_order"] }
 html5ever = "0.39"
 markup5ever_rcdom = "0.39"
 url = "2"
-# HTTP/1.1 client: ureq keeps redirects, gzip/brotli, timeouts and the error
-# taxonomy. Its own rustls feature is dropped — the TLS handshake is supplied
-# by `craftls` behind `src/fetch/firefox_tls.rs` so the ClientHello matches
-# Firefox (WAF fingerprint match). ureq speaks HTTP/1.1 only.
-ureq = { version = "3", default-features = false, features = ["gzip", "brotli"] }
-# `craftls` = a fork of rustls with a craftable ClientHello (cipher/extension
-# order, GREASE, key-share, padding). NB (corrected 2026-07-20): `ring` is NOT
-# pure Rust — it carries 17 C files + 90 pregenerated asm files (BoringSSL-
-# derived). To be retired for `rustls 0.23 + aws-lc-rs` (Mark's call, 2026-07-20;
-# a C+asm -> C+asm move, not pure-Rust -> C), see docs/design/identity.md §6.1.
-# Kept behind `firefox_tls.rs`; no craftls type leaks past that module. See
-# bl-0eba journal for the maintenance tradeoff.
-craftls = { version = "0.0.2", package = "craftls", default-features = false, features = ["ring", "tls12", "logging"] }
+# HTTP transport (Stage B): hyper speaks both HTTP/1.1 and HTTP/2 and selects by
+# ALPN, so a Firefox-shaped ClientHello can honestly negotiate h2 and multiplex
+# through the one per-invocation session (identity.md §7). Redirects, gzip/brotli
+# decode, the error taxonomy and body/deadline caps are reimplemented on top of
+# it behind the fetch seam. Driven by a per-invocation tokio runtime + block_on:
+# the public fetch API stays blocking and no runtime outlives the invocation.
+hyper = { version = "1", features = ["client", "http1", "http2"] }
+hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "http2", "tokio"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2"] }
+http-body-util = "0.1"
+bytes = "1"
+tokio = { version = "1", default-features = false, features = ["rt", "rt-multi-thread", "net", "io-util", "time"] }
+flate2 = "1"
+brotli = { version = "8", default-features = false, features = ["std"] }
+# TLS: stock `rustls 0.23` + `aws-lc-rs` (Mark's Option-C ruling, 2026-07-21;
+# identity.md §6.1). Retires the abandoned `craftls` fork (a dead fork of rustls
+# 0.22 — §6.3), so rustls CVEs now reach frot by `cargo update`. Stock rustls
+# emits its own ClientHello order/set: the divergence from Firefox is a *declared
+# residual* in the §12 oracle, not a crafted match. Kept behind `firefox_tls.rs`;
+# no rustls handshake type leaks past that module.
+rustls = "0.23"
 webpki-roots = "0.26"
 rustls-pki-types = "1"
 encoding_rs = "0.8"
@@ -44,6 +52,15 @@ rquickjs = { version = "0.12", default-features = false, features = ["loader"] }
 
 [dev-dependencies]
 mockito = "1"
+# Local h1/h2 TLS servers for the transport oracle: hyper's auto server behind
+# tokio-rustls with the throwaway CA proves ALPN-selected h2 and h1 fallback
+# complete with certificate verification on.
+hyper = { version = "1", features = ["server", "http1", "http2"] }
+hyper-util = { version = "0.1", features = ["server", "server-auto", "tokio"] }
+tokio = { version = "1", default-features = false, features = ["rt", "net", "io-util", "time", "sync"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs"] }
+http-body-util = "0.1"
+rustls-pki-types = "1"
 
 [profile.release]
 lto = "fat"

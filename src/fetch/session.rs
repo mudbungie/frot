@@ -33,9 +33,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use ureq::Agent;
-
-use super::{build_agent, dispatch, same_origin, FetchError, FetchResult, TIMEOUT_SECS};
+use super::{
+    build_transport, dispatch, same_origin, FetchError, FetchResult, Transport, TIMEOUT_SECS,
+};
 
 /// Firefox document-navigation default headers, layered *under* the caller's
 /// `-H` on the top-level page GET so the request shape matches the User-Agent
@@ -86,17 +86,19 @@ pub enum Intent {
 /// shares the connection pool, the header overrides, and the resource cache.
 #[derive(Clone)]
 pub struct FetchSession {
-    agent: Agent,
+    transport: Arc<Transport>,
     headers: Arc<Vec<(String, String)>>,
     cache: Arc<Mutex<HashMap<String, FetchResult>>>,
 }
 
 impl FetchSession {
     /// Open a session with the caller's `-H` overrides, building the one shared
-    /// transport ([`super::build_agent`]). One call per invocation, in `run.rs`.
+    /// transport ([`super::build_transport`]). One call per invocation, in
+    /// `run.rs`. The transport owns the tokio runtime; dropping the session drops
+    /// it, so no runtime outlives the invocation.
     pub fn new(headers: Vec<(String, String)>) -> Self {
         FetchSession {
-            agent: build_agent(),
+            transport: Arc::new(build_transport()),
             headers: Arc::new(headers),
             cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -146,7 +148,7 @@ impl FetchSession {
             }
         }
         let headers = self.headers_for(url, initiator, intent);
-        let result = dispatch(&self.agent, url, &headers, timeout)?;
+        let result = dispatch(&self.transport, url, &headers, timeout)?;
         if cacheable {
             self.cache
                 .lock()

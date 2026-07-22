@@ -1,5 +1,5 @@
-//! Document fetcher: blocking `ureq`-based GET with sane browser-ish
-//! defaults, plus `file://` reads for documents the caller already has.
+//! Document fetcher: blocking GET over the hyper h1+h2 transport with sane
+//! browser-ish defaults, plus `file://` reads for documents the caller has.
 //!
 //! Returns the final URL (post-redirect), status (`None` for `file://` — no
 //! HTTP response happened), headers, decoded body, and the charset that was
@@ -7,29 +7,34 @@
 //! taxonomy that the envelope serializer expects.
 //!
 //! Every request rides one per-invocation [`FetchSession`] (`session.rs`): the
-//! session owns the connection pool, the caller header overrides, and the
-//! invocation-local resource cache. The transport (`ureq::Agent`) is built
-//! *once*, in [`build_agent`], and reached only through the session — no call
-//! site constructs its own transport, so a page load reuses connections and
-//! presents its TLS identity once, not once per request.
+//! session owns the connection pool (one hyper client + tokio runtime), the
+//! caller header overrides, and the invocation-local resource cache. The
+//! transport is built *once*, in [`build_transport`], and reached only through
+//! the session — no call site constructs its own transport, so a page load
+//! reuses connections (multiplexed over h2) and presents its TLS identity once.
 //!
-//! `file://` support means frot can reach local disk: callers passing
-//! untrusted URLs should validate the scheme themselves, same as with curl.
+//! Redirects, content decoding and the error taxonomy are frot's here (the
+//! transport does one exchange); `file://` support means frot can reach local
+//! disk: callers passing untrusted URLs should validate the scheme themselves.
 
 use std::time::Duration;
-
-use ureq::unversioned::resolver::DefaultResolver;
-use ureq::unversioned::transport::{Connector, TcpConnector};
-use ureq::{Agent, ResponseExt};
 
 use crate::envelope::kinds;
 
 mod decode;
 mod firefox_tls;
+mod profile;
 mod session;
+mod transport;
 
 pub(crate) use decode::decode_body;
+pub use profile::{BrowserProfile, H2Profile, TlsProfile, FIREFOX_140_ESR};
 pub use session::{FetchSession, Intent};
+pub(crate) use transport::Transport;
+
+/// Redirects followed before giving up with [`kinds::FETCH_REDIRECT`] — ureq's
+/// old default, so behaviour is unchanged.
+const MAX_REDIRECTS: usize = 10;
 
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
 
@@ -78,33 +83,20 @@ impl FetchError {
     }
 }
 
-/// Build the one per-invocation transport: the browser-identity connector chain
-/// (TCP, then a Firefox-shaped TLS handshake for HTTPS — `firefox_tls`) over a
-/// shared connection pool. `http_status_as_error(false)` keeps a 4xx/5xx body
-/// readable (the envelope surfaces the code, `run.rs`); the per-request timeout
-/// is applied per call in [`dispatch`], so one agent serves every request under
-/// its own deadline. Called exactly once, by [`FetchSession::new`].
-pub(crate) fn build_agent() -> Agent {
-    let config = Agent::config_builder()
-        .user_agent(USER_AGENT)
-        .http_status_as_error(false)
-        .max_idle_connections_per_host(POOL_PER_HOST)
-        .build();
-    let connector =
-        ().chain(TcpConnector::default())
-            .chain(firefox_tls::FirefoxTlsConnector::default());
-    Agent::with_parts(config, connector, DefaultResolver::default())
+/// Build the one per-invocation transport: the hyper h1+h2 client over the
+/// persona TLS config, with the shared connection pool and its tokio runtime.
+/// Called exactly once, by [`FetchSession::new`].
+pub(crate) fn build_transport() -> Transport {
+    Transport::new(firefox_tls::webpki_roots())
 }
 
-/// GET `url` over the session's shared `agent` with `headers` attached, under
-/// `timeout`. `headers` is the fully-resolved request set the session prepared
-/// (nav headers layered, or same-origin `-H` scoped) — a `User-Agent` among
-/// them overrides the agent's default (ureq applies its config UA only when the
-/// request carries none), so the caller's `-H "User-Agent"` still wins.
-/// `Authorization` is never forwarded across redirects (ureq's default).
-/// `file://` reads take the read path and ignore `headers` / the pool.
+/// GET `url` over the session's shared `transport` with `headers` attached, each
+/// exchange under `timeout`. `headers` is the fully-resolved request set the
+/// session prepared (nav headers layered, or same-origin `-H` scoped). Follows
+/// up to [`MAX_REDIRECTS`] redirects, stripping `Authorization` when a redirect
+/// crosses origin. `file://` reads take the read path and ignore the pool.
 pub(crate) fn dispatch(
-    agent: &Agent,
+    transport: &Transport,
     url: &str,
     headers: &[(String, String)],
     timeout: Duration,
@@ -113,38 +105,51 @@ pub(crate) fn dispatch(
     if parsed.scheme() == "file" {
         return fetch_file(&parsed);
     }
-    let mut request = agent
-        .get(url)
-        .config()
-        .timeout_global(Some(timeout))
-        .build();
-    for (n, v) in headers {
-        request = request.header(n.as_str(), v.as_str());
+    let mut current = url.to_string();
+    let mut headers = headers.to_vec();
+    for _ in 0..MAX_REDIRECTS {
+        let resp = transport.request_once(&current, &headers, MAX_BODY_BYTES, timeout)?;
+        match redirect_target(resp.status, &resp.headers, &current)? {
+            Some(next) => {
+                if !same_origin(&current, &next) {
+                    headers.retain(|(n, _)| !n.eq_ignore_ascii_case("authorization"));
+                }
+                current = next;
+            }
+            None => {
+                let content_type = header_value(&resp.headers, "content-type");
+                let bytes = decode::inflate(&resp.headers, resp.body)?;
+                let (body, charset) = decode_body(&bytes, content_type.as_deref());
+                return Ok(FetchResult {
+                    final_url: current,
+                    status: Some(resp.status),
+                    headers: resp.headers,
+                    body,
+                    charset,
+                });
+            }
+        }
     }
-    let mut response = request.call().map_err(map_ureq_error)?;
-    let final_url = response.get_uri().to_string();
-    let status = response.status().as_u16();
+    Err(FetchError::new(kinds::FETCH_REDIRECT, "too many redirects"))
+}
 
-    let headers: Vec<(String, String)> = response
-        .headers()
-        .iter()
-        .map(|(n, v)| (n.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
-        .collect();
-    let content_type = header_value(&headers, "content-type");
-    let bytes = response
-        .body_mut()
-        .with_config()
-        .limit(MAX_BODY_BYTES)
-        .read_to_vec()
-        .map_err(map_ureq_error)?;
-    let (body, charset) = decode_body(&bytes, content_type.as_deref());
-    Ok(FetchResult {
-        final_url,
-        status: Some(status),
-        headers,
-        body,
-        charset,
-    })
+/// The absolute redirect target for a response, or `None` when it is terminal.
+/// A 3xx with a resolvable `Location` redirects; a 3xx without one, or an
+/// unresolvable `Location`, is an error rather than a silent stop.
+fn redirect_target(
+    status: u16,
+    headers: &[(String, String)],
+    base: &str,
+) -> Result<Option<String>, FetchError> {
+    if !matches!(status, 301 | 302 | 303 | 307 | 308) {
+        return Ok(None);
+    }
+    let location = header_value(headers, "location")
+        .ok_or_else(|| FetchError::new(kinds::FETCH_REDIRECT, "redirect without Location"))?;
+    let next = url::Url::parse(base)
+        .and_then(|b| b.join(&location))
+        .map_err(|e| FetchError::new(kinds::FETCH_REDIRECT, format!("bad Location: {e}")))?;
+    Ok(Some(next.to_string()))
 }
 
 /// Read a `file://` document. No response, so no status and no headers;
@@ -210,25 +215,6 @@ pub(crate) fn header_value(headers: &[(String, String)], name: &str) -> Option<S
         .iter()
         .find(|(n, _)| n.eq_ignore_ascii_case(name))
         .map(|(_, v)| v.clone())
-}
-
-pub(crate) fn map_ureq_error(e: ureq::Error) -> FetchError {
-    use ureq::Error;
-    let msg = e.to_string();
-    let kind = match &e {
-        Error::HostNotFound => kinds::FETCH_DNS,
-        Error::ConnectionFailed => kinds::FETCH_CONNECT,
-        Error::Timeout(_) => kinds::FETCH_TIMEOUT,
-        Error::TooManyRedirects | Error::RedirectFailed => kinds::FETCH_REDIRECT,
-        Error::BadUri(_) | Error::RequireHttpsOnly(_) => kinds::FETCH_URL,
-        Error::Tls(_) => kinds::FETCH_TLS,
-        Error::Io(_)
-        | Error::BodyExceedsLimit(_)
-        | Error::BodyStalled
-        | Error::Decompress(_, _) => kinds::FETCH_BODY,
-        _ => kinds::INTERNAL,
-    };
-    FetchError::new(kind, msg)
 }
 
 #[cfg(test)]

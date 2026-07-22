@@ -369,10 +369,52 @@ Each is a testable assertion, not a guideline.
 
 ### 6.1 Decision
 
-**SELECTED (Mark, 2026-07-20): config (b) — R1-mod — retire `craftls`, move to
-`rustls 0.23 + aws-lc-rs`, port the craft layer into frot's own repo behind the
-existing `firefox_tls.rs` seam, then add `h2` (§7).** The pure-Rust ML-KEM path,
-config (c) below, is **preserved as the size-optimized fallback**, not discarded.
+**SELECTED and LANDED (Mark's Option-C ruling, 2026-07-21; `bl-abca`): retire
+`craftls`, move to STOCK `rustls 0.23 + aws-lc-rs`, and add real `h2` over hyper
+behind the `firefox_tls.rs`/`FetchSession` seam (§7).** The pure-Rust ML-KEM
+path, config (c) below, is **preserved as the size-optimized fallback**.
+
+> **Correction (2026-07-21, as-built).** The 2026-07-20 framing said "port the
+> craft layer into frot's own repo." When `bl-abca` came to implement it, the
+> escalation the ball was designed around fired: **stock rustls 0.23 has no
+> ClientHello-crafting API** (upstream issues #1932/#1421/#2498 remain open —
+> that is *why* craftls exists), and "porting the craft layer" would mean frot
+> owning a rustls fork — re-creating the exact maintenance/CVE liability §6.3
+> gives as the whole reason to leave craftls. Mark ruled **Option C**: ship stock
+> rustls and **demote the ClientHello order/set to a declared §12 residual**
+> rather than fork. frot's handshake is now coherent, current and `cargo
+> update`-maintained; it is **explicitly not byte-identical to Firefox** (§1),
+> and **JA4 does not match the pin** — accepted, and asserted as a residual, not
+> hidden.
+>
+> **What stock rustls + aws-lc-rs *does* reproduce from the profile:** ALPN order
+> `h2, http/1.1`; kx-group order with X25519MLKEM768 first; cipher wire order;
+> absence of GREASE (140esr has none); the h2 SETTINGS initial-window / max-frame
+> values. **Declared residuals (asserted in §12, never silent):** the cipher
+> *list* is rustls's 9 AEAD suites, not Firefox's 17 (so the JA4 *cipher*
+> component also differs, not only the extension component); the ClientHello
+> extension order/set; secp521r1 + the two FFDHE groups; ≤2 key shares not 3;
+> h2 pseudo-order `m,s,a,p` not `m,p,a,s`; no HEADERS PRIORITY.
+>
+> **Async, as-built.** Mark's async ruling illustrated "current-thread tokio";
+> the transport uses a **multi-thread** runtime because `run/gather.rs` calls the
+> blocking fetch API concurrently from up to six OS threads (a current-thread
+> runtime cannot be `block_on`'d concurrently). The observable contract is
+> unchanged — blocking API, runtime owned by the session and dropped at
+> invocation end, no work escapes the call.
+
+**Measured, static-musl stripped, verified 2026-07-21 (`bl-abca`):**
+
+| stage | stack | binary | crates | vs today (craftls 7,328,856 B) |
+|---|---|---|---|---|
+| Stage A | stock rustls 0.23 + aws-lc-rs, ureq kept, ALPN h1 | **7,304,472 B** | 95 | **−24 KiB, −16 crates** |
+| Stage B — SHIPPED | hyper h1+h2 + tokio, ureq dropped, ALPN h2 | **7,820,696 B** | 118 | **+480 KiB, +7 crates** |
+
+Stage A confirms the doc's "seam-swap ≈ −32 KiB" thesis (measured −24 KiB).
+Stage B is the honest full-h2 figure the §6.1-item-3 caveat said was owed: real
+h2 (hyper + hyper-util + hyper-rustls + tokio + h2) plus the gzip/br decoders
+that replace ureq's cost **+480 KiB over today**, at **7.46 MiB — comfortably
+inside the 5–15 MiB envelope** (close to the §6.2 spike's projected +291 KiB).
 
 The checkpoint this section once carried gated three items. Two are now settled
 by Mark's rulings of 2026-07-20 (async, and the C-stack choice, both below); the
@@ -441,16 +483,18 @@ Startup + RSS delta is still **unmeasured** and stays a **live cost to record
 once the runtime lands** — that half of the old rationale is a real cost, not a
 prohibition. Measure it in `bl-abca`/`bl-08f6` and record it here.
 
-#### Item 3 — content-encoding decoders: still owed (honest caveat)
+#### Item 3 — content-encoding decoders: RESOLVED (Mark's steer, 2026-07-21)
 
-`zstd` (+ `deflate`) content-encoding decoders are required by **I2** to honestly
-advertise the profile's `Accept-Encoding` (`gzip, deflate, br, zstd`). **Config
-(b) above is the seam-swap only** — it does *not* yet include them. craftls's
-`zstd` was **cert-compression, not content-encoding**, and frot today advertises
-only `gzip, br`. So the final figure is **(b) + decoders**, and that has not been
-measured. **Do not present −32 KiB as the settled number.** `bl-abca` owes this
-measurement; until it lands, I2 either gets the decoders or `Accept-Encoding`
-stays a declared residual at `gzip, br` (§14 item 6).
+**Decision: keep advertising only `gzip, br` — what frot actually decodes — and
+leave `zstd`/`deflate` a declared residual (§14 item 6).** This satisfies I2 (do
+not advertise what you cannot inflate) without incurring the size of extra
+decoders. As-built, `bl-abca` reimplemented the gzip/br decoders (`flate2` +
+`brotli`) that ureq used to provide, and the transport sets `Accept-Encoding:
+gzip, br` on every request. So the settled Stage-B figure **7,820,696 B**
+(measured, table above) already includes the decoders; the earlier "−32 KiB" was
+the seam-swap only and is superseded. The Firefox persona's fuller
+`gzip, deflate, br, zstd` offer is the residual — a coherent *subset*, honestly
+advertised, not a false claim.
 
 ### 6.2 Route table (measured 2026-07-19; `lto=fat, codegen-units=1, strip, panic=abort`)
 
@@ -505,6 +549,14 @@ decision in this document.**
 This is the single worst fact in the current design and the one item here that
 does not depend on the corpus, the persona, or the h2 question.
 
+**ACHIEVED (2026-07-21, `bl-abca`).** craftls is retired; the transport is stock
+`rustls 0.23` + `aws-lc-rs` + `h2`/hyper, all on crates.io with the maintenance
+posture above. A rustls CVE now reaches frot by `cargo update`. Crucially, this
+property survives *because* Option C did **not** fork rustls to craft the
+ClientHello — a frot-owned fork would have re-created the exact CVE-hand-porting
+liability this section exists to remove. The price paid to keep it is the
+byte-exact handshake, demoted to a declared §12 residual (§6.1).
+
 ### 6.4 What R1-mod still cannot do
 
 Stated plainly so no reader mistakes the recommendation for a match:
@@ -553,13 +605,13 @@ residual hides. Three things break the tie:
    concurrency and what removes the "never resumes a session" anomaly. This
    benefit is real whether or not the h2 fingerprint is perfect.
 
-**Recommendation — three stages, in this order:**
+**Three stages — A and B LANDED in `bl-abca` (2026-07-21):**
 
-| stage | ships | ALPN | rationale |
+| stage | ships | ALPN | status |
 |---|---|---|---|
-| **A** (`bl-abca`, part 1) | rustls 0.23 + aws-lc-rs, craft layer ported, 17 extensions, PQ groups, ECH | **still `["http/1.1"]`** | I2: don't advertise h2 before speaking it. The h1-only residual is *already shipping*; stage A does not make it worse. |
-| **B** (`bl-abca`, part 2) | `h2` wired; ALPN flipped **in the same commit** | **`["h2","http/1.1"]`** | Never advertise what you cannot speak. `m,s,a,p` becomes a *declared, tracked* residual in the golden capture. |
-| **C** (follow-up ball) | `m,p,a,s` + HEADERS PRIORITY | unchanged | **Prefer upstreaming** a small API to `h2` (`pseudo_order`, `headers_priority`) — hyperium, 98 contributors, actively maintained, and `wreq` proves the use case. Fork only if upstream declines, and record it here if so. |
+| **A** | stock rustls 0.23 + aws-lc-rs (no craft layer — Option C, §6.1); PQ group first, cipher/kx order from the profile | `["http/1.1"]` | **LANDED** (commit `17fed75`). Also landed the `BrowserProfile` single-source-of-truth. The ClientHello order/set is a declared residual, not crafted. |
+| **B** | `h2` over hyper wired; ALPN flipped to `["h2","http/1.1"]`; ureq dropped | `["h2","http/1.1"]` | **LANDED** (commit `337a6f0`). ALPN-selected h2 and h1 fallback both verified against local TLS servers. `m,s,a,p` and the ClientHello residuals are asserted, not hidden (§12). |
+| **C** (follow-up ball) | `m,p,a,s` + HEADERS PRIORITY | unchanged | **Prefer upstreaming** a small API to `h2` (`pseudo_order`, `headers_priority`). Fork only if upstream declines, and record it here if so. |
 
 **The reframe that removes the flag.** Do not ask "should we offer h2?". The
 profile *declares* `alpn: ["h2","http/1.1"]` (§4.1), and **I2 makes it a build
@@ -776,7 +828,10 @@ Permanently out of reach, by design or by constraint:
 | **Font metrics via `offsetWidth` measurement loops** | The `document.fonts` / FontFaceSet API is a filed gap (a follow-up of `bl-bd4e`), but the **`offsetWidth`-based glyph-width channel is a residual**: frot's layout is a structural approximation (`layout.md` §6), so per-glyph text widths cannot be reproduced faithfully, and a *wrong* width is a louder tell than a missing font (§10's coherence bar). It is also unobservable to the `bl-bd4e` instrument (indistinguishable from ordinary layout reads), so no page can be cited as probing it — it is out by the no-folklore rule, not measured in. |
 | **`crypto.subtle` (WebCrypto)** | `crypto.getRandomValues`/`randomUUID` are cheap capabilities frot can genuinely provide (a `bl-bd4e` follow-up owns them); the full `SubtleCrypto` surface is a large capability that may stay residual — the filed gap decides. |
 | **Three key shares** | Blocked by rustls (§6.4). |
-| **`m,p,a,s` pseudo-order + HEADERS PRIORITY** | Deferred to stage C (§7). |
+| **ClientHello extension order/set** | Stock rustls emits its own order and omits Firefox's `compress_certificate`/SCT/`record_size_limit`/ECH shaping. Declared residual under Option C (§6.1); would need a rustls fork, which §6.3 forbids on security grounds. |
+| **Cipher *list* breadth (9 vs 17) → JA4 cipher component** | rustls advertises only its AEAD suites, not Firefox's legacy CBC/RSA. The cipher *order* matches; the *list* (and thus the JA4 cipher hash) does not. Declared residual (§6.1). |
+| **secp521r1 + FFDHE2048/3072 groups** | Not offered by aws-lc-rs; the other four persona groups match in order (§6.1). |
+| **`m,p,a,s` pseudo-order + HEADERS PRIORITY** | Deferred to stage C (§7); the `h2` crate hardcodes `m,s,a,p` and exposes no client PRIORITY. |
 | **UTC timezone** | Deliberate — determinism over realism (§9). |
 | **frot is identifiable *as frot*** | See §14 — this is accepted, not solved. |
 
@@ -814,7 +869,19 @@ environment-dependent; *not* identity):
   across real browsers too (§6.4)
 - timestamps, `Date`/`Cookie` expiry values
 
-**Not normalized — must match exactly.** Ordered capabilities are identity:
+**Reconciliation with Option C (2026-07-21).** The "must match exactly" list
+below was written against a *crafted* ClientHello. Under Option C (§6.1) frot
+ships stock rustls, so the fields it cannot shape are **asserted as declared
+residuals** — the oracle pins frot's *actual* emission (rustls's 9-suite cipher
+list, rustls's extension order, ≤2 key shares, `m,s,a,p`) with a pointer to
+§6.1/§11, exactly as §1 requires ("coherent… explicitly not byte-identical"). A
+field is either an exact Firefox match *or* a residual asserted against frot's
+own stable output; neither may drift silently. This is the honest bridge between
+this section's "match exactly" and §1's "not byte-identical": the residuals are
+the difference, and they are tested, not hidden.
+
+**Not normalized — an exact Firefox match where reachable, else a pinned
+residual.** Ordered capabilities are identity:
 
 - cipher list **and wire order** (17, `0xc009` at index 10)
 - extension list **and wire order** (17, ECH last)

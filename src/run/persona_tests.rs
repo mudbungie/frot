@@ -8,10 +8,12 @@
 //!
 //! Two recorded contracts live here:
 //! - **`persona-http-head.txt`** — the h1 request head over plain `http://`
-//!   (§3.3 header set/order/values, §3.4 lowercase casing). This is the CURRENT
-//!   contract, not a frozen one: `bl-20ec` (request metadata) changes the header
-//!   values/order and updates this one golden file; `bl-abca` (h2) changes the
-//!   protocol. Each is a single-file edit.
+//!   (§3.3 header set/order/values). Since `bl-abca` moved the transport to
+//!   hyper, the head is **Title-Cased on both schemes** (hyper's
+//!   `http1_title_case_headers`), dissolving §3.4's old scheme-dependent
+//!   lowercase `http://` tell. This is the CURRENT contract, not a frozen one:
+//!   `bl-20ec` (request metadata) changes the header values/order and updates
+//!   this one golden file. Each is a single-file edit.
 //! - **the declared-challenge negative control** (§3.7): a `Retry-After` 200 is
 //!   detected pre-parse, so frot makes EXACTLY ONE request, emits `needs:["human"]`
 //!   with no `out`/`js` block, and exits 0. Proven offline by counting the

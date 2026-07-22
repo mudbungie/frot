@@ -216,3 +216,62 @@ fn an_invalid_url_is_a_url_error() {
         .unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_URL);
 }
+
+#[test]
+fn a_self_redirect_loop_is_a_redirect_error() {
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(301)
+        .with_header("location", "/")
+        .expect_at_least(1)
+        .create();
+    let e = FetchSession::new(Vec::new())
+        .navigate(&format!("{}/", server.url()))
+        .unwrap_err();
+    assert_eq!(e.kind, kinds::FETCH_REDIRECT);
+}
+
+#[test]
+fn a_cross_origin_redirect_strips_authorization() {
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/start")
+        .with_status(301)
+        // A different port is a different origin; the -H Authorization must be
+        // dropped before the next hop, which then fails to connect (dead port).
+        .with_header("location", "http://127.0.0.1:1/")
+        .create();
+    let headers = vec![("Authorization".to_string(), "secret".to_string())];
+    let e = FetchSession::new(headers)
+        .navigate(&format!("{}/start", server.url()))
+        .unwrap_err();
+    assert_eq!(e.kind, kinds::FETCH_CONNECT);
+}
+
+#[test]
+fn a_corrupt_content_encoding_is_a_body_error() {
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_header("content-encoding", "gzip")
+        .with_body("not gzip at all")
+        .create();
+    let e = FetchSession::new(Vec::new())
+        .navigate(&format!("{}/", server.url()))
+        .unwrap_err();
+    assert_eq!(e.kind, kinds::FETCH_BODY);
+}
+
+#[test]
+fn a_redirect_missing_its_location_propagates_a_redirect_error() {
+    // A 3xx with no Location reaches the loop, where `redirect_target`'s error
+    // propagates out of dispatch as a redirect error.
+    let mut server = mockito::Server::new();
+    let _m = server.mock("GET", "/").with_status(302).create();
+    let e = FetchSession::new(Vec::new())
+        .navigate(&format!("{}/", server.url()))
+        .unwrap_err();
+    assert_eq!(e.kind, kinds::FETCH_REDIRECT);
+}

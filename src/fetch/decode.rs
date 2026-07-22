@@ -1,9 +1,42 @@
-//! Body decoding: pick a character encoding for a fetched byte string.
+//! Body decoding: inflate the `Content-Encoding` then pick a character encoding.
 //!
-//! The declared `Content-Type` charset wins; otherwise sniff a `<meta>`
+//! frot advertises and decodes only `gzip` and `br` (`Accept-Encoding: gzip,
+//! br`); `deflate`/`zstd` are a declared residual (identity.md §14), so a body
+//! in any other encoding is passed through untouched rather than mis-decoded.
+//! The declared `Content-Type` charset then wins; otherwise sniff a `<meta>`
 //! charset out of the first 1 KiB; otherwise UTF-8. Shared by both transports
 //! (HTTP responses and `file://` reads), so a local file and a header-less
 //! HTTP response decode identically.
+
+use std::io::Read;
+
+use super::{header_value, FetchError, MAX_BODY_BYTES};
+use crate::envelope::kinds;
+
+/// Inflate `body` per its `Content-Encoding`. gzip and br are decoded (capped at
+/// [`MAX_BODY_BYTES`] to bound a decompression bomb); everything else — identity,
+/// absent, or an encoding frot never advertised — passes through unchanged.
+pub(crate) fn inflate(headers: &[(String, String)], body: Vec<u8>) -> Result<Vec<u8>, FetchError> {
+    match header_value(headers, "content-encoding")
+        .map(|e| e.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("gzip") => cap(flate2::read::MultiGzDecoder::new(&body[..]), "gzip"),
+        Some("br") => cap(brotli::Decompressor::new(&body[..], 4096), "br"),
+        _ => Ok(body),
+    }
+}
+
+/// Read a decoder to end, capped at [`MAX_BODY_BYTES`]; a decode failure is a
+/// body error tagged with the encoding name.
+fn cap(reader: impl Read, enc: &str) -> Result<Vec<u8>, FetchError> {
+    let mut out = Vec::new();
+    reader
+        .take(MAX_BODY_BYTES)
+        .read_to_end(&mut out)
+        .map_err(|e| FetchError::new(kinds::FETCH_BODY, format!("{enc}: {e}")))?;
+    Ok(out)
+}
 
 pub(crate) fn extract_charset_from_content_type(ct: &str) -> Option<String> {
     let lower = ct.to_ascii_lowercase();

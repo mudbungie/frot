@@ -1,11 +1,10 @@
 //! Unit tests for the fetch *primitives* — URL validation, the body-size gate,
-//! same-origin comparison, header lookup, and the ureq→taxonomy error mapping.
-//! The transport itself (the shared pool, redirects, `file://`, header/nav
-//! policy) is exercised against a live loopback server in `session/tests.rs`,
-//! where the [`super::FetchSession`] seam it flows through lives.
+//! same-origin comparison, header lookup, and redirect-target resolution. The
+//! transport itself (h2/h1 handshake and the error taxonomy) is in
+//! `transport/tests.rs`; the redirect *loop*, `file://`, and header/nav policy
+//! are exercised through the [`super::FetchSession`] seam in `session/tests.rs`.
 
 use super::*;
-use ureq::Error as UE;
 
 #[test]
 fn header_value_is_case_insensitive() {
@@ -63,79 +62,31 @@ fn user_agent_defaults_and_overrides() {
 }
 
 #[test]
-fn map_dns_error() {
-    let e = map_ureq_error(UE::HostNotFound);
-    assert_eq!(e.kind, kinds::FETCH_DNS);
+fn a_non_redirect_status_has_no_target() {
+    assert_eq!(
+        redirect_target(200, &[], "http://a.example/").unwrap(),
+        None
+    );
 }
 
 #[test]
-fn map_connection_failed() {
-    let e = map_ureq_error(UE::ConnectionFailed);
-    assert_eq!(e.kind, kinds::FETCH_CONNECT);
+fn a_redirect_resolves_its_location_against_the_current_url() {
+    let h = vec![("Location".to_string(), "/landed".to_string())];
+    assert_eq!(
+        redirect_target(301, &h, "http://a.example/start").unwrap(),
+        Some("http://a.example/landed".to_string())
+    );
 }
 
 #[test]
-fn map_timeout() {
-    let e = map_ureq_error(UE::Timeout(ureq::Timeout::Global));
-    assert_eq!(e.kind, kinds::FETCH_TIMEOUT);
-}
-
-#[test]
-fn map_too_many_redirects() {
-    let e = map_ureq_error(UE::TooManyRedirects);
+fn a_redirect_without_a_location_is_a_redirect_error() {
+    let e = redirect_target(302, &[], "http://a.example/").unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_REDIRECT);
 }
 
 #[test]
-fn map_redirect_failed() {
-    let e = map_ureq_error(UE::RedirectFailed);
+fn a_redirect_to_an_unparseable_location_is_a_redirect_error() {
+    let h = vec![("location".to_string(), "http://".to_string())];
+    let e = redirect_target(307, &h, "http://a.example/").unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_REDIRECT);
-}
-
-#[test]
-fn map_bad_uri_is_fetch_url() {
-    let e = map_ureq_error(UE::BadUri("bad".to_string()));
-    assert_eq!(e.kind, kinds::FETCH_URL);
-}
-
-#[test]
-fn map_require_https_only_is_fetch_url() {
-    let e = map_ureq_error(UE::RequireHttpsOnly("http only".to_string()));
-    assert_eq!(e.kind, kinds::FETCH_URL);
-}
-
-#[test]
-fn map_tls_static_str() {
-    let e = map_ureq_error(UE::Tls("bad cert"));
-    assert_eq!(e.kind, kinds::FETCH_TLS);
-}
-
-#[test]
-fn map_io_error_is_fetch_body() {
-    let e = map_ureq_error(UE::Io(std::io::Error::other("read")));
-    assert_eq!(e.kind, kinds::FETCH_BODY);
-}
-
-#[test]
-fn map_body_exceeds_is_fetch_body() {
-    let e = map_ureq_error(UE::BodyExceedsLimit(1));
-    assert_eq!(e.kind, kinds::FETCH_BODY);
-}
-
-#[test]
-fn map_body_stalled_is_fetch_body() {
-    let e = map_ureq_error(UE::BodyStalled);
-    assert_eq!(e.kind, kinds::FETCH_BODY);
-}
-
-#[test]
-fn map_decompress_is_fetch_body() {
-    let e = map_ureq_error(UE::Decompress("gzip", std::io::Error::other("decompress")));
-    assert_eq!(e.kind, kinds::FETCH_BODY);
-}
-
-#[test]
-fn map_unknown_variant_falls_through_to_internal() {
-    let e = map_ureq_error(UE::Other(Box::new(std::io::Error::other("misc"))));
-    assert_eq!(e.kind, kinds::INTERNAL);
 }
