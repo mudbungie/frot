@@ -12,7 +12,7 @@ use std::time::Duration;
 use crate::dom::Document;
 use crate::fetch::FetchSession;
 
-use super::engine::{self, Engine, EXEC_BUDGET_MS};
+use super::engine::{self, Clock, Engine, EXEC_BUDGET_MS};
 use super::probe::ProbeLog;
 use super::{geometry, script, subfetch, syscall};
 use super::{Env, EvalError, Log, StyleSource};
@@ -60,7 +60,23 @@ impl Session {
         fetch: &FetchSession,
         budget: Duration,
     ) -> Self {
-        Self::build(doc, styles, env, fetch, budget, None)
+        Self::build(doc, styles, env, fetch, budget, Clock::real(), None)
+    }
+
+    /// [`with_budget`](Self::with_budget) over an injected [`Clock`] (`bl-e707`):
+    /// the same manual clock the test advances feeds both the run's deadline and
+    /// the observable `performance.now`/`Date.now`, proving their coherence with
+    /// no real sleeping.
+    #[cfg(test)]
+    pub fn with_clock(
+        doc: Document,
+        styles: StyleSource,
+        env: Env,
+        fetch: &FetchSession,
+        budget: Duration,
+        clock: Clock,
+    ) -> Self {
+        Self::build(doc, styles, env, fetch, budget, clock, None)
     }
 
     /// [`Session::new`] with the capability-surface probe instrument attached
@@ -81,6 +97,7 @@ impl Session {
             env,
             fetch,
             Duration::from_millis(EXEC_BUDGET_MS),
+            Clock::real(),
             Some(log),
         )
     }
@@ -95,9 +112,10 @@ impl Session {
         env: Env,
         fetch: &FetchSession,
         budget: Duration,
+        clock: Clock,
         probe: Option<ProbeLog>,
     ) -> Self {
-        let engine = Engine::with_limits(engine::JS_MEM_LIMIT, budget);
+        let engine = Engine::with_limits_clock(engine::JS_MEM_LIMIT, budget, clock);
         let doc = Rc::new(RefCell::new(doc));
         let console = Rc::new(RefCell::new(Vec::new()));
         let geo = Rc::new(RefCell::new(geometry::Geometry::new(styles)));
@@ -133,6 +151,7 @@ impl Session {
                 counters: counters.clone(),
                 subfetch: subfetch.clone(),
                 cookie,
+                clock: engine.clock(),
                 probe,
             },
         );

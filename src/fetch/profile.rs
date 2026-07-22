@@ -90,13 +90,13 @@ pub struct BrowserProfile {
     /// JS `navigator.buildID` — Gecko's *privacy-frozen* constant, not the real
     /// BuildID (reporting which would itself be a tell). `bl-3972`, identity.md §8.
     pub build_id: &'static str,
-    /// JS `navigator.hardwareConcurrency` — a pinned low-entropy desktop constant
-    /// (identity.md §8): the true host count leaks entropy and breaks determinism,
-    /// while `1` is implausible for a 2026 desktop, so the persona pins `8`.
+    /// JS `navigator.hardwareConcurrency` — pinned low-entropy `8`, not the true
+    /// host count (identity.md §8: entropy + determinism; `1` implausibly low).
     pub hardware_concurrency: u8,
-    /// JS `screen.colorDepth`/`pixelDepth` — 24-bit truecolor, the universal Linux
-    /// X11 value (identity.md §8). Screen *geometry* stays the layout viewport.
+    /// JS `screen.colorDepth`/`pixelDepth` — 24-bit truecolor (identity.md §8).
     pub color_depth: u8,
+    /// JS clock precision, µs — the `performance.now`/`Date.now` quantum (`bl-e707`).
+    pub timer_precision_us: u32,
     /// End-of-life tripwire (I8): once `now` reaches this, the pin is stale and
     /// must be re-captured (§2). Stored as a civil date so the intent is legible.
     pub eol: CivilDate,
@@ -260,6 +260,7 @@ pub const FIREFOX_140_ESR: BrowserProfile = BrowserProfile {
     build_id: "20181001000000",
     hardware_concurrency: 8,
     color_depth: 24,
+    timer_precision_us: 1_000, // 1 ms — Firefox's reduceTimerPrecision default
     // ESR 140 is the sole current ESR line (`FIREFOX_ESR_NEXT` empty, §2); when
     // its successor lands this trips and forces a re-capture + re-pin.
     eol: CivilDate {

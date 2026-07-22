@@ -203,20 +203,40 @@ during parse. So:
 ## 5. Bounded execution — the event loop
 
 Statelessness and the sub-second target make the loop's *termination* the
-design center. Two clocks, three limits:
+design center. One clock, three limits:
 
-- **Virtual clock.** Timers schedule at virtual timestamps; the loop always
-  pops the earliest-due task and *jumps* the virtual clock to it. `Date.now()`
-  / `performance.now()` read the virtual clock (seeded from real time at
-  process start). One horizon rule terminates every timer pattern:
+- **One coherent clock, with a virtual offset (`bl-e707`).** There is exactly
+  one monotonic clock per invocation — the injectable `js::engine::Clock` the §5
+  interrupt handler and the §6 [`Deadline`] already bound the run with. The
+  observable browser clock is that clock's *real elapsed* (host/CPU/network time,
+  read in JS through the `__frot_now` syscall) **plus** a virtual offset the
+  timer loop adds. `performance.timeOrigin` (wall-clock ms at session start),
+  `performance.now()`, and `Date.now()` all derive from that **one origin**:
+  `Date.now() - timeOrigin == performance.now()`. So observable time advances
+  with actual work — a busy script or a blocking subfetch moves it (the same
+  wall time that spends the budget), and a synchronous/subfetch probe never sees
+  perpetual zero — while a virtual timer *jump* only bumps the offset so the
+  reading reaches **at least** the timer's due time. Values never go backward
+  (a monotone ratchet) and are floored to the profile's timer precision —
+  `BrowserProfile::timer_precision_us` (identity.md §9: Firefox's 1 ms
+  `reduceTimerPrecision` clamp), the single literal, never a second hardcode.
+  Timers still fire immediately in host wall time, in due order; only the
+  *reading* jumps, so no artificial wait and no jitter is ever introduced.
+  One horizon rule terminates every timer pattern:
   **`VIRTUAL_HORIZON_MS = 10_000`** — a task due past the horizon is dropped.
   `setTimeout(f, 30_000)` never fires ("no timers past load"); `setInterval`
   pollers and `requestAnimationFrame` chains (rAF = 16 ms virtual timer)
   self-terminate at the horizon instead of needing per-API caps. Sub-millisecond
-  timer delays clamp to 1 ms so every fire advances the virtual clock — a
+  timer delays clamp to 1 ms so every fire advances the observable clock — a
   `0`-delay poller (`setInterval(f, 0)`, or a self-rescheduling `setTimeout`)
   therefore self-terminates at the horizon rather than spinning out the
   wall-clock budget.
+  - **Resource timing (`bl-e707`).** `performance.getEntries*` exposes a
+    `PerformanceResourceTiming` for **real measured requests only** — each §6
+    subfetch, bracketed on the one clock for its true `startTime`/`duration`.
+    Phases frot does not measure (DNS/TCP/TLS) stay spec-legal `0`, never
+    fabricated; no navigation entry is synthesised for the pre-JS document fetch
+    (unmeasured here) — omission over invented phases.
 - **Wall-clock budget: `EXEC_BUDGET_MS = 1_000`**, enforced by the engine's
   interrupt handler; covers execution *and* §6 subfetch time in one deadline.
   Hitting it stops the loop and marks the run unsettled (§10).

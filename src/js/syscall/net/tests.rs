@@ -69,6 +69,40 @@ fn failed_shaping_fails_cleanly_at_every_allocation_point() {
     );
 }
 
+/// Build a realm, cap the heap `headroom` above its resting cost, then shape the
+/// resource-timing array (`bl-e707`). The same allocation-failure guarantee as
+/// `outcome_obj`: every `?` in the success path surfaces as `Err`, never a panic.
+fn shape_timings_with_headroom(timings: Vec<(String, f64, f64)>, headroom: usize) -> bool {
+    let rt = Runtime::new().unwrap();
+    let ctx = Context::full(&rt).unwrap();
+    let used = rt.memory_usage().malloc_size as usize;
+    rt.set_memory_limit(used + headroom);
+    let ok = ctx.with(|ctx| timings_array(&ctx, timings).is_ok());
+    rt.set_memory_limit(usize::MAX);
+    ok
+}
+
+/// Sweeping headroom walks the first failing allocation through every `?` of the
+/// timings array — the outer array, each triple, and each `[name, start, dur]`
+/// element set — proving each fails cleanly and a roomy heap still succeeds.
+#[test]
+fn timings_shaping_fails_cleanly_at_every_allocation_point() {
+    let sample = || {
+        vec![
+            ("https://example.com/a.js".to_string(), 1.0, 2.0),
+            ("https://example.com/b.css".to_string(), 3.0, 4.0),
+        ]
+    };
+    let results: Vec<bool> = (0..4000)
+        .map(|h| shape_timings_with_headroom(sample(), h))
+        .collect();
+    assert!(results.contains(&false), "starvation never bit");
+    assert!(
+        results.contains(&true),
+        "never succeeded even with headroom"
+    );
+}
+
 /// With a roomy heap the shaped object carries every response field, including
 /// the `[[name, value], …]` headers array the prelude reads back.
 #[test]

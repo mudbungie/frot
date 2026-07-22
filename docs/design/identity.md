@@ -768,15 +768,20 @@ fetches, and a JS `document.cookie` write feeds a later same-origin GET.
   before parse/JS/subfetch, and the session (hence the jar) then drops. frot never
   retries, so a challenge cookie is never replayed.
 
-**Clocks (`bl-e707`).** Clocks derive from the profile plus the existing virtual
-clock (`js.md` §5), not from a second source. Two facts to settle in that ball:
-timer-precision clamping (Firefox clamps `performance.now()`/`Date.now()` to 1 ms
-by default under `privacy.reduceTimerPrecision`, and an unclamped
-sub-millisecond timer is itself a tell), and timezone/locale, where the capture
-shows host-dependent values (`America/Los_Angeles`, offset 420). **Recommendation:
-pin locale to the profile and timezone to UTC**, on the same determinism argument
-as `hardwareConcurrency` — accepting "a UTC browser is unusual" as a declared
-residual (§11), because non-deterministic output is the worse failure.
+**Clocks (`bl-e707`, LANDED).** Clocks derive from the profile plus the existing
+virtual clock (`js.md` §5), not from a second source. The two facts that ball
+settled: **timer-precision clamping** — `performance.now()`/`Date.now()` are
+floored to `BrowserProfile::timer_precision_us` (1 ms, Firefox's default
+`privacy.reduceTimerPrecision`; an unclamped sub-millisecond timer is itself a
+tell), the one literal the observable clock reads, never a second hardcode; and
+**timezone/locale**, where the capture showed host-dependent values
+(`America/Los_Angeles`, offset 420) — locale is pinned to the profile and
+timezone to `UTC` (the persona payload, §9), on the same determinism argument as
+`hardwareConcurrency`, "a UTC browser is unusual" accepted as a declared residual
+(§11) because non-deterministic output is the worse failure. The observable clock
+is now one injectable monotonic source (real elapsed + a virtual timer offset)
+feeding `timeOrigin`/`performance.now`/`Date.now` coherently from one origin —
+the same clock the §5/§6 deadline bounds the run with (`js.md` §5).
 
 ---
 

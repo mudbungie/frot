@@ -1,5 +1,7 @@
 //! Spike proofs for the four §1 bounding primitives + a real-bundle smoke run.
 
+use std::time::Instant;
+
 use super::*;
 
 fn short_budget(ms: u64) -> Engine {
@@ -9,6 +11,30 @@ fn short_budget(ms: u64) -> Engine {
 #[test]
 fn eval_returns_a_value() {
     assert_eq!(Engine::new().eval("1 + 2").unwrap(), "3");
+}
+
+#[test]
+fn a_manual_clock_is_exactly_what_it_is_advanced_by() {
+    // The injected-clock seam (bl-e707): a manual clock is frozen until advanced,
+    // and reads exactly the sum of its advances — the basis of every deterministic
+    // observable-time proof.
+    let c = Clock::manual();
+    assert_eq!(c.elapsed_nanos(), 0);
+    c.advance(Duration::from_millis(250));
+    c.advance(Duration::from_millis(750));
+    assert_eq!(c.elapsed_nanos(), 1_000_000_000);
+}
+
+#[test]
+fn a_real_clock_tracks_the_host_and_ignores_manual_advance() {
+    // The shipping clock is host-monotonic; the `advance` seam is inert on it
+    // (tests only), so a bogus century-advance cannot move production time.
+    let c = Clock::real();
+    c.advance(Duration::from_secs(100));
+    assert!(
+        c.elapsed_nanos() < 1_000_000_000,
+        "advance leaked into a real clock"
+    );
 }
 
 #[test]

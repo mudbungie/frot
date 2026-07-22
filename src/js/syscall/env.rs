@@ -42,6 +42,15 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
         host.env.accept_language.clone(),
     );
     bind!(ctx, g, "__frot_env_profile", move || persona(&ua, &lang));
+    // The observable browser clock's raw source (`bl-e707`): real elapsed ms on
+    // the session's one monotonic clock — the same clock the §5/§6 deadline bounds
+    // the run with. `loop.js` adds the virtual timer offset and floors to the
+    // profile precision on top of this, so `performance.now`/`Date.now` advance
+    // with actual CPU/host/network time and never see perpetual zero.
+    let clock = host.clock.clone();
+    bind!(ctx, g, "__frot_now", move || {
+        clock.elapsed_nanos() as f64 / 1_000_000.0
+    });
     let url = host.env.url.clone();
     bind!(
         ctx,
@@ -116,6 +125,10 @@ fn persona(ua: &str, accept_language: &str) -> String {
         // `hardwareConcurrency` (identity.md §9): a host-derived zone would leak
         // entropy and vary output. A declared residual (§11), coherent with locale.
         "timeZone": "UTC",
+        // Timer precision in microseconds (`bl-e707`, identity.md §9): the one
+        // literal `loop.js` floors the observable clock to (1 ms). Derived from
+        // the profile SSOT, never a second hardcode in the prelude.
+        "timerPrecisionUs": p.timer_precision_us,
     });
     serde_json::to_string(&facts).expect("persona facts are always serializable")
 }

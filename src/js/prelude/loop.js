@@ -12,20 +12,64 @@
   var HORIZON = 10000;
   var RAF_MS = 16;
 
-  // --- Virtual clock: seeded from real time at start, advanced by the loop ---
-  // Date.now/performance.now read virtual time (§5). The engine's native
-  // performance.now is a locked property, so replace the whole object.
+  // --- One coherent browser clock (§5, bl-e707) -----------------------------
+  // timeOrigin is the wall-clock ms at session start; performance.now() and
+  // Date.now() BOTH read observe(), so the three derive from one origin.
+  // observe() = the ONE injectable monotonic clock's real elapsed (host/CPU/
+  // network time, via __frot_now) PLUS the virtual offset timer jumps add,
+  // floored to the profile's timer precision (identity.md §9 — Firefox clamps to
+  // 1 ms) and clamped so it never runs backward. __frot_now reads the SAME clock
+  // the §5 deadline bounds JS/subfetch with, so a fetch's real wall time is
+  // already in the reading — before/after a fetch differ by its duration, and a
+  // synchronous/subfetch probe never sees perpetual zero.
+  var PRECISION = JSON.parse(__frot_env_profile()).timerPrecisionUs / 1000;
   var origin = Date.now();
-  var clock = 0;
+  var virtual = 0; // ms the virtual clock has jumped past real time (timer dues)
+  var ratchet = 0; // last observed value — the never-backward guard
+  function observe() {
+    var t = Math.floor((__frot_now() + virtual) / PRECISION) * PRECISION;
+    if (t < ratchet) t = ratchet;
+    ratchet = t;
+    return t;
+  }
   Date.now = function () {
-    return origin + clock;
+    return origin + observe();
   };
   g.performance = {
     now: function () {
-      return clock;
+      return observe();
     },
     timeOrigin: origin,
+    getEntries: function () {
+      return resourceEntries();
+    },
+    getEntriesByType: function (type) {
+      return type === 'resource' ? resourceEntries() : [];
+    },
+    getEntriesByName: function (name) {
+      return resourceEntries().filter(function (e) {
+        return e.name === name;
+      });
+    },
   };
+  // PerformanceResourceTiming for the real subfetches only (§6/§8): frot measures
+  // start + duration off the one clock; every phase it does not measure (DNS/TCP/
+  // TLS) stays 0 — spec-legal for a cross-origin resource, never fabricated. No
+  // navigation entry is synthesised for the pre-JS document fetch (unmeasured
+  // here) — spec-legal omission over invented phases.
+  function resourceEntries() {
+    return __frot_resource_timings().map(function (r) {
+      var s = Math.floor(r[1] / PRECISION) * PRECISION;
+      var d = Math.floor(r[2] / PRECISION) * PRECISION;
+      // Measured: startTime/duration/responseEnd. Unmeasured phases spec-legal 0.
+      return {
+        entryType: 'resource', name: r[0], startTime: s, duration: d,
+        fetchStart: s, responseEnd: s + d,
+        domainLookupStart: 0, domainLookupEnd: 0, connectStart: 0, connectEnd: 0,
+        secureConnectionStart: 0, requestStart: 0, responseStart: 0, transferSize: 0,
+      };
+    });
+  }
 
   // --- Timer queue ----------------------------------------------------------
   var timers = [];
@@ -35,7 +79,7 @@
     delay = +delay;
     delay = delay > 1 ? delay : 1;
     var id = nextId++;
-    timers.push({ id: id, due: clock + delay, cb: cb, args: args, interval: interval });
+    timers.push({ id: id, due: observe() + delay, cb: cb, args: args, interval: interval });
     return id;
   }
   function clear(id) {
@@ -61,7 +105,7 @@
   g.requestAnimationFrame = function (cb) {
     return schedule(
       function () {
-        cb(clock);
+        cb(observe());
       },
       RAF_MS,
       [],
@@ -80,7 +124,11 @@
       if (timers[i].due <= HORIZON && (best < 0 || timers[i].due < timers[best].due)) best = i;
     if (best < 0) return -1;
     var t = timers[best];
-    clock = t.due;
+    // Jump the observable clock forward to at least the timer's due time — the
+    // virtual offset (§5). Timers still fire immediately in host wall time; only
+    // the *reading* jumps, so performance.now() >= the scheduled delay.
+    var c = observe();
+    if (t.due > c) virtual += t.due - c;
     if (t.interval > 0) {
       t.due += t.interval;
       if (t.due > HORIZON) timers.splice(best, 1);

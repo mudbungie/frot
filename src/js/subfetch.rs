@@ -72,6 +72,19 @@ pub struct Subfetch {
     deadline: Deadline,
     spent: usize,
     budget: usize,
+    timings: Vec<ResourceTiming>,
+}
+
+/// A real measured subfetch (`bl-e707`), exposed to JS as a
+/// `PerformanceResourceTiming` (js.md §8). Only a request that actually hit the
+/// network is recorded — a cache hit re-serves a frozen response and a refusal
+/// never dispatches, so neither is a new measurement. frot measures only `start`
+/// and `duration` off the one §5 clock; every phase it does not measure (DNS,
+/// TCP, TLS) is left spec-legal `0` in the prelude, never a fabricated number.
+struct ResourceTiming {
+    name: String,
+    start_ns: u64,
+    dur_ns: u64,
 }
 
 impl Subfetch {
@@ -98,7 +111,25 @@ impl Subfetch {
             deadline,
             spent: 0,
             budget,
+            timings: Vec::new(),
         }
+    }
+
+    /// The real resource-timing measurements recorded so far (`bl-e707`), as
+    /// `(name, start_ms, duration_ms)` — the shape `performance.getEntriesByType`
+    /// builds each entry from. Times are ms on the run's one clock (the
+    /// `__frot_now` origin), so they cohere with `performance.now()`.
+    pub fn timings(&self) -> Vec<(String, f64, f64)> {
+        self.timings
+            .iter()
+            .map(|t| {
+                (
+                    t.name.clone(),
+                    t.start_ns as f64 / 1e6,
+                    t.dur_ns as f64 / 1e6,
+                )
+            })
+            .collect()
     }
 
     /// Fetch `spec` (resolved against the page URL) once, frozen (§6). A cache
@@ -127,10 +158,19 @@ impl Subfetch {
             ));
         }
         let timeout = Duration::from_secs(TIMEOUT_SECS);
+        // Bracket the real network dispatch with the run's one clock so the
+        // resource entry carries the request's *actual* duration (`bl-e707`).
+        let start_ns = self.deadline.elapsed_nanos();
         match self.session.subresource(&url, &self.base, intent, timeout) {
             Ok(r) => {
+                let dur_ns = self.deadline.elapsed_nanos().saturating_sub(start_ns);
                 let frozen = freeze(r);
                 self.spent += frozen.body.len();
+                self.timings.push(ResourceTiming {
+                    name: url.clone(),
+                    start_ns,
+                    dur_ns,
+                });
                 self.cache.insert(url, frozen.clone());
                 Outcome::Got(frozen)
             }

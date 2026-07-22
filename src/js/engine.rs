@@ -11,53 +11,21 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use rquickjs::function::This;
 use rquickjs::loader::{Loader, Resolver};
 use rquickjs::promise::{Promise, PromiseState};
 use rquickjs::{CatchResultExt, Coerced, Context, Ctx, FromJs, Function, Module, Runtime, Value};
 
+mod clock;
+pub use clock::{Clock, Deadline};
+
 /// §5 / §13 OQ-1 defaults. Constants, not flags.
 pub const EXEC_BUDGET_MS: u64 = 1_000;
 /// Engine heap cap. `set_memory_limit` is only honoured on the default C
 /// allocator, so `js::engine` never enables rquickjs's `allocator` feature.
 pub const JS_MEM_LIMIT: usize = 64 * 1024 * 1024;
-
-/// A shareable read handle on the engine's armed wall-clock window — the same
-/// `base`/deadline pair the §5 interrupt handler reads, one authoritative home.
-/// The §6 subfetch cache consults it before dispatching network: the interrupt
-/// fires only between JS instructions, so a blocking host-fetch chain (a module
-/// graph via the §4.1 loader) would else outrun the budget unchecked.
-pub struct Deadline {
-    base: Instant,
-    deadline: Arc<AtomicU64>,
-}
-
-impl Deadline {
-    /// A window that never closes — the disarmed engine's own representation
-    /// (`u64::MAX`), for callers holding no engine (the subfetch unit tests).
-    pub fn never() -> Self {
-        Deadline {
-            base: Instant::now(),
-            deadline: Arc::new(AtomicU64::new(u64::MAX)),
-        }
-    }
-
-    /// Whether the armed window has passed.
-    pub fn expired(&self) -> bool {
-        self.base.elapsed().as_nanos() as u64 >= self.deadline.load(Ordering::Relaxed)
-    }
-
-    /// Time left in the armed window; `None` once passed. The concurrent warm
-    /// (`bl-08f6`) times each parallel request from this, so the wave obeys the
-    /// run's *one* deadline (js.md §5/§6) — nothing outlives it.
-    pub fn remaining(&self) -> Option<Duration> {
-        let dl = self.deadline.load(Ordering::Relaxed);
-        let now = self.base.elapsed().as_nanos() as u64;
-        (dl > now).then(|| Duration::from_nanos(dl - now))
-    }
-}
 
 /// Why an `eval` stopped short of a value.
 #[derive(Debug, PartialEq, Eq)]
@@ -78,7 +46,7 @@ pub struct Engine {
     rt: Runtime,
     ctx: Context,
     budget: Duration,
-    base: Instant,
+    clock: Clock,
     deadline: Arc<AtomicU64>,
     tripped: Arc<AtomicBool>,
     rejections: Rc<Cell<i64>>,
@@ -92,14 +60,21 @@ impl Engine {
 
     /// Engine with explicit limits (the spike's tests dial these down).
     pub fn with_limits(mem_limit: usize, budget: Duration) -> Self {
+        Self::with_limits_clock(mem_limit, budget, Clock::real())
+    }
+
+    /// [`with_limits`](Self::with_limits) over an injected [`Clock`] — the seam
+    /// the `bl-e707` injected-clock tests drive a manual clock through, so the
+    /// budget interrupt, the §6 [`Deadline`], and the observable `__frot_now`
+    /// reading all move deterministically without real sleeping.
+    pub fn with_limits_clock(mem_limit: usize, budget: Duration, clock: Clock) -> Self {
         let rt = Runtime::new().expect("quickjs runtime");
         rt.set_memory_limit(mem_limit);
-        let base = Instant::now();
         let deadline = Arc::new(AtomicU64::new(u64::MAX));
         let tripped = Arc::new(AtomicBool::new(false));
-        let (dl, tr) = (deadline.clone(), tripped.clone());
+        let (dl, tr, clk) = (deadline.clone(), tripped.clone(), clock.clone());
         rt.set_interrupt_handler(Some(Box::new(move || {
-            if base.elapsed().as_nanos() as u64 >= dl.load(Ordering::Relaxed) {
+            if clk.elapsed_nanos() >= dl.load(Ordering::Relaxed) {
                 tr.store(true, Ordering::Relaxed);
                 true
             } else {
@@ -121,7 +96,7 @@ impl Engine {
             rt,
             ctx,
             budget,
-            base,
+            clock,
             deadline,
             tripped,
             rejections,
@@ -132,10 +107,14 @@ impl Engine {
     /// subfetch cache so network dispatch obeys the same clock the interrupt
     /// handler enforces.
     pub fn deadline(&self) -> Deadline {
-        Deadline {
-            base: self.base,
-            deadline: self.deadline.clone(),
-        }
+        Deadline::new(self.clock.clone(), self.deadline.clone())
+    }
+
+    /// The engine's [`Clock`] — the single monotonic authority the observable
+    /// browser clock reads through the `__frot_now` syscall (`bl-e707`), the same
+    /// one the interrupt and [`deadline`](Self::deadline) bound the run with.
+    pub fn clock(&self) -> Clock {
+        self.clock.clone()
     }
 
     /// The engine's realm, for the binding layer to install host functions on
@@ -161,7 +140,7 @@ impl Engine {
     /// whole run — scripts *and* the settle loop — not each script (js.md §5).
     pub fn arm(&self) {
         self.tripped.store(false, Ordering::Relaxed);
-        let deadline = (self.base.elapsed() + self.budget).as_nanos() as u64;
+        let deadline = self.clock.elapsed_nanos() + self.budget.as_nanos() as u64;
         self.deadline.store(deadline, Ordering::Relaxed);
     }
 

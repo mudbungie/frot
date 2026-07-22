@@ -90,6 +90,11 @@ fn persona_serializes_the_pinned_facts_from_the_profile() {
     assert_eq!(v["timeZone"], "UTC");
     assert_eq!(v["languages"], serde_json::json!(["en-US", "en"]));
     assert_eq!(v["language"], "en-US");
+    // The clock precision the observable browser clock floors to, derived from the
+    // profile SSOT — 1 ms in µs (bl-e707, identity.md §9). Coherence/monotonicity
+    // of the clock itself is proven in `js::tests::clock` and the env-contract
+    // fixture; the `__frot_now` closure is exercised there.
+    assert_eq!(v["timerPrecisionUs"], 1_000);
 }
 
 #[test]

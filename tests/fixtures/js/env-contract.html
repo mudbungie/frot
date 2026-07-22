@@ -125,6 +125,15 @@
       eq('life:order', ORDER.join(','), 'inline,defer,dcl,load,timer');
       // Virtual clock advanced by the 5 ms timer delay.
       check('life:virtualClockAdvanced', RS.perfTimer - RS.perfLoad >= 5);
+      // bl-e707: one coherent clock. timeOrigin is a positive wall-clock ms;
+      // performance.now()/Date.now() derive from that one origin and one monotone
+      // source, reduced to the profile's 1 ms precision.
+      check('clock:timeOrigin', typeof performance.timeOrigin === 'number' && performance.timeOrigin > 0);
+      check('clock:precision', performance.now() % 1 === 0);
+      var _diff = (Date.now() - performance.timeOrigin) - performance.now();
+      check('clock:coherent', _diff <= 1 && _diff >= -1);
+      // Real elapsed accumulated across the whole run — never perpetual zero.
+      check('clock:advancedFromStart', RS.perfTimer >= RS.perf0);
       // The one place the whole run's regressions surface, written last.
       document.documentElement.setAttribute('data-fail', JSON.stringify(FAILS));
       document.documentElement.setAttribute('data-done', '1');

@@ -11,6 +11,7 @@ use std::rc::Rc;
 use super::Messages;
 use crate::dom::Document;
 use crate::fetch::SharedJar;
+use crate::js::engine::Clock;
 use crate::js::geometry::SharedGeometry;
 use crate::js::probe::ProbeLog;
 use crate::js::subfetch::SharedSubfetch;
@@ -79,6 +80,11 @@ pub struct Host {
     pub env: Env,
     pub counters: Counters,
     pub subfetch: SharedSubfetch,
+    /// The session's one monotonic [`Clock`] (`bl-e707`): the `__frot_now` syscall
+    /// reads real elapsed off it so `performance.now`/`Date.now` advance with
+    /// actual CPU/host/network time, the same clock the §5/§6 deadline bounds the
+    /// run with — one authority, a virtual offset (in JS) only for timer jumps.
+    pub clock: Clock,
     /// The shared cookie jar (bl-6dad): the `document.cookie` syscalls read/write
     /// the *same* jar the transport does, at `env.url` (the final document). One
     /// authority, so a `Set-Cookie` from the document GET is visible to JS (iff

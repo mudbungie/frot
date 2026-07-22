@@ -45,6 +45,44 @@ fn fetch_resolves_with_status_body_and_headers() {
 }
 
 #[test]
+fn a_fetch_appears_as_a_resource_timing_entry() {
+    // bl-e707: a real subfetch surfaces through performance.getEntriesByType(
+    // 'resource') — the honest resource-timing surface. Only real measured
+    // requests appear; unmeasured DNS/TCP/TLS phases are spec-legal 0, and no
+    // navigation entry is fabricated for the pre-JS document fetch.
+    let mut server = Server::new();
+    let _m = server.mock("GET", "/r").with_body("x").create();
+    let s = session_at(&server.url());
+    s.eval(
+        "globalThis.n=0; fetch('/r').then(function(){ \
+           globalThis.e = performance.getEntriesByType('resource')[0]; \
+           globalThis.n = performance.getEntries().length; });",
+    )
+    .unwrap();
+    assert_eq!(s.eval("String(n)").unwrap(), "1");
+    assert_eq!(s.eval("e.entryType").unwrap(), "resource");
+    assert_eq!(s.eval("e.name.slice(-2)").unwrap(), "/r");
+    assert_eq!(s.eval("String(e.duration >= 0)").unwrap(), "true");
+    assert_eq!(
+        s.eval("String(e.connectStart === 0 && e.domainLookupStart === 0)")
+            .unwrap(),
+        "true"
+    );
+    // A non-resource type omits (no fabricated navigation entry), and lookup by
+    // name finds the real one.
+    assert_eq!(
+        s.eval("String(performance.getEntriesByType('navigation').length)")
+            .unwrap(),
+        "0"
+    );
+    assert_eq!(
+        s.eval("String(performance.getEntriesByName(e.name).length)")
+            .unwrap(),
+        "1"
+    );
+}
+
+#[test]
 fn fetch_rejects_a_refused_request() {
     // A remote page reaching a local file is refused (§6): the promise rejects,
     // exercising the syscall's error result. No network happens.

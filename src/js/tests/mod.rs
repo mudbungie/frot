@@ -10,6 +10,7 @@ use super::{run, run_with, Env, Report, Session, StyleSource};
 use crate::dom::Document;
 use crate::fetch::FetchSession;
 
+mod clock;
 mod envgold;
 mod evloop;
 mod facade;

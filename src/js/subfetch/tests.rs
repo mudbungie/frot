@@ -101,6 +101,7 @@ fn a_url_is_fetched_at_most_once_then_frozen() {
     assert_eq!(got(get(&mut sf, "/r")).body, "once");
     assert_eq!(got(get(&mut sf, "/r")).body, "once");
     m.assert();
+    assert_eq!(sf.timings().len(), 1); // bl-e707: one dispatch, one measurement
 }
 
 #[test]

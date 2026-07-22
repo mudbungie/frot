@@ -56,6 +56,7 @@ fn install_capped(mem_limit: usize) -> Result<(), String> {
                 counters,
                 subfetch: sf,
                 cookie,
+                clock: engine.clock(),
                 probe: None,
             },
         );

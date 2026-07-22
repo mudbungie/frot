@@ -32,7 +32,35 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
             outcome_obj(&ctx, outcome)
         }
     });
+    // The real resource-timing measurements (`bl-e707`, js.md §8): one
+    // `(name, startMs, durationMs)` per request that truly hit the network, which
+    // `performance.getEntriesByType('resource')` shapes into entries. Only real
+    // measured requests — no fabricated navigation/DNS/TLS numbers (js.md §6).
+    bind!(ctx, g, "__frot_resource_timings", {
+        let sf = host.subfetch.clone();
+        move |ctx: Ctx<'js>| -> rquickjs::Result<Array<'js>> {
+            timings_array(&ctx, sf.borrow().timings())
+        }
+    });
     Ok(())
+}
+
+/// Shape the recorded `(name, start_ms, duration_ms)` measurements into an array
+/// of `[name, start, duration]` triples the `performance` prelude reads (§8). One
+/// uniform fallible pass, the header-array shape above.
+fn timings_array<'js>(
+    ctx: &Ctx<'js>,
+    timings: Vec<(String, f64, f64)>,
+) -> rquickjs::Result<Array<'js>> {
+    let arr = Array::new(ctx.clone())?;
+    for (i, (name, start, duration)) in timings.into_iter().enumerate() {
+        let e = Array::new(ctx.clone())?;
+        e.set(0, name)?;
+        e.set(1, start)?;
+        e.set(2, duration)?;
+        arr.set(i, e)?;
+    }
+    Ok(arr)
 }
 
 /// Shape an [`Outcome`] into the prelude's result object. A failure sets only
