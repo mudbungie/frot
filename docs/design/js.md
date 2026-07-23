@@ -203,18 +203,23 @@ during parse. So:
 ## 5. Bounded execution — the event loop
 
 Statelessness and the sub-second target make the loop's *termination* the
-design center. One clock, three limits:
+design center. Two clocks, four limits:
 
-- **One coherent clock, with a virtual offset (`bl-e707`).** There is exactly
-  one monotonic clock per invocation — the injectable `js::engine::Clock` the §5
-  interrupt handler and the §6 [`Deadline`] already bound the run with. The
-  observable browser clock is that clock's *real elapsed* (host/CPU/network time,
+- **One coherent *observable* clock, with a virtual offset (`bl-e707`; scope
+  narrowed by `bl-8dc0`).** There is exactly one monotonic **wall** clock per
+  invocation — the injectable `js::engine::Clock` — and it is what the *page*
+  observes and what §6 network dispatch is deadlined on. It is no longer what
+  the compute budget is spent in; that is CPU time, accounted separately below,
+  because wall time prices frot's own work in the host's scheduling luck. The
+  observable browser clock is the wall clock's *real elapsed* (host/CPU/network time,
   read in JS through the `__frot_now` syscall) **plus** a virtual offset the
   timer loop adds. `performance.timeOrigin` (wall-clock ms at session start),
   `performance.now()`, and `Date.now()` all derive from that **one origin**:
   `Date.now() - timeOrigin == performance.now()`. So observable time advances
-  with actual work — a busy script or a blocking subfetch moves it (the same
-  wall time that spends the budget), and a synchronous/subfetch probe never sees
+  with actual work — a busy script or a blocking subfetch moves it (real elapsed
+  time, whether or not it was frot's CPU that spent it — which is precisely why
+  it is the wrong meter for the compute budget and the right one for a page
+  probing its host), and a synchronous/subfetch probe never sees
   perpetual zero — while a virtual timer *jump* only bumps the offset so the
   reading reaches **at least** the timer's due time. Values never go backward
   (a monotone ratchet) and are floored to the profile's timer precision —
@@ -229,30 +234,98 @@ design center. One clock, three limits:
   self-terminate at the horizon instead of needing per-API caps. Sub-millisecond
   timer delays clamp to 1 ms so every fire advances the observable clock — a
   `0`-delay poller (`setInterval(f, 0)`, or a self-rescheduling `setTimeout`)
-  therefore self-terminates at the horizon rather than spinning out the
-  wall-clock budget.
+  therefore self-terminates at the horizon rather than spinning out the compute
+  budget.
   - **Resource timing (`bl-e707`).** `performance.getEntries*` exposes a
     `PerformanceResourceTiming` for **real measured requests only** — each §6
     subfetch, bracketed on the one clock for its true `startTime`/`duration`.
     Phases frot does not measure (DNS/TCP/TLS) stay spec-legal `0`, never
     fabricated; no navigation entry is synthesised for the pre-JS document fetch
     (unmeasured here) — omission over invented phases.
-- **Wall-clock budget: `EXEC_BUDGET_MS = 1_000`**, enforced by the engine's
-  interrupt handler; covers execution *and* §6 subfetch time in one deadline.
-  Hitting it stops the loop and marks the run unsettled (§10).
+- **Compute budget: `EXEC_CPU_MS = 1_000` of *CPU* time** (`bl-8dc0`, superseding
+  the wall-clock `EXEC_BUDGET_MS = 1_000`), enforced by the engine's interrupt
+  handler and re-read between macrotasks. It prices frot's own work — script
+  compile, interpretation, DOM syscalls, GC — in the unit frot actually spends.
+  Exhausting it stops the loop and reports `settled: false, stopped: "budget"`
+  (§10): *the page wants more compute than frot gives*, and that is the same
+  verdict on an idle laptop and on a saturated CI box.
+- **Network deadline: `NET_BUDGET_MS = 1_000` of *wall* time**, armed once per
+  run on the observable clock and enforced at the §6 seam, which refuses
+  dispatch past it. Network wait is elapsed time and is *not* frot's work:
+  charging it to CPU would make it free (a blocked socket burns no cycles),
+  and charging compute to wall time is the defect this section exists to fix.
+  A refused dispatch reports `settled: false, stopped: "network"` (§10).
 - **Memory cap: `JS_MEM_LIMIT = 64 MiB`** engine heap, engine-enforced.
+
+> **The unit was the bug, not the size (`bl-8dc0`, 2026-07-22).** One wall-clock
+> deadline meant a *correct* run on a busy host emitted a *different envelope*:
+> Adduce measured `vue_app_renders_and_clears_needs_js` and
+> `react_shell_needs_js_without_and_renders_with` flipping to `settled: false`,
+> and `react19_createroot_app_renders_from_empty_root` flipping `status` from
+> `ok` to `needs`, with zero errors and every script run — the page simply did
+> not finish in 1 s of *host* time. An envelope kind that depends on how busy the
+> machine is contradicts VISION ("fast, deterministic") and the whole reason
+> `persona_gold` exists.
+>
+> Two candidate host-independent units were measured on this repo's golden
+> bundles (16 cores; "loaded" = 48 spinners, 4× oversubscription):
+>
+> - **Interpreter steps** (counting quickjs's `JS_INTERRUPT_COUNTER_INIT = 10000`
+>   interrupt ticks) — **rejected.** Perfectly load-independent, but blind: the
+>   fixtures burn only **2–4 ticks** for **18–23 ms** of work, because quickjs
+>   polls interrupts at JS back-edges and calls *only* — never during compile
+>   and never inside a host syscall, which is where nearly all of frot's JS-phase
+>   time goes. A step budget would leave `for(…){ el.innerHTML += big }` unbounded.
+> - **CPU time** (`CLOCK_THREAD_CPUTIME_ID`) — **adopted.** It covers every class
+>   of frot's own work, including the two steps miss, and it is what contention
+>   does not inflate. Measured (release, per fixture idle → loaded):
+>   react17 **23.1 → 97.7 ms wall** but **22.6 → 22.9 ms CPU**; vue3 23.6 → 179.1
+>   wall / 23.4 → 57.9 CPU; jquery 18.6 → 192.6 wall / 18.1 → 43.6 CPU; react19
+>   22.0 → 251.9 wall / 21.5 → 58.8 CPU. Under `llvm-cov` — the actual `make cov`
+>   gate — idle 48–78 ms CPU, loaded 50–85 ms CPU against 76–292 ms wall.
+>   **Contention inflates wall time 4–11×; it inflates CPU time 1.0–2.7×.** The
+>   worst-case margin under the gate goes from **3.4×** (wall) to **12×** (CPU),
+>   and the residual is cache/memory-bandwidth contention, not scheduling.
+>
+> What this trades away, stated plainly: **frot's *runtime* is no longer bounded
+> in wall time — its *output* is bounded in host-independent work.** Worst case is
+> now ≈1 s CPU + 1 s network wall, and under starvation the wall clock stretches
+> with the host. That is the right trade for a tool whose product is a
+> deterministic impression: a slow answer is recoverable, a different one is not.
+> A residual host-*speed* dependence remains (a 4×-slower core gets 4× less work
+> done per CPU-second) and is accepted — no unit removes it without the blindness
+> that disqualified steps.
 
 Constants, not flags — same severability posture as the 1280px viewport
 (`docs/design/layout.md` §4). Microtasks (the engine job queue) drain after
 every task, host-driven. An unhandled exception aborts *that script/task* and
 is counted; the loop continues — browser semantics, and a page that throws
 after rendering is still a good impression. **Settled** = queue empty and
-nothing due before the horizon, **within the budget** — the run driver also
-reads the deadline once at conclusion (bl-c7e9): the loop can conclude
-*because* the deadline expired (the §6 seam refuses network dispatch past it,
-emptying the remaining work) while the interrupt — which fires only between
-JS instructions — never happened to trip, and that run must report
-`settled: false` deterministically, not by interrupt-timing luck.
+nothing due before the horizon, with neither bound tripped.
+
+The second half of that — "the §6 seam emptied the remaining work by refusing
+network, so the loop concluded falsely quiescent" — was detected (bl-c7e9) by
+re-reading the deadline once at conclusion, because the interrupt fires only
+between JS instructions and may never have tripped. **`bl-8dc0` replaces that
+time comparison with the fact it was proxying for:** the driver asks the §6
+cache whether it *refused* a dispatch. Same guarantee, one less clock read, and
+it fixes the case the proxy got wrong — a run that drained every task and merely
+happened to cross the deadline on its way out reported `settled: false` while
+being genuinely quiescent.
+
+**Testability falls out; no new seam is owed.** The unit-level fix (`bl-1e54`)
+was to inject `Clock::manual` through `run_with`, which the golden suite cannot
+reach — it drives the whole CLI through `run_io`, and threading a test clock
+through the CLI would be exactly the hidden test-only state `~/AGENTS.md` and
+`AGENTS.md` forbid. With the compute budget in CPU time that seam is not needed:
+a golden test asserting `settled: true` now asserts only that the fixture's
+**~20 ms of CPU** fits in 1000 ms of CPU, which no amount of host *load* changes
+(measured above: 1.0–2.7× inflation, and 12× margin under `llvm-cov` at 4×
+oversubscription). The suite's residual coupling to elapsed time is the
+`NET_BUDGET_MS` deadline over its `mockito` server — in-process, no real
+network — and that is a bound the suite *should* be honest about rather than
+mock away. `Clock::manual` stays exactly where it earns its keep: unit tests
+whose subject is the observable clock or the virtual timer queue.
 
 ## 6. Network policy — once-then-frozen
 
@@ -287,12 +360,15 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   URL, `-H` headers ride only same-origin (scheme+host+port), redirects
   followed, 16 MiB cap, remote→local blocked (`file:` targets from an http(s)
   page are refused). `file://` pages may fetch remote resources, as with CSS.
-- **Bounds — one per resource, none per request count (bl-c7e9).** Work is
-  bounded by *time*: subfetch network time spends the §5 wall-clock budget —
-  one deadline, not two — and the deadline is enforced **at this seam**: the
-  cache consults the engine's armed window (the same `base`/deadline pair the
-  interrupt handler reads — one authoritative clock) before dispatching any
-  network request, and refuses once it has passed. The seam check exists
+- **Bounds — one per resource, none per request count (bl-c7e9; unit corrected
+  `bl-8dc0`).** Network is bounded by *elapsed* time: subfetch network time
+  spends the §5 `NET_BUDGET_MS` wall deadline, which is now this seam's **own**
+  bound rather than a share of the compute budget (§5: a blocked socket burns no
+  CPU, so the two resources cannot be priced in one unit). It is enforced **at
+  this seam**: the cache consults the run's armed wall window before dispatching
+  any network request, and refuses once it has passed — and that refusal, as a
+  recorded fact, is what clears `settled` and sets `stopped: "network"` (§5/§10),
+  replacing the old re-read of the deadline at conclusion. The seam check exists
   because the interrupt can only fire between JS instructions: a module graph
   loading through the §4.1 loader is a chain of blocking host fetches with no
   JS in between, which would otherwise outrun the budget unchecked. Overshoot
@@ -313,11 +389,13 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   ~9–16 ms of the 1 s budget). Worse, it corrupted the settle signal: a run
   whose chunk loads were *refused* reported `settled: true` — false
   quiescence. With the cap gone, `settled` has exactly one meaning (§5
-  quiescence within the time budget) and each resource has exactly one bound:
-  time — `EXEC_BUDGET_MS`; engine heap — `JS_MEM_LIMIT`; fetched bytes —
-  `SUBFETCH_BYTES`. A page that genuinely needs more than the budget allows
-  now dies honestly of time (`settled: false`), not of an arbitrary count
-  masquerading as completion.
+  quiescence within the run's bounds) and each resource has exactly one bound
+  **in its own unit** (`bl-8dc0` split the first): compute — `EXEC_CPU_MS`
+  (CPU time); network — `NET_BUDGET_MS` (wall time); engine heap —
+  `JS_MEM_LIMIT`; fetched bytes — `SUBFETCH_BYTES`. A page that genuinely needs
+  more than a budget allows now dies honestly of the resource it actually
+  exhausted (`settled: false`, plus the `stopped` name, §10), not of an
+  arbitrary count masquerading as completion.
 - **Concurrent initial-script warm (landed, `bl-08f6`).** *(Supersedes the
   "fetches sequentially… deliberately not built" note below — the principled
   lever it named is now built.)* Before the source-ordered script queue drains,
@@ -552,12 +630,36 @@ Two moves against today's `run.rs`:
   `reportError`/`window.onerror`/a dispatched window `'error'` event that nothing
   suppresses, the channel frameworks like React ≥16 use to *catch* a render
   crash rather than throw, so a dead app does not read `errors: 0`), `settled`
-  = the §5 loop reached quiescence within budget. Unhandled-rejection counting is wired at the engine
+  = the §5 loop reached quiescence within its bounds. Unhandled-rejection counting is wired at the engine
   seam via quickjs's host rejection tracker (a running net that a late `.catch`
   un-counts), read once after the settle loop. This is the honesty channel for
   *partial*
   execution that outcome detection can't see — a budget-killed run that still
   rendered something must not look complete. Emitted only when `--js` is on.
+- **`stopped` names *which* bound ended a run (`bl-8dc0`).** Additive, and present
+  **only** when `settled` is `false` — a settled run has no bound to name, so the
+  field's absence is its own record (the §5/`bl-c7e9` posture: don't store what
+  the other field already says):
+
+  ```json
+  "js": { "scripts": 9, "errors": 0, "settled": false, "stopped": "budget" }
+  ```
+
+  Two values, because §5 now bounds two different resources and they are two
+  different facts about the world:
+  - `"budget"` — the `EXEC_CPU_MS` compute budget was exhausted. **The page is
+    heavier than frot underwrites.** Host-independent: a retry on a quieter box
+    returns the same verdict, so the actionable answer is a real browser, not a
+    retry.
+  - `"network"` — the `NET_BUDGET_MS` wall deadline passed with work outstanding
+    and the §6 seam refused a dispatch. **The transport was slow, not the page.**
+    A retry may legitimately differ.
+
+  This is the answer to "a page that needs JS frot cannot run is not the same
+  fact as a page frot ran out of time on." `status: "needs"` stays outcome-based
+  (§10 first bullet) and is unchanged; `settled` says whether the impression is
+  complete; `stopped` says what truncated it. Three fields, three questions, no
+  overlap — and no new flag: the block is already emitted under `--js`.
 - **Opt-in error messages behind `--js-errors`** (bl-3356). `errors` answers
   *how many*; `--js-errors` adds *what they said*, a bounded array on the `js`
   block — present only with the flag, `errors` always present and unchanged:
@@ -778,7 +880,19 @@ the falsifiable check on §1.
   tripped `SUBFETCH_MAX` on essentially every run while the other budgets
   stood idle. The resolution is not a bigger number — no count is principled,
   because a request count measures no resource — but deleting the count cap
-  and bounding each real resource once: the §5 deadline now enforced at the
+  and bounding each real resource once — see the further amendment below.
+  **Amended again (bl-8dc0, 2026-07-22): the margin was measured in the wrong
+  unit.** The ">30× margin" above is *wall* time, which contention inflates
+  4–11×, so it was never a 30× margin on a busy host — Adduce watched three
+  golden tests flip their envelope with zero errors. `EXEC_BUDGET_MS` is
+  therefore split by unit, not resized: `EXEC_CPU_MS = 1_000` (CPU) for compute
+  and `NET_BUDGET_MS = 1_000` (wall) for network, keeping both numbers. Re-measured
+  in CPU time the fixtures cost **18–23 ms release / 48–78 ms under `llvm-cov`**,
+  inflating only 1.0–2.7× under 4× CPU oversubscription — a 12× worst-case margin
+  under the gate. §5 carries the full measurement and the rejected alternative
+  (interpreter-step counting). The original resolution — no constant grew — still
+  holds; the constants are the same numbers in honest units.
+  The bl-c7e9 mechanics: the §5 deadline is enforced at the
   subfetch seam (work), and a pooled `SUBFETCH_BYTES = 64 MiB` (memory,
   sized to `JS_MEM_LIMIT` — the cache is the network-side heap). See §6.
 - **OQ-2 — deterministic `Math.random` / frozen clock for reproducibility?**
@@ -826,6 +940,11 @@ the falsifiable check on §1.
      *genuine* compute and network. A page that cannot settle in that is doing
      more real work than a fast structural-impression tool should underwrite —
      exactly Phase 5+'s "accept the ceiling and defer to a real browser."
+     **(`bl-8dc0` made this reason literally true rather than aspirational: the
+     compute second is now a CPU second, so "1 s of genuine work" no longer
+     silently means "1 s of a host that may have been giving frot a tenth of a
+     core." The resolution is unchanged and strengthened — the reason OQ-5 gives
+     for refusing a bigger number is exactly the reason the unit had to change.)**
   3. The trial's unsettled sites are canvas/WebGL/audio apps that exceed the
      *shim*, not the clock — no budget renders them, and two of three already
      emit `needs-js` correctly. `settled: false` is the honesty contract
