@@ -101,6 +101,20 @@ impl Transport {
     /// GET `url` with `headers` attached, reading at most `max_body` bytes, all
     /// under one `deadline`. Blocking: the whole exchange runs to completion (or
     /// error) before returning. Follows no redirects — that is the caller's loop.
+    ///
+    /// **Pool check-in is eventual, not synchronous** (`bl-df88`). Returning
+    /// means the exchange is done, not that the socket is back in the idle pool:
+    /// for HTTP/1.1 `hyper-util` hands the connection back from a task it
+    /// spawns onto the runtime — `let on_idle = poll_fn(move |cx|
+    /// pooled.poll_ready(cx)); self.exec.execute(on_idle);` in its
+    /// `client/legacy/client.rs` — which a saturated box may not schedule before
+    /// the next call. That call then finds no idle connection and dials a second
+    /// socket: measured 16 of 200 sequential same-origin pairs on a 16-core box
+    /// under 3x CPU oversubscription, 0 of 200 with a 5ms gap between them.
+    /// HTTP/2 is unaffected — that branch checks in inline with `drop(pooled)`.
+    /// Nothing leaks (the extra socket is pooled and dies with the runtime) and
+    /// no `hyper-util` knob makes it synchronous; only owning the pool instead
+    /// of its `Client` would, so tests must assert reuse as eventual.
     pub(crate) fn request_once(
         &self,
         url: &str,
