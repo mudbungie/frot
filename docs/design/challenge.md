@@ -388,6 +388,12 @@ rounds:1, passed:true}`.
 - **Cost on the ordinary path** — non-challenge output byte-identical, timing
   unchanged. This change must impose nothing on the 99%.
 
+**Measure the cookie flow before assuming the trigger (§10.1).** The jar-delta
+precondition is only sound if the token actually reaches the jar and the
+re-navigation; trace which write mints `aws-waf-token` (page-initiated POST
+response `Set-Cookie` vs. `document.cookie`, same- vs. cross-origin) as the first
+capstone step, not after the loop is built.
+
 **Falsifier, stated in advance.** If Amazon still answers a challenge *after* a
 passed round, the cause is IP/ASN reputation (`identity.md` §14 item 2), which no
 client-side change fixes. That result is written into `identity.md` as a new §3.10
@@ -410,7 +416,7 @@ No balls created by this ball. Recommended siblings once Mark signs off:
 | 3 | the round loop | `run.rs` restructure (challenge → parse+run → jar-delta test → re-navigate), `CHALLENGE_ROUNDS` | 2 |
 | 4 | envelope `challenge` block | §5.1; output-schema escalation per repo `AGENTS.md` | 3 |
 | 5 | non-goal pins | tests that no host-side caller can originate a request, `form.submit()` is a no-op, no input event is dispatched, no challenge round on a clean page | 1 (parallel to 3–4) |
-| 6 | field measurement capstone | §8, including the null | 4, 5 |
+| 6 | field measurement capstone | §8, including the null **and the §10.1 cookie-flow trace, which precedes sibling 3's loop assumptions** | 4, 5 |
 
 Sibling 6 is the only one that can answer whether any of this was worth doing.
 
@@ -428,3 +434,27 @@ Sibling 6 is the only one that can answer whether any of this was worth doing.
   boundary, and this design does not make it one.
 - **Whether Mark wants frot passing defences at all** — that is the sign-off this
   document is asking for, not something it assumes.
+
+### 10.1 Two jar-delta residuals surfaced in review (2026-07-22, `bl-017a`)
+
+§4.1 treats a changed cookie jar as *the* definition of "the script passed". That
+is one sufficient signal, not a proven-complete one, and two gaps must be measured
+by the sibling-6 capstone **before** the sibling-3 loop assumes them:
+
+- **Which write reaches the jar is unmeasured.** The trigger fires only if the
+  token lands in the per-invocation jar (`bl-6dad`) *and* is visible on the
+  re-navigation. Amazon's `aws-waf-token` is typically minted by a POST to a
+  **vendor origin** (`token.awswaf.com`), not `www.amazon.com`, so two things must
+  both hold and neither is confirmed: (a) the jar must capture `Set-Cookie` **from
+  a page-initiated subfetch POST response**, not only from navigations; (b) that
+  cookie must be in scope for the `www.amazon.com` re-navigation despite being set
+  cross-origin (SameSite/domain, `identity.md` §9). A third path — the script
+  writing `document.cookie` directly — is a different flow again. **Sibling 6 must
+  trace the actual cookie flow first; sibling 3 must not hardcode an assumed one.**
+- **A pass signalled without a cookie is reported as a failure — the safe
+  direction, but name it.** Some challenges signal completion by rewriting the DOM
+  or setting a JS variable, minting no cookie. The jar-delta test then yields
+  `needs:["human"]` + `challenge:{passed:false}` for a page that may be ready. This
+  is an honest **false-negative** (never a false-`ok`), so it is fine to ship — but
+  it is a residual, not a surprise: jar-delta is *a* sufficient pass signal, not
+  the definition of "passed".
