@@ -169,8 +169,11 @@ leaves same-origin, and SameSite gates the jar's cookies per context
 **Budget — and a correction to the filing.** The ball asks whether this rides
 `SUBFETCH_MAX = 16`. **That constant does not exist**: it was deleted by `bl-c7e9`
 (`js.md` §6 — *"a count measures no resource"*, and it starved code-split apps).
-The live bounds are `EXEC_BUDGET_MS = 1_000` (wall clock, enforced at the
-interrupt hook *and* at the subfetch dispatch seam), `JS_MEM_LIMIT = 64 MiB`,
+The live bounds are `EXEC_CPU_MS = 1_000` (*CPU* time, enforced at the engine
+interrupt hook) and `NET_BUDGET_MS = 1_000` (*wall* time, enforced at the
+subfetch dispatch seam) — two bounds in two units since `bl-8dc0` split the one
+wall-clock `EXEC_BUDGET_MS`, because compute and network are different resources
+— plus `JS_MEM_LIMIT = 64 MiB`,
 `SUBFETCH_BYTES = 64 MiB` (pooled **response** bytes), `MAX_BODY_BYTES = 16 MiB`
 per response, `VIRTUAL_HORIZON_MS = 10_000`. A POST costs time (already bounded)
 and response bytes (already pooled); the only unbounded new quantity is the
@@ -210,7 +213,8 @@ an answer apiece.
 navigate(url)                       # GET, as today
   └─ declared challenge? (needs::challenge, unchanged)
        └─ --js off  → needs:["js"]         (§5 — the false-signal fix)
-       └─ --js on   → parse, run the page's scripts under one EXEC_BUDGET_MS
+       └─ --js on   → parse, run the page's scripts under the §5 bounds
+                       (EXEC_CPU_MS compute + NET_BUDGET_MS network)
             └─ jar changed?  no  → needs:["human"], challenge{passed:false}
                              yes → navigate(url) again   [1 round]
                                     └─ still declared? → needs:["human"], passed:false
@@ -222,8 +226,8 @@ pre-parse. The `>= 400` error flip beside it is untouched.
 
 ### 4.3 The hard constant
 
-**`CHALLENGE_ROUNDS = 1`.** A constant, not a flag — the `EXEC_BUDGET_MS` /
-`VIRTUAL_HORIZON_MS` / `SUBFETCH_BYTES` tradition, same severability posture as
+**`CHALLENGE_ROUNDS = 1`.** A constant, not a flag — the `EXEC_CPU_MS` /
+`NET_BUDGET_MS` / `VIRTUAL_HORIZON_MS` / `SUBFETCH_BYTES` tradition, same severability posture as
 the 1280px viewport. Recommend **1, not 2**: every measured vendor mechanism is
 one challenge → one token → one retry, so a ceiling of 1 means **at most two
 navigations per invocation, ever**. If a real target is measured to need two, that
@@ -329,10 +333,11 @@ is *who initiated it*, and that is a structural property, not a judgement call.
 
 **(i) Sandbox exposure against deliberately-adversarial JS.** Running a hostile
 script *to completion* is a longer exposure than bailing at the header. Audited
-against the live bounds: `EXEC_BUDGET_MS` is enforced both by the engine interrupt
-*and* at the subfetch dispatch seam (the interrupt fires only between JS
-instructions, so a blocking host-fetch chain would otherwise outrun it — overshoot
-is bounded to one in-flight request); `JS_MEM_LIMIT` is engine-enforced;
+against the live bounds: `EXEC_CPU_MS` (CPU time) is enforced by the engine
+interrupt, and `NET_BUDGET_MS` (wall time) at the subfetch dispatch seam — the
+interrupt fires only between JS instructions and spends CPU besides, so a
+blocking host-fetch chain would otherwise outrun it; overshoot is bounded to one
+in-flight request; `JS_MEM_LIMIT` is engine-enforced;
 `VIRTUAL_HORIZON_MS` drops far-future timers; `SUBFETCH_BYTES` pools response
 bytes. **Recommendation: change none of them.** But state plainly what they are:
 these are *termination* bounds, not a security sandbox. quickjs-ng is a C
@@ -345,10 +350,14 @@ unchanged), and it cannot carry HttpOnly cookies into JS (`identity.md` §9).
 
 **(ii) Proof-of-work vs VISION's sub-second promise.** PoW is *designed* to cost
 CPU. Under `CHALLENGE_ROUNDS = 1` the worst case is one navigation +
-`EXEC_BUDGET_MS` + one navigation ≈ 1 s plus two RTTs. VISION's *"What success
-looks like"* needs a stated carve-out (drafted in that file). **The budget is not
-negotiable to make a gate pass**: a PoW that outruns `EXEC_BUDGET_MS` produces an
-honest stop, not a bigger number. If a target is measured to need more, that is a
+one bounded JS run + one navigation ≈ up to 1 s of **CPU** (`EXEC_CPU_MS`) plus
+up to 1 s of **network wall** (`NET_BUDGET_MS`) plus two RTTs — two bounds in two
+units, never one shared second. VISION's *"What success looks like"* needs a
+stated carve-out (drafted in that file), and the CPU unit makes it a *stronger*
+claim: the verdict no longer depends on how busy the host is. **Neither bound is
+negotiable to make a gate pass**: a PoW is pure compute, so a PoW that outruns
+`EXEC_CPU_MS` produces an honest stop (`settled: false, stopped: "budget"`), not a
+bigger number. If a target is measured to need more, that is a
 finding to record, not a constant to raise quietly.
 
 **(iii) Disclosure — frot becomes quieter on the wire.** An operator who reads

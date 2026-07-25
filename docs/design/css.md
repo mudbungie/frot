@@ -37,8 +37,10 @@ by this path — 68 serial round-trips to the same origin, none reused, none
 parallel.
 
 This is the asymmetry the field trial flagged: `--js` is bounded on multiple
-axes (`docs/design/js.md` — `EXEC_BUDGET_MS = 1000` wall-clock covering script
-*and* network, `JS_MEM_LIMIT = 64 MiB`, `VIRTUAL_HORIZON_MS = 10_000`, and at
+axes (`docs/design/js.md` §5 — `EXEC_CPU_MS = 1000` of CPU time for script
+execution and `NET_BUDGET_MS = 1000` of wall time for network, two bounds in two
+units since `bl-8dc0` split the one wall-clock `EXEC_BUDGET_MS`;
+`JS_MEM_LIMIT = 64 MiB`, `VIRTUAL_HORIZON_MS = 10_000`, and at
 the time of this investigation `SUBFETCH_MAX = 16` capping JS-driven fetch/XHR
 count — since retired by bl-c7e9 on the grounds that a request count prices no
 real resource; the surviving JS bounds are time, engine heap, and fetched
@@ -77,7 +79,7 @@ attempted, in document order, until time runs out.
   On h2 the wave multiplexes onto one connection; on h1 it opens at most six.
 
 Both are constants, not flags: same severability posture as the 1280 px
-viewport (`layout.md` §4) and `EXEC_BUDGET_MS`. Nothing about a caller's page
+viewport (`layout.md` §4) and `EXEC_CPU_MS`. Nothing about a caller's page
 makes a different number right.
 
 The deadline is the single authority. Each request's timeout is *derived* from
@@ -86,7 +88,7 @@ tolerating one in-flight overshoot as the JS subfetch seam does — so a host
 that accepts the connection and never answers costs the phase its remaining
 budget and nothing more. Statelessness holds: the budget is a parameter
 (`gather_within`, the seam the budget-trip test dials down, mirroring
-`Session::with_budget`), the only shared state is an atomic work cursor, and
+`Session::with_bounds`), the only shared state is an atomic work cursor, and
 workers return their results at join rather than sharing a buffer.
 
 A tripped budget is not a run failure — CSS stays best-effort, as

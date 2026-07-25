@@ -263,8 +263,8 @@ impl Session {
     /// a preload-scanner pass over the parsed document so the source-ordered
     /// script queue finds each external `src` already frozen instead of blocking
     /// on it one round trip at a time. Discovery releases the document borrow
-    /// before the cache's parallel dispatch, which rides the run's one deadline
-    /// and byte pool.
+    /// before the cache's parallel dispatch, which rides the run's `NET_BUDGET_MS`
+    /// wall deadline and byte pool.
     pub(super) fn warm_initial_scripts(&self) {
         let reqs = script::initial_externals(&self.doc.borrow());
         self.subfetch.borrow_mut().warm(&reqs);
