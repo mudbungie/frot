@@ -135,7 +135,7 @@ fn run_scripts(
         accept_language: fetch::accept_language(&args.headers),
     };
     let (doc, r) = crate::js::run(doc, styles, env, session);
-    let mut info = JsInfo::new(r.scripts, r.errors, r.settled);
+    let mut info = JsInfo::new(r.scripts, r.errors, r.stopped);
     if args.js_errors {
         info = info.with_messages(
             r.messages

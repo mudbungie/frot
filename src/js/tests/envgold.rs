@@ -40,7 +40,7 @@ fn env_contract_golden_pins_the_js_surface() {
     // reportError counted into js.errors as exactly one — pinning the §10 channel
     // and that nothing else in the probe threw uncaught.
     assert_eq!(
-        (report.scripts, report.errors, report.settled),
+        (report.scripts, report.errors, report.settled()),
         (2, 1, true)
     );
 }

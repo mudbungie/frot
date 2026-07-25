@@ -125,28 +125,50 @@ impl JsMessage {
     }
 }
 
+/// Which §5 bound ended an unsettled run (`docs/design/js.md` §10) — two bounds,
+/// two different facts about the world. `Budget`: the `EXEC_CPU_MS` compute
+/// budget was exhausted, so the page is heavier than frot underwrites (host-
+/// independent — a retry on a quieter box returns the same verdict, and the
+/// actionable answer is a real browser). `Network`: the `NET_BUDGET_MS` wall
+/// deadline passed and the §6 seam refused a dispatch, so the transport was slow,
+/// not the page (a retry may legitimately differ).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum JsStop {
+    Budget,
+    Network,
+}
+
 /// The `--js` execution signal (`docs/design/js.md` §10). Additive and emitted
 /// only when `--js` ran: `scripts` counts scripts executed, `errors` counts
 /// throws / unhandled rejections / refused fetches, `settled` is whether the
-/// event loop reached quiescence within the wall-clock budget. `messages` — the
-/// bounded per-error detail behind `errors` — is present only under `--js-errors`
-/// (`errors` is always the authoritative count). This is the honesty channel for
-/// *partial* execution outcome detection can't see.
+/// event loop reached quiescence within the §5 bounds, and `stopped` names which
+/// bound ended it — present only when `settled` is `false`, since a settled run
+/// has no bound to name. `messages` — the bounded per-error detail behind
+/// `errors` — is present only under `--js-errors` (`errors` is always the
+/// authoritative count). This is the honesty channel for *partial* execution
+/// outcome detection can't see.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JsInfo {
     pub scripts: u32,
     pub errors: u32,
     pub settled: bool,
     #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub stopped: Option<JsStop>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub messages: Option<Vec<JsMessage>>,
 }
 
 impl JsInfo {
-    pub fn new(scripts: u32, errors: u32, settled: bool) -> Self {
+    /// `stopped` is the run's one termination fact: `settled` is exactly its
+    /// absence, computed here rather than passed in, so the two can never
+    /// disagree (§10 — no stored redundancy).
+    pub fn new(scripts: u32, errors: u32, stopped: Option<JsStop>) -> Self {
         Self {
             scripts,
             errors,
-            settled,
+            settled: stopped.is_none(),
+            stopped,
             messages: None,
         }
     }

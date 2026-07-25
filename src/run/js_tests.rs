@@ -266,3 +266,19 @@ fn js_errors_without_js_is_a_usage_error() {
     assert!(out.is_empty(), "no envelope on a usage error: {out:?}");
     assert!(err.contains("--js-errors requires --js"), "got {err:?}");
 }
+
+#[test]
+fn a_budget_killed_run_names_the_bound_that_stopped_it() {
+    // §10 `stopped`: a page frot ran out of compute on is not the same fact as a
+    // page that finished, and the envelope must say which bound ended it. A
+    // script that never returns spends the whole `EXEC_CPU_MS` budget — CPU time,
+    // so this verdict is the same on an idle laptop and a saturated box — and the
+    // block reports `settled: false` with `stopped: "budget"`, the wire spelling
+    // callers parse.
+    let (_s, _m, url) = serve("<html><body><p>x</p><script>while(true){}</script></body></html>");
+    let (code, out, _) = run_capture(&[&url, "--js", "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    assert_eq!(v["js"]["settled"], false);
+    assert_eq!(v["js"]["stopped"], "budget");
+}

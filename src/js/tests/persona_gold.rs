@@ -55,7 +55,7 @@ fn navigator_persona_contract_holds() {
     assert_eq!(de_attr(&doc, "data-ua").as_deref(), Some(ua.as_str()));
     // Facts only the host sees: one script ran, nothing threw, the run settled.
     assert_eq!(
-        (report.scripts, report.errors, report.settled),
+        (report.scripts, report.errors, report.settled()),
         (1, 0, true)
     );
 

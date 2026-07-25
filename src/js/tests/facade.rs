@@ -112,7 +112,7 @@ fn run_executes_inline_scripts_and_reclaims_the_mutated_document() {
     );
     assert_eq!(report.scripts, 1);
     assert_eq!(report.errors, 0);
-    assert!(report.settled);
+    assert!(report.settled());
     let div = doc.find_by_tag("div")[0];
     assert_eq!(doc.text_content(div), "live");
 }
@@ -121,7 +121,7 @@ fn run_executes_inline_scripts_and_reclaims_the_mutated_document() {
 fn a_throwing_script_still_counts_as_executed_and_errored() {
     let (_doc, report) = drive("<body><script>throw new Error('x')</script></body>");
     assert_eq!(
-        (report.scripts, report.errors, report.settled),
+        (report.scripts, report.errors, report.settled()),
         (1, 1, true)
     );
 }
@@ -136,7 +136,7 @@ fn a_failed_external_src_is_skipped_and_counted() {
         "file:///frot-no-such-dir/page.html",
     );
     assert_eq!(
-        (report.scripts, report.errors, report.settled),
+        (report.scripts, report.errors, report.settled()),
         (0, 1, true)
     );
 }
@@ -151,7 +151,7 @@ fn non_js_type_and_nomodule_scripts_are_skipped_uncounted() {
          <script nomodule>should.not.run()</script></body>",
     );
     assert_eq!(
-        (report.scripts, report.errors, report.settled),
+        (report.scripts, report.errors, report.settled()),
         (0, 0, true)
     );
 }

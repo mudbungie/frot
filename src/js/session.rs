@@ -182,12 +182,14 @@ impl Session {
         &self.page_url
     }
 
-    /// Whether the run's armed *network* window has passed — read once after the
-    /// settle loop (js.md §5/§6): a loop that concluded only because the §6 seam
-    /// refused network dispatch past that deadline reached quiescence, but not
-    /// within its bounds, and must not report settled.
-    pub(super) fn deadline_expired(&self) -> bool {
-        self.engine.deadline().expired()
+    /// Whether the §6 seam actually *refused* a network dispatch past the run's
+    /// armed wall deadline — read once after the settle loop (js.md §5/§6). A loop
+    /// that concluded only because the remaining work was refused reached
+    /// quiescence, but not within its bounds: it is `stopped: "network"`, not
+    /// settled. The refusal is the fact; the deadline is merely its cause, which
+    /// is why nothing re-reads the clock here.
+    pub(super) fn refused_network(&self) -> bool {
+        self.subfetch.borrow().refused()
     }
 
     /// Evaluate with freshly armed bounds (the facade smoke surface used by

@@ -11,7 +11,9 @@
 //! resource, each in its own unit (§6, bl-c7e9/bl-8dc0): *time* — the §5
 //! `NET_BUDGET_MS` wall [`Deadline`] is consulted before every network dispatch
 //! (the engine interrupt cannot fire inside a blocking host fetch chain, and
-//! anyway spends CPU, which a blocked socket does not burn) — and
+//! anyway spends CPU, which a blocked socket does not burn), and a refusal is
+//! *recorded* ([`Subfetch::refused`]) as the fact the run driver reads to name
+//! §10 `stopped: "network"` — and
 //! *memory* — a pooled [`SUBFETCH_BYTES`] response-body budget across the call.
 //! There is deliberately no request-count cap: a count measures no resource and
 //! starved code-split apps while time and memory stood idle. No live network
@@ -73,6 +75,7 @@ pub struct Subfetch {
     deadline: Deadline,
     spent: usize,
     budget: usize,
+    refused: bool,
     timings: Vec<ResourceTiming>,
 }
 
@@ -112,8 +115,17 @@ impl Subfetch {
             deadline,
             spent: 0,
             budget,
+            refused: false,
             timings: Vec::new(),
         }
+    }
+
+    /// Whether this cache refused a dispatch because the §5 network deadline had
+    /// passed (§6). The run driver reads it once at conclusion to name
+    /// `stopped: "network"` and clear `settled` — the truncation is an event, so
+    /// it is recorded when it happens rather than inferred from the clock later.
+    pub fn refused(&self) -> bool {
+        self.refused
     }
 
     /// The real resource-timing measurements recorded so far (`bl-e707`), as
@@ -150,6 +162,9 @@ impl Subfetch {
             return Outcome::Got(frozen.clone());
         }
         if self.deadline.expired() {
+            // The recorded fact behind §10 `stopped: "network"`: the run's wall
+            // deadline passed with work outstanding and this seam turned it away.
+            self.refused = true;
             return Outcome::Failed("subfetch refused: run budget exhausted".to_string());
         }
         if self.spent >= self.budget {

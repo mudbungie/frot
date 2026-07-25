@@ -18,13 +18,21 @@ use super::{test_env, Session, StyleSource};
 /// the run's wall clock. The compute budget rides a separate frozen clock, so a
 /// wall advance never touches it (§5: two resources, two units).
 fn sess_clock(clock: Clock) -> Session {
+    sess_net(Deadline::on(clock, Duration::from_secs(1)))
+}
+
+/// A session bound to a caller-held network window, so a test can read that very
+/// [`Deadline`] rather than asking the session about its clock (the session has
+/// no such question to answer: what ends a run on the network bound is the §6
+/// seam's *refusal*, js.md §5/§6, not a reading).
+fn sess_net(net: Deadline) -> Session {
     Session::with_bounds(
         Document::parse("<html><body></body></html>"),
         StyleSource::Bare,
         test_env(),
         &FetchSession::new(Vec::new()),
         Deadline::on(Clock::manual(), Duration::from_secs(1)),
-        Deadline::on(clock, Duration::from_secs(1)),
+        net,
     )
 }
 
@@ -90,16 +98,17 @@ fn the_wall_clock_bounds_the_network_deadline_and_feeds_observable_time_together
     // captured where the network deadline is read, while the compute budget on
     // its own frozen clock is untouched by any of it.
     let clock = Clock::manual();
-    let s = sess_clock(clock.clone()); // 1 s network window, armed below
+    let net = Deadline::on(clock.clone(), Duration::from_secs(1));
+    let s = sess_net(net.clone()); // 1 s network window, armed below
     s.begin();
     clock.advance(Duration::from_millis(250));
     assert_eq!(s.run_task("performance.now()").unwrap(), "250");
-    assert!(!s.deadline_expired());
+    assert!(!net.expired());
     // Past the 1 s window: it is spent by the very same elapsed the observable
     // clock reports (read via `eval`, which re-arms, only afterwards). Execution
     // itself is unaffected — the task below runs, because compute is CPU-bound.
     clock.advance(Duration::from_millis(800));
-    assert!(s.deadline_expired());
+    assert!(net.expired());
     assert_eq!(s.run_task("String(1 + 1)").unwrap(), "2");
     assert_eq!(s.eval("performance.now()").unwrap(), "1050");
 }

@@ -49,7 +49,7 @@ fn every_watched_surface_is_recorded() {
          </script></body>",
     );
     assert_eq!(
-        (report.scripts, report.errors, report.settled),
+        (report.scripts, report.errors, report.settled()),
         (1, 0, true)
     );
     for surface in [

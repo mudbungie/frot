@@ -1,10 +1,12 @@
 //! Bounded virtual-clock event-loop tests (js.md §5): timers/rAF against virtual
-//! time, the horizon, lifecycle events, microtask ordering, and the single
-//! wall-clock deadline. Virtual time keeps every timing assertion deterministic
-//! with no real sleeping; budget trips use a tight bound (the 4.1 spike pattern).
+//! time, the horizon, lifecycle events, microtask ordering, and the §5 bounds
+//! (CPU compute, wall network). Virtual time keeps every timing assertion
+//! deterministic with no real sleeping; budget trips use a tight CPU bound (the
+//! 4.1 spike pattern), and §10 `stopped` names the bound that ended a run.
 
 use super::{drive, drive_bounded};
 use crate::dom::NodeKind;
+use crate::envelope::JsStop;
 
 /// The single `data-*` attribute a test writes to record loop progress.
 fn attr(doc: &crate::dom::Document, name: &str) -> Option<String> {
@@ -16,19 +18,18 @@ fn attr(doc: &crate::dom::Document, name: &str) -> Option<String> {
 }
 
 #[test]
-fn a_budget_trip_stops_the_queue_and_marks_unsettled() {
-    // The first script spins out the wall-clock budget; the loop breaks, so the
-    // second never runs and the run is unsettled (§5). A tight budget keeps the
-    // test fast and deterministic.
+fn a_budget_trip_stops_the_queue_and_names_the_budget_bound() {
+    // The first script spins out the CPU compute budget; the loop breaks, so the
+    // second never runs (§5). A tight budget keeps the test fast. §10: the run is
+    // unsettled *and* names which bound ended it — `budget`, a page wanting more
+    // compute than frot underwrites, not a slow transport.
     let (doc, report) = drive_bounded(
         "<body><script>while(true){}</script>\
          <script>document.body.appendChild(document.createElement('hr'))</script></body>",
         20,
     );
-    assert_eq!(
-        (report.scripts, report.errors, report.settled),
-        (1, 1, false)
-    );
+    assert_eq!((report.scripts, report.errors), (1, 1));
+    assert_eq!(report.stopped, Some(JsStop::Budget));
     assert_eq!(doc.find_by_tag("hr").len(), 0);
 }
 
@@ -41,10 +42,9 @@ fn a_settimeout_callback_fires_against_virtual_time() {
          setTimeout(function () { document.body.appendChild(document.createElement('hr')); }, 500);\
          </script></body>",
     );
-    assert_eq!(
-        (report.scripts, report.errors, report.settled),
-        (1, 0, true)
-    );
+    assert_eq!((report.scripts, report.errors), (1, 0));
+    // §10: a settled run has no bound to name — its absence is the record.
+    assert_eq!(report.stopped, None);
     assert_eq!(doc.find_by_tag("hr").len(), 1);
 }
 
@@ -57,7 +57,7 @@ fn a_timer_past_the_horizon_never_fires() {
          setTimeout(function () { document.body.appendChild(document.createElement('hr')); }, 30000);\
          </script></body>",
     );
-    assert!(report.settled);
+    assert!(report.settled());
     assert_eq!(doc.find_by_tag("hr").len(), 0);
 }
 
@@ -71,7 +71,7 @@ fn setinterval_self_terminates_at_the_horizon() {
          setInterval(function () { n++; document.body.setAttribute('data-n', String(n)); }, 4000);\
          </script></body>",
     );
-    assert!(report.settled);
+    assert!(report.settled());
     assert_eq!(attr(&doc, "data-n").as_deref(), Some("2"));
 }
 
@@ -86,7 +86,7 @@ fn requestanimationframe_chains_then_stops() {
          requestAnimationFrame(frame);\
          </script></body>",
     );
-    assert!(report.settled);
+    assert!(report.settled());
     assert_eq!(attr(&doc, "data-c").as_deref(), Some("3"));
 }
 
@@ -99,7 +99,7 @@ fn cleartimeout_cancels_a_pending_timer() {
          clearTimeout(id);\
          </script></body>",
     );
-    assert!(report.settled);
+    assert!(report.settled());
     assert_eq!(doc.find_by_tag("hr").len(), 0);
 }
 
@@ -113,7 +113,7 @@ fn lifecycle_events_fire_in_order_after_scripts() {
          window.addEventListener('load', function () { document.body.appendChild(document.createElement('footer')); });\
          </script></body>",
     );
-    assert_eq!((report.errors, report.settled), (0, true));
+    assert_eq!((report.errors, report.settled()), (0, true));
     assert_eq!(doc.find_by_tag("main").len(), 1);
     assert_eq!(doc.find_by_tag("footer").len(), 1);
 }
@@ -141,7 +141,7 @@ fn readystate_advances_loading_interactive_complete() {
          });\
          </script></body>",
     );
-    assert_eq!((report.errors, report.settled), (0, true));
+    assert_eq!((report.errors, report.settled()), (0, true));
     assert_eq!(attr(&doc, "data-inline").as_deref(), Some("loading"));
     assert_eq!(attr(&doc, "data-dcl").as_deref(), Some("interactive"));
     assert_eq!(attr(&doc, "data-load").as_deref(), Some("complete"));
@@ -158,7 +158,7 @@ fn a_throwing_lifecycle_handler_is_counted_and_the_run_continues() {
     let (_doc, report) = drive(
         "<body><script>window.onload = function () { throw new Error('boom'); };</script></body>",
     );
-    assert_eq!((report.errors, report.settled), (1, true));
+    assert_eq!((report.errors, report.settled()), (1, true));
 }
 
 #[test]
@@ -168,18 +168,18 @@ fn a_throwing_timer_callback_is_counted_and_the_run_continues() {
     let (_doc, report) = drive(
         "<body><script>setTimeout(function () { throw new Error('x'); }, 10);</script></body>",
     );
-    assert_eq!((report.errors, report.settled), (1, true));
+    assert_eq!((report.errors, report.settled()), (1, true));
 }
 
 #[test]
 fn a_budget_trip_inside_a_timer_marks_the_run_unsettled() {
-    // §5: the single deadline spans the settle loop, so a timer callback that
-    // spins trips the budget and marks the whole run unsettled.
+    // §5: the compute budget spans the settle loop, so a spinning timer callback
+    // trips it and stops the run on the compute bound (§10) — the driver path.
     let (_doc, report) = drive_bounded(
         "<body><script>setTimeout(function () { while (true) {} }, 10);</script></body>",
         20,
     );
-    assert!(!report.settled);
+    assert_eq!(report.stopped, Some(JsStop::Budget));
 }
 
 #[test]
@@ -192,7 +192,7 @@ fn a_budget_trip_inside_a_lifecycle_handler_stops_the_loop() {
          </script></body>",
         20,
     );
-    assert!(!report.settled);
+    assert!(!report.settled());
 }
 
 #[test]
@@ -200,7 +200,7 @@ fn an_unhandled_promise_rejection_is_counted() {
     // §10: a promise that rejects with no handler is a counted error — the run
     // still settles (rejections are weather, not a budget trip).
     let (_doc, report) = drive("<body><script>Promise.reject(new Error('nope'));</script></body>");
-    assert_eq!((report.errors, report.settled), (1, true));
+    assert_eq!((report.errors, report.settled()), (1, true));
 }
 
 #[test]
@@ -213,7 +213,7 @@ fn a_late_handled_rejection_is_not_counted() {
          setTimeout(function () { p.catch(function () {}); }, 10);\
          </script></body>",
     );
-    assert_eq!((report.errors, report.settled), (0, true));
+    assert_eq!((report.errors, report.settled()), (0, true));
 }
 
 #[test]
@@ -228,7 +228,7 @@ fn a_reported_error_is_counted() {
          </script></body>",
     );
     assert_eq!(
-        (report.scripts, report.errors, report.settled),
+        (report.scripts, report.errors, report.settled()),
         (1, 1, true)
     );
 }
@@ -243,7 +243,7 @@ fn a_preventdefaulted_error_listener_suppresses_the_count() {
          reportError(new Error('handled'));\
          </script></body>",
     );
-    assert_eq!((report.errors, report.settled), (0, true));
+    assert_eq!((report.errors, report.settled()), (0, true));
 }
 
 #[test]
@@ -256,7 +256,7 @@ fn window_onerror_returning_true_suppresses_the_count() {
          reportError(new Error('handled'));\
          </script></body>",
     );
-    assert_eq!((report.errors, report.settled), (0, true));
+    assert_eq!((report.errors, report.settled()), (0, true));
 }
 
 #[test]
@@ -269,7 +269,7 @@ fn a_window_onerror_not_returning_true_still_counts() {
          reportError(new Error('boom'));\
          </script></body>",
     );
-    assert_eq!((report.errors, report.settled), (1, true));
+    assert_eq!((report.errors, report.settled()), (1, true));
 }
 
 #[test]
@@ -278,7 +278,7 @@ fn a_dispatched_window_error_event_is_counted() {
     // accounting as reportError.
     let (_doc, report) =
         drive("<body><script>window.dispatchEvent(new Event('error'));</script></body>");
-    assert_eq!((report.errors, report.settled), (1, true));
+    assert_eq!((report.errors, report.settled()), (1, true));
 }
 
 #[test]
@@ -295,6 +295,6 @@ fn microtasks_drain_between_macrotasks() {
          }, 20);\
          </script></body>",
     );
-    assert!(report.settled);
+    assert!(report.settled());
     assert_eq!(attr(&doc, "data-seen").as_deref(), Some("ok"));
 }

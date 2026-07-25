@@ -97,7 +97,9 @@ fn main() {
         let m = measure(Document::parse(&fetched.body), StyleSource::Bare, env);
         println!(
             "  js: scripts={} errors={} settled={}",
-            m.report.scripts, m.report.errors, m.report.settled
+            m.report.scripts,
+            m.report.errors,
+            m.report.settled()
         );
         if m.probes.is_empty() {
             println!("  (no watched surface probed)");

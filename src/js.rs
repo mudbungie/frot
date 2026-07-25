@@ -20,6 +20,7 @@ mod subfetch;
 mod syscall;
 
 use crate::dom::{Document, NodeId};
+use crate::envelope::JsStop;
 use crate::fetch::FetchSession;
 use engine::Deadline;
 use script::{next_script, Script};
@@ -46,16 +47,25 @@ pub struct Report {
     /// subfetch failed or was non-2xx, which §4.2 skips-and-counts like a failed
     /// stylesheet.
     pub errors: u32,
-    /// Whether the whole run — script queue *and* settle loop — reached
-    /// quiescence within the §5 bounds (`EXEC_CPU_MS` of compute,
-    /// `NET_BUDGET_MS` of network wall time); tripping either clears it.
-    pub settled: bool,
+    /// Which §5 bound ended the run (§10 `stopped`), or `None` when it reached
+    /// quiescence within both — script queue *and* settle loop. The run's one
+    /// termination fact: [`settled`](Report::settled) is exactly its absence, so
+    /// there is nothing to keep in step.
+    pub stopped: Option<JsStop>,
     /// The bounded §10 error-message detail behind `errors` (js.md §10): the
     /// first `MESSAGES_MAX` captured `throw` / `report` / `subfetch` messages, in
     /// occurrence order. Captured unconditionally; the pipeline surfaces it only
     /// behind `--js-errors`. Rejections, refused navigations, and timer/
     /// lifecycle-listener throws stay count-only.
     pub messages: Vec<Message>,
+}
+
+impl Report {
+    /// Whether the run reached §5 quiescence *within* its bounds — i.e. no bound
+    /// ended it (§10). Derived, never stored: one fact, one home.
+    pub fn settled(&self) -> bool {
+        self.stopped.is_none()
+    }
 }
 
 /// Run a page's JS against `doc` under the bounded virtual-clock event loop
@@ -112,7 +122,7 @@ pub(crate) fn run_session(session: &Session) -> Report {
     let mut report = Report {
         scripts: 0,
         errors: 0,
-        settled: true,
+        stopped: None,
         messages: Vec::new(),
     };
     // Preload-scan (bl-08f6): warm the §6 cache concurrently with the initial
@@ -123,15 +133,19 @@ pub(crate) fn run_session(session: &Session) -> Report {
     // when discovered, never speculatively.
     session.warm_initial_scripts();
     run_script_queue(session, &mut report);
-    if report.settled {
+    if report.settled() {
         run_event_loop(session, &mut report);
     }
     // Quiescence within bounds is `settled`'s one meaning (§5): the loop can
-    // conclude *because* the network deadline expired (the §6 seam refuses
-    // dispatch past it) while the engine interrupt — firing only between JS
-    // instructions — never tripped, so an expired network window here clears
-    // `settled` deterministically.
-    report.settled = report.settled && !session.deadline_expired();
+    // conclude *because* the §6 seam refused network dispatch past the run's wall
+    // deadline, while the engine interrupt — firing only between JS instructions,
+    // and spending CPU a blocked socket never burns — never tripped. That refusal
+    // is a recorded fact, so the driver asks for it rather than re-reading the
+    // clock at conclusion: a run that drained every task and merely crossed the
+    // deadline on its way out is genuinely quiescent and stays settled.
+    report.stopped = report
+        .stopped
+        .or_else(|| session.refused_network().then_some(JsStop::Network));
     // Fold the deferred §10 tallies into `errors`: refused navigations (counted
     // no-ops), unhandled promise rejections (net after the run's microtasks drain
     // — a late `.catch` un-counts), and unhandled errors the shim reported.
@@ -145,12 +159,12 @@ pub(crate) fn run_session(session: &Session) -> Report {
 
 /// Drain the script queue in document order (§4). Scripts a script inserts join
 /// the queue (§4.3): each pass re-scans for the next not-yet-run `<script>`, a
-/// fixpoint that picks up appended ones. A budget trip clears `settled` and ends
-/// the phase; scripts inserted later (by timers/lifecycle) do not re-enter — the
+/// fixpoint that picks up appended ones. A budget trip names the `stopped` bound
+/// and ends the phase; scripts inserted later (by timers/lifecycle) do not re-enter — the
 /// script phase is over once this returns (§4.4).
 fn run_script_queue(session: &Session, report: &mut Report) {
     let mut done: Vec<NodeId> = Vec::new();
-    while report.settled {
+    while report.settled() {
         let Some((id, script)) = next_script(session, &done) else {
             break;
         };
@@ -206,8 +220,8 @@ fn run_module(session: &Session, name: &str, body: &str, report: &mut Report) {
 
 /// Fold one script/module evaluation into the report per §5: it ran (`scripts`);
 /// a throw counts an error and its message is captured (§10 `throw`); a budget
-/// trip additionally clears `settled` and carries no message (the run stopped,
-/// not the script).
+/// trip additionally names `stopped: "budget"` and carries no message (the run
+/// stopped, not the script).
 fn tally(session: &Session, report: &mut Report, result: Result<String, EvalError>) {
     report.scripts += 1;
     match result {
@@ -218,7 +232,7 @@ fn tally(session: &Session, report: &mut Report, result: Result<String, EvalErro
         }
         Err(EvalError::Budget) => {
             report.errors += 1;
-            report.settled = false;
+            report.stopped = Some(JsStop::Budget);
         }
     }
 }
@@ -240,21 +254,21 @@ fn run_event_loop(session: &Session, report: &mut Report) {
             Some(n) if n < 0 => break,
             // A fired callback: `n` is its error count (0 or 1); loop continues.
             Some(n) => report.errors += n as u32,
-            // Budget tripped mid-callback: `settled` already cleared, stop.
+            // Budget tripped mid-callback: `stopped` already named, stop.
             None => break,
         }
     }
 }
 
 /// Run one event-loop driver call, returning its integer protocol value, or
-/// `None` when the compute budget tripped (which clears `settled`). The drivers
-/// catch callback throws in JS and encode them in the return value, so the only
-/// non-value outcome is a budget hit.
+/// `None` when the compute budget tripped (which names `stopped: "budget"`). The
+/// drivers catch callback throws in JS and encode them in the return value, so
+/// the only non-value outcome is a budget hit.
 fn drive(session: &Session, src: &str, report: &mut Report) -> Option<i64> {
     match session.run_task(src) {
         Ok(s) => Some(s.trim().parse::<i64>().unwrap_or(0)),
         Err(_) => {
-            report.settled = false;
+            report.stopped = Some(JsStop::Budget);
             None
         }
     }

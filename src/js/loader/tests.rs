@@ -12,6 +12,7 @@ use std::time::Duration;
 use super::super::engine::{Clock, Deadline, EXEC_CPU_MS, NET_BUDGET_MS};
 use super::super::{run_with, Env, Report, StyleSource};
 use crate::dom::Document;
+use crate::envelope::JsStop;
 use crate::fetch::FetchSession;
 
 /// A unique temp dir for the `file://` module fixtures, cleaned by the caller.
@@ -71,7 +72,7 @@ fn a_relative_import_resolves_loads_and_runs() {
         ),
         &page_url(&dir),
     );
-    assert_eq!((r.scripts, r.errors, r.settled), (1, 0, true));
+    assert_eq!((r.scripts, r.errors, r.settled()), (1, 0, true));
     let root = doc.find_by_tag("div")[0];
     assert!(
         doc.text_content(root).contains("imported!"),
@@ -104,7 +105,7 @@ fn nested_and_root_relative_and_absolute_specifiers_all_resolve() {
         dir.strip_prefix("/").unwrap().to_string_lossy(),
     );
     let (doc, r) = drive_at(&module_page(&body), &page_url(&dir));
-    assert_eq!((r.scripts, r.errors, r.settled), (1, 0, true));
+    assert_eq!((r.scripts, r.errors, r.settled()), (1, 0, true));
     let root = doc.find_by_tag("div")[0];
     assert_eq!(doc.text_content(root), "4"); // a(1) + a2(1) + b(2)
     fs::remove_dir_all(&dir).unwrap();
@@ -116,7 +117,7 @@ fn a_bare_specifier_is_unresolvable_and_counts() {
     // a browser without one — one counted error, the run still settles.
     let dir = tmpdir("bare");
     let (_doc, r) = drive_at(&module_page("import 'lodash';"), &page_url(&dir));
-    assert_eq!((r.scripts, r.errors, r.settled), (1, 1, true));
+    assert_eq!((r.scripts, r.errors, r.settled()), (1, 1, true));
     fs::remove_dir_all(&dir).unwrap();
 }
 
@@ -126,7 +127,7 @@ fn a_failed_module_fetch_counts_as_one_error() {
     // (transport), so the `import` throws — one counted §10 error.
     let dir = tmpdir("miss");
     let (_doc, r) = drive_at(&module_page("import './nope.js';"), &page_url(&dir));
-    assert_eq!((r.scripts, r.errors, r.settled), (1, 1, true));
+    assert_eq!((r.scripts, r.errors, r.settled()), (1, 1, true));
     fs::remove_dir_all(&dir).unwrap();
 }
 
@@ -144,7 +145,7 @@ fn a_non_2xx_module_fetch_counts_as_one_error() {
         &module_page("import './dep.js';"),
         &format!("{}/page.html", server.url()),
     );
-    assert_eq!((r.scripts, r.errors, r.settled), (1, 1, true));
+    assert_eq!((r.scripts, r.errors, r.settled()), (1, 1, true));
 }
 
 #[test]
@@ -153,7 +154,7 @@ fn a_bogus_page_url_fails_resolution_for_a_relative_import() {
     // one; a relative specifier then cannot join against it — a counted resolve
     // failure, not a panic (the resolver's `Url::parse(base)` error arm).
     let (_doc, r) = drive_at(&module_page("import './dep.js';"), "not a url");
-    assert_eq!((r.scripts, r.errors, r.settled), (1, 1, true));
+    assert_eq!((r.scripts, r.errors, r.settled()), (1, 1, true));
 }
 
 #[test]
@@ -162,7 +163,7 @@ fn a_top_level_throw_counts_exactly_once() {
     // report that twice, but the rejection watcher (js.md §10) folds it to one.
     let dir = tmpdir("throw");
     let (_doc, r) = drive_at(&module_page("throw new Error('boom');"), &page_url(&dir));
-    assert_eq!((r.scripts, r.errors, r.settled), (1, 1, true));
+    assert_eq!((r.scripts, r.errors, r.settled()), (1, 1, true));
     fs::remove_dir_all(&dir).unwrap();
 }
 
@@ -175,7 +176,7 @@ fn a_rejected_top_level_await_counts_once() {
         &module_page("await Promise.reject(new Error('x'));"),
         &page_url(&dir),
     );
-    assert_eq!((r.scripts, r.errors, r.settled), (1, 1, true));
+    assert_eq!((r.scripts, r.errors, r.settled()), (1, 1, true));
     fs::remove_dir_all(&dir).unwrap();
 }
 
@@ -187,7 +188,7 @@ fn a_clean_module_with_no_imports_settles() {
         &module_page("document.getElementById('root').textContent = 'ok';"),
         &page_url(&dir),
     );
-    assert_eq!((r.scripts, r.errors, r.settled), (1, 0, true));
+    assert_eq!((r.scripts, r.errors, r.settled()), (1, 0, true));
     let root = doc.find_by_tag("div")[0];
     assert_eq!(doc.text_content(root), "ok");
     fs::remove_dir_all(&dir).unwrap();
@@ -206,18 +207,19 @@ fn an_endless_module_trips_the_budget_and_is_unsettled() {
         Deadline::on(Clock::cpu(), Duration::from_millis(20)),
         Deadline::network(),
     );
-    assert_eq!((r.scripts, r.errors, r.settled), (1, 1, false));
+    assert_eq!((r.scripts, r.errors, r.settled()), (1, 1, false));
     fs::remove_dir_all(&dir).unwrap();
 }
 
 #[test]
-fn a_dead_deadline_refuses_module_loads_and_the_run_is_unsettled() {
+fn a_dead_deadline_refuses_module_loads_and_the_run_stops_on_the_network_bound() {
     // With the *network* deadline already spent when the import dispatches, the
     // §6 seam refuses it ("run budget exhausted") — the engine interrupt cannot
     // help here: it fires only between JS instructions and anyway spends CPU,
-    // which a blocking load chain does not burn. The run-driver's conclusion
-    // check then clears `settled` deterministically (§5): quiescence reached by
-    // refusing work is not quiescence within bounds.
+    // which a blocking load chain does not burn. That recorded refusal is what
+    // the driver reads at conclusion (§5/§10): quiescence reached by refusing
+    // work is not quiescence within bounds, and the bound that ended it is named
+    // `network` — a slow transport, not a page too heavy to run.
     let dir = tmpdir("dead");
     fs::write(dir.join("dep.js"), "export const x = 1;").unwrap();
     let (_doc, r) = run_with(
@@ -228,6 +230,7 @@ fn a_dead_deadline_refuses_module_loads_and_the_run_is_unsettled() {
         Deadline::compute(),
         Deadline::on(Clock::wall(), Duration::ZERO),
     );
-    assert_eq!((r.scripts, r.errors, r.settled), (1, 1, false));
+    assert_eq!((r.scripts, r.errors, r.settled()), (1, 1, false));
+    assert_eq!(r.stopped, Some(JsStop::Network));
     fs::remove_dir_all(&dir).unwrap();
 }
