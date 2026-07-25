@@ -3,13 +3,18 @@
 //!
 //! A single invocation builds one [`FetchSession`]. It owns:
 //!
-//! - **the connection pool** — one `ureq::Agent` (built once in
-//!   [`super::build_agent`]); the agent is `Clone` over an `Arc` pool, so the
-//!   session is a cheap `Clone` handle and every clone — the scoped CSS workers,
-//!   the JS subfetch cache — shares the *same* pool. Two sequential same-origin
-//!   requests reuse one HTTP/1.1 connection; a separate invocation gets a
-//!   separate pool and cannot share it (§3.5, the most browser-unlike behaviour
-//!   measured);
+//! - **the connection pool** — one [`Transport`] (built once in
+//!   [`super::build_transport`]), held behind an `Arc`, so the session is a
+//!   cheap `Clone` handle and every clone — the scoped CSS workers, the JS
+//!   subfetch cache — shares the *same* `hyper_util` pool and the *same* tokio
+//!   runtime. Same-origin requests reuse a pooled connection instead of
+//!   re-presenting the TLS fingerprint per request (§3.5, the most
+//!   browser-unlike behaviour measured); a separate invocation gets a separate
+//!   pool and cannot share it. Reuse is **eventual on HTTP/1.1** — hyper checks
+//!   an h1 connection back in from a spawned task, so a saturated host can make
+//!   a sequential pair open two sockets. That is a declared residual, not a bug
+//!   to chase: identity.md §6.5 (`bl-fa12`) weighs owning the pool and declines;
+//!   h2 is unaffected (checked in inline);
 //! - **the caller header overrides** — the `-H` set, layered by the request
 //!   derivation ([`super::request::derive_headers`]) as the final override and
 //!   scoped same-origin to the anchor origin, so credentials and custom headers

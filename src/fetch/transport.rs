@@ -80,6 +80,14 @@ impl Transport {
     /// `ENABLE_PUSH` matches Firefox only because hyper hardcodes
     /// `enable_push(false)`; the oracle asserts it against the profile so the
     /// coincidence is still pinned.
+    ///
+    /// **Both stay residuals** (`bl-fa12`, identity.md §6.5). id 1 *would* close
+    /// by dropping this `Client` for a frot-owned pool over
+    /// `hyper::client::conn` (whose `http2::Builder` has `header_table_size`);
+    /// id 6 closes for nobody short of forking `h2`. Closing only id 1 leaves
+    /// three of the four akamai-h2 components mismatched — id 6, the absent
+    /// HEADERS PRIORITY, and `m,s,a,p` — so the fingerprint hash differs either
+    /// way, and the pool's correctness surface is not bought with that.
     pub(crate) fn new(roots: RootCertStore) -> Self {
         let https = HttpsConnectorBuilder(roots).build();
         let client = Client::builder(TokioExecutor::new())
@@ -115,6 +123,13 @@ impl Transport {
     /// Nothing leaks (the extra socket is pooled and dies with the runtime) and
     /// no `hyper-util` knob makes it synchronous; only owning the pool instead
     /// of its `Client` would, so tests must assert reuse as eventual.
+    ///
+    /// **Owning the pool was weighed and declined** (`bl-fa12`, identity.md
+    /// §6.5): a second h1 socket is inside Firefox's own behaviour (it opens up
+    /// to `POOL_PER_HOST` per host) and rides TLS resumption, while a
+    /// frot-owned pool would have to re-inherit ALPN-h2 connect dedup, checkout
+    /// liveness, the checkout/dial race and canceled-request retry. This is a
+    /// declared residual (§11), not an open defect.
     pub(crate) fn request_once(
         &self,
         url: &str,

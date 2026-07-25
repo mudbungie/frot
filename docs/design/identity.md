@@ -220,6 +220,17 @@ builds a fresh `ureq::Agent` per URL (`bl-5191`). Consequence beyond latency:
 resumes a session is itself anomalous. `connections.md` calls this "the single
 most browser-unlike behaviour measured."
 
+**Resolved, with one bounded remainder (`bl-5191`, then `bl-fa12` 2026-07-24).**
+The per-invocation `FetchSession` pool made this **1** connection for
+`wiki --css` (§3.8), and h2 multiplexes a whole wave onto that one. The
+remainder is h1-only: `hyper_util` checks an HTTP/1.1 connection back in from a
+spawned task, so a saturated host can make a sequential same-origin pair open
+two sockets (§11, measured `bl-df88`). §6.5 decides to declare that rather than
+own the pool — including why the *"presented N+1 times"* clause above no longer
+bites on it: rustls resumption is on by default and the `ClientConfig` is
+per-invocation, so the re-dial is an abbreviated handshake, as a browser's
+second connection is.
+
 ### 3.6 Field corpus (`--out text`, no `-H`, median of 3 runs)
 
 | site | frot status | protocol | verdict | curl status |
@@ -763,6 +774,176 @@ Stated plainly so no reader mistakes the recommendation for a match:
 
 ---
 
+### 6.5 The connection pool stays rented — decided 2026-07-24 (`bl-fa12`)
+
+**The question.** `hyper_util`'s pooled `Client` does not check an HTTP/1.1
+connection back into the idle pool inline. It spawns a task
+(`client/legacy/client.rs`):
+
+```rust
+if pooled.is_http2() || !pooled.is_pool_enabled() || pooled.is_ready() {
+    drop(pooled);                                   // h2: checked in inline
+} else {
+    let on_idle = poll_fn(move |cx| pooled.poll_ready(cx)).map(|_| ());
+    self.exec.execute(on_idle);                     // h1: checked in eventually
+}
+```
+
+So a next same-origin request that arrives before that task is scheduled finds
+an empty pool and dials a second socket. **Measured** (`bl-df88`, 16-core box,
+48 spinning threads, 200 sequential same-origin pairs): 16/200 opened a second
+connection; with a 5 ms gap, 0/200. No `hyper-util` knob makes check-in
+synchronous — searched, it is not a config fix. The only route is to drop
+`hyper_util::Client` and drive `hyper::client::conn` over a pool frot owns —
+which would *also* unlock h2 SETTINGS id 1 `HEADER_TABLE_SIZE` (§11), since
+`hyper::client::conn::http2::Builder` has `header_table_size` while
+`hyper-util`'s `h2_builder` field is private.
+
+**Decision: no. frot keeps `hyper_util::Client` and declares both residuals.**
+The h2 half buys a fingerprint field that still will not match, and the h1 half
+is behaviour a real Firefox also exhibits — so the trade is a wide correctness
+surface bought with nothing.
+
+#### The h2 half buys less than it looks like — verified against the sources
+
+Read against `hyper-1.9.0` and `h2-0.4.15` rather than assumed:
+
+| akamai-h2 fingerprint component | frot | Firefox 140esr | owning the pool fixes it? |
+|---|---|---|---|
+| SETTINGS id 1 `HEADER_TABLE_SIZE` | absent | `65536` | **yes** — `http2::Builder::header_table_size(impl Into<Option<u32>>)` |
+| SETTINGS id 6 `MAX_HEADER_LIST_SIZE` | `16384` | *omitted* | **no** — hyper types it `u32` and applies it unconditionally (`proto/h2/client.rs`: `.max_header_list_size(config.max_header_list_size)`); `h2`'s own `client::Builder::max_header_list_size(u32)` can only set `Some`. Omission needs a fork of `h2`. |
+| WINDOW_UPDATE increment | 12517377 | 12517377 | already matches (`bl-f312`) |
+| HEADERS `PRIORITY` (weight 42) | absent | present | **no** — `h2` exposes no client PRIORITY |
+| pseudo-header order | `m,s,a,p` | `m,p,a,s` | **no** — `h2`'s `frame::headers::Pseudo` is a struct whose *field order* is the wire order (`method, scheme, authority, path`) |
+
+So owning the pool takes the akamai fingerprint from **four** mismatched
+components to **three**. The hash still differs; every consumer that compares
+the hash sees exactly what it saw before. That is the same trade §6.3 already
+refused for the ClientHello — *a partial improvement to a hashed field that
+still cannot hash equal is worth nothing*, and there the price was merely
+keeping a fork alive, where here the price is a bespoke pool. The falsification
+rule (§1) fires the same way it did for TLS: no route inside frot's constraints
+reaches a byte-exact Firefox h2 preface, so the goal stays **coherent, not
+byte-identical**, and id 1's absence stays a declared residual asserted in the
+oracle (§12, `src/fetch/transport/h2_preface.rs`).
+
+Note also what *is* coherent here. Omitting id 1 is not a lie: it means "my
+HPACK decoder table is the 4096-byte default", which is true of frot's `h2`
+decoder. The §5 invariant — *never advertise what you cannot speak* — is
+satisfied by the omission, not violated by it. Only the *match* is missing.
+
+#### The h1 half is inside the persona's own distribution
+
+The re-dial is not a tell, for three independent reasons:
+
+1. **Firefox opens up to six h1 connections per host.** That is where
+   `POOL_PER_HOST = 6` comes from (`src/fetch.rs`; `concurrent.rs` calls it "the
+   Firefox per-server limit"). A page load that opens one socket and then a
+   second is *inside* the behaviour the persona is copying, not outside it.
+   Contrast the §3.5 finding this design was filed on: N+1 connections for N
+   requests, **never** reusing, is outside every browser's behaviour. An
+   occasional extra socket is not the same class of fact.
+2. **It cannot fire on h2, which is what the origins that fingerprint speak.**
+   h2 takes the `drop(pooled)` branch above and checks in inline. Every
+   defence frot actually meets — Cloudflare, Akamai, AWS WAF, DataDome — is
+   ALPN-h2 (§3.8: frot negotiates h2 in the field). The residual is confined to
+   legacy h1 origins, which by construction are not the ones hashing prefaces.
+3. **The extra socket resumes the TLS session, exactly as Firefox's would.**
+   `firefox_client_config` (`src/fetch/firefox_tls.rs`) does not override
+   `ClientConfig::resumption`, and rustls 0.23's default is
+   `Resumption::in_memory_sessions(256)`. One `ClientConfig` is built per
+   `Transport`, i.e. per invocation, and shared by every connection, so a
+   re-dial to an origin already visited in this invocation offers the ticket
+   and takes the abbreviated handshake. The §3.5 worry — *"the TLS fingerprint
+   is presented N+1 times per page"* — is therefore already answered on this
+   path: the second presentation is a resumption, which is precisely what a
+   browser does. **This is asserted, not assumed — see the follow-on ball
+   below; until that test lands, treat it as a read of the dependency defaults,
+   not a measurement.**
+
+It is also worth being exact about *what frot's contract observes*. The
+re-dial changes the wire, never the envelope: the `--out *` payload, `needs`,
+and the `http` block are byte-identical either way. So this does not fall under
+the standing rule that host load must not decide frot's output (`bl-8dc0`) —
+connection count is not an output.
+
+#### What owning the pool would cost
+
+Four behaviours `hyper_util::Client` supplies today would have to be rebuilt,
+each with a live failure mode if it is rebuilt wrong:
+
+- **ALPN-h2 connect dedup.** `Pool::connecting(&key, ver)` takes a per-key
+  connecting lock and `Connecting::alpn_h2` converts it when ALPN comes back h2,
+  so a six-wide wave to an h2 origin makes **one** connection. That number is
+  measured (§3.8: `wiki --css` = 1) and asserted in CI
+  (`run/gather/tests.rs`). A frot pool without this dedup opens six — a
+  *regression on the very axis this ball is trying to improve*, and a louder
+  tell than the one being fixed.
+- **Liveness at checkout.** `pool.rs` drops idle entries whose `is_open()` is
+  false (three separate sites) and expires on a 90 s timer. A pool that hands
+  out a socket the origin has already closed turns a working fetch into an
+  error — a user-visible correctness regression traded for a fingerprint
+  nicety.
+- **Checkout racing the dial.** `Client::connect_to` runs the pool checkout and
+  the connect concurrently and takes whichever wins, cancelling the other; the
+  pool holds a waiter queue for the losers.
+- **Retry of canceled requests.** `retry_canceled_requests: true` re-issues a
+  request that a reused connection dropped before it was ever sent — the
+  ordinary keep-alive race every h1 client must handle.
+
+Against `~/AGENTS.md`'s *build less* and *if it can't be tested, it mustn't be
+built*: the coverage gate is 100% lines **and regions**, and every arm above is
+a race. Reaching region coverage on "both threads missed the pool
+simultaneously", "the dial failed with a waiter queued", "the idle socket died
+between check-in and checkout" needs injected seams for each — mechanism added
+to test mechanism added to match one SETTINGS entry that does not change a hash.
+That is the definition of a compromise this repo says to push back on.
+
+#### What frot does instead
+
+Nothing new is built. The posture is *declare and assert*, which is what the
+rest of this document does with every unreachable field:
+
+- **h1 check-in is eventual** — a §11 residual row (added by this ball), the
+  behaviour documented on `Transport::request_once`, and the invariant tests
+  assert reuse as *eventual* (`session/tests.rs::same_origin_requests_reuse_a_
+  pooled_connection`, `bl-df88`), never as "the second request rides the
+  first's socket". A test that asserts a scheduler outcome is a flaky test, and
+  it was one.
+- **SETTINGS id 1 absent / id 6 present** — the existing §11 row, asserted *as
+  residuals* in `src/fetch/transport/h2_preface.rs` so neither can drift
+  silently. That row's claim that closing id 1 means *"dropping the pool or
+  forking hyper"* was half wrong and is corrected there: dropping
+  `hyper_util::Client` closes id 1; **id 6 needs a fork of `h2` either way.**
+
+#### The trigger that flips this decision
+
+Recorded so "revisit later" means something checkable:
+
+1. **Upstream makes it free.** If `hyper-util` gains synchronous h1 check-in or
+   an `h2_builder` passthrough, take it — it becomes a config edit at zero
+   correctness cost, and both residuals close. This is the outcome to watch for,
+   not to work around.
+2. **A measurement, not a story.** If a field-corpus run shows the extra h1
+   socket changing an *access outcome* — the §14 standard, evidence over
+   folklore — the cost calculus changes and this section is rewritten. No such
+   case exists today.
+3. **Subsumption.** If frot ever forks or vendors `h2` for pseudo-order and
+   PRIORITY (§7 stage C), id 6 and id 1 come along for that ride and the pool
+   question is decided by that larger call, not this one.
+
+#### What this decision does not solve
+
+- frot's akamai-h2 fingerprint still does not match Firefox's, and after this
+  decision it never will without a fork. Stated, not hidden (§11, §14 item 4).
+- On a saturated host frot still occasionally opens a second h1 socket. The
+  claim is that this is *unremarkable*, not that it is *absent*.
+- The resumption argument above rests on rustls's defaults, which a future
+  dependency bump could change silently. That is exactly why it needs the pin
+  test, and why it is filed rather than merely written down.
+
+---
+
 ## 7. The h2 decision — **add it, staged**
 
 The evidence does not settle this; the two agents disagree. Reasoning in full.
@@ -1127,7 +1308,8 @@ Permanently out of reach, by design or by constraint:
 | **Cipher *list* breadth (9 vs 17) → JA4 cipher component** | rustls advertises only its AEAD suites, not Firefox's legacy CBC/RSA. The cipher *order* matches; the *list* (and thus the JA4 cipher hash) does not. Declared residual (§6.1). |
 | **secp521r1 + FFDHE2048/3072 groups** | Not offered by aws-lc-rs; the other four persona groups match in order (§6.1). |
 | **`m,p,a,s` pseudo-order + HEADERS PRIORITY** | Deferred to stage C (§7); the `h2` crate hardcodes `m,s,a,p` and exposes no client PRIORITY. |
-| **h2 SETTINGS id 1 `HEADER_TABLE_SIZE` absent; id 6 `MAX_HEADER_LIST_SIZE` present** | Blocked by `hyper-util` (`bl-f312`, 2026-07-22). frot sends `2:0; 4:131072; 5:16384; 6:16384`; Firefox 140esr sends `1:65536; 2:0; 4:131072; 5:16384`. ids 4 and 5 are enforced from the profile and the connection WINDOW_UPDATE increment now matches Firefox exactly (12517377). The two that do not: `hyper`'s conn builder has `header_table_size`, but `hyper-util`'s **pooled** `Client` builder — the one giving frot h2 connection reuse (§3.5) — exposes no passthrough and keeps its `h2_builder` private, so id 1 cannot be sent; and hyper types `max_header_list_size` as `u32`, not `Option<u32>`, so id 6 cannot be omitted. Closing either means dropping the pool or forking hyper — the same trade §6.3 refuses for rustls. Both are asserted, with the persona's 65536 kept as the reference, in `src/fetch/transport/h2_preface.rs`. |
+| **h2 SETTINGS id 1 `HEADER_TABLE_SIZE` absent; id 6 `MAX_HEADER_LIST_SIZE` present** | Blocked by `hyper-util` (`bl-f312`, 2026-07-22). frot sends `2:0; 4:131072; 5:16384; 6:16384`; Firefox 140esr sends `1:65536; 2:0; 4:131072; 5:16384`. ids 4 and 5 are enforced from the profile and the connection WINDOW_UPDATE increment now matches Firefox exactly (12517377). The two that do not: `hyper`'s conn builder has `header_table_size`, but `hyper-util`'s **pooled** `Client` builder — the one giving frot h2 connection reuse (§3.5) — exposes no passthrough and keeps its `h2_builder` private, so id 1 cannot be sent; and hyper types `max_header_list_size` as `u32`, not `Option<u32>`, so id 6 cannot be omitted. Both are asserted, with the persona's 65536 kept as the reference, in `src/fetch/transport/h2_preface.rs`. **Cost corrected 2026-07-24 (`bl-fa12`, §6.5)** — the earlier wording "closing either means dropping the pool or forking hyper" conflated two different prices, verified against `hyper-1.9.0`/`h2-0.4.15`: **id 1** closes by dropping `hyper_util::Client` for a frot-owned pool over `hyper::client::conn` (whose `http2::Builder` *does* have `header_table_size`); **id 6** closes for nobody short of forking `h2` — hyper applies `max_header_list_size` unconditionally and `h2::client::Builder` can only set `Some`. §6.5 declines the pool: it would leave three of the four akamai components still mismatched, so the hash still differs. |
+| **h1 pool check-in is eventual, so a same-origin request can re-dial** | Declared 2026-07-24 (`bl-fa12`, §6.5; measured `bl-df88`). `hyper_util`'s `Client` checks an **HTTP/1.1** connection back in from a task it spawns, not inline, so a next same-origin request arriving before that task is scheduled dials a second socket: 16 of 200 sequential pairs on a saturated 16-core box, 0 of 200 with a 5 ms gap. **h2 is unaffected** (checked in inline via `drop(pooled)`), which is what the fingerprinting origins speak. Accepted rather than fixed because a second h1 socket is *inside* the persona's own behaviour — Firefox opens up to six per host, which is what `POOL_PER_HOST = 6` copies — and because the re-dial rides TLS session resumption (rustls's default `Resumption::in_memory_sessions(256)`, one `ClientConfig` per invocation), so it is an abbreviated handshake exactly as a browser's second connection is. No `hyper-util` knob makes check-in synchronous; owning the pool would, at the cost of rebuilding ALPN-h2 connect dedup, checkout liveness, the checkout/dial race, and canceled-request retry (§6.5). Invariant tests therefore assert reuse as **eventual**, never as a scheduler outcome. |
 | **UTC timezone** | Deliberate — determinism over realism (§9). |
 | **frot is identifiable *as frot*** | See §14 — this is accepted, not solved. |
 
@@ -1219,6 +1401,18 @@ residual.** Ordered capabilities are identity:
 akamai values are **computed from the capture and compared to the profile's
 derived values** — never stored as hand-written strings (I6). This is what makes
 a pin change a one-table edit (§4.2).
+
+**Connection-level facts pinned here too (`bl-fa12`, 2026-07-24).** They are not
+handshake bytes, so they live in `src/fetch/session/tests.rs` rather than the
+capture, but they are oracle facts by the same rule: one pool per session and
+none across sessions (`separate_invocations_cannot_share_a_connection`), and
+same-origin reuse asserted as **eventual** — a request that adds no connection —
+because h1 check-in is a scheduler outcome (§6.5, §11). Asserting "the second
+request rides the first's socket" is asserting the scheduler, and it flaked
+(`bl-df88`). **Owed:** the resumption claim §6.5 leans on (a re-dial inside one
+invocation offers the ticket and takes the abbreviated handshake) is a read of
+rustls's defaults, not a capture — it needs a pin against the throwaway-CA
+origin, which a dependency bump could otherwise flip silently.
 
 **Declared residuals are asserted too.** Stage B's `m,s,a,p` is written into the
 oracle *as the expected value with a pointer to §7 stage C*, so it cannot drift
