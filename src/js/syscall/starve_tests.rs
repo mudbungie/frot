@@ -11,12 +11,11 @@
 use super::*;
 use crate::dom::Document;
 use crate::fetch::FetchSession;
-use crate::js::engine::{Engine, EXEC_BUDGET_MS};
+use crate::js::engine::{Deadline, Engine};
 use crate::js::geometry::{self, StyleSource};
 use crate::js::subfetch;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::time::Duration;
 
 fn env() -> Env {
     Env {
@@ -31,7 +30,7 @@ fn env() -> Env {
 /// starved phase raised, caught here so the sweep can continue.
 fn install_capped(mem_limit: usize) -> Result<(), String> {
     std::panic::catch_unwind(|| {
-        let engine = Engine::with_limits(mem_limit, Duration::from_millis(EXEC_BUDGET_MS));
+        let engine = Engine::with_bounds(mem_limit, Deadline::compute(), Deadline::network());
         let doc = Rc::new(RefCell::new(Document::parse("<html><body></body></html>")));
         let geo = Rc::new(RefCell::new(geometry::Geometry::new(StyleSource::Bare)));
         let counters = Counters {

@@ -11,7 +11,7 @@ use std::time::Duration;
 use mockito::Matcher;
 
 use crate::fetch::{FetchSession, Intent};
-use crate::js::engine::{Deadline, Engine, JS_MEM_LIMIT};
+use crate::js::engine::{Clock, Deadline};
 
 use super::{Outcome, Subfetch};
 
@@ -19,6 +19,15 @@ use super::{Outcome, Subfetch};
 /// `-H` headers live on the session the subfetch dispatches through.
 fn open(base: &str, headers: Vec<(String, String)>) -> Subfetch {
     Subfetch::new(FetchSession::new(headers), base, Deadline::never())
+}
+
+/// A cache over a run's *network* window that is already spent — a zero wall
+/// budget, armed. The §6 seam's bound is elapsed time, so no compute budget can
+/// rescue a dispatch past it (js.md §5/§6).
+fn past_deadline() -> Subfetch {
+    let net = Deadline::on(Clock::wall(), Duration::ZERO);
+    net.arm();
+    Subfetch::new(FetchSession::new(Vec::new()), "https://example.com/", net)
 }
 
 /// Fetch through the cache with the fetch/XHR intent — the shape these §6 tests
@@ -137,15 +146,9 @@ fn a_cache_hit_is_served_even_after_the_pool_is_spent() {
 
 #[test]
 fn past_the_deadline_dispatch_is_refused() {
-    // The seam consults the engine's own armed window (js.md §6): a zero budget
-    // armed is already expired, so no network is ever dispatched.
-    let engine = Engine::with_limits(JS_MEM_LIMIT, Duration::ZERO);
-    engine.arm();
-    let mut sf = Subfetch::new(
-        FetchSession::new(Vec::new()),
-        "https://example.com/",
-        engine.deadline(),
-    );
+    // The seam consults the run's armed network window (js.md §6), so past it
+    // no network is ever dispatched.
+    let mut sf = past_deadline();
     assert!(failed(get(&mut sf, "/late.js")).contains("run budget exhausted"));
 }
 
@@ -217,14 +220,8 @@ fn warm_stops_at_the_byte_pool() {
 #[test]
 fn warm_past_the_deadline_fetches_nothing() {
     // An already-expired armed window: warm's remaining budget is zero, so the
-    // concurrent dispatch does no work — the one deadline governs warm too.
-    let engine = Engine::with_limits(JS_MEM_LIMIT, Duration::ZERO);
-    engine.arm();
-    let mut sf = Subfetch::new(
-        FetchSession::new(Vec::new()),
-        "https://example.com/",
-        engine.deadline(),
-    );
+    // concurrent dispatch does no work — the network deadline governs warm too.
+    let mut sf = past_deadline();
     sf.warm(&[("/late.js".into(), Intent::ClassicScript)]);
     assert!(failed(get(&mut sf, "/late.js")).contains("run budget exhausted"));
 }

@@ -9,7 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use super::super::engine::{Clock, EXEC_BUDGET_MS};
+use super::super::engine::{Clock, Deadline, EXEC_CPU_MS, NET_BUDGET_MS};
 use super::super::{run_with, Env, Report, StyleSource};
 use crate::dom::Document;
 use crate::fetch::FetchSession;
@@ -39,19 +39,19 @@ fn env(url: &str) -> Env {
     }
 }
 
-/// Drive a page whose module imports resolve against `url`, on a manual clock
-/// (bl-1e54): these assert what the load produced, never how long it took, so
-/// the shipping clock only let a loaded host expire the §5 budget mid-run and
-/// fail them. The budget-trip tests below keep [`Clock::real`] — there the
-/// timing is the subject.
+/// Drive a page whose module imports resolve against `url`, on frozen manual
+/// clocks (bl-1e54): these assert what the load produced, never how long it took,
+/// so a host clock only let a loaded host expire a §5 window mid-run and fail
+/// them. The bound-trip tests below keep host clocks — there the bound is the
+/// subject.
 fn drive_at(html: &str, url: &str) -> (Document, Report) {
     run_with(
         Document::parse(html),
         StyleSource::Bare,
         env(url),
         &FetchSession::new(Vec::new()),
-        Duration::from_millis(EXEC_BUDGET_MS),
-        Clock::manual(),
+        Deadline::on(Clock::manual(), Duration::from_millis(EXEC_CPU_MS)),
+        Deadline::on(Clock::manual(), Duration::from_millis(NET_BUDGET_MS)),
     )
 }
 
@@ -195,16 +195,16 @@ fn a_clean_module_with_no_imports_settles() {
 
 #[test]
 fn an_endless_module_trips_the_budget_and_is_unsettled() {
-    // A module that never returns hits the single wall-clock deadline (§5): the
-    // run is unsettled and the trip is counted, like a classic script.
+    // A module that never returns burns the `EXEC_CPU_MS` compute budget (§5):
+    // the run is unsettled and the trip is counted, like a classic script.
     let dir = tmpdir("budget");
     let (_doc, r) = run_with(
         Document::parse(&module_page("while (true) {}")),
         StyleSource::Bare,
         env(&page_url(&dir)),
         &FetchSession::new(Vec::new()),
-        Duration::from_millis(20),
-        Clock::real(),
+        Deadline::on(Clock::cpu(), Duration::from_millis(20)),
+        Deadline::network(),
     );
     assert_eq!((r.scripts, r.errors, r.settled), (1, 1, false));
     fs::remove_dir_all(&dir).unwrap();
@@ -212,12 +212,12 @@ fn an_endless_module_trips_the_budget_and_is_unsettled() {
 
 #[test]
 fn a_dead_deadline_refuses_module_loads_and_the_run_is_unsettled() {
-    // With the budget already spent when the import dispatches, the §6 seam
-    // refuses it ("run budget exhausted") even if the engine interrupt — which
-    // fires only between JS instructions — never trips inside the blocking load
-    // chain; and the run-driver's conclusion check clears `settled`
-    // deterministically (§5): quiescence reached by refusing work is not
-    // quiescence within budget. Either path yields the same honest report.
+    // With the *network* deadline already spent when the import dispatches, the
+    // §6 seam refuses it ("run budget exhausted") — the engine interrupt cannot
+    // help here: it fires only between JS instructions and anyway spends CPU,
+    // which a blocking load chain does not burn. The run-driver's conclusion
+    // check then clears `settled` deterministically (§5): quiescence reached by
+    // refusing work is not quiescence within bounds.
     let dir = tmpdir("dead");
     fs::write(dir.join("dep.js"), "export const x = 1;").unwrap();
     let (_doc, r) = run_with(
@@ -225,8 +225,8 @@ fn a_dead_deadline_refuses_module_loads_and_the_run_is_unsettled() {
         StyleSource::Bare,
         env(&page_url(&dir)),
         &FetchSession::new(Vec::new()),
-        Duration::ZERO,
-        Clock::real(),
+        Deadline::compute(),
+        Deadline::on(Clock::wall(), Duration::ZERO),
     );
     assert_eq!((r.scripts, r.errors, r.settled), (1, 1, false));
     fs::remove_dir_all(&dir).unwrap();

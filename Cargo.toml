@@ -49,6 +49,12 @@ encoding_rs = "0.8"
 # pregenerated bindings — no bindgen, no cmake, no system dep. Kept behind
 # `src/js/engine.rs`; no rquickjs type leaks past that module.
 rquickjs = { version = "0.12", default-features = false, features = ["loader"] }
+# `CLOCK_THREAD_CPUTIME_ID` for the §5 compute budget (js.md §5, bl-8dc0): the
+# unit of frot's own work is CPU time, and `std` exposes no process/thread CPU
+# clock. Already in the tree transitively under tokio/rustls, so a direct
+# dependency adds no binary and no new transitive; the one use is
+# `src/js/engine/clock.rs`.
+libc = "0.2"
 
 [dev-dependencies]
 mockito = "1"

@@ -38,7 +38,7 @@ use url::Url;
 /// the per-request `fetch::TIMEOUT_SECS` ceiling it replaces as the phase's
 /// effective limit, so `--css` can no longer cost 15 s × N. A constant, not a
 /// flag, on the same severability posture as the 1280 px viewport and
-/// `EXEC_BUDGET_MS`: nothing about a caller's page makes a different number
+/// `EXEC_CPU_MS`: nothing about a caller's page makes a different number
 /// right, and a flag here would be a tunable for a behaviour that should just
 /// be correct.
 const GATHER_BUDGET_MS: u64 = 5_000;
@@ -59,7 +59,7 @@ pub(crate) fn external_css(doc: &Document, base: &str, session: &FetchSession) -
 
 /// [`external_css`]'s gather with the phase budget supplied by the caller —
 /// the seam the budget-trip tests dial down, so the bound is exercised
-/// without waiting on wall-clock (js.md's `Session::with_budget` pattern).
+/// without waiting on wall-clock (js.md's `Session::with_bounds` pattern).
 ///
 /// The bounded concurrent fetch is the shared [`fetch_many`] primitive (bl-08f6);
 /// the cascade is source-ordered, so completion order is discarded and the

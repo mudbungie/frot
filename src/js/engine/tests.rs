@@ -1,11 +1,17 @@
 //! Spike proofs for the four §1 bounding primitives + a real-bundle smoke run.
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use super::*;
 
+/// An engine whose *compute* budget is `ms` of real CPU time — the production
+/// unit, dialed down so a spinning script trips it fast and deterministically.
 fn short_budget(ms: u64) -> Engine {
-    Engine::with_limits(JS_MEM_LIMIT, Duration::from_millis(ms))
+    Engine::with_bounds(
+        JS_MEM_LIMIT,
+        Deadline::on(Clock::cpu(), Duration::from_millis(ms)),
+        Deadline::network(),
+    )
 }
 
 #[test]
@@ -26,14 +32,54 @@ fn a_manual_clock_is_exactly_what_it_is_advanced_by() {
 }
 
 #[test]
-fn a_real_clock_tracks_the_host_and_ignores_manual_advance() {
-    // The shipping clock is host-monotonic; the `advance` seam is inert on it
+fn a_host_clock_tracks_the_host_and_ignores_manual_advance() {
+    // The shipping clocks are host-monotonic; the `advance` seam is inert on them
     // (tests only), so a bogus century-advance cannot move production time.
-    let c = Clock::real();
-    c.advance(Duration::from_secs(100));
+    for c in [Clock::wall(), Clock::cpu()] {
+        c.advance(Duration::from_secs(100));
+        assert!(
+            c.elapsed_nanos() < 1_000_000_000,
+            "advance leaked into a host clock"
+        );
+    }
+}
+
+#[test]
+fn the_cpu_clock_charges_work_and_not_waiting() {
+    // The whole point of the split (js.md §5, bl-8dc0): frot's *own* work is
+    // spent in CPU time, which host contention does not inflate, while elapsed
+    // wall time prices in the host's scheduling luck. Sleeping is elapsed time
+    // nobody computed in, so it must reach the wall clock and not the CPU one.
+    let (cpu, wall) = (Clock::cpu(), Clock::wall());
+    std::thread::sleep(Duration::from_millis(50));
+    let (c, w) = (cpu.elapsed_nanos(), wall.elapsed_nanos());
+    assert!(w >= 50_000_000, "the wall clock did not see the wait: {w}");
+    assert!(c < w / 2, "waiting was charged to CPU: cpu={c} wall={w}");
+}
+
+#[test]
+fn the_compute_budget_is_cpu_and_the_network_deadline_is_wall() {
+    // Two windows, two clocks, driven apart: spending all the *wall* time expires
+    // the §6 dispatch window while execution continues untouched, and spending
+    // all the *CPU* time stops execution — neither bound can be tripped by the
+    // other's unit, which is exactly what made a busy host change the envelope.
+    let (cpu, wall) = (Clock::manual(), Clock::manual());
+    let engine = Engine::with_bounds(
+        JS_MEM_LIMIT,
+        Deadline::on(cpu.clone(), Duration::from_millis(EXEC_CPU_MS)),
+        Deadline::on(wall.clone(), Duration::from_millis(NET_BUDGET_MS)),
+    );
+    engine.arm();
+    wall.advance(Duration::from_millis(NET_BUDGET_MS));
     assert!(
-        c.elapsed_nanos() < 1_000_000_000,
-        "advance leaked into a real clock"
+        engine.deadline().expired(),
+        "the wall window is the §6 handle"
+    );
+    assert_eq!(engine.eval_armed("1 + 1").unwrap(), "2");
+    cpu.advance(Duration::from_millis(EXEC_CPU_MS));
+    assert_eq!(
+        engine.eval_armed("while (true) {}").unwrap_err(),
+        EvalError::Budget
     );
 }
 
@@ -92,8 +138,8 @@ fn eval_setup_is_exempt_from_the_page_budget() {
 
 #[test]
 fn interrupt_hook_bounds_an_infinite_loop() {
-    // Primitive 2: wall-clock interrupt. A tight infinite loop must be
-    // stopped by the budget rather than hang the host.
+    // Primitive 2: the budget interrupt. A tight infinite loop burns CPU, so the
+    // `EXEC_CPU_MS` budget must stop it rather than let it hang the host.
     let start = Instant::now();
     let err = short_budget(20).eval("while (true) {}").unwrap_err();
     assert_eq!(err, EvalError::Budget);
@@ -108,7 +154,11 @@ fn memory_cap_stops_a_giant_allocation() {
     // Primitive 3: memory limit (default C allocator). A 256 MiB buffer under
     // an 8 MiB heap cap must throw, not OOM the host — and it is not a budget
     // trip (the deadline is generous).
-    let engine = Engine::with_limits(8 * 1024 * 1024, Duration::from_secs(5));
+    let engine = Engine::with_bounds(
+        8 * 1024 * 1024,
+        Deadline::on(Clock::cpu(), Duration::from_secs(5)),
+        Deadline::network(),
+    );
     assert!(matches!(
         engine
             .eval("new Uint8Array(256 * 1024 * 1024)")

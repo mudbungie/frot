@@ -6,7 +6,7 @@
 
 use std::time::Duration;
 
-use super::engine::{Clock, EXEC_BUDGET_MS};
+use super::engine::{Clock, Deadline, EXEC_CPU_MS, NET_BUDGET_MS};
 use super::{run_with, Env, Report, Session, StyleSource};
 use crate::dom::Document;
 use crate::fetch::FetchSession;
@@ -26,24 +26,36 @@ fn test_env() -> Env {
     }
 }
 
+/// The shipping bounds measured on *frozen* manual clocks (bl-1e54/bl-8dc0):
+/// nothing the test never advances can expire, so neither §5 window can be spent
+/// by a loaded host. Two separate clocks, because the two windows are two
+/// resources and a test may drive them apart.
+fn frozen_bounds() -> (Deadline, Deadline) {
+    (
+        Deadline::on(Clock::manual(), Duration::from_millis(EXEC_CPU_MS)),
+        Deadline::on(Clock::manual(), Duration::from_millis(NET_BUDGET_MS)),
+    )
+}
+
 fn sess(html: &str) -> Session {
-    Session::with_budget(
+    let (cpu, net) = frozen_bounds();
+    Session::with_bounds(
         Document::parse(html),
         StyleSource::Bare,
         test_env(),
         &FetchSession::new(Vec::new()),
-        Duration::from_millis(EXEC_BUDGET_MS),
-        Clock::manual(),
+        cpu,
+        net,
     )
 }
 
-/// Drive a page with the shipping budget measured on a *manual* clock (bl-1e54).
+/// Drive a page with the shipping bounds measured on *manual* clocks (bl-1e54).
 /// These tests assert what the run produced — DOM effects, counts, `settled` —
-/// never how long it took, so the shipping `Clock::real` only exposed them to the
-/// host: under CPU contention the same work costs more wall time, the §5 budget
-/// expires mid-run, and a correct engine reports unsettled. A frozen clock the
-/// test never advances removes that input; the budget-trip tests below keep the
-/// real clock, because there timing *is* the subject.
+/// never how long it took, so a host clock only exposed them to the host: under
+/// contention the same work costs more elapsed time, a §5 window expires mid-run,
+/// and a correct engine reports unsettled. Frozen clocks the test never advances
+/// remove that input; the budget-trip tests below keep a real CPU clock, because
+/// there the compute budget *is* the subject.
 fn drive(html: &str) -> (Document, Report) {
     drive_env(html, test_env())
 }
@@ -65,25 +77,27 @@ fn drive_at(html: &str, url: &str) -> (Document, Report) {
 /// [`drive`] with a caller-supplied [`Env`] — the golden persona gate drives the
 /// real wire UA through here rather than the test stub.
 fn drive_env(html: &str, env: Env) -> (Document, Report) {
+    let (cpu, net) = frozen_bounds();
     run_with(
         Document::parse(html),
         StyleSource::Bare,
         env,
         &FetchSession::new(Vec::new()),
-        Duration::from_millis(EXEC_BUDGET_MS),
-        Clock::manual(),
+        cpu,
+        net,
     )
 }
 
-/// Drive a page with a tight wall-clock budget so budget-trip paths resolve fast
-/// and deterministically (the 4.1 spike's short-budget pattern).
+/// Drive a page with a tight *CPU* budget so budget-trip paths resolve fast and
+/// deterministically (the 4.1 spike's short-budget pattern): a spinning script
+/// burns CPU, so the real production clock trips it without any host dependence.
 fn drive_bounded(html: &str, budget_ms: u64) -> (Document, Report) {
     run_with(
         Document::parse(html),
         StyleSource::Bare,
         test_env(),
         &FetchSession::new(Vec::new()),
-        Duration::from_millis(budget_ms),
-        Clock::real(),
+        Deadline::on(Clock::cpu(), Duration::from_millis(budget_ms)),
+        Deadline::network(),
     )
 }

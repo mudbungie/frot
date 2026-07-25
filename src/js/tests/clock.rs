@@ -1,28 +1,30 @@
-//! Injected-clock proofs (bl-e707): the one monotonic clock feeds
+//! Injected-clock proofs (bl-e707): the observable *wall* clock feeds
 //! `performance`/`Date` coherently from a single origin, reduces to the profile
-//! precision, advances with real CPU/host/network elapsed, jumps to a virtual
-//! timer's due time, and is the *same* clock the §5/§6 deadline bounds the run
-//! with. A `manual()` clock the test advances stands in for elapsed time, so
-//! every assertion is exact — no real sleeping, no flake.
+//! precision, advances with real host/network elapsed, jumps to a virtual
+//! timer's due time, and is the *same* clock the §5/§6 network deadline is spent
+//! on. A `manual()` clock the test advances stands in for elapsed time, so every
+//! assertion is exact — no real sleeping, no flake.
 
 use std::time::Duration;
 
 use crate::dom::Document;
 use crate::fetch::FetchSession;
-use crate::js::engine::Clock;
+use crate::js::engine::{Clock, Deadline};
 
 use super::{test_env, Session, StyleSource};
 
-/// A session whose engine reads the injected `clock` — the test keeps its own
-/// clone (a manual clock shares state), so advancing it moves the run's one clock.
+/// A session whose observable/network window reads the injected `clock` — the
+/// test keeps its own clone (a manual clock shares state), so advancing it moves
+/// the run's wall clock. The compute budget rides a separate frozen clock, so a
+/// wall advance never touches it (§5: two resources, two units).
 fn sess_clock(clock: Clock) -> Session {
-    Session::with_budget(
+    Session::with_bounds(
         Document::parse("<html><body></body></html>"),
         StyleSource::Bare,
         test_env(),
         &FetchSession::new(Vec::new()),
-        Duration::from_secs(1),
-        clock,
+        Deadline::on(Clock::manual(), Duration::from_secs(1)),
+        Deadline::on(clock, Duration::from_secs(1)),
     )
 }
 
@@ -81,19 +83,23 @@ fn a_virtual_timer_jump_fires_promptly_but_observes_its_due_time() {
 }
 
 #[test]
-fn the_one_clock_bounds_the_deadline_and_feeds_observable_time_together() {
-    // One authority: the same injected clock spends the §5/§6 budget AND is the
-    // observable elapsed. Advancing it (as a blocking subfetch's wall time would)
-    // moves both — proving fetch duration is captured where the deadline is read.
+fn the_wall_clock_bounds_the_network_deadline_and_feeds_observable_time_together() {
+    // One authority for elapsed time: the same injected wall clock spends the
+    // §5/§6 *network* deadline AND is the observable elapsed. Advancing it (as a
+    // blocking subfetch's wall time would) moves both — proving fetch duration is
+    // captured where the network deadline is read, while the compute budget on
+    // its own frozen clock is untouched by any of it.
     let clock = Clock::manual();
-    let s = sess_clock(clock.clone()); // 1 s budget, armed below
+    let s = sess_clock(clock.clone()); // 1 s network window, armed below
     s.begin();
     clock.advance(Duration::from_millis(250));
     assert_eq!(s.run_task("performance.now()").unwrap(), "250");
     assert!(!s.deadline_expired());
-    // Past the 1 s budget: the deadline is spent by the very same elapsed the
-    // observable clock reports (read via `eval`, which re-arms, only afterwards).
+    // Past the 1 s window: it is spent by the very same elapsed the observable
+    // clock reports (read via `eval`, which re-arms, only afterwards). Execution
+    // itself is unaffected — the task below runs, because compute is CPU-bound.
     clock.advance(Duration::from_millis(800));
     assert!(s.deadline_expired());
+    assert_eq!(s.run_task("String(1 + 1)").unwrap(), "2");
     assert_eq!(s.eval("performance.now()").unwrap(), "1050");
 }

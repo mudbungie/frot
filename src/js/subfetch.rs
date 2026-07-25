@@ -8,9 +8,10 @@
 //! the cache only ever calls [`FetchSession::subresource`], which GETs), each absolute
 //! URL fetched at most once and its response frozen for the call, `-H` headers
 //! ride only same-origin, remote→local reads refused. Bounds are one per real
-//! resource (§6, bl-c7e9): *time* — the §5 wall-clock [`Deadline`] is consulted
-//! before every network dispatch (the engine interrupt cannot fire inside a
-//! blocking host fetch chain, so the seam enforces the same clock) — and
+//! resource, each in its own unit (§6, bl-c7e9/bl-8dc0): *time* — the §5
+//! `NET_BUDGET_MS` wall [`Deadline`] is consulted before every network dispatch
+//! (the engine interrupt cannot fire inside a blocking host fetch chain, and
+//! anyway spends CPU, which a blocked socket does not burn) — and
 //! *memory* — a pooled [`SUBFETCH_BYTES`] response-body budget across the call.
 //! There is deliberately no request-count cap: a count measures no resource and
 //! starved code-split apps while time and memory stood idle. No live network
@@ -32,7 +33,7 @@ use super::engine::Deadline;
 /// analogue of the engine heap and takes the same allowance as
 /// `engine::JS_MEM_LIMIT`. A constant, not a flag — the tests dial it down
 /// through [`Subfetch::with_budget`], the same posture the engine uses for the
-/// time budget (`with_limits`).
+/// time bounds (`with_bounds`).
 pub const SUBFETCH_BYTES: usize = 64 * 1024 * 1024;
 
 /// A frozen response, served for the call's lifetime once a URL resolves (§6).
@@ -134,7 +135,7 @@ impl Subfetch {
 
     /// Fetch `spec` (resolved against the page URL) once, frozen (§6). A cache
     /// hit re-serves the frozen response without touching the network; a miss
-    /// dispatches through the shared session only while the §5 deadline stands
+    /// dispatches through the shared session only while the §5 network deadline stands
     /// and the byte pool has room — past either, every new URL is refused
     /// (counted by the caller). Overshoot is bounded to one in-flight response.
     /// `intent` (fetch/XHR, external script, or module) rides to the session as

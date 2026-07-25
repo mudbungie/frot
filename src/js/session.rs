@@ -7,12 +7,11 @@
 
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
-use std::time::Duration;
 
 use crate::dom::Document;
 use crate::fetch::FetchSession;
 
-use super::engine::{self, Clock, Engine, EXEC_BUDGET_MS};
+use super::engine::{self, Deadline, Engine};
 use super::probe::ProbeLog;
 use super::{geometry, script, subfetch, syscall};
 use super::{Env, EvalError, Log, StyleSource};
@@ -42,31 +41,32 @@ impl Session {
     /// else [`StyleSource::Bare`]. `env` carries the static facts the §7
     /// environment shims (navigator/location/matchMedia) derive from.
     pub fn new(doc: Document, styles: StyleSource, env: Env, fetch: &FetchSession) -> Self {
-        Self::with_budget(
+        Self::with_bounds(
             doc,
             styles,
             env,
             fetch,
-            Duration::from_millis(EXEC_BUDGET_MS),
-            Clock::real(),
+            Deadline::compute(),
+            Deadline::network(),
         )
     }
 
-    /// [`Session::new`] with the engine's wall-clock budget — the event loop's
-    /// single deadline (§5), dialed down by the budget-trip tests — measured on
-    /// an injected `clock` (`bl-e707`). Shipping passes [`Clock::real`]; a test
-    /// passes [`Clock::manual`], so the same clock feeds both the deadline and
-    /// the observable `performance.now`/`Date.now` and no verdict can depend on
-    /// host load or real sleeping.
-    pub fn with_budget(
+    /// [`Session::new`] with the run's two §5 bounds given explicitly (`bl-8dc0`):
+    /// `cpu` is the compute budget the engine interrupt spends, `net` the wall
+    /// deadline the §6 seam dispatches inside — and the latter's clock is also
+    /// the observable `performance.now`/`Date.now`. Shipping passes
+    /// [`Deadline::compute`]/[`Deadline::network`]; a test injects
+    /// [`Clock::manual`](super::engine::Clock::manual) windows and drives them
+    /// apart, so no verdict depends on host load or real sleeping.
+    pub fn with_bounds(
         doc: Document,
         styles: StyleSource,
         env: Env,
         fetch: &FetchSession,
-        budget: Duration,
-        clock: Clock,
+        cpu: Deadline,
+        net: Deadline,
     ) -> Self {
-        Self::build(doc, styles, env, fetch, budget, clock, None)
+        Self::build(doc, styles, env, fetch, cpu, net, None)
     }
 
     /// [`Session::new`] with the capability-surface probe instrument attached
@@ -86,13 +86,13 @@ impl Session {
             styles,
             env,
             fetch,
-            Duration::from_millis(EXEC_BUDGET_MS),
-            Clock::real(),
+            Deadline::compute(),
+            Deadline::network(),
             Some(log),
         )
     }
 
-    /// Shared construction for [`with_budget`](Self::with_budget) (shipping,
+    /// Shared construction for [`with_bounds`](Self::with_bounds) (shipping,
     /// `probe = None`) and [`measuring`](Self::measuring) (`probe = Some`): bind
     /// `doc` to a fresh engine, install the syscall table + prelude, and — when
     /// `probe` is `Some` — the probe syscall and instrumentation prelude too.
@@ -101,11 +101,11 @@ impl Session {
         styles: StyleSource,
         env: Env,
         fetch: &FetchSession,
-        budget: Duration,
-        clock: Clock,
+        cpu: Deadline,
+        net: Deadline,
         probe: Option<ProbeLog>,
     ) -> Self {
-        let engine = Engine::with_limits_clock(engine::JS_MEM_LIMIT, budget, clock);
+        let engine = Engine::with_bounds(engine::JS_MEM_LIMIT, cpu, net);
         let doc = Rc::new(RefCell::new(doc));
         let console = Rc::new(RefCell::new(Vec::new()));
         let geo = Rc::new(RefCell::new(geometry::Geometry::new(styles)));
@@ -117,7 +117,8 @@ impl Session {
         // The §6 cache is anchored at the page URL and dispatches through the
         // invocation's shared `fetch` session (its pool + `-H` scoping); build it
         // before install moves `env` into the environment shims. It shares the
-        // engine's armed deadline so network dispatch obeys the run's one clock (§6).
+        // engine's armed *network* window, so dispatch obeys the run's wall
+        // deadline while compute is spent in CPU time elsewhere (§5/§6).
         let subfetch = Rc::new(RefCell::new(subfetch::Subfetch::new(
             fetch.clone(),
             &env.url,
@@ -155,20 +156,21 @@ impl Session {
         }
     }
 
-    /// Arm the run's single wall-clock deadline (§5): the budget spans every
-    /// script, lifecycle dispatch, and timer callback that follows, not each one.
+    /// Arm the run's two §5 windows — the CPU compute budget and the wall network
+    /// deadline: both span every script, lifecycle dispatch, and timer callback
+    /// that follows, not each one.
     pub fn begin(&self) {
         self.engine.arm();
     }
 
-    /// Evaluate a script/driver call inside the armed deadline (§5), draining
+    /// Evaluate a script/driver call inside the armed bounds (§5), draining
     /// microtasks — the [`super::run`] path's one execution primitive.
     pub fn run_task(&self, src: &str) -> Result<String, EvalError> {
         self.engine.eval_armed(src)
     }
 
     /// Evaluate `src` as an ES module named `name` (its URL) inside the armed
-    /// deadline (§5), draining microtasks — the [`super::run`] path's module
+    /// bounds (§5), draining microtasks — the [`super::run`] path's module
     /// primitive. Imports resolve/load through the §6 loader; failures surface as
     /// [`EvalError`] exactly like [`run_task`](Self::run_task).
     pub fn run_module(&self, name: &str, src: &str) -> Result<String, EvalError> {
@@ -180,15 +182,15 @@ impl Session {
         &self.page_url
     }
 
-    /// Whether the run's armed wall-clock window has passed — read once after
-    /// the settle loop (js.md §5/§6): a loop that concluded only because the §6
-    /// seam refused network dispatch past the deadline reached quiescence, but
-    /// not *within budget*, and must not report settled.
+    /// Whether the run's armed *network* window has passed — read once after the
+    /// settle loop (js.md §5/§6): a loop that concluded only because the §6 seam
+    /// refused network dispatch past that deadline reached quiescence, but not
+    /// within its bounds, and must not report settled.
     pub(super) fn deadline_expired(&self) -> bool {
         self.engine.deadline().expired()
     }
 
-    /// Evaluate with a fresh per-call budget (the facade smoke surface used by
+    /// Evaluate with freshly armed bounds (the facade smoke surface used by
     /// the tests); [`run_task`](Self::run_task) is the event-loop path.
     pub fn eval(&self, src: &str) -> Result<String, EvalError> {
         self.engine.eval(src)

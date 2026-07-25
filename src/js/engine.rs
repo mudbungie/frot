@@ -1,17 +1,16 @@
 //! Embedded JS engine seam (rquickjs / quickjs-ng).
 //!
 //! Proves the four bounding primitives `docs/design/js.md` §1 requires of the
-//! engine: `eval`, a wall-clock interrupt hook (`EXEC_BUDGET_MS`), a memory cap
-//! (`JS_MEM_LIMIT`), and a host-driven microtask queue. Everything the rest of
+//! engine: `eval`, an interrupt hook spending the CPU budget (`EXEC_CPU_MS`), a
+//! memory cap (`JS_MEM_LIMIT`), and a host-driven microtask queue. Everything the rest of
 //! Phase 4 builds sits behind this narrow surface; the binding layer
 //! (`js::syscall`) reaches the realm through [`Engine::context`]. No `rquickjs`
 //! type escapes `src/js/` (js.md §1), as no `markup5ever` type leaks past `dom.rs`.
 
 use std::cell::Cell;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
 
 use rquickjs::function::This;
 use rquickjs::loader::{Loader, Resolver};
@@ -19,10 +18,8 @@ use rquickjs::promise::{Promise, PromiseState};
 use rquickjs::{CatchResultExt, Coerced, Context, Ctx, FromJs, Function, Module, Runtime, Value};
 
 mod clock;
-pub use clock::{Clock, Deadline};
+pub use clock::{Clock, Deadline, EXEC_CPU_MS, NET_BUDGET_MS};
 
-/// §5 / §13 OQ-1 defaults. Constants, not flags.
-pub const EXEC_BUDGET_MS: u64 = 1_000;
 /// Engine heap cap. `set_memory_limit` is only honoured on the default C
 /// allocator, so `js::engine` never enables rquickjs's `allocator` feature.
 pub const JS_MEM_LIMIT: usize = 64 * 1024 * 1024;
@@ -30,51 +27,47 @@ pub const JS_MEM_LIMIT: usize = 64 * 1024 * 1024;
 /// Why an `eval` stopped short of a value.
 #[derive(Debug, PartialEq, Eq)]
 pub enum EvalError {
-    /// The wall-clock budget tripped the interrupt handler mid-run.
+    /// The `EXEC_CPU_MS` compute budget tripped the interrupt handler mid-run.
     Budget,
     /// A JS exception (throw, OOM, syntax error) reached the top.
     Exception(String),
 }
 
 /// An embedded engine with one realm. `new` installs the interrupt hook and
-/// memory cap once. [`Engine::arm`] opens a single wall-clock deadline window;
-/// [`Engine::eval_armed`] runs inside it (the event loop drives every script,
-/// lifecycle dispatch, and timer callback of one JS run under one deadline,
-/// js.md §5), while [`Engine::eval`] is `arm` + `eval_armed` for a standalone
-/// one-shot. Each eval drains the microtask queue before returning.
+/// memory cap once. [`Engine::arm`] opens the run's two §5 windows — the
+/// `cpu` compute budget the interrupt handler spends, and the `net` wall
+/// deadline the §6 subfetch seam dispatches inside; [`Engine::eval_armed`] runs
+/// inside them (the event loop drives every script, lifecycle dispatch, and
+/// timer callback of one JS run under one arming, js.md §5), while
+/// [`Engine::eval`] is `arm` + `eval_armed` for a standalone one-shot. Each eval
+/// drains the microtask queue before returning.
 pub struct Engine {
     rt: Runtime,
     ctx: Context,
-    budget: Duration,
-    clock: Clock,
-    deadline: Arc<AtomicU64>,
+    cpu: Deadline,
+    net: Deadline,
     tripped: Arc<AtomicBool>,
     rejections: Rc<Cell<i64>>,
 }
 
 impl Engine {
-    /// Engine with the shipping budget and memory cap.
+    /// Engine with the shipping bounds and memory cap.
     pub fn new() -> Self {
-        Self::with_limits(JS_MEM_LIMIT, Duration::from_millis(EXEC_BUDGET_MS))
+        Self::with_bounds(JS_MEM_LIMIT, Deadline::compute(), Deadline::network())
     }
 
-    /// Engine with explicit limits (the spike's tests dial these down).
-    pub fn with_limits(mem_limit: usize, budget: Duration) -> Self {
-        Self::with_limits_clock(mem_limit, budget, Clock::real())
-    }
-
-    /// [`with_limits`](Self::with_limits) over an injected [`Clock`] — the seam
-    /// the `bl-e707` injected-clock tests drive a manual clock through, so the
-    /// budget interrupt, the §6 [`Deadline`], and the observable `__frot_now`
-    /// reading all move deterministically without real sleeping.
-    pub fn with_limits_clock(mem_limit: usize, budget: Duration, clock: Clock) -> Self {
+    /// Engine with explicit limits: a heap cap plus the two §5 windows. Shipping
+    /// passes [`Deadline::compute`] (CPU) and [`Deadline::network`] (wall); a
+    /// test substitutes a [`Clock::manual`] window through [`Deadline::on`] and
+    /// moves the two apart, so neither the budget interrupt, the §6 dispatch
+    /// seam, nor the observable `__frot_now` reading depends on the host.
+    pub fn with_bounds(mem_limit: usize, cpu: Deadline, net: Deadline) -> Self {
         let rt = Runtime::new().expect("quickjs runtime");
         rt.set_memory_limit(mem_limit);
-        let deadline = Arc::new(AtomicU64::new(u64::MAX));
         let tripped = Arc::new(AtomicBool::new(false));
-        let (dl, tr, clk) = (deadline.clone(), tripped.clone(), clock.clone());
+        let (tr, budget) = (tripped.clone(), cpu.clone());
         rt.set_interrupt_handler(Some(Box::new(move || {
-            if clk.elapsed_nanos() >= dl.load(Ordering::Relaxed) {
+            if budget.expired() {
                 tr.store(true, Ordering::Relaxed);
                 true
             } else {
@@ -95,26 +88,25 @@ impl Engine {
         Self {
             rt,
             ctx,
-            budget,
-            clock,
-            deadline,
+            cpu,
+            net,
             tripped,
             rejections,
         }
     }
 
-    /// A [`Deadline`] handle on this engine's armed window, shared with the §6
-    /// subfetch cache so network dispatch obeys the same clock the interrupt
-    /// handler enforces.
+    /// The engine's armed *network* window, shared with the §6 subfetch cache so
+    /// dispatch obeys the run's one wall deadline. Compute is not this bound: a
+    /// blocked socket burns no CPU, so the two resources are priced apart (§5).
     pub fn deadline(&self) -> Deadline {
-        Deadline::new(self.clock.clone(), self.deadline.clone())
+        self.net.clone()
     }
 
-    /// The engine's [`Clock`] — the single monotonic authority the observable
-    /// browser clock reads through the `__frot_now` syscall (`bl-e707`), the same
-    /// one the interrupt and [`deadline`](Self::deadline) bound the run with.
+    /// The engine's observable [`Clock`] — the wall clock the browser clock reads
+    /// through the `__frot_now` syscall (`bl-e707`), the same one
+    /// [`deadline`](Self::deadline) bounds network with.
     pub fn clock(&self) -> Clock {
-        self.clock.clone()
+        self.net.clock()
     }
 
     /// The engine's realm, for the binding layer to install host functions on
@@ -135,13 +127,14 @@ impl Engine {
         self.rt.set_loader(resolver, loader);
     }
 
-    /// Open one wall-clock deadline window (`EXEC_BUDGET_MS` from now) and clear
-    /// the trip flag. The event loop arms once per JS run so the budget spans the
-    /// whole run — scripts *and* the settle loop — not each script (js.md §5).
+    /// Open both §5 windows (`EXEC_CPU_MS` of CPU, `NET_BUDGET_MS` of wall, each
+    /// from now) and clear the trip flag. The event loop arms once per JS run so
+    /// the bounds span the whole run — scripts *and* the settle loop — not each
+    /// script (js.md §5).
     pub fn arm(&self) {
         self.tripped.store(false, Ordering::Relaxed);
-        let deadline = self.clock.elapsed_nanos() + self.budget.as_nanos() as u64;
-        self.deadline.store(deadline, Ordering::Relaxed);
+        self.cpu.arm();
+        self.net.arm();
     }
 
     /// `arm` then [`eval_armed`](Self::eval_armed) — a standalone one-shot eval
@@ -152,19 +145,19 @@ impl Engine {
     }
 
     /// Evaluate host setup source (the syscall prelude) exempt from the page
-    /// budget (js.md §5: the single deadline covers page scripts and the event
-    /// loop, never the one-time API install). Disarms the deadline first — sets
-    /// it past every possible run — so however slow the environment (llvm-cov, a
-    /// loaded CI box) the interrupt cannot trip mid-install and turn setup into a
-    /// spurious budget failure. Page scripts re-arm their own window via
-    /// [`arm`](Self::arm)/[`eval_armed`](Self::eval_armed) before they run.
+    /// budget (js.md §5: the bounds cover page scripts and the event loop, never
+    /// the one-time API install). Disarms both windows first, so however slow the
+    /// environment (llvm-cov, a loaded CI box) the interrupt cannot trip
+    /// mid-install and turn setup into a spurious budget failure. Page scripts
+    /// re-arm via [`arm`](Self::arm)/[`eval_armed`](Self::eval_armed) first.
     pub fn eval_setup(&self, src: &str) -> Result<String, EvalError> {
         self.tripped.store(false, Ordering::Relaxed);
-        self.deadline.store(u64::MAX, Ordering::Relaxed);
+        self.cpu.disarm();
+        self.net.disarm();
         self.eval_armed(src)
     }
 
-    /// Evaluate inside the current deadline window, drain the microtask queue,
+    /// Evaluate inside the current budget window, drain the microtask queue,
     /// and return the result coerced to a string. Once the budget has tripped
     /// the result is [`EvalError::Budget`] regardless of the eval's own outcome —
     /// so a JS `try/catch` that swallows the interrupt still stops the loop.
@@ -184,7 +177,7 @@ impl Engine {
     }
 
     /// Evaluate `src` as an ES module named `name` (its URL, the base every
-    /// `import` resolves against, js.md §4.1/§6) inside the current deadline
+    /// `import` resolves against, js.md §4.1/§6) inside the current budget
     /// window, then drain microtasks. The whole `import` graph loads synchronously
     /// through the installed loader ([`Engine::set_loader`]); an unresolvable
     /// specifier or failed module fetch throws here and surfaces as

@@ -31,12 +31,14 @@ fn navigator_persona_contract_holds() {
         user_agent: ua.clone(),
         accept_language: crate::fetch::accept_language(&[]),
     };
-    // `drive_env` runs on a manual clock (bl-1e54). This probe renders the
+    // `drive_env` runs on frozen manual clocks (bl-1e54). This probe renders the
     // canvas/WebGL/audio fingerprints and is the heaviest page in the suite, so on
-    // the shipping `Clock::real` a saturated `cargo test` overran the §5 budget and
-    // the run honestly reported `errors: 1, settled: false` — a load-dependent
-    // flake. bl-701b widened the budget to 60 s; a frozen clock supersedes that,
-    // since a wider wall-clock window is still a wall clock.
+    // a wall clock a saturated `cargo test` overran the §5 budget and the run
+    // honestly reported `errors: 1, settled: false` — a load-dependent flake.
+    // bl-701b widened the budget to 60 s; frozen clocks supersede that, since a
+    // wider wall-clock window is still a wall clock. Shipping now spends the
+    // compute budget in CPU time instead (bl-8dc0), which is the same cure at the
+    // production seam rather than only in the test.
     let (doc, report) = drive_env(PERSONA_NAV, env);
     // The probe self-checks every §8 fact in JS; `data-fail` is the JSON array of
     // any that regressed. Empty == all held.

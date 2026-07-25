@@ -19,11 +19,9 @@ mod session;
 mod subfetch;
 mod syscall;
 
-use std::time::Duration;
-
 use crate::dom::{Document, NodeId};
 use crate::fetch::FetchSession;
-use engine::{Clock, EXEC_BUDGET_MS};
+use engine::Deadline;
 use script::{next_script, Script};
 
 pub use engine::EvalError;
@@ -49,8 +47,8 @@ pub struct Report {
     /// stylesheet.
     pub errors: u32,
     /// Whether the whole run — script queue *and* settle loop — reached
-    /// quiescence within the single wall-clock budget (§5); a budget trip
-    /// anywhere clears it.
+    /// quiescence within the §5 bounds (`EXEC_CPU_MS` of compute,
+    /// `NET_BUDGET_MS` of network wall time); tripping either clears it.
     pub settled: bool,
     /// The bounded §10 error-message detail behind `errors` (js.md §10): the
     /// first `MESSAGES_MAX` captured `throw` / `report` / `subfetch` messages, in
@@ -64,12 +62,13 @@ pub struct Report {
 /// (`docs/design/js.md` §4–§5), returning the post-JS document and the [`Report`].
 /// `styles`/`env` seed the geometry cache (§8) and environment shims (§7).
 ///
-/// One wall-clock deadline ([`EXEC_BUDGET_MS`]) spans the whole run — the script
-/// queue *and* the settle loop — armed once ([`Session::begin`]). The phases run
-/// in order (§4.4): the script queue drains, then `DOMContentLoaded`, then
-/// `load`, then the virtual-clock settle loop. A budget trip anywhere stops the
-/// run and marks it unsettled (§5); a script/callback throw is counted and the
-/// run continues.
+/// Two bounds span the whole run — the script queue *and* the settle loop — armed
+/// once ([`Session::begin`]): [`EXEC_CPU_MS`](engine::EXEC_CPU_MS) of *CPU* time
+/// for frot's own compute, and [`NET_BUDGET_MS`](engine::NET_BUDGET_MS) of *wall*
+/// time for §6 network. The phases run in order (§4.4): the script queue drains,
+/// then `DOMContentLoaded`, then `load`, then the virtual-clock settle loop. A
+/// budget trip anywhere stops the run and marks it unsettled (§5); a
+/// script/callback throw is counted and the run continues.
 pub fn run(
     doc: Document,
     styles: StyleSource,
@@ -81,25 +80,26 @@ pub fn run(
         styles,
         env,
         fetch,
-        Duration::from_millis(EXEC_BUDGET_MS),
-        Clock::real(),
+        Deadline::compute(),
+        Deadline::network(),
     )
 }
 
-/// [`run`] with an explicit wall-clock budget measured on an explicit [`Clock`].
-/// The budget-trip tests dial the budget down against [`Clock::real`] so those
-/// paths stay deterministic and fast (the 4.1 spike's pattern); every other test
-/// drives on [`Clock::manual`], whose reading only the test moves — so a run
-/// whose subject is *not* timing cannot be failed by a loaded host.
+/// [`run`] with the two §5 bounds given explicitly. The budget-trip tests dial
+/// `cpu` down against a real CPU clock so those paths stay deterministic and
+/// fast (the 4.1 spike's pattern); every other test drives frozen
+/// [`Clock::manual`](engine::Clock::manual) windows, whose readings only the test
+/// moves — so a run whose subject is *not* timing cannot be failed by a loaded
+/// host.
 fn run_with(
     doc: Document,
     styles: StyleSource,
     env: Env,
     fetch: &FetchSession,
-    budget: Duration,
-    clock: Clock,
+    cpu: Deadline,
+    net: Deadline,
 ) -> (Document, Report) {
-    let session = Session::with_budget(doc, styles, env, fetch, budget, clock);
+    let session = Session::with_bounds(doc, styles, env, fetch, cpu, net);
     session.begin();
     let report = run_session(&session);
     (session.into_document(), report)
@@ -116,7 +116,7 @@ pub(crate) fn run_session(session: &Session) -> Report {
         messages: Vec::new(),
     };
     // Preload-scan (bl-08f6): warm the §6 cache concurrently with the initial
-    // external scripts discovered after parse, under the run's *one* armed
+    // external scripts discovered after parse, under the run's armed network
     // deadline and byte pool, so the source-ordered queue below finds each
     // external `src` already frozen instead of blocking on it serially. It only
     // warms statically present scripts — a script a script inserts is fetched
@@ -126,10 +126,11 @@ pub(crate) fn run_session(session: &Session) -> Report {
     if report.settled {
         run_event_loop(session, &mut report);
     }
-    // Quiescence within budget is `settled`'s one meaning (§5): the loop can
-    // conclude *because* the deadline expired (the §6 seam refuses network past
-    // it) while the engine interrupt — firing only between JS instructions —
-    // never tripped, so an expired deadline here clears `settled` deterministically.
+    // Quiescence within bounds is `settled`'s one meaning (§5): the loop can
+    // conclude *because* the network deadline expired (the §6 seam refuses
+    // dispatch past it) while the engine interrupt — firing only between JS
+    // instructions — never tripped, so an expired network window here clears
+    // `settled` deterministically.
     report.settled = report.settled && !session.deadline_expired();
     // Fold the deferred §10 tallies into `errors`: refused navigations (counted
     // no-ops), unhandled promise rejections (net after the run's microtasks drain
@@ -191,13 +192,13 @@ fn run_external(session: &Session, module: bool, src: &str, report: &mut Report)
     }
 }
 
-/// Evaluate one classic script body under the run's deadline, tallying it (§5).
+/// Evaluate one classic script body under the run's bounds, tallying it (§5).
 fn run_script(session: &Session, body: &str, report: &mut Report) {
     tally(session, report, session.run_task(body));
 }
 
 /// Evaluate one ES module (`name` = its URL, the import base, js.md §4.1) under
-/// the run's deadline, tallying it (§5). An unresolvable specifier or failed
+/// the run's bounds, tallying it (§5). An unresolvable specifier or failed
 /// module fetch throws and is counted here; sibling scripts continue.
 fn run_module(session: &Session, name: &str, body: &str, report: &mut Report) {
     tally(session, report, session.run_module(name, body));
@@ -246,9 +247,9 @@ fn run_event_loop(session: &Session, report: &mut Report) {
 }
 
 /// Run one event-loop driver call, returning its integer protocol value, or
-/// `None` when the budget tripped (which clears `settled`). The drivers catch
-/// callback throws in JS and encode them in the return value, so the only
-/// non-value outcome is a deadline hit.
+/// `None` when the compute budget tripped (which clears `settled`). The drivers
+/// catch callback throws in JS and encode them in the return value, so the only
+/// non-value outcome is a budget hit.
 fn drive(session: &Session, src: &str, report: &mut Report) -> Option<i64> {
     match session.run_task(src) {
         Ok(s) => Some(s.trim().parse::<i64>().unwrap_or(0)),
