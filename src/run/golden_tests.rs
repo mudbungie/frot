@@ -5,23 +5,37 @@
 //! "prelude coverage actually lives in the fixtures"). The bundles are served
 //! from an in-process `mockito` server, so tests never touch the live network.
 //!
-//! Four classes, per the task: a React SPA shell (renders + clears `needs-js`),
-//! a Vue app, a jQuery page (mutations show up in the views), and a
-//! beyond-the-shim page that stays a shell and honestly reports `needs-js` even
-//! though every script ran clean (§10 outcome-based re-detection).
+//! The bundle classes live here — a React 17 UMD SPA shell (renders + clears
+//! `needs-js`), a React 19 `createRoot` app, a Vue 3 app, and a jQuery page
+//! (mutations show up in the views) — and each is driven through
+//! [`run_guarded`], which enforces the §5 CPU margin. The hand-written classes
+//! (ES modules, the beyond-the-shim page) are in `golden_shim_tests`, which
+//! shares this module's harness.
 
 use super::*;
+use crate::js::engine::{Clock, EXEC_CPU_MS};
 
 // Pinned bundles (tests/fixtures/js/VERSIONS.md) — data, not dependencies.
 const REACT: &str = include_str!("../../tests/fixtures/js/react.production.min.js");
 const REACT_DOM: &str = include_str!("../../tests/fixtures/js/react-dom.production.min.js");
 const VUE: &str = include_str!("../../tests/fixtures/js/vue.global.prod.js");
 const JQUERY: &str = include_str!("../../tests/fixtures/js/jquery.min.js");
-const ESM_GREETER: &str = include_str!("../../tests/fixtures/js/esm-greeter.mjs");
 // React 19 (createRoot, concurrent) — react+react-dom+app bundled to one IIFE.
 const REACT19_TODO: &str = include_str!("../../tests/fixtures/js/react19-todo.bundle.js");
 
-fn run_capture(args: &[&str]) -> (u8, String) {
+/// The §5 CPU-margin guard (`bl-18df`): the share of the compute budget a golden
+/// bundle may spend and still be a *margin* rather than a near miss. Derived from
+/// [`EXEC_CPU_MS`], never a second hardcoded number — resize the budget and the
+/// guard moves with it.
+///
+/// Half is deliberately loose: the worst cost yet observed is 130 ms (measured
+/// 2026-07-24 on 16 cores — 32–59 ms release, 41–61 ms under `llvm-cov`, 74–130
+/// ms under `llvm-cov` at 4× CPU oversubscription), so the guard keeps a ≥3.8×
+/// margin and cannot fail on load, while still catching a real regression —
+/// prelude bloat, an accidental O(n²) syscall, a bundle that starts spinning.
+const CPU_GUARD_MS: u64 = EXEC_CPU_MS / 2;
+
+pub(super) fn run_capture(args: &[&str]) -> (u8, String) {
     let mut out = Vec::new();
     let mut err = Vec::new();
     let argv: Vec<String> = args.iter().map(|s| s.to_string()).collect();
@@ -29,7 +43,31 @@ fn run_capture(args: &[&str]) -> (u8, String) {
     (code, String::from_utf8(out).unwrap())
 }
 
-fn env(s: &str) -> Value {
+/// [`run_capture`] with the §5 margin enforced: `fixture`'s whole run must cost
+/// under [`CPU_GUARD_MS`] of **CPU** time.
+///
+/// Measured on a [`Clock::cpu`] — the same `CLOCK_THREAD_CPUTIME_ID` the compute
+/// deadline is spent on, and the JS run is single-threaded on this one — so the
+/// assertion is exactly as load-sensitive as `settled` itself now is, which is
+/// the property under test. Reading a wall clock here would reintroduce the
+/// host-load dependence `bl-8dc0` removed. The measurement spans the whole
+/// pipeline, not just the JS phase, so it can only over-charge the budget.
+///
+/// This is the enforcement of what js.md §13 OQ-1 previously only *recorded*: a
+/// margin that lives in a doc stops being true without anyone noticing.
+fn run_guarded(fixture: &str, args: &[&str]) -> (u8, String) {
+    let cpu = Clock::cpu();
+    let captured = run_capture(args);
+    let ms = cpu.elapsed_nanos() / 1_000_000;
+    assert!(
+        ms < CPU_GUARD_MS,
+        "golden fixture {fixture} burned {ms} ms CPU, over the §5 guard of \
+         {CPU_GUARD_MS} ms (half of EXEC_CPU_MS = {EXEC_CPU_MS} ms)"
+    );
+    captured
+}
+
+pub(super) fn env(s: &str) -> Value {
     serde_json::from_str(s.trim()).expect("envelope JSON")
 }
 
@@ -37,7 +75,7 @@ fn env(s: &str) -> Value {
 /// alive by the caller) and its base URL. Every fixture is a shell whose only
 /// body content arrives via external `<script src>` (so the pre-`--js` document
 /// is genuinely empty — the honest `needs-js` baseline, js.md §10).
-fn serve(page: &str, assets: &[(&str, &str)]) -> (mockito::ServerGuard, String) {
+pub(super) fn serve(page: &str, assets: &[(&str, &str)]) -> (mockito::ServerGuard, String) {
     let mut server = mockito::Server::new();
     server
         .mock("GET", "/")
@@ -79,7 +117,7 @@ fn react_shell_needs_js_without_and_renders_with() {
     assert_eq!(env(&before)["needs"], serde_json::json!(["js"]));
     // With --js the UMD bundle + ReactDOM.render fill the root: needs-js clears,
     // three scripts ran clean and settled.
-    let (code, out) = run_capture(&[&url, "--js", "--out", "text"]);
+    let (code, out) = run_guarded("react17", &[&url, "--js", "--out", "text"]);
     assert_eq!(code, 0);
     let v = env(&out);
     assert_eq!(v["status"], "ok");
@@ -114,7 +152,7 @@ fn react19_createroot_app_renders_from_empty_root() {
     assert_eq!(env(&before)["needs"], serde_json::json!(["js"]));
     // With --js the app renders client-side: needs-js clears, one script ran
     // clean and the scheduler-driven mount settled with zero errors.
-    let (code, out) = run_capture(&[&url, "--js", "--out", "text"]);
+    let (code, out) = run_guarded("react19", &[&url, "--js", "--out", "text"]);
     assert_eq!(code, 0);
     let v = env(&out);
     assert_eq!(v["status"], "ok");
@@ -157,7 +195,7 @@ fn vue_app_renders_and_clears_needs_js() {
     // Vue's compiler + reactive mount render the template; the completion value
     // of mount() is a proxy that will not ToString — the engine's defensive
     // coercion keeps that a non-error (js.md §10).
-    let (code, out) = run_capture(&[&url, "--js", "--out", "text"]);
+    let (code, out) = run_guarded("vue3", &[&url, "--js", "--out", "text"]);
     assert_eq!(code, 0);
     let v = env(&out);
     assert_eq!(v["status"], "ok");
@@ -186,7 +224,7 @@ fn jquery_page_settles_and_mutations_show_in_views() {
         JQUERY_PAGE,
         &[("/jquery.js", JQUERY), ("/app.js", JQUERY_APP)],
     );
-    let (code, out) = run_capture(&[&url, "--js", "--out", "text"]);
+    let (code, out) = run_guarded("jquery", &[&url, "--js", "--out", "text"]);
     assert_eq!(code, 0);
     let v = env(&out);
     assert_eq!(v["status"], "ok");
@@ -206,91 +244,5 @@ fn jquery_page_settles_and_mutations_show_in_views() {
     assert!(
         dom_str.contains("mounted"),
         "dom view missing injected node: {dom_str}"
-    );
-}
-
-const BEYOND_PAGE: &str = "<html><body><div id='root'></div>\
-    <script src='/app.js'></script></body></html>";
-// Content gated behind a click — an interaction frot never performs (js.md §11).
-// Every script runs clean and the loop settles, yet the impression is still a
-// shell, so the post-settle re-detection honestly reports needs-js (§10).
-const BEYOND_APP: &str = "document.addEventListener('click',function(){\
-    document.getElementById('root').textContent='revealed';});";
-
-// A `type="module"` page: the entry module (served, so the pre-`--js` body is a
-// genuinely empty shell) imports a vendored *relative* module, whose export
-// drives the render. A real module graph resolved and linked through the §6
-// loader (js.md §4.1) — the entry module's imports resolve against its own
-// fetched URL.
-const ESM_PAGE: &str = "<html><body><div id='root'></div>\
-    <script type='module' src='/app.mjs'></script></body></html>";
-const ESM_APP: &str = "import {greet} from './esm-greeter.mjs';\
-    document.getElementById('root').textContent = greet('frot');";
-
-#[test]
-fn esm_module_page_imports_renders_and_clears_needs_js() {
-    let (_s, url) = serve(
-        ESM_PAGE,
-        &[("/app.mjs", ESM_APP), ("/esm-greeter.mjs", ESM_GREETER)],
-    );
-    // Static shell (no --js): empty body — the honest signal is needs-js.
-    let (_c, before) = run_capture(&[&url, "--out", "text"]);
-    assert_eq!(env(&before)["status"], "needs");
-    assert_eq!(env(&before)["needs"], serde_json::json!(["js"]));
-    // With --js the module links its relative import through the §6 loader and
-    // renders: needs-js clears, one script ran clean, settled.
-    let (code, out) = run_capture(&[&url, "--js", "--out", "text"]);
-    assert_eq!(code, 0);
-    let v = env(&out);
-    assert_eq!(v["status"], "ok");
-    assert!(
-        v["out"]
-            .as_str()
-            .unwrap()
-            .contains("Hello from an ES module"),
-        "{}",
-        v["out"]
-    );
-    assert_eq!(
-        v["js"],
-        serde_json::json!({"scripts": 1, "errors": 0, "settled": true})
-    );
-}
-
-// A module whose import is unresolvable (a bare specifier, no import map, js.md
-// §4.1): linking throws, counted once, the run still settling — its body never
-// runs, so the empty shell stays honestly needs-js (§10).
-const ESM_FAIL_PAGE: &str = "<html><body><div id='root'></div>\
-    <script type='module' src='/fail.mjs'></script></body></html>";
-const ESM_FAIL_APP: &str = "import _ from 'nonexistent-pkg';\
-    document.getElementById('root').textContent = 'unreached';";
-
-#[test]
-fn esm_unresolvable_import_counts_one_error_and_still_needs_js() {
-    let (_s, url) = serve(ESM_FAIL_PAGE, &[("/fail.mjs", ESM_FAIL_APP)]);
-    let (code, out) = run_capture(&[&url, "--js", "--out", "text"]);
-    assert_eq!(code, 0);
-    let v = env(&out);
-    assert_eq!(v["status"], "needs");
-    assert_eq!(v["needs"], serde_json::json!(["js"]));
-    assert_eq!(
-        v["js"],
-        serde_json::json!({"scripts": 1, "errors": 1, "settled": true})
-    );
-}
-
-#[test]
-fn beyond_shim_page_settles_clean_yet_still_needs_js() {
-    let (_s, url) = serve(BEYOND_PAGE, &[("/app.js", BEYOND_APP)]);
-    let (code, out) = run_capture(&[&url, "--js", "--out", "text"]);
-    assert_eq!(code, 0);
-    let v = env(&out);
-    assert_eq!(v["status"], "needs");
-    assert_eq!(v["needs"], serde_json::json!(["js"]));
-    // Outcome-based, not exception-based (§10): the run succeeded and settled;
-    // the empty impression alone is the honest trigger.
-    assert_eq!(
-        v["js"],
-        serde_json::json!({"scripts": 1, "errors": 0, "settled": true})
     );
 }

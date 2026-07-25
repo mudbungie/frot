@@ -327,6 +327,12 @@ network — and that is a bound the suite *should* be honest about rather than
 mock away. `Clock::manual` stays exactly where it earns its keep: unit tests
 whose subject is the observable clock or the virtual timer queue.
 
+That "~20 ms fits in 1000 ms" is no longer taken on trust (`bl-18df`): each of
+the four golden bundles runs through `run_guarded`, which measures the run on a
+`Clock::cpu` and fails — naming the fixture — if it costs `EXEC_CPU_MS / 2` or
+more. The fraction is computed from the constant, so there is no second number
+to drift, and the assertion is exactly as load-sensitive as `settled` is.
+
 ## 6. Network policy — once-then-frozen
 
 JS-visible network is `fetch` + `XMLHttpRequest` (both wrap one syscall; XHR
@@ -892,6 +898,20 @@ the falsifiable check on §1.
   under the gate. §5 carries the full measurement and the rejected alternative
   (interpreter-step counting). The original resolution — no constant grew — still
   holds; the constants are the same numbers in honest units.
+  **Amended once more (bl-18df, 2026-07-24): the margin is now an enforced
+  invariant, not a remembered measurement.** The failure mode of this entry was
+  never a wrong number — it was that a *recorded* margin stops being true and
+  nothing notices. Each golden bundle is therefore driven through
+  `run_guarded` (`src/run/golden_tests.rs`), which measures the run on a
+  `Clock::cpu` and fails, naming the fixture, if it costs **half of
+  `EXEC_CPU_MS` or more**. The fraction is computed from the constant, so the
+  guard tracks any resize of the budget and no second number exists to drift.
+  Half is deliberately loose: re-measured 2026-07-24 on 16 cores the whole-run
+  cost is 32–59 ms CPU release and 41–61 ms under `llvm-cov`, rising only to
+  74–130 ms under `llvm-cov` at 4× CPU oversubscription — so the gate keeps a
+  ≥3.8× worst-case margin while still catching prelude bloat or an accidental
+  O(n²) syscall. A wall-clock reading here would reintroduce exactly the
+  host-load dependence bl-8dc0 removed.
   The bl-c7e9 mechanics: the §5 deadline is enforced at the
   subfetch seam (work), and a pooled `SUBFETCH_BYTES = 64 MiB` (memory,
   sized to `JS_MEM_LIMIT` — the cache is the network-side heap). See §6.

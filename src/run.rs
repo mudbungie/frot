@@ -237,4 +237,7 @@ mod js_concurrency_tests;
 mod golden_tests;
 
 #[cfg(test)]
+mod golden_shim_tests;
+
+#[cfg(test)]
 mod persona_tests;
