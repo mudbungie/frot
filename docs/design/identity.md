@@ -857,9 +857,15 @@ The re-dial is not a tell, for three independent reasons:
    and takes the abbreviated handshake. The §3.5 worry — *"the TLS fingerprint
    is presented N+1 times per page"* — is therefore already answered on this
    path: the second presentation is a resumption, which is precisely what a
-   browser does. **This is asserted, not assumed — see the follow-on ball
-   below; until that test lands, treat it as a read of the dependency defaults,
-   not a measurement.**
+   browser does. **This is measured, not assumed** (`bl-17e7`):
+   `src/fetch/transport/resumption.rs` makes one `Transport` dial the same
+   throwaway-CA origin twice and asserts the origin's own
+   `ServerConnection::handshake_kind()` — `Full` on the first connection,
+   `Resumed` on the second. The re-dial is *forced*, not raced: the origin
+   negotiates `http/1.1` by ALPN and answers `Connection: close`, so hyper
+   retires the socket and the next request must dial afresh. The test goes red
+   if `firefox_client_config` ever sets `Resumption::disabled()` or a
+   dependency bump changes rustls's default.
 
 It is also worth being exact about *what frot's contract observes*. The
 re-dial changes the wire, never the envelope: the `--out *` payload, `needs`,
@@ -1409,10 +1415,14 @@ none across sessions (`separate_invocations_cannot_share_a_connection`), and
 same-origin reuse asserted as **eventual** — a request that adds no connection —
 because h1 check-in is a scheduler outcome (§6.5, §11). Asserting "the second
 request rides the first's socket" is asserting the scheduler, and it flaked
-(`bl-df88`). **Owed:** the resumption claim §6.5 leans on (a re-dial inside one
-invocation offers the ticket and takes the abbreviated handshake) is a read of
-rustls's defaults, not a capture — it needs a pin against the throwaway-CA
-origin, which a dependency bump could otherwise flip silently.
+(`bl-df88`). The resumption claim §6.5 leans on — a re-dial inside one
+invocation offers the ticket and takes the abbreviated handshake — is pinned
+separately (`bl-17e7`, `src/fetch/transport/resumption.rs`): one `Transport`
+dials the throwaway-CA origin twice and the origin's own `handshake_kind()` must
+read `Full` then `Resumed`, so a dependency bump that changed rustls's
+`Resumption` default could not flip it silently. That pin does *not* assert the
+scheduler either — the second dial is forced by an ALPN-`http/1.1` origin
+answering `Connection: close`, which hyper may not pool.
 
 **Declared residuals are asserted too.** Stage B's `m,s,a,p` is written into the
 oracle *as the expected value with a pointer to §7 stage C*, so it cannot drift
