@@ -80,6 +80,21 @@ pub const SOURCE: &str = concat!(
     // because moving focus dispatches blur/focus through Node.dispatchEvent.
     include_str!("prelude/focus.js"),
     "\n",
+    // Observers (bl-07ab). observer.js is the GENUINE MutationObserver seam: it
+    // captures the five raw mutation syscalls and republishes them wrapped, so
+    // it must load after every module that calls them by global name at run
+    // time (all do — none captures the raw functions) and before page scripts;
+    // its notify path uses g.reportError (loop.js). observer2.js is the
+    // MutationObserver interface over observer.js's __frot_mo_hook seam (split
+    // under the 300-line cap). viewobserver.js is the genuine-initial-delivery
+    // IntersectionObserver/ResizeObserver over the §8 geometry syscall,
+    // delivering on loop.js's timer queue.
+    include_str!("prelude/observer.js"),
+    "\n",
+    include_str!("prelude/observer2.js"),
+    "\n",
+    include_str!("prelude/viewobserver.js"),
+    "\n",
     include_str!("prelude/net.js"),
     "\n",
     // IndexedDB (bl-8dde): coherent IDBFactory + interface-zoo presence, no

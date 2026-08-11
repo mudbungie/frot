@@ -184,6 +184,36 @@
   // classList lives in tokenlist.js: every token list the DOM exposes is a
   // spec-named DOMTokenList built by that one maker (bl-3a36).
 
+  // rel/href reflection (bl-07ab): MutationObserver's flagship field consumer —
+  // the Vite modulepreload polyfill — reads `link.rel`/`link.href` off observed
+  // records; routers read `a.href` the same way. `rel` reflects the attribute;
+  // `href` reflects it RESOLVED against the document URL (Firefox's href getter
+  // is absolute), falling back to the raw value when it will not parse.
+  Object.defineProperty(proto, 'rel', {
+    configurable: true,
+    get: function () {
+      return this.getAttribute('rel') || '';
+    },
+    set: function (v) {
+      this.setAttribute('rel', String(v));
+    },
+  });
+  Object.defineProperty(proto, 'href', {
+    configurable: true,
+    get: function () {
+      var v = this.getAttribute('href');
+      if (v == null) return '';
+      try {
+        return new g.URL(v, g.location.href).href;
+      } catch (e) {
+        return v;
+      }
+    },
+    set: function (v) {
+      this.setAttribute('href', String(v));
+    },
+  });
+
   // --- dataset: data-* reflection ------------------------------------------
   Object.defineProperty(proto, 'dataset', {
     configurable: true,

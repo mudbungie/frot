@@ -36,11 +36,12 @@ fn env_contract_golden_pins_the_js_surface() {
         "probe did not reach the post-load timer"
     );
     // Facts only the host sees: both scripts ran (the inline probe + the `defer`
-    // one, §4.2), the whole run settled (§5), and the single deliberate
-    // reportError counted into js.errors as exactly one — pinning the §10 channel
-    // and that nothing else in the probe threw uncaught.
+    // one, §4.2), the whole run settled (§5), and exactly two deliberate errors
+    // counted into js.errors — the explicit reportError, and the throwing
+    // MutationObserver callback (bl-07ab), which routes through the same §10
+    // channel. Pinning the total also pins that nothing else threw uncaught.
     assert_eq!(
         (report.scripts, report.errors, report.settled()),
-        (2, 1, true)
+        (2, 2, true)
     );
 }

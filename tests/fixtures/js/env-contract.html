@@ -91,9 +91,10 @@
   check('identity:window==self==top==parent==globalThis',
     window === self && self === top && top === parent && window === globalThis);
 
-  // --- Absent by design: `typeof` is 'undefined' so detection falls through --
-  ['IntersectionObserver', 'MutationObserver', 'ResizeObserver', 'customElements',
-    'MessageChannel', 'TextEncoder'].forEach(function (n) {
+  // --- Absent by design (js.md §7): `typeof` is 'undefined' so detection falls
+  // through. The observer trio moved OUT of this list (bl-07ab, js.md §7):
+  // MutationObserver is genuine, IO/RO deliver a genuine initial batch.
+  ['customElements', 'MessageChannel', 'TextEncoder'].forEach(function (n) {
     eq('absent:' + n, typeof globalThis[n], 'undefined');
   });
 
@@ -267,6 +268,203 @@
   document.body.removeChild(focusDiv);
   document.body.removeChild(focusHidden);
 
+  // --- Observers (§7, bl-07ab): MutationObserver is GENUINE at the five-
+  // syscall mutation seam; IntersectionObserver/ResizeObserver deliver a
+  // genuine INITIAL batch from the real §8 geometry. Sync facts assert here;
+  // async delivery facts accumulate in MO/VO and are checked in the post-load
+  // timer once every microtask/task round has run.
+  var MO = {};
+  var VO = {};
+  (function () {
+    eq('obs:MutationObserver', typeof MutationObserver, 'function');
+    eq('obs:IntersectionObserver', typeof IntersectionObserver, 'function');
+    eq('obs:ResizeObserver', typeof ResizeObserver, 'function');
+    var ctorThrow;
+    try { new MutationObserver(); ctorThrow = 'no throw'; } catch (e) { ctorThrow = e.constructor.name; }
+    eq('obs:mo.ctor.requiresCallback', ctorThrow, 'TypeError');
+    var recIllegal;
+    try { new MutationRecord(); recIllegal = 'no throw'; } catch (e) { recIllegal = e.constructor.name; }
+    eq('obs:record.illegalConstructor', recIllegal, 'TypeError');
+    var noneThrow;
+    try { new MutationObserver(function () {}).observe(document.body, {}); noneThrow = 'no throw'; }
+    catch (e) { noneThrow = e.constructor.name; }
+    eq('obs:mo.observe.emptyOptionsThrows', noneThrow, 'TypeError');
+
+    // One observer, one host: records of real mutations, oldValue included,
+    // with subtree matching (the attribute/text mutations happen on a CHILD of
+    // the observed host — attributeOldValue/characterDataOldValue also pin the
+    // spec's "OldValue implies the type" observe() rule).
+    var host = document.createElement('div');
+    document.body.appendChild(host);
+    var mo = new MutationObserver(function (records, self) {
+      MO.self = self === mo && this === mo;
+      MO.seen = (MO.seen || []).concat(records.map(function (r) { return r.type; }));
+      if (!MO.first) {
+        var r = records[0];
+        MO.first = Object.prototype.toString.call(r) === '[object MutationRecord]'
+          && r.target._id === host._id
+          && r.addedNodes instanceof NodeList && r.addedNodes.length === 1
+          && r.removedNodes.length === 0
+          && r.previousSibling === null && r.nextSibling === null;
+        MO.attr = records[1].attributeName === 'data-x' && records[1].oldValue === null;
+        MO.attrOld = records[2].attributeName === 'data-x' && records[2].oldValue === 'a';
+        MO.charOld = records[4].type === 'characterData' && records[4].oldValue === 'hi';
+        MO.removed = records[5].removedNodes[0]._id === records[0].addedNodes[0]._id;
+      }
+    });
+    mo.observe(host, { childList: true, subtree: true, attributeOldValue: true, characterDataOldValue: true });
+    var kid = document.createElement('span');
+    host.appendChild(kid); //                childList: kid added
+    kid.setAttribute('data-x', 'a'); //      attributes, oldValue null
+    kid.setAttribute('data-x', 'b'); //      attributes, oldValue 'a'
+    kid.textContent = 'hi'; //               childList: text node inserted
+    kid.firstChild.nodeValue = 'ho'; //      characterData, oldValue 'hi'
+    host.removeChild(kid); //                childList: kid removed
+    MO.syncEmpty = MO.seen === undefined; // delivery is a microtask, never sync
+
+    // takeRecords drains synchronously; the notify round then has nothing for
+    // this observer and its callback must not run.
+    var mo2 = new MutationObserver(function () { MO.mo2Fired = true; });
+    mo2.observe(host, { childList: true });
+    host.appendChild(document.createElement('i')); // also mo's 7th record (subtree)
+    var taken = mo2.takeRecords();
+    MO.take = taken.length === 1 && taken[0].type === 'childList';
+    mo2.disconnect();
+    queueMicrotask(function () {
+      // scheduled AFTER the mutations above, so the observer microtask ran first
+      MO.postMicro = (MO.seen || []).join(',');
+      mo.disconnect();
+      MO.afterDisconnect = mo.takeRecords().length === 0;
+    });
+
+    // The arena auto-unlinks on insert, so re-parenting is honestly a MOVE:
+    // one removal record (old parent) + one addition record (new parent). The
+    // tree is detached — observers work on detached subtrees too.
+    var host3 = document.createElement('div');
+    var a3 = document.createElement('p');
+    var b3 = document.createElement('q');
+    host3.appendChild(a3);
+    host3.appendChild(b3);
+    var mo3 = new MutationObserver(function (records) {
+      MO.move = records.length === 2
+        && records[0].type === 'childList' && records[0].target._id === host3._id
+        && records[0].removedNodes[0]._id === a3._id
+        && records[1].target._id === b3._id
+        && records[1].addedNodes[0]._id === a3._id;
+      mo3.disconnect();
+    });
+    mo3.observe(host3, { childList: true, subtree: true });
+    b3.appendChild(a3);
+
+    // Re-observe on the same target REPLACES the registration (spec), and
+    // attributeFilter filters: only data-keep lands.
+    var host4 = document.createElement('div');
+    var mo4 = new MutationObserver(function (records) {
+      MO.filtered = (MO.filtered || 0) + records.length;
+      MO.filteredName = records[0].attributeName;
+      mo4.disconnect();
+    });
+    mo4.observe(host4, { attributes: true });
+    mo4.observe(host4, { attributes: true, attributeFilter: ['data-keep'] });
+    host4.setAttribute('data-drop', '1');
+    host4.setAttribute('data-keep', '1');
+
+    // Re-entrancy: a callback that itself mutates the observed target gets a
+    // fresh microtask round, and terminates when the page stops mutating.
+    var host5 = document.createElement('div');
+    var mo5 = new MutationObserver(function () {
+      MO.re = (MO.re || 0) + 1;
+      if (MO.re === 1) host5.setAttribute('step', '2');
+      else mo5.disconnect();
+    });
+    mo5.observe(host5, { attributes: true });
+    host5.setAttribute('step', '1');
+
+    // A throwing callback is an uncaught error: DELIBERATELY counted into
+    // js.errors through the §10 reportError channel (the Rust gate asserts the
+    // run's total, pinning this channel alongside the explicit reportError).
+    var host6 = document.createElement('div');
+    var moT = new MutationObserver(function () {
+      moT.disconnect();
+      throw new Error('mo-throw');
+    });
+    moT.observe(host6, { childList: true });
+    host6.appendChild(document.createElement('b'));
+
+    // IntersectionObserver: genuine INITIAL delivery — the probe div sits in
+    // the initial 1280x720 viewport at scroll 0, so the honest entry is
+    // isIntersecting true at ratio 1, with the real §8 boxes.
+    var ioTarget = document.getElementById('probe');
+    var io = new IntersectionObserver(function (entries, self) {
+      var e0 = entries[0];
+      VO.io = entries.length === 1 && self === io
+        && e0.target._id === ioTarget._id
+        && e0.isIntersecting === true
+        && e0.intersectionRatio === 1
+        && e0.rootBounds.width === 1280
+        && e0.rootBounds.height === 720
+        && e0.boundingClientRect.width === 1280
+        && Object.prototype.toString.call(e0) === '[object IntersectionObserverEntry]';
+      VO.ioCalls = (VO.ioCalls || 0) + 1;
+    });
+    eq('obs:io.thresholds', io.thresholds.join(','), '0');
+    eq('obs:io.rootMargin', io.rootMargin, '0px 0px 0px 0px');
+    check('obs:io.root', io.root === null);
+    io.observe(ioTarget);
+    io.observe(ioTarget); // dedupe: still ONE entry, ONE delivery
+    VO.ioSync = VO.ioCalls === undefined; // a task, never synchronous
+    var marginThrow;
+    try { new IntersectionObserver(function () {}, { rootMargin: 'banana' }); marginThrow = 'no throw'; }
+    catch (e) { marginThrow = e.constructor.name; }
+    eq('obs:io.rootMargin.throws', marginThrow, 'SyntaxError');
+    var thresholdThrow;
+    try { new IntersectionObserver(function () {}, { threshold: 7 }); thresholdThrow = 'no throw'; }
+    catch (e) { thresholdThrow = e.constructor.name; }
+    eq('obs:io.threshold.throws', thresholdThrow, 'RangeError');
+
+    // ResizeObserver: genuine initial size from the same geometry; frot's
+    // borderless model makes contentBox == borderBox, devicePixel at dpr 1.
+    var ro = new ResizeObserver(function (entries) {
+      var e0 = entries[0];
+      VO.ro = entries.length === 1
+        && e0.target._id === ioTarget._id
+        && e0.contentRect.width === 1280
+        && e0.contentRect.x === 0
+        && e0.borderBoxSize[0].inlineSize === 1280
+        && e0.contentBoxSize[0].blockSize === e0.borderBoxSize[0].blockSize
+        && e0.devicePixelContentBoxSize[0].inlineSize === 1280
+        && Object.prototype.toString.call(e0) === '[object ResizeObserverEntry]'
+        && Object.prototype.toString.call(e0.borderBoxSize[0]) === '[object ResizeObserverSize]';
+    });
+    ro.observe(ioTarget);
+    // unobserve before the delivery task ran: the wave empties and the
+    // callback must NEVER run with zero entries.
+    var roNone = new ResizeObserver(function () { VO.roNone = true; });
+    roNone.observe(ioTarget);
+    roNone.unobserve(ioTarget);
+
+    // LAST (it watches the whole connected document): the pinned Vite
+    // modulepreload polyfill's exact observer shape — childList+subtree on
+    // `document`, reading tagName/rel/href off the observed insertion.
+    var mo6 = new MutationObserver(function (records) {
+      for (var i = 0; i < records.length; i++) {
+        for (var j = 0; j < records[i].addedNodes.length; j++) {
+          var d = records[i].addedNodes[j];
+          if (d.tagName === 'LINK' && d.rel === 'modulepreload') {
+            MO.vite = true;
+            MO.viteHref = d.href.indexOf('://') > 0 && d.href.indexOf('/chunk.js') > 0;
+          }
+        }
+      }
+      mo6.disconnect();
+    });
+    mo6.observe(document, { childList: true, subtree: true });
+    var lk = document.createElement('link');
+    lk.rel = 'modulepreload'; // the rel reflection the polyfill reads back
+    lk.setAttribute('href', '/chunk.js');
+    document.head.appendChild(lk);
+  })();
+
   // --- Lifecycle capture (§4.4/§5): readyState transitions + phase order -----
   RS.inline = document.readyState;      // 'loading' while the script queue runs
   RS.perf0 = performance.now();
@@ -304,6 +502,25 @@
       check('clock:coherent', _diff <= 1 && _diff >= -1);
       // Real elapsed accumulated across the whole run — never perpetual zero.
       check('clock:advancedFromStart', RS.perfTimer >= RS.perf0);
+      // Observer async facts (§7, bl-07ab): every microtask and delivery task
+      // has long since run by this post-load timer.
+      check('obs:mo.selfArg', MO.self === true);
+      check('obs:mo.syncEmpty', MO.syncEmpty === true);
+      eq('obs:mo.order', MO.postMicro,
+        'childList,attributes,attributes,childList,characterData,childList,childList');
+      check('obs:mo.firstRecord', MO.first === true);
+      check('obs:mo.attrOldValue', MO.attr === true && MO.attrOld === true);
+      check('obs:mo.charOldValue', MO.charOld === true);
+      check('obs:mo.removedIdentity', MO.removed === true);
+      check('obs:mo.disconnectClears', MO.afterDisconnect === true);
+      check('obs:mo.takeRecords', MO.take === true && MO.mo2Fired === undefined);
+      check('obs:mo.moveTwoRecords', MO.move === true);
+      check('obs:mo.filterReplace', MO.filtered === 1 && MO.filteredName === 'data-keep');
+      check('obs:mo.reentrant', MO.re === 2);
+      check('obs:mo.viteShape', MO.vite === true && MO.viteHref === true);
+      check('obs:io.initial', VO.io === true && VO.ioCalls === 1 && VO.ioSync === true);
+      check('obs:ro.initial', VO.ro === true);
+      check('obs:ro.emptyWaveSilent', VO.roNone === undefined);
       // The one place the whole run's regressions surface, written last.
       document.documentElement.setAttribute('data-fail', JSON.stringify(FAILS));
       document.documentElement.setAttribute('data-done', '1');

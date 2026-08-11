@@ -85,6 +85,13 @@
     configurable: true,
     writable: true,
   });
+  // The NodeList maker, shared with observer.js's MutationRecord
+  // addedNodes/removedNodes (bl-07ab) — the same seam pattern as __frot_elems.
+  Object.defineProperty(g, '__frot_nodelist', {
+    value: g.__frot_brand(wrapAll, '__frot_nodelist'),
+    configurable: true,
+    writable: true,
+  });
 
   class Node {
     constructor(id) {

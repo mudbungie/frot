@@ -150,7 +150,8 @@ Consequences of the repo's hard rules:
   the `vite:build-import-analysis` modulepreload polyfill that every Vite
   production build inlines at module top level runs
   `link.relList.supports("modulepreload")` and, absent `relList`, falls through
-  to a deliberately absent `MutationObserver` — the module rejects, a
+  to a then-absent `MutationObserver` (genuine since `bl-07ab`, §7) — the
+  module rejects, a
   count-only §10 error, so `--js-errors` showed `errors: 1, messages: []`).
   Same maker discipline as the collections above, one file (`tokenlist.js`):
   `classList` and `relList` are both live views over their backing attribute
@@ -180,7 +181,11 @@ Consequences of the repo's hard rules:
   `getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set`); and a
   **constructible** `new DocumentFragment()` returning the real staging
   fragment with `ownerDocument`/`insertBefore`/`removeChild` (React portals
-  into fresh fragments and reaches the document through the container). The
+  into fresh fragments and reaches the document through the container); and
+  `rel`/`href` reflection (`bl-07ab`: MutationObserver's flagship consumer —
+  the Vite modulepreload polyfill — reads `link.rel`/`link.href` off observed
+  records; `href` reflects resolved against the document URL, as Firefox's
+  getter does). The
   env-contract fixture pins all of it.
 
 ## 4. What runs, and when
@@ -639,6 +644,69 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   non-executing constructors** (`bl-342a`, §11): feature detection sees a
   Firefox-shaped surface, but no thread is spawned. `WebAssembly`,
   `serviceWorker`: absent.
+- **Observers (`bl-07ab`) — the decision lives HERE; the env-contract fixture
+  derives from it.** All three were previously pinned absent only in a fixture
+  comment — a loud persona tell (Firefox 140esr has all three) and a crash
+  class: bundles construct them unguarded at module top level (the Vite
+  modulepreload polyfill every Vite production build inlines reaches
+  `new MutationObserver` whenever its relList early-return misses), and the
+  whole module dies as a count-only §10 error `--js-errors` cannot even name.
+  - **`MutationObserver` is GENUINE**, implemented at the mutation-syscall
+    seam. Every tree/attribute/text mutation reaches the arena through exactly
+    five prelude-visible syscalls (§2/§3: `__frot_insert_child`,
+    `__frot_detach`, `__frot_set_attr`, `__frot_remove_attr`,
+    `__frot_set_text`), so ONE wrapper set over those five
+    (`src/js/prelude/observer.js` captures the raw functions and republishes
+    the names wrapped) yields real `MutationRecord`s with **no new Rust
+    surface** and no per-API hooks: childList (added/removed NodeLists with
+    true siblings; the arena auto-unlinks on insert, so re-parenting is
+    honestly a *move* — a removal record then an addition record), attributes
+    (`attributeName`, `oldValue` captured before the write), characterData
+    (`oldValue`). Subtree matching is a parent-chain walk — O(depth) per
+    mutation, never a subtree scan — with observations keyed by `NodeId` and a
+    `document` sentinel matched only for connected nodes. Delivery is a
+    microtask on the engine job queue (§5), the spec's own timing; a callback
+    that itself mutates schedules a fresh round (re-entrancy = a new batch,
+    terminated by the page going quiet or the §5 CPU budget); a *throwing*
+    callback routes through the §10 `reportError` channel (counted, message
+    captured). A page that never constructs an observer pays one guard per
+    mutation — measured inside the §5 CPU-guard margin. Granularity residual:
+    `innerHTML`/`textContent` replacement emits one record per detach/insert
+    the seam actually sees, where a browser coalesces a "replace all" into one
+    record — the same mutations, finer sliced.
+  - **`IntersectionObserver`/`ResizeObserver` do NOT ride MutationObserver's
+    coattails** — presence-but-never-firing (the Worker/indexedDB costume) was
+    argued and **rejected** for both. The costume defends where real Firefox
+    is also silent (an un-messaged Worker, a pending IDB open on a fresh
+    profile); here it is not: a real browser **always delivers an initial
+    batch** — IO's first update-intersection pass queues an entry per target
+    (the previous-threshold index starts at −1), RO always reports the initial
+    size — so a never-firing observer contradicts every real Firefox on the
+    API's *first* use. And the blast radius inverts versus absence: absent IO
+    makes lazy-load libraries fall back to eager loading (a good impression);
+    a present-but-dead IO makes them wait forever — content silently never
+    renders, a degraded result that looks complete, exactly what VISION
+    principle 5 forbids. So both are implemented with a **genuine initial
+    delivery** (`src/js/prelude/viewobserver.js`), computed from the same
+    per-generation §8 geometry `getBoundingClientRect` serves (structural
+    estimates, layout.md §6): IO entries carry the real target box, `rootBounds`
+    = the 1280×720 viewport (or the given `root`'s box, `rootMargin` in px/%),
+    and `intersectionRect`/`intersectionRatio`/`isIntersecting` computed from
+    them at scroll offset 0 — truthful, because frot genuinely never scrolls
+    (§11); RO entries where `contentBoxSize == borderBoxSize` is the §8
+    borderless model's own contract, and `devicePixelContentBoxSize` matches at
+    the profile's devicePixelRatio 1. Delivery is a task on the existing §5
+    timer queue (browsers deliver observer batches from the rendering steps —
+    a task, not a microtask; frot's one task source is its timer queue, no
+    second scheduler). **The declared residual (identity.md §11): after the
+    initial delivery, later DOM-mutation-driven geometry changes produce no
+    further entries.** That is the one behavioral gap against an idle real
+    browser — whose own post-initial deliveries are driven by scroll, resize,
+    and animation, none of which frot ever produces — and closing it would
+    mean re-diffing layout per observed target per generation: real §5 CPU
+    cost for a trigger frot structurally never fires. `unobserve()` then
+    re-`observe()` honestly re-delivers the then-current state; an emptied
+    delivery wave never invokes the callback with zero entries.
 
 ## 8. Geometry reads — the third layout trigger
 
