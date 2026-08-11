@@ -44,3 +44,9 @@ jobs:
       # script the pre-commit hook calls, so the 300 limit is never duplicated.
       - name: Source-file line limit
         run: git ls-files '*.rs' | scripts/line-limit.sh
+
+      # Delegates to `make package` (cargo publish --dry-run --locked) so the
+      # crates.io packaging can never silently rot. Dry run only — publishing is
+      # a deliberate manual act, never a CI side effect.
+      - name: Package (crates.io dry run)
+        run: make package

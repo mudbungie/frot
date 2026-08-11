@@ -5,7 +5,19 @@ edition = "2021"
 description = "Take an impression of a web page — structure, text, accessibility tree — without rendering or executing it."
 repository = "https://github.com/mudbungie/frot"
 license = "MIT OR Apache-2.0"
-publish = false
+readme = "README.md"
+keywords = ["html", "dom", "scraping", "accessibility", "cli"]
+categories = ["command-line-utilities", "web-programming", "parser-implementations", "accessibility"]
+# MSRV = the pinned toolchain (rust-toolchain.toml `channel = "1.95.0"`): 1.95 is
+# the only compiler this repo ever builds or tests with, so it is the only floor
+# we can honestly assert. Lower it only with a build on that older toolchain.
+rust-version = "1.95"
+# tests/fixtures/ is excluded: 656K of vendored third-party bundles
+# (jquery/react/vue) and saved real-world pages, read only by `#[cfg(test)]`
+# modules — never by a build of the lib or bin. Shipping them would redistribute
+# other people's content forever under this crate's license and multiply the
+# download. Tests run from the git checkout, which is what CI does.
+exclude = ["tests/fixtures/"]
 
 [lib]
 name = "frot"

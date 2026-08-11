@@ -100,9 +100,11 @@ lands ungated even if the hook is skipped or absent:
 
 - **`.github/workflows/ci.yml`** (every push + pull request) — `cargo fmt
   --check`, `make lint` (clippy `-D warnings`), `make cov` (100% lines +
-  regions), and the source-file line cap. The gate values are never re-typed in
-  CI: coverage delegates to `make cov`, and the 300-line limit is enforced by
-  `scripts/line-limit.sh`, the same script the pre-commit hook calls.
+  regions), the source-file line cap, and `make package` (`cargo publish
+  --dry-run --locked` — the crates.io packaging gate; it never publishes). The
+  gate values are never re-typed in CI: coverage delegates to `make cov`, and
+  the 300-line limit is enforced by `scripts/line-limit.sh`, the same script the
+  pre-commit hook calls.
 - **`.github/workflows/release.yml`** (on a `v*` tag) — builds the stripped,
   static `x86_64-unknown-linux-musl` binary, asserts its size sits inside the
   documented 5-15 MiB envelope (`scripts/check-size.sh`), and uploads it as a
@@ -113,4 +115,5 @@ and musl target) so local and CI agree.
 
 ## License
 
-TBD.
+Dual-licensed under **MIT OR Apache-2.0**, at your option — the declaration
+`Cargo.toml` carries and the one published with the crate.
