@@ -105,10 +105,15 @@ lands ungated even if the hook is skipped or absent:
   gate values are never re-typed in CI: coverage delegates to `make cov`, and
   the 300-line limit is enforced by `scripts/line-limit.sh`, the same script the
   pre-commit hook calls.
-- **`.github/workflows/release.yml`** (on a `v*` tag) — builds the stripped,
-  static `x86_64-unknown-linux-musl` binary, asserts its size sits inside the
+- **`.github/workflows/release-plz.yml`** — the release pipeline. Every push to
+  main refreshes a single "release PR" that bumps the version and stages the
+  changelog; merging that PR is the human control point. Once CI concludes green
+  on main, the release job tags `v<version>`, cuts the GitHub Release, and runs
+  `cargo publish` to crates.io (needs the `CARGO_REGISTRY_TOKEN` repo secret),
+  then a dependent job builds the stripped, static
+  `x86_64-unknown-linux-musl` binary, asserts its size sits inside the
   documented 5-15 MiB envelope (`scripts/check-size.sh`), and uploads it as a
-  GitHub Release asset.
+  Release asset.
 
 `rust-toolchain.toml` pins the compiler (and the `llvm-tools-preview` component
 and musl target) so local and CI agree.

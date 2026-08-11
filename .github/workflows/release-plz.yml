@@ -8,7 +8,8 @@ name: Release-plz
 #     is the human control point.
 #   * release (when the CI workflow concludes `success` on main) — releases any
 #     version on main that is not out yet: tags it `v<version>`, cuts a GitHub
-#     Release (the crate is `publish = false`, so nothing goes to crates.io). Gated on `workflow_run` of CI, so a
+#     Release, and runs `cargo publish` to send the crate to crates.io
+#     (release-plz.toml has `publish = true`). Gated on `workflow_run` of CI, so a
 #     release only ever ships a GREEN build — never an untested commit.
 #   * release-binaries — builds the `frot` binary and attaches the stripped static-musl binary to that
 #     Release. It runs in the SAME workflow run and `needs:` the release job,
@@ -27,8 +28,8 @@ name: Release-plz
 #     PR" an exact test for "superseded or orphaned".
 #
 # So the flow is: merge work to main -> CI runs -> the release PR is kept fresh;
-# merge the release PR -> CI runs -> on green the new version is released AND
-# its binaries build and upload.
+# merge the release PR -> CI runs -> on green the new version is published to
+# crates.io AND its binaries build and upload.
 #
 # Bumps default to PATCH (0.0.1 -> 0.0.2). See release-plz.toml for the
 # `[minor]` / `[major]` opt-in markers.
@@ -38,6 +39,10 @@ name: Release-plz
 #     GitHub Actions to create and approve pull requests" — else the release-pr
 #     job 403s ("GitHub Actions is not permitted to create or approve pull
 #     requests").
+#   * CARGO_REGISTRY_TOKEN — REQUIRED repo secret: a crates.io API token with
+#     publish-update (and publish-new, for the very first release) scope, from
+#     https://crates.io/settings/tokens. Without it the release job's
+#     `cargo publish` fails, so no version ever reaches crates.io.
 #   * RELEASE_PLZ_TOKEN — OPTIONAL fine-grained PAT (contents + pull-requests
 #     write), so the release PR's own commits re-trigger CI. The default
 #     GITHUB_TOKEN cannot trigger workflows from its own pushes; the job falls
@@ -53,7 +58,7 @@ on:
   workflow_dispatch:
     inputs:
       binaries_tag:
-        description: "Build + upload binaries for this existing tag (e.g. v0.0.1). Leave empty for a normal publish."
+        description: "Build + upload binaries for this existing tag (e.g. v0.0.1). Leave empty for a normal release run."
         required: false
         default: ""
 
@@ -77,7 +82,7 @@ jobs:
       group: release-plz-pr-${{ github.ref }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
@@ -105,7 +110,7 @@ jobs:
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           # Check out the BRANCH, not a bare SHA: release-plz runs `git rev-parse
@@ -135,7 +140,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Resolve + check out the release tag
@@ -160,7 +165,7 @@ jobs:
       - name: Assert size envelope
         run: scripts/check-size.sh target/x86_64-unknown-linux-musl/release/frot
       - name: Upload release asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           files: target/x86_64-unknown-linux-musl/release/frot
@@ -190,7 +195,7 @@ jobs:
       contents: write
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Delete every release-plz-* branch with no open PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -17,9 +17,13 @@
 # `features_always_increment_minor` is left at its default (false), so even a
 # Conventional-Commit `feat:` lands as a patch bump below 1.0.0.
 [workspace]
-# The crate is `publish = false` in Cargo.toml; release-plz still tags and
-# cuts the GitHub Release, it just never runs `cargo publish`.
-publish = false
+# Merging the release PR ships the crate: release-plz tags `v<version>`, cuts
+# the GitHub Release, and runs `cargo publish` to crates.io. That last step
+# needs the `CARGO_REGISTRY_TOKEN` repo secret (see release-plz.yml's header).
+publish = true
+# Off deliberately: a cargo-semver-checks verdict OVERRIDES the bump above —
+# release-plz turns a detected API break into a major bump on its own — which
+# would silently defeat the explicit `[minor]`/`[major]` marker policy.
 semver_check = false
 custom_minor_increment_regex = '(^|\s)\[minor\](\s|$)'
 custom_major_increment_regex = '(^|\s)\[major\](\s|$)'
