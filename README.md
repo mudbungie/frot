@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/mudbungie/frot/actions/workflows/ci.yml/badge.svg)](https://github.com/mudbungie/frot/actions/workflows/ci.yml)
 
-Take an impression of a web page — structure, text, accessibility tree — without rendering or executing it. Like a gravestone rubbing for the web.
+<!-- The first sentence below is Cargo.toml `description`, verbatim — that field
+     is the tagline's single home; tests/binary.rs pins the match. -->
+Take an impression of a web page — structure, text, accessibility tree — running its scripts only when you ask, and never driving it. Like a gravestone rubbing for the web.
 
 `frot` is the curl that renders: a stateless, single-binary CLI (~7 MB, no runtime deps — the embedded JS engine and a browser-matching TLS stack are compiled in unconditionally) that sits in the gap between `curl` and a headless browser. You give it a URL, a capability recipe, and one output view; it gives you back a machine-parseable JSON envelope. Built for harnesses that need to look at pages programmatically without standing up a browser pool.
 

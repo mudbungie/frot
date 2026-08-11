@@ -2,7 +2,11 @@
 name = "frot"
 version = "0.0.0"
 edition = "2021"
-description = "Take an impression of a web page — structure, text, accessibility tree — without rendering or executing it."
+# The tagline's single authoritative home (rendered as the crates.io headline).
+# README.md repeats it verbatim; tests/binary.rs pins the match so they cannot
+# drift. It compresses VISION.md's scope and non-goals: capabilities (--css,
+# --js) are opt-in, and interaction ("driving") is a permanent non-goal.
+description = "Take an impression of a web page — structure, text, accessibility tree — running its scripts only when you ask, and never driving it."
 repository = "https://github.com/mudbungie/frot"
 license = "MIT OR Apache-2.0"
 readme = "README.md"

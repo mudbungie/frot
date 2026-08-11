@@ -59,3 +59,14 @@ fn fetch_against_local_mockito_server_emits_ok_envelope() {
     assert_eq!(v["status"], "ok");
     assert_eq!(v["out"], "spawned");
 }
+
+#[test]
+fn readme_tagline_is_the_crate_description_verbatim() {
+    // Cargo.toml `description` is the tagline's single authoritative home
+    // (it is the crates.io headline); README.md repeats it verbatim rather
+    // than restating it independently. This pin is what keeps them from
+    // drifting apart.
+    let readme = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))
+        .expect("read README.md");
+    assert!(readme.contains(env!("CARGO_PKG_DESCRIPTION")));
+}
