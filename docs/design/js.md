@@ -187,6 +187,21 @@ Consequences of the repo's hard rules:
   records; `href` reflects resolved against the document URL, as Firefox's
   getter does). The
   env-contract fixture pins all of it.
+- **Comments are real arena nodes** (bl-79db, found live: the Vue 3.5 TodoMVC
+  deployment mounted, settled with `errors: 0`, and rendered nothing). The
+  invariant: every node a script can hold is a genuine arena node whose
+  insertion rides the §2 syscalls — no host-side fakes, no silently dropped
+  inserts. `createComment` was a fake `{nodeType: 8, _id: -1}` object that
+  `appendChild`/`insertBefore` no-opped on, and frameworks use comments as
+  **anchors**: Vue's RouterView at start-location mounts a comment
+  placeholder, then the router-ready patch computes its container as
+  `parentNode(placeholder)` — undefined on a fake, so the patch threw inside
+  Vue's scheduler, whose production error path is `console.error` (recorded,
+  never counted — see §10). One arena kind the parser already stored
+  (`NodeKind::Comment`), one creation syscall (`__frot_create_comment`), and
+  the whole anchor contract (parent/sibling navigation, positioned
+  replacement) works for free; comment data never leaks into rendered text
+  because `text_content` collects only text nodes.
 
 ## 4. What runs, and when
 
@@ -829,6 +844,16 @@ Two moves against today's `run.rs`:
   **timer / lifecycle-listener** throws (`loop.js` `fire`/`__frot_next_timer`
   catch and return counts only; reaching their messages is invasive). This keeps
   the capture set to the seams where a meaningful message is already in hand.
+
+  One channel is invisible by the framework's own choice, not frot's (bl-79db,
+  measured live): **Vue 3 production builds route caught render/scheduler
+  errors to `console.error`** — where React ≥16 uses the counted
+  `reportError`/window channel above — so a dead Vue app reads `errors: 0`,
+  `messages: []` even under `--js-errors`. frot's console capture records the
+  line; it is not counted, because promoting console text to an app failure
+  would be a string heuristic over log noise. The honest signal for such a
+  page stays the outcome detector: the impression is still a shell, so
+  `needs: ["js"]` survives (first bullet).
 - Envelope `status` is unaffected by script errors; only the needs detector
   and the existing error taxonomy set non-`ok` status.
 - **A host-side coercion failure is not a script error (as built, 4.9).** The

@@ -153,6 +153,10 @@ fn mutations<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquick
         let d = doc.clone();
         move |text: String| d.borrow_mut().create_text(&text)
     });
+    bind!(ctx, g, "__frot_create_comment", {
+        let d = doc.clone();
+        move |text: String| d.borrow_mut().create_comment(&text)
+    });
     bind!(ctx, g, "__frot_set_attr", {
         let d = doc.clone();
         move |id: u32, name: String, value: String| d.borrow_mut().set_attr(id, &name, &value)

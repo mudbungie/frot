@@ -30,6 +30,16 @@ impl Document {
         self.append_node(NodeKind::Text(text.to_string()))
     }
 
+    /// Append a detached comment node and return its id. Comments are real
+    /// arena nodes, not host-side fakes: frameworks use them as *anchors* —
+    /// placeholders whose `parentNode`/`nextSibling` are read back to position
+    /// later content (Vue's RouterView/`v-if`, `bl-79db`) — so a comment that
+    /// never enters the tree strands every patch that navigates from it. The
+    /// parser already stores `NodeKind::Comment`; this is creation parity.
+    pub fn create_comment(&mut self, text: &str) -> NodeId {
+        self.append_node(NodeKind::Comment(text.to_string()))
+    }
+
     /// Set (or overwrite) an attribute on an element node; a no-op on any other
     /// kind. Totality keeps the caller from having to pre-check the node kind.
     pub fn set_attr(&mut self, id: NodeId, name: &str, value: &str) {

@@ -54,6 +54,36 @@ fn innerhtml_and_construction_mutate_the_shared_arena() {
 }
 
 #[test]
+fn comment_nodes_are_real_anchors() {
+    // The Vue/RouterView anchor contract (bl-79db): a created comment enters
+    // the tree for real, so a later patch can navigate from it — read its
+    // parentNode as the container and nextSibling as the insertion point.
+    let s = sess("<html><body><section id='app'><i>tail</i></section></body></html>");
+    s.eval(
+        "var host = document.querySelector('#app');
+         var c = document.createComment('router-view');
+         host.insertBefore(c, host.firstChild);",
+    )
+    .unwrap();
+    assert_eq!(s.eval("c.nodeType").unwrap(), "8");
+    assert_eq!(s.eval("c.nodeName").unwrap(), "#comment");
+    assert_eq!(s.eval("c.parentNode.id").unwrap(), "app");
+    assert_eq!(s.eval("c.nextSibling.tagName").unwrap(), "I");
+    // The patch replaces the anchor with real content at its position.
+    s.eval(
+        "var el = document.createElement('p'); el.textContent = 'routed';
+         c.parentNode.insertBefore(el, c.nextSibling); c.parentNode.removeChild(c);",
+    )
+    .unwrap();
+    assert_eq!(
+        s.eval("host.innerHTML").unwrap(),
+        "<p>routed</p><i>tail</i>"
+    );
+    // A comment never leaks into rendered text.
+    assert!(!s.document().text_content(0).contains("router-view"));
+}
+
+#[test]
 fn geometry_facade_exposes_rects_offsets_and_computed_style() {
     let s = sess(
         "<html><body><div id='a'>hi</div><div id='b' style='display:none'>x</div></body></html>",

@@ -9,18 +9,16 @@
   var proto = Node.prototype;
 
   // --- fragment-aware insertion: a DocumentFragment (nodeType 11) drains its
-  // batched children into the target; a non-arena node (comment/fake, _id < 0)
-  // is a no-op so it never reaches a syscall. Wraps dom.js's arena inserts.
+  // batched children into the target; every other node a script can hold is a
+  // real arena node (comments included, bl-79db), riding dom.js's inserts.
   var rawAppend = proto.appendChild;
   var rawInsert = proto.insertBefore;
   proto.appendChild = function (child) {
     if (child && child.nodeType === 11) return child._drain(this, null), child;
-    if (child && child._id < 0) return child;
     return rawAppend.call(this, child);
   };
   proto.insertBefore = function (child, ref) {
     if (child && child.nodeType === 11) return child._drain(this, ref), child;
-    if (child && child._id < 0) return child;
     return rawInsert.call(this, child, ref);
   };
 
@@ -213,8 +211,11 @@
     },
   });
   g.DocumentFragment = FragmentCtor;
+  // A real arena comment (bl-79db): frameworks insert comments as anchors and
+  // navigate from them (parentNode/nextSibling) to place later content — a
+  // fake here strands every such patch (Vue RouterView/v-if), a silent dead app.
   g.document.createComment = function (text) {
-    return { nodeType: 8, textContent: String(text), _id: -1 };
+    return new Node(g.__frot_create_comment(String(text)));
   };
   g.document.getElementsByTagName = function (tag) {
     return g.__frot_elems(g.__frot_query_doc(String(tag)));

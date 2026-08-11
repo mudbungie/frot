@@ -76,6 +76,49 @@ fn vite_modulepreload_polyfill_early_returns_on_rellist() {
     );
 }
 
+// TodoMVC "Vue" (bl-79db), pinned 2026-08-10 from
+// https://todomvc.com/examples/vue/dist/. A Vue 3.5/Vite 8 CSR shell whose
+// entire UI lives behind vue-router: RouterView at START_LOCATION mounts a
+// comment-node placeholder, and the router-ready re-render computes its patch
+// container as `parentNode(placeholder)`. With createComment a host-side fake
+// (`_id: -1`) that insertion silently dropped, that parent read undefined and
+// the patch died in Vue's scheduler — which logs caught errors via
+// console.error in production builds, a channel frot records but does not
+// count. Hence the field trial's silent verdict: settled, errors=0, empty
+// shell, needs-js.
+const VUE_PAGE: &str = include_str!("../../tests/fixtures/js/vue-todomvc.html");
+const VUE_BUNDLE: &str = include_str!("../../tests/fixtures/js/vue-todomvc.bundle.js");
+const VUE_BASE: &str = include_str!("../../tests/fixtures/js/vue-todomvc.base.js");
+
+#[test]
+fn vue_todomvc_router_view_renders_via_real_comment_anchor() {
+    let (_s, url) = serve(
+        VUE_PAGE,
+        &[
+            ("/assets/index-CO9Gq1IP.js", VUE_BUNDLE),
+            ("/base.js", VUE_BASE),
+        ],
+    );
+    let (code, out) = run_guarded("vue-todomvc", &[&url, "--js", "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = env(&out);
+    assert_eq!(v["status"], "ok");
+    // The module bundle + base.js ran clean and settled (live, base.js injects
+    // a hostname-gated analytics script the mock never takes, so the field
+    // trial's scripts=3 is honestly 2 offline — same as the other TodoMVCs).
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 2, "errors": 0, "settled": true})
+    );
+    // Proof the router-ready patch navigated from the real comment anchor: the
+    // route component mounted and rendered the footer counter.
+    assert!(
+        v["out"].as_str().unwrap().contains("0 items left"),
+        "{}",
+        v["out"]
+    );
+}
+
 // TodoMVC "JavaScript ES6 Webpack" (bl-e5c3), pinned 2026-08-10 from
 // https://todomvc.com/examples/javascript-es6/dist/. Its bundle's first
 // statements alias DOM query results (`querySelector(All)` helpers) and then run

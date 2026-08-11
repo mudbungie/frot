@@ -44,6 +44,17 @@ fn create_text_appends_a_text_node() {
 }
 
 #[test]
+fn create_comment_appends_a_real_comment_node() {
+    // Comments are anchors frameworks navigate from (bl-79db): the node must
+    // be a genuine arena entry so insert_child/parent reads work on it.
+    let mut doc = Document::default();
+    let id = doc.create_comment("v-if");
+    assert_eq!(doc.node(id).kind, NodeKind::Comment("v-if".into()));
+    assert_eq!(doc.node(id).parent, None);
+    assert_eq!(doc.generation(), 1);
+}
+
+#[test]
 fn set_attr_adds_then_overwrites() {
     let mut doc = Document::default();
     let id = doc.create_element("a");

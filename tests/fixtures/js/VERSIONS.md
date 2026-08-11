@@ -75,6 +75,20 @@ from the es6 deployment's, so it is pinned separately):
 | `react-todomvc.bundle.js` | `app.bundle.js` | `6197ad9358985fb3f745aef3fca9abbe2fc7f0cd35cd4525cb8570107ae6b78a` |
 | `react-todomvc.base.js` | `base.js` | `8cfbaa8d2bc03e2e52a8b7788e041efda231a17e2a25c8bc4bfe2659adc5bb90` |
 
+Retrieved 2026-08-10 from `https://todomvc.com/examples/vue/dist/` (the
+TodoMVC "Vue" deployment, a Vue 3.5/Vite 8 CSR shell entirely behind
+vue-router, bl-79db — RouterView's start-location placeholder is a comment
+node, and the router-ready patch reads the container back off that anchor's
+`parentNode`; a fake createComment left it undefined and the app died silently
+in Vue's prod console.error channel. Its base.js differs byte-wise from both
+other TodoMVC deployments', so it is pinned separately):
+
+| File | Live path | sha256 |
+| --- | --- | --- |
+| `vue-todomvc.html` | `index.html` | `8d2fb97cb255c5bd26f19214a4c8992ed87c60592a19645a3dcdbba2790da697` |
+| `vue-todomvc.bundle.js` | `assets/index-CO9Gq1IP.js` | `a3369f75571a321455ce646feb7c242e559b57df21fe1a6d60a32a0064ae6d64` |
+| `vue-todomvc.base.js` | `base.js` | `84090789021f5f8206800503e18adbc38b5fddbfb0a84bfe36e86e683da60c20` |
+
 Retrieved 2026-08-10 from `https://vite-react-tailwind-template.pages.dev/`
 (the field trial's independent React reproduction, bl-3a36). The page is
 verbatim; the module fixture is **derived, not verbatim**: the failing unit is
