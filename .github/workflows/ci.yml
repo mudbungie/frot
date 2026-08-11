@@ -45,6 +45,13 @@ jobs:
       - name: Source-file line limit
         run: git ls-files '*.rs' | scripts/line-limit.sh
 
+      # Delegates to `make posix` — the /bin/sh conformance harness gating the
+      # CLI contract (docs/design/posix.md) at the process boundary: argv,
+      # streams, exit statuses, signals, lifecycle. The shipped musl artifact
+      # gets the same suite in the release pipeline (release-plz.yml).
+      - name: POSIX conformance suite
+        run: make posix
+
       # Delegates to `make package` (cargo publish --dry-run --locked) so the
       # crates.io packaging can never silently rot. Dry run only — the real
       # `cargo publish` belongs to the release workflow, which runs it when the

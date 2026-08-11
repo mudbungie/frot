@@ -33,6 +33,19 @@ if [ -n "$staged_rs" ]; then
   }
 fi
 
+# POSIX conformance (docs/design/posix.md, gated by scripts/posix-suite.sh via
+# `make posix`). The contract can only drift through a code change or through
+# an edit to the suite/profile pair, so the gate is keyed on either. Keeps the
+# local close gate in lockstep with CI's "POSIX conformance suite" step.
+staged_posix="$(git diff --cached --name-only --diff-filter=ACM |
+  grep -E '^(scripts/posix-suite\.sh|docs/design/posix\.md)$' || true)"
+if [ -n "$staged_rs" ] || [ -n "$staged_posix" ]; then
+  make posix || {
+    echo "pre-commit: POSIX conformance suite failed (make posix)" >&2
+    exit 1
+  }
+fi
+
 # 100% line + region coverage. Only when the commit touches .rs files —
 # doc / config / hook changes shouldn't be gated on test coverage. The
 # threshold lives in the Makefile `cov` target (one home, shared with CI);

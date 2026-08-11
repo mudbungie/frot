@@ -20,7 +20,7 @@ $ frot https://a-spa-shell.example --out text
 {"frot":"0","url":{...},"view":"text","status":"needs","needs":["js"]}
 ```
 
-Exit codes: `0` for an `ok` or `needs` envelope, `1` for an `error` envelope (still JSON on stdout), `2` for a usage error (no envelope; message on stderr).
+Exit codes: `0` for an `ok` or `needs` envelope, `1` for an `error` envelope (still JSON on stdout), `2` for a usage error (no envelope; message on stderr). This sentence derives from the authoritative CLI contract — `docs/design/posix.md`, the POSIX profile stating exactly what frot claims (and does not) about argv syntax, streams, exit statuses, signals, and lifecycle; `scripts/posix-suite.sh` gates it (`make posix`).
 
 The URL may also be `file://` — take an impression of a document you already have (a saved page, a crawl artifact, a cached fetch) without refetching it. Relative hrefs resolve against the file URL; under `--css` a local page may fetch its remote stylesheets, but a remote page can never read a `file:` one. Note that `file://` reaches local disk: validate schemes yourself before passing untrusted URLs, same as with curl.
 
@@ -100,11 +100,13 @@ lands ungated even if the hook is skipped or absent:
 
 - **`.github/workflows/ci.yml`** (every push + pull request) — `cargo fmt
   --check`, `make lint` (clippy `-D warnings`), `make cov` (100% lines +
-  regions), the source-file line cap, and `make package` (`cargo publish
-  --dry-run --locked` — the crates.io packaging gate; it never publishes). The
-  gate values are never re-typed in CI: coverage delegates to `make cov`, and
-  the 300-line limit is enforced by `scripts/line-limit.sh`, the same script the
-  pre-commit hook calls.
+  regions), the source-file line cap, `make posix` (the POSIX conformance
+  suite gating `docs/design/posix.md` at the process boundary), and `make
+  package` (`cargo publish --dry-run --locked` — the crates.io packaging gate;
+  it never publishes). The gate values are never re-typed in CI: coverage
+  delegates to `make cov`, the 300-line limit is enforced by
+  `scripts/line-limit.sh` (the same script the pre-commit hook calls), and the
+  conformance checks live in `scripts/posix-suite.sh` alone.
 - **`.github/workflows/release-plz.yml`** — the release pipeline. Every push to
   main refreshes a single "release PR" that bumps the version and stages the
   changelog; merging that PR is the human control point. Once CI concludes green
@@ -112,8 +114,10 @@ lands ungated even if the hook is skipped or absent:
   `cargo publish` to crates.io (needs the `CARGO_REGISTRY_TOKEN` repo secret),
   then a dependent job builds the stripped, static
   `x86_64-unknown-linux-musl` binary, asserts its size sits inside the
-  documented 5-15 MiB envelope (`scripts/check-size.sh`), and uploads it as a
-  Release asset.
+  documented 5-15 MiB envelope (`scripts/check-size.sh`), runs the POSIX
+  conformance suite against that exact stripped artifact (the second target
+  `docs/design/posix.md` §7 claims; locally, `make posix-musl`), and uploads
+  it as a Release asset.
 
 `rust-toolchain.toml` pins the compiler (and the `llvm-tools-preview` component
 and musl target) so local and CI agree.

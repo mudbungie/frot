@@ -164,6 +164,12 @@ jobs:
       # Fails the release if the stripped binary falls outside 5-15 MiB.
       - name: Assert size envelope
         run: scripts/check-size.sh target/x86_64-unknown-linux-musl/release/frot
+      # The POSIX profile (docs/design/posix.md §7) claims the shipped artifact
+      # by name, so the conformance suite runs against the exact stripped
+      # binary this job uploads — not a rebuild, not the dev-target build CI
+      # already gated.
+      - name: POSIX conformance suite (shipped artifact)
+        run: scripts/posix-suite.sh target/x86_64-unknown-linux-musl/release/frot
       - name: Upload release asset
         uses: softprops/action-gh-release@v3
         with:

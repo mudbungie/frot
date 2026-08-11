@@ -1,4 +1,4 @@
-.PHONY: setup build test fmt lint cov package precommit-install precommit-run clean
+.PHONY: setup build test fmt lint cov package posix posix-musl precommit-install precommit-run clean
 
 setup:
 	@command -v cargo-llvm-cov >/dev/null 2>&1 || cargo install cargo-llvm-cov --locked
@@ -31,6 +31,19 @@ cov:
 # is the one we tested. Never publishes; the real upload is a deliberate manual act.
 package:
 	cargo publish --dry-run --locked
+
+# The POSIX conformance gate (docs/design/posix.md): a /bin/sh harness spawning
+# the real binary at the process boundary — argv, streams, exit statuses,
+# signals, lifecycle. `posix` gates the dev build; `posix-musl` the shipped
+# x86_64-unknown-linux-musl artifact (the release pipeline runs the suite
+# against the exact stripped binary it uploads).
+posix:
+	cargo build
+	scripts/posix-suite.sh target/debug/frot
+
+posix-musl:
+	cargo build --release --target x86_64-unknown-linux-musl
+	scripts/posix-suite.sh target/x86_64-unknown-linux-musl/release/frot
 
 clean:
 	cargo clean

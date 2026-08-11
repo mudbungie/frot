@@ -1,6 +1,7 @@
 //! End-to-end glue: CLI → fetch → parse → view → envelope → stdout.
 //!
-//! Exit codes:
+//! Exit codes (derived from the authoritative table, `docs/design/posix.md`
+//! §4.4; gated by `scripts/posix-suite.sh`):
 //! - `0` — help/version, or `ok`/`needs` envelope emitted.
 //! - `1` — `error` envelope emitted (fetch failure or unsupported view).
 //! - `2` — usage error (no envelope emitted; message on stderr).
