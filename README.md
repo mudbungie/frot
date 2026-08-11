@@ -122,3 +122,6 @@ and musl target) so local and CI agree.
 
 Dual-licensed under **MIT OR Apache-2.0**, at your option — the declaration
 `Cargo.toml` carries and the one published with the crate.
+
+The full terms are in the repository root and ship in the published package:
+[`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE).
