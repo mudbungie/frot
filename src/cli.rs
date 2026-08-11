@@ -100,6 +100,15 @@ fn parse_header(raw: &str) -> Result<(String, String), CliError> {
     Ok((name.to_string(), value.trim().to_string()))
 }
 
+/// frot takes exactly one operand (the URL); a second is a usage error.
+fn take_operand(url: &mut Option<String>, a: &str) -> Result<(), CliError> {
+    if url.is_some() {
+        return Err(CliError::ExtraPositional(a.into()));
+    }
+    *url = Some(a.into());
+    Ok(())
+}
+
 pub fn parse(argv: &[String]) -> Result<Args, CliError> {
     if argv.is_empty() {
         return Err(CliError::NoArgs);
@@ -112,10 +121,15 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
     let mut out: Option<View> = None;
     let mut headers: Vec<(String, String)> = Vec::new();
 
+    // XBD 12.2 Guideline 10: the first `--` ends the options; everything after
+    // it is an operand, even if it begins with `-` (`docs/design/posix.md` §3).
+    let mut operands_only = false;
+
     let mut i = 0;
     while i < argv.len() {
         let a = &argv[i];
         match a.as_str() {
+            _ if operands_only => take_operand(&mut url, a)?,
             "-h" | "--help" => return Err(CliError::Help),
             "-V" | "--version" => return Err(CliError::Version),
             "--css" => {
@@ -163,14 +177,10 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
                 let v = &s[6..];
                 out = Some(View::parse(v).ok_or_else(|| CliError::UnknownView(v.into()))?);
             }
+            "--" => operands_only = true,
             s if s.starts_with("--") => return Err(CliError::UnknownFlag(s.into())),
             s if s.starts_with('-') && s.len() > 1 => return Err(CliError::UnknownFlag(s.into())),
-            _ => {
-                if url.is_some() {
-                    return Err(CliError::ExtraPositional(a.clone()));
-                }
-                url = Some(a.clone());
-            }
+            _ => take_operand(&mut url, a)?,
         }
         i += 1;
     }

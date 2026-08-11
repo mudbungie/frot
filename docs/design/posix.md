@@ -41,10 +41,10 @@ frot makes three claims of different strength. Conflating them is how a tool
 comes to imply certification it does not have, so they are kept apart:
 
 1. **Utility syntax (§3)** — how argv is parsed. Claimed against XBD 12,
-   with declared extensions and declared deviations.
+   with declared extensions and no declared deviations.
 2. **Process I/O and lifecycle (§4–§6)** — streams, exit statuses, signals,
-   and what exists after exit. Claimed in full, with two declared
-   deviations.
+   and what exists after exit. Claimed in full, with one declared
+   deviation (D2, §4.4).
 3. **Operating-system / ABI portability (§7)** — **not claimed.** frot's
    behavior is tested on two Linux x86_64 targets and asserted nowhere
    else. Nothing in this document is a certification claim; Linux itself is
@@ -77,13 +77,15 @@ The surface is fixed (`src/cli.rs`):
   combination (`--js-errors` without `--js`; `-H` with a `file://` URL) are
   all usage errors: exit 2, diagnostic + usage line on stderr, nothing on
   stdout (§4.3).
+- **`--` ends the options (Guideline 10).** The first `--` that is not an
+  option-argument is the end-of-options delimiter: every argument after it is
+  an operand, including one that begins with `-`. A bare `--` is not itself an
+  operand — it leaves the operand list unchanged — and only the first one
+  delimits; a later `--` is an ordinary operand. Since everything after it is
+  an operand, `frot -- URL --out text` makes `--out` the second operand and so
+  a usage error, not a flag.
 - **`-h`/`--help` and `-V`/`--version`** write their one product (the usage
   line; `frot <version>`) to **stdout** and exit 0.
-
-**Declared deviation D1 — no `--` delimiter (Guideline 10).** frot rejects
-`--` as an unknown flag (exit 2) instead of treating it as the
-end-of-options delimiter. Accepting it is a public-CLI-surface change and is
-tracked as **bl-28d1**; until that lands, the suite pins the rejection.
 
 ## §4 Claim 2a — stream discipline and exit statuses (XCU 1.4)
 
@@ -178,7 +180,7 @@ still empty afterward.
 binary: envelope runs (`ok` via a local file, `needs` via an SPA shell,
 `error` via an unparseable URL and a missing file), every §3 usage error,
 help/version, `--out=` and interleaving equivalence, determinism, closed /
-full / broken stdout (D2 as pinned), the `--` rejection (D1 as pinned),
+full / broken stdout (D2 as pinned), the `--` end-of-options delimiter,
 closed stdin, SIGTERM/SIGHUP death and the SIGINT inherited-ignore while
 blocked on a FIFO read, the pipe-EOF lifecycle proof, and the
 empty-scratch-tree residue check. It is

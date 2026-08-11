@@ -173,6 +173,39 @@ fn extra_positional_rejected() {
 }
 
 #[test]
+fn end_of_options_delimiter() {
+    // XBD 12.2 Guideline 10: the first `--` ends the options; what follows is
+    // an operand, even when it begins with `-`.
+    let a = parse(&argv(&["--out", "text", "--", "https://x/"])).unwrap();
+    assert_eq!(a.url, "https://x/");
+    assert_eq!(a.out, View::Text);
+    // A bare `--` is not itself an operand: the operand list is unchanged.
+    let b = parse(&argv(&["https://x/", "--out", "text", "--"])).unwrap();
+    assert_eq!(b, a);
+    assert_eq!(parse(&argv(&["--out", "text", "--"])), Err(CliError::NoUrl));
+    // Only the first `--` delimits; a second one is an ordinary operand.
+    assert_eq!(
+        parse(&argv(&["--out", "text", "--", "--"])).unwrap().url,
+        "--"
+    );
+    // An operand beginning with `-` is taken, not read as a flag.
+    assert_eq!(
+        parse(&argv(&["--out", "text", "--", "-x"])).unwrap().url,
+        "-x"
+    );
+    // A flag word after `--` is an operand too, so it is the second one.
+    assert_eq!(
+        parse(&argv(&["--", "https://x/", "--out", "text"])),
+        Err(CliError::ExtraPositional("--out".into()))
+    );
+    // A second operand after `--` is the existing too-many-operands error.
+    assert_eq!(
+        parse(&argv(&["--out", "text", "--", "https://x/", "extra"])),
+        Err(CliError::ExtraPositional("extra".into()))
+    );
+}
+
+#[test]
 fn help_and_version_short_and_long() {
     for flag in ["-h", "--help"] {
         let e = parse(&argv(&[flag])).unwrap_err();

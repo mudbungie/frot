@@ -1,7 +1,7 @@
 #!/bin/sh
 # posix-suite.sh — gate the POSIX profile (docs/design/posix.md) against a
 # real frot binary. Every assertion cites the §-clause it tests; a pinned
-# deviation (D1: bl-28d1, D2: bl-34fb) is asserted at its CURRENT behavior so
+# deviation (D2: bl-34fb) is asserted at its CURRENT behavior so
 # the fix cannot land without flipping the test and the doc together.
 #
 # POSIX sh only — no bashisms, no dependency beyond POSIX utilities and
@@ -64,8 +64,24 @@ usage_error "duplicate flag" "$OKURL" --css --css --out text
 usage_error "second operand" "$OKURL" extra --out text
 usage_error "--js-errors without --js" "$OKURL" --js-errors --out text
 usage_error "-H with file://" "$OKURL" -H "X-A: b" --out text
-# D1 (bl-28d1): the -- end-of-options delimiter (XBD 12.2 G10) is rejected.
-usage_error "D1 pinned: -- rejected as unknown flag" -- "$OKURL" --out text
+# XBD 12.2 G10: the first -- ends the options; everything after it is an
+# operand, so a flag word after it is the second operand (a usage error), and
+# a second -- is an ordinary operand (an unparseable URL, so an error envelope).
+usage_error "-- : a flag word after it is an operand" -- "$OKURL" --out text
+usage_error "-- : a second operand after it" --out text -- "$OKURL" extra
+
+run "$TMP/eoo.out" "$TMP/eoo.err" --out text -- "$OKURL"
+assert_eq "-- : delimiter accepted, exit 0" 0 "$RC"
+assert_has "-- : operand after it is the URL" "$TMP/eoo.out" '"status":"ok"'
+assert_empty "-- : stderr silent" "$TMP/eoo.err"
+
+run "$TMP/eoo2.out" "$TMP/eoo2.err" "$OKURL" --out text --
+assert_eq "bare -- : exit 0" 0 "$RC"
+assert_same "bare -- : operand list unchanged" "$TMP/eoo.out" "$TMP/eoo2.out"
+
+run "$TMP/eoo3.out" "$TMP/eoo3.err" --out text -- --
+assert_eq "-- : a second -- is an operand (bad URL), exit 1" 1 "$RC"
+assert_has "-- : second -- reaches URL parsing" "$TMP/eoo3.out" '"kind":"fetch.url"'
 
 run "$TMP/h.out" "$TMP/h.err" --help
 assert_eq "--help: exit 0" 0 "$RC"
