@@ -181,7 +181,10 @@ Consequences of the repo's hard rules:
   `getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set`); and a
   **constructible** `new DocumentFragment()` returning the real staging
   fragment with `ownerDocument`/`insertBefore`/`removeChild` (React portals
-  into fresh fragments and reaches the document through the container); and
+  into fresh fragments and reaches the document through the container) — an
+  **EventTarget** like every node (bl-e81b, §7: React listens on every portal
+  container, and a missing `addEventListener` mid-render corrupts React's
+  unwind); and
   `rel`/`href` reflection (`bl-07ab`: MutationObserver's flagship consumer —
   the Vite modulepreload polyfill — reads `link.rel`/`link.href` off observed
   records; `href` reflects resolved against the document URL, as Firefox's
@@ -589,6 +592,30 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   (native `autofocus` processing at load is deliberately not performed), so a
   focus event exists only because a page script called `focus()`, exactly like
   `dispatchEvent`.
+- **EventTarget + abort surface (`bl-e81b`, found live: the Vite/React-Router
+  template died "You cannot render a `<Router>` inside another `<Router>`" —
+  an error about frot, not the app; the deployed bundle renders exactly one
+  Router).** The measured chain: Radix-style libraries park closed popover
+  content in `createPortal(children, new DocumentFragment())`, React listens
+  on every portal container (`listenToAllSupportedEvents`), and the staging
+  fragment's missing `addEventListener` threw mid-render; React's unwind then
+  misaligned its shared context cursor stack, and the retried render read
+  another provider's value out of react-router's LocationContext — the
+  nested-Router invariant was the corruption's symptom, three causes
+  downstream of the divergence. The surface, Firefox 140esr's base contract:
+  the staging fragment carries Node's own EventTarget trio (one loop.js
+  listener registry, keyed by a unique negative `_id` no arena node can
+  carry); **`EventTarget`** is a global, constructable interface whose
+  `instanceof` matches by the trio's shape, so every event-bearing surface
+  answers true without a class hierarchy; and
+  **`AbortController`/`AbortSignal`** (`prelude/abort.js`:
+  `abort`/`reason`/`onabort`/`throwIfAborted`, statics
+  `abort`/`timeout`/`any`, timeout on the §5 virtual clock) exist with real
+  state-and-event semantics. Deliberate residual: no subfetch integration —
+  §6's once-then-frozen network has nothing cancellable, so aborting only
+  marks the signal, which is exactly the fact these libraries read back. The
+  env-contract fixture pins the surface; the `vite-react-tailwind` field
+  fixture replays the whole page end-to-end.
 - `screen` / `devicePixelRatio` / visibility (`bl-1cb7`, LANDED): a branded
   `Screen` (`screen.width`/`height`/`availWidth`/`availHeight` = the 1280×720
   layout viewport, **not** a second constant, identity.md §8), `colorDepth`/

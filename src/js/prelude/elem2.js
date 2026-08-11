@@ -259,7 +259,17 @@
 
   // A DocumentFragment: a detached staging parent. Children appended to it are
   // moved into the real target on the next appendChild/insertBefore (frameworks
-  // batch DOM writes through fragments).
+  // batch DOM writes through fragments). In Firefox a fragment is a Node, hence
+  // an EventTarget (bl-e81b): React listens on every portal container
+  // (listenToAllSupportedEvents), and Radix-style libraries park closed-popover
+  // content in `createPortal(children, new DocumentFragment())` — a missing
+  // addEventListener throws mid-render, React's unwind misaligns its shared
+  // cursor stack, and the *next* render dies on a corrupted context ("You
+  // cannot render a <Router> inside another <Router>"). The trio is Node's own
+  // (loop.js — one registry, one implementation, loaded by the time a page can
+  // construct a fragment), keyed per fragment by a unique negative _id no
+  // arena node can ever carry.
+  var fragSeq = 0;
   function wrapFragment() {
     var kids = [];
     function indexOfKid(n) {
@@ -267,7 +277,10 @@
       return -1;
     }
     return {
-      _id: -1,
+      _id: --fragSeq,
+      addEventListener: proto.addEventListener,
+      removeEventListener: proto.removeEventListener,
+      dispatchEvent: proto.dispatchEvent,
       nodeType: 11,
       nodeName: '#document-fragment',
       // A portal container: React reaches the document through the container

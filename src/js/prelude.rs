@@ -76,6 +76,10 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/loop.js"),
     "\n",
+    // Abort surface (bl-e81b): AbortController/AbortSignal over loop.js's
+    // EventTarget and virtual-clock setTimeout.
+    include_str!("prelude/abort.js"),
+    "\n",
     // Focus management (bl-3a36): activeElement + focus()/blur() — after loop.js
     // because moving focus dispatches blur/focus through Node.dispatchEvent.
     include_str!("prelude/focus.js"),

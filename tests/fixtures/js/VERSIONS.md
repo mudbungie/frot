@@ -108,3 +108,20 @@ fixtures above already pin.
 | --- | --- | --- |
 | `vite-preload.html` | `index.html`, verbatim | `590b4162216823aa2067ba712ad0689b88e3f5db18f5692b7c7098580de967ce` |
 | `vite-preload.mjs` | derived (see above) | `d0bfe58d113b5ad5c8d1765b715fee7c9021aa96efc869ca46ef975fbffc962b` |
+
+Retrieved 2026-08-11 from `https://vite-react-tailwind-template.pages.dev/`
+(the full deployment this time, bl-e81b — the modulepreload polyfill above was
+that module's *first* casualty; past it, the app is React 19 in StrictMode +
+react-router 7 + Radix-style primitives + framer-motion, and it died on the
+staging DocumentFragment's missing `addEventListener`, surfacing three causes
+downstream as react-router's nested-Router invariant). The page is
+`vite-preload.html` above — byte-identical on both retrieval dates, one pin —
+and the bundle is the exact file the derived polyfill slice was cut from (same
+sha256). The framer chunk is the bundle's one dynamic import; its lazy feature
+resolves animation targets with `t instanceof EventTarget` and constructs
+`new AbortController` bare.
+
+| File | Live path | sha256 |
+| --- | --- | --- |
+| `vite-react-tailwind.bundle.js` | `assets/index-D22riwjH.js` | `bf1e9611b4339cabd44f7681e3909ce308a3bc641ac2477f3b2c3df4c1ec1bdf` |
+| `vite-react-tailwind.framer.js` | `assets/framer-lazy-feature-Cs1hsT7r.js` | `e5454a930f40fb46fa56e0ee0bdfc7acc60d02fddec5b5755936cb66e607ff67` |

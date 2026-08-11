@@ -202,6 +202,22 @@
   };
   g.CustomEvent.prototype = Object.create(g.Event.prototype);
 
+  // EventTarget (bl-e81b): Firefox's base interface, constructable since FF 59
+  // — framer-motion resolves animation targets with `t instanceof EventTarget`,
+  // a ReferenceError while the name is absent. Instances ride the one registry
+  // under a unique key; `instanceof` matches by the trio's shape, so every
+  // event-bearing surface (window, document, nodes, fragments, XHR, …) answers
+  // true without a class hierarchy — the elem.js hasInstance pattern.
+  var etSeq = 0;
+  g.EventTarget = function EventTarget() {
+    bindEvents(this, 'et' + ++etSeq, this);
+  };
+  Object.defineProperty(g.EventTarget, Symbol.hasInstance, {
+    value: function (o) {
+      return !!o && (typeof o === 'object' || typeof o === 'function') && typeof o.addEventListener === 'function';
+    },
+  });
+
   bindEvents(g, 'window', g);
   bindEvents(g.document, 'document', g.document);
   g.Node.prototype.addEventListener = function (type, fn) {

@@ -235,6 +235,54 @@
   check('elem:fragment.insertBefore', frag.firstChild === fragKid2);
   frag.removeChild(fragKid2);
   check('elem:fragment.removeChild', frag.firstChild === fragKid && frag.childNodes.length === 1);
+  // A fragment is an EventTarget (bl-e81b): React listens on every portal
+  // container, and Radix-style libraries park closed popover content in a
+  // fresh fragment — a missing addEventListener throws mid-render and React's
+  // unwind corrupts its context stack (the live nested-Router death). The trio
+  // is Node's own over the one registry, keyed per fragment: a dispatch on a
+  // second fragment must not cross-fire the first's listeners.
+  var FRAG_EV = 0;
+  frag.addEventListener('frot-x', function () { FRAG_EV++; });
+  new DocumentFragment().dispatchEvent(new Event('frot-x'));
+  frag.dispatchEvent(new Event('frot-x'));
+  check('elem:fragment.eventTarget', FRAG_EV === 1 && frag instanceof EventTarget);
+
+  // --- EventTarget + abort surface (§7, bl-e81b) -----------------------------
+  // EventTarget is the global, constructable base interface — framer-motion
+  // resolves animation targets with `t instanceof EventTarget`, a
+  // ReferenceError while the name is absent. instanceof matches by the trio's
+  // shape, so every event-bearing surface answers true.
+  var ET_N = 0;
+  var et = new EventTarget();
+  et.addEventListener('ping', function () { ET_N++; });
+  et.dispatchEvent(new Event('ping'));
+  check('events:EventTarget', ET_N === 1 && window instanceof EventTarget
+    && document instanceof EventTarget && document.body instanceof EventTarget);
+  // AbortController/AbortSignal: real state-and-event semantics; nothing
+  // in-flight is cancellable (§6 once-then-frozen), so the marked signal IS
+  // the fact a page reads back. abort() is once: the second call fires nothing.
+  var AB = {};
+  var ac = new AbortController();
+  var acN = 0;
+  ac.signal.addEventListener('abort', function () { acN += 1; });
+  ac.signal.onabort = function () { acN += 10; };
+  check('abort:init', ac.signal.aborted === false && ac.signal instanceof AbortSignal
+    && ac.signal instanceof EventTarget);
+  ac.abort();
+  ac.abort();
+  check('abort:aborted', ac.signal.aborted === true && acN === 11
+    && ac.signal.reason.name === 'AbortError');
+  var pre = AbortSignal.abort('why');
+  var thrown = null;
+  try { pre.throwIfAborted(); } catch (e) { thrown = e; }
+  check('abort:static', pre.aborted === true && pre.reason === 'why' && thrown === 'why');
+  check('abort:any', AbortSignal.any([ac.signal, pre]).aborted === true
+    && AbortSignal.any([new AbortController().signal]).aborted === false);
+  // timeout rides the §5 virtual clock; asserted in the post-load timer below.
+  var TSIG = AbortSignal.timeout(3);
+  TSIG.addEventListener('abort', function () {
+    AB.t = TSIG.aborted === true && TSIG.reason.name === 'TimeoutError';
+  });
 
   // --- Focus (§7, bl-3a36): one fact — activeElement — that focus()/blur()
   // move, page-driven only (the host never focuses anything, §11). React's
@@ -521,6 +569,8 @@
       check('obs:io.initial', VO.io === true && VO.ioCalls === 1 && VO.ioSync === true);
       check('obs:ro.initial', VO.ro === true);
       check('obs:ro.emptyWaveSilent', VO.roNone === undefined);
+      // AbortSignal.timeout fired on the virtual clock, long before this timer.
+      check('abort:timeout', AB.t === true);
       // The one place the whole run's regressions surface, written last.
       document.documentElement.setAttribute('data-fail', JSON.stringify(FAILS));
       document.documentElement.setAttribute('data-done', '1');

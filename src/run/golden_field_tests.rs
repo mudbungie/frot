@@ -5,7 +5,7 @@
 //! regression it pins is exactly the one the field trial observed. Served from
 //! the in-process mock server; tests never touch the live network.
 
-use super::golden_tests::{env, run_guarded, serve};
+use super::golden_tests::{env, run_capture, run_guarded, serve};
 
 // TodoMVC "React" (bl-3a36), pinned 2026-08-10 from
 // https://todomvc.com/examples/react/dist/. A React 18-era CSR shell whose
@@ -53,6 +53,57 @@ fn react_todomvc_autofocus_commit_renders_and_clears_needs_js() {
         "{}",
         v["out"]
     );
+}
+
+// The same deployment run WHOLE (bl-e81b), bundle + framer chunk pinned
+// 2026-08-11 (page and bundle byte-identical to the 2026-08-10 retrieval —
+// VITE_PAGE is the one pin). React 19 in StrictMode + react-router 7 + Radix +
+// framer-motion. The live failure: Radix parks closed popover content in
+// `createPortal(children, new DocumentFragment())`, React listens on every
+// portal container, and the staging fragment's missing addEventListener threw
+// mid-render — React's unwind misaligned its shared context cursor stack and
+// the retried render read another provider's value out of react-router's
+// LocationContext, dying on the nested-Router invariant three causes
+// downstream ("You cannot render a <Router> inside another <Router>", an
+// error about frot, not the app: the bundle renders exactly one Router). The
+// framer chunk is the bundle's one dynamic import; its lazy feature resolves
+// targets via `t instanceof EventTarget` and constructs `new AbortController`
+// bare — both Firefox surface frot lacked.
+const VRT_BUNDLE: &str = include_str!("../../tests/fixtures/js/vite-react-tailwind.bundle.js");
+const VRT_FRAMER: &str = include_str!("../../tests/fixtures/js/vite-react-tailwind.framer.js");
+
+#[test]
+fn vite_react_tailwind_full_app_renders_its_one_router() {
+    let (_s, url) = serve(
+        VITE_PAGE,
+        &[
+            ("/assets/index-D22riwjH.js", VRT_BUNDLE),
+            ("/assets/framer-lazy-feature-Cs1hsT7r.js", VRT_FRAMER),
+        ],
+    );
+    // Deliberately NOT run_guarded: this is the heaviest golden by far (~4x the
+    // todomvc class — 578 KB of StrictMode React 19 + router + framer), and the
+    // §5 margin guard's own contract is "cannot fail on load", which this page
+    // breaks under llvm-cov + contention (measured 540-578 ms at 2x CPU
+    // oversubscription, over CPU_GUARD_MS = 500). Budget sensitivity is kept by
+    // `settled: true` below — asserted at the real EXEC_CPU_MS boundary — and a
+    // spinning regression still fails there; the cheap fixtures keep metering
+    // the prelude-bloat margin.
+    let (code, out) = run_capture(&[&url, "--js", "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = env(&out);
+    assert_eq!(v["status"], "ok");
+    // Both scripts (inline theme snippet + the module graph) ran clean and
+    // settled; the field trial saw errors=1 with the nested-Router report.
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 2, "errors": 0, "settled": true})
+    );
+    let text = v["out"].as_str().unwrap();
+    // Proof the router routed and the app rendered its landing content instead
+    // of its error boundary ("Sorry, the app has encountered an error").
+    assert!(text.contains("Ready for production"), "{text}");
+    assert!(!text.contains("encountered an error"), "{text}");
 }
 
 #[test]
