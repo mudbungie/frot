@@ -97,6 +97,36 @@
     eq('absent:' + n, typeof globalThis[n], 'undefined');
   });
 
+  // --- DOM collections (§3, bl-e5c3): every query result is an instance of the
+  // spec-named interface, and the interfaces are real globals a page can touch
+  // (the field trial's bundle ran `NodeList.prototype.forEach = ...` and died on
+  // an undefined NodeList).
+  eq('coll:NodeList', typeof NodeList, 'function');
+  eq('coll:HTMLCollection', typeof HTMLCollection, 'function');
+  var qsa = document.querySelectorAll('div');
+  check('coll:qsa.instanceof', qsa instanceof NodeList);
+  check('coll:qsa.tag', Object.prototype.toString.call(qsa) === '[object NodeList]');
+  eq('coll:qsa.length', qsa.length, 1);
+  check('coll:qsa.item', qsa.item(0) === qsa[0] && qsa.item(1) === null);
+  check('coll:childNodes.instanceof', document.body.childNodes instanceof NodeList);
+  check('coll:children.instanceof', document.body.children instanceof HTMLCollection);
+  check('coll:byTag.instanceof', document.getElementsByTagName('div') instanceof HTMLCollection);
+  var byTag = document.getElementsByTagName('div');
+  check('coll:namedItem', byTag.namedItem('probe') === byTag[0] && byTag.namedItem('absent') === null);
+  // WebIDL value-iterator shape: the iteration methods ARE the Array ones, so
+  // forEach/spread work on results and the constructors throw when new'd.
+  check('coll:forEach==Array', NodeList.prototype.forEach === Array.prototype.forEach);
+  var spread = [...qsa];
+  check('coll:iterable', spread.length === 1 && spread[0] === qsa[0]);
+  var illegal;
+  try {
+    new NodeList();
+    illegal = 'no throw';
+  } catch (e) {
+    illegal = e.constructor.name;
+  }
+  eq('coll:illegalConstructor', illegal, 'TypeError');
+
   // --- Lifecycle capture (§4.4/§5): readyState transitions + phase order -----
   RS.inline = document.readyState;      // 'loading' while the script queue runs
   RS.perf0 = performance.now();

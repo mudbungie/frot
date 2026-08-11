@@ -55,7 +55,7 @@ pub(super) fn run_capture(args: &[&str]) -> (u8, String) {
 ///
 /// This is the enforcement of what js.md §13 OQ-1 previously only *recorded*: a
 /// margin that lives in a doc stops being true without anyone noticing.
-fn run_guarded(fixture: &str, args: &[&str]) -> (u8, String) {
+pub(super) fn run_guarded(fixture: &str, args: &[&str]) -> (u8, String) {
     let cpu = Clock::cpu();
     let captured = run_capture(args);
     let ms = cpu.elapsed_nanos() / 1_000_000;

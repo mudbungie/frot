@@ -45,3 +45,20 @@ esbuild react19-todo.src.js --bundle --minify --format=iife \
 | File | Purpose |
 | --- | --- |
 | `esm-greeter.mjs` | A tiny, framework-free ES module the golden suite's module page imports by relative URL — exercises the as-built ESM path (resolver + loader over the §6 subfetch cache, live module linking; `js.md` §4.1/§6, bl-1b98). Data, not a dependency; hand-authored, so it carries no upstream version. |
+
+## Field-trial fixtures (verbatim live pages)
+
+Pages pinned byte-for-byte from live deployments the 2026-08-10 field trial
+broke frot against, driven offline by `src/run/golden_field_tests.rs`. Carrying
+no package version, they are pinned by source URL, retrieval date, and sha256 —
+do not re-fetch; the point is replaying the exact bytes that failed.
+
+Retrieved 2026-08-10 from `https://todomvc.com/examples/javascript-es6/dist/`
+(the TodoMVC "JavaScript ES6 Webpack" deployment whose bundle runs
+`NodeList.prototype.forEach = Array.prototype.forEach` at init, bl-e5c3):
+
+| File | Live path | sha256 |
+| --- | --- | --- |
+| `todomvc-es6.html` | `index.html` | `3f5e2a1f370e7326c9523fdbaf07a3d98ab11e5fb0dd243ff83d276559f1d87a` |
+| `todomvc-es6.bundle.js` | `app.bundle.js` | `01b56caf970328499b1ea12a405bd4c03e27bc4bad6d6e36d49884fe75159fac` |
+| `todomvc-es6.base.js` | `base.js` | `12d217a42e7349e522ee100e833b734471aa2d14823defa5e1bd77802cf67a9d` |

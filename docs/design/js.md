@@ -135,6 +135,17 @@ Consequences of the repo's hard rules:
 - `querySelector` accepts exactly the selector grammar `css::selparse`
   supports; an unsupported selector **throws** (a counted error, §10) rather
   than silently matching nothing.
+- **DOM collections are the spec-named interfaces** (bl-e5c3, found live: a
+  bundle ran `NodeList.prototype.forEach = Array.prototype.forEach` at init
+  and died on an undefined `NodeList`). One invariant, one maker (`dom.js`):
+  every collection a query returns is an instance of the interface the web
+  spec names for it — `childNodes`/`querySelectorAll`/`getElementsByName` a
+  `NodeList`; `children`/`getElementsByTagName`/`getElementsByClassName` an
+  `HTMLCollection` — never a bare `Array`. Both prototypes are WebIDL-shaped
+  the way Gecko exposes them (`new` throws Illegal constructor, `length` is a
+  prototype accessor, the iteration methods ARE the `Array.prototype` ones),
+  and instances are snapshots of wrapped nodes: like every wrapper, they cache
+  no arena state. The env-contract fixture pins the whole surface.
 
 ## 4. What runs, and when
 

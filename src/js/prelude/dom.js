@@ -8,9 +8,83 @@
   function wrap(id) {
     return id === null || id === undefined ? null : new Node(id);
   }
-  function wrapAll(ids) {
-    return ids.map(wrap);
+
+  // --- DOM collections: one maker, two spec-named interfaces (bl-e5c3) -------
+  // The invariant that dissolves the collection zoo: every collection a DOM
+  // query returns is an instance of the interface the web spec names for it —
+  // childNodes / querySelectorAll / getElementsByName yield a NodeList,
+  // children / getElementsByTagName / getElementsByClassName an HTMLCollection
+  // — and both are built by this one maker: a snapshot of wrapped nodes as own
+  // indexed props over the interface prototype. Like every wrapper, a
+  // collection holds no arena state beyond the nodes it was asked to hold.
+  // WebIDL shapes the prototypes: `new NodeList()` throws Illegal constructor
+  // (via __frot_iface), `length` is a prototype accessor, and the iteration
+  // methods ARE the Array.prototype ones — exactly as Gecko exposes them.
+  var A = Array.prototype;
+  var hasOwn = Object.prototype.hasOwnProperty;
+  function item(i) {
+    var n = this[i >>> 0];
+    return n === undefined ? null : n;
   }
+  function collectionLength() {
+    var n = 0;
+    while (hasOwn.call(this, n)) n++;
+    return n;
+  }
+  function defineCollection(name, methods) {
+    var Ctor = g.__frot_iface(name, { length: collectionLength });
+    Object.keys(methods).forEach(function (k) {
+      Object.defineProperty(Ctor.prototype, k, {
+        value: g.__frot_brand(methods[k], k),
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+    });
+    Object.defineProperty(Ctor.prototype, Symbol.iterator, {
+      value: A.values,
+      writable: true,
+      configurable: true,
+    });
+    return Ctor;
+  }
+  var NodeList = defineCollection('NodeList', {
+    item: item,
+    entries: A.entries,
+    keys: A.keys,
+    values: A.values,
+    forEach: A.forEach,
+  });
+  var HTMLCollection = defineCollection('HTMLCollection', {
+    item: item,
+    namedItem: function namedItem(name) {
+      var s = String(name);
+      for (var i = 0; hasOwn.call(this, i); i++) {
+        var n = this[i];
+        if (n.getAttribute('id') === s || n.getAttribute('name') === s) return n;
+      }
+      return null;
+    },
+  });
+  function collect(Ctor, ids) {
+    var c = Object.create(Ctor.prototype);
+    for (var i = 0; i < ids.length; i++) {
+      Object.defineProperty(c, i, { value: wrap(ids[i]), enumerable: true, configurable: true });
+    }
+    return c;
+  }
+  function wrapAll(ids) {
+    return collect(NodeList, ids);
+  }
+  // The HTMLCollection maker, shared with elem2.js's getElementsBy* (the same
+  // non-enumerable-global seam brand.js uses for __frot_brand/__frot_iface).
+  Object.defineProperty(g, '__frot_elems', {
+    value: g.__frot_brand(function (ids) {
+      return collect(HTMLCollection, ids);
+    }, '__frot_elems'),
+    configurable: true,
+    writable: true,
+  });
 
   class Node {
     constructor(id) {
@@ -34,9 +108,11 @@
       return wrapAll(g.__frot_children(this._id));
     }
     get children() {
-      return this.childNodes.filter(function (n) {
-        return n.nodeType === 1;
-      });
+      return g.__frot_elems(
+        g.__frot_children(this._id).filter(function (id) {
+          return g.__frot_kind(id) === 'element';
+        })
+      );
     }
     get firstChild() {
       var kids = g.__frot_children(this._id);
@@ -50,11 +126,13 @@
       g.__frot_insert_child(this._id, g.__frot_create_text(String(value)), 0);
     }
     get innerHTML() {
-      return this.childNodes
-        .map(function (n) {
-          return n.nodeType === 1 ? n.outerHTML : n.textContent;
-        })
-        .join('');
+      var kids = this.childNodes;
+      var len = kids.length;
+      var out = '';
+      for (var i = 0; i < len; i++) {
+        out += kids[i].nodeType === 1 ? kids[i].outerHTML : kids[i].textContent;
+      }
+      return out;
     }
     set innerHTML(html) {
       this._clear();

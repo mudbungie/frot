@@ -25,19 +25,19 @@
   };
 
   // --- collections + matches the frameworks lean on ------------------------
+  // getElementsBy* return an HTMLCollection (the spec-named interface, built by
+  // dom.js's one collection maker over the same selector hits qSA would find).
   proto.getElementsByTagName = function (tag) {
-    return this.querySelectorAll(String(tag));
+    return g.__frot_elems(g.__frot_query(this._id, String(tag)));
   };
   proto.getElementsByClassName = function (cls) {
-    return this.querySelectorAll('.' + String(cls).trim().split(/\s+/).join('.'));
+    return g.__frot_elems(g.__frot_query(this._id, '.' + String(cls).trim().split(/\s+/).join('.')));
   };
   proto.matches = function (sel) {
     var hits = this.parentNode ? this.parentNode.querySelectorAll(sel) : g.document.querySelectorAll(sel);
-    return hits.some(
-      function (n) {
-        return n._id === this._id;
-      }.bind(this)
-    );
+    var len = hits.length;
+    for (var i = 0; i < len; i++) if (hits[i]._id === this._id) return true;
+    return false;
   };
   proto.contains = function (other) {
     for (var n = other; n; n = n.parentNode) if (n._id === this._id) return true;
@@ -125,10 +125,10 @@
     return { nodeType: 8, textContent: String(text), _id: -1 };
   };
   g.document.getElementsByTagName = function (tag) {
-    return g.document.querySelectorAll(String(tag));
+    return g.__frot_elems(g.__frot_query_doc(String(tag)));
   };
   g.document.getElementsByClassName = function (cls) {
-    return g.document.querySelectorAll('.' + String(cls).trim().split(/\s+/).join('.'));
+    return g.__frot_elems(g.__frot_query_doc('.' + String(cls).trim().split(/\s+/).join('.')));
   };
   g.document.getElementsByName = function (name) {
     return g.document.querySelectorAll('[name="' + String(name) + '"]');
