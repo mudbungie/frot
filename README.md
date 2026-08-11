@@ -22,7 +22,7 @@ $ frot https://a-spa-shell.example --out text
 {"frot":"0","url":{...},"view":"text","status":"needs","needs":["js"]}
 ```
 
-Exit codes: `0` for an `ok` or `needs` envelope, `1` for an `error` envelope (still JSON on stdout), `2` for a usage error (no envelope; message on stderr). This sentence derives from the authoritative CLI contract — `docs/design/posix.md`, the POSIX profile stating exactly what frot claims (and does not) about argv syntax, streams, exit statuses, signals, and lifecycle; `scripts/posix-suite.sh` gates it (`make posix`).
+Exit codes: `0` for an `ok` or `needs` envelope, `1` for an `error` envelope (still JSON on stdout), `2` for a usage error (no envelope; message on stderr), `3` when the envelope could not be written to stdout (product lost; diagnostic on stderr) — and a broken pipe kills frot with SIGPIPE, so a pipeline consumer sees the usual 141. This sentence derives from the authoritative CLI contract — `docs/design/posix.md`, the POSIX profile stating exactly what frot claims (and does not) about argv syntax, streams, exit statuses, signals, and lifecycle; `scripts/posix-suite.sh` gates it (`make posix`).
 
 The URL may also be `file://` — take an impression of a document you already have (a saved page, a crawl artifact, a cached fetch) without refetching it. Relative hrefs resolve against the file URL; under `--css` a local page may fetch its remote stylesheets, but a remote page can never read a `file:` one. Note that `file://` reaches local disk: validate schemes yourself before passing untrusted URLs, same as with curl.
 

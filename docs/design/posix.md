@@ -43,8 +43,7 @@ comes to imply certification it does not have, so they are kept apart:
 1. **Utility syntax (§3)** — how argv is parsed. Claimed against XBD 12,
    with declared extensions and no declared deviations.
 2. **Process I/O and lifecycle (§4–§6)** — streams, exit statuses, signals,
-   and what exists after exit. Claimed in full, with one declared
-   deviation (D2, §4.4).
+   and what exists after exit. Claimed in full.
 3. **Operating-system / ABI portability (§7)** — **not claimed.** frot's
    behavior is tested on two Linux x86_64 targets and asserted nowhere
    else. Nothing in this document is a certification claim; Linux itself is
@@ -122,19 +121,30 @@ diagnostic.
 | 0 | `ok` or `needs` envelope emitted; also `--help` / `--version` |
 | 1 | `error` envelope emitted (still JSON on stdout) |
 | 2 | usage error (no envelope; diagnostic on stderr) |
-| 128+n | killed by signal n, default disposition (§5.2); no partial output |
+| 3 | stdout write failure — the product is lost (best-effort diagnostic on stderr) |
+| 128+n | killed by signal n — default disposition (§5.2) or the broken-pipe death below; no partial output |
 
 No other statuses are used. README's exit-code sentence derives from this
 table.
 
-**Declared deviation D2 — stdout write failure is not detected.** If the
-envelope write fails (EPIPE: reader gone; EBADF: stdout closed; ENOSPC:
-device full), frot ignores the failure and exits by envelope status — a lost
-product can exit 0, silently. XCU 1.4 (CONSEQUENCES OF ERRORS) and frot's
-own honest-signals principle both say it should not. Fixing it changes the
-exit-status surface and is tracked as **bl-34fb**; until that lands, the
-suite pins the current behavior: exit status unchanged, no crash, no signal
-death, stderr silent.
+**Write failure is detected at the delivery seam** (XCU 1.4 CONSEQUENCES OF
+ERRORS: an undelivered product must not exit as success):
+
+- **Broken pipe (EPIPE — the reader is gone):** frot restores SIGPIPE's
+  default disposition at the stdout seam and re-raises, dying with status
+  141 (128+13), the termination every pipeline consumer already expects
+  (§5.2). stderr stays silent; the death is the signal.
+- **Any other write failure (ENOSPC on a full device, …):** exit **3** with
+  a `frot: stdout write failed: <cause>` diagnostic on stderr. The
+  diagnostic is best-effort: a dead stderr cannot turn status 3 into a
+  crash or a second failure cascade.
+- **A closed stdout (`frot >&-`) cannot surface EBADF:** the Rust runtime
+  reopens closed standard descriptors on `/dev/null` before `main` (the
+  classic fd-reuse guard), so `>&-` behaves exactly like `>/dev/null` — the
+  write succeeds into the sink and the exit is the envelope's. The
+  EBADF-shaped failure is still handled by the generic arm above
+  (unit-tested through the write seam); it is simply unreachable from the
+  shell, and the suite asserts the remap instead.
 
 ## §5 Claim 2b — lifecycle
 
@@ -160,9 +170,12 @@ frot installs no signal handlers and alters no disposition except SIGPIPE:
   inherited: a background job under a non-interactive shell receives SIGINT
   as SIG_IGN (XCU 2.11) and frot survives the kill; a foreground Ctrl-C
   (default disposition) terminates it like SIGTERM.
-- **SIGPIPE**: ignored (the Rust runtime sets `SIG_IGN` before `main`), so
-  frot never terminates with status 141; a broken pipe surfaces as a write
-  error instead — currently swallowed, see D2.
+- **SIGPIPE**: ignored process-wide (the Rust runtime sets `SIG_IGN` before
+  `main`), so a peer closing a network socket surfaces as an ordinary fetch
+  error, never a signal death. The single exception is local and
+  deliberate: when the stdout product write itself fails with EPIPE, frot
+  restores the default disposition and re-raises, terminating with status
+  141 (§4.4).
 
 No cleanup-on-signal is claimed or needed: there is nothing to clean (§5.3).
 
@@ -180,7 +193,7 @@ still empty afterward.
 binary: envelope runs (`ok` via a local file, `needs` via an SPA shell,
 `error` via an unparseable URL and a missing file), every §3 usage error,
 help/version, `--out=` and interleaving equivalence, determinism, closed /
-full / broken stdout (D2 as pinned), the `--` end-of-options delimiter,
+full / broken stdout (§4.4), the `--` end-of-options delimiter,
 closed stdin, SIGTERM/SIGHUP death and the SIGINT inherited-ignore while
 blocked on a FIFO read, the pipe-EOF lifecycle proof, and the
 empty-scratch-tree residue check. It is

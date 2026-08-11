@@ -5,6 +5,12 @@
 //! - `0` — help/version, or `ok`/`needs` envelope emitted.
 //! - `1` — `error` envelope emitted (fetch failure or unsupported view).
 //! - `2` — usage error (no envelope emitted; message on stderr).
+//! - `3` — the product could not be written to stdout (envelope lost;
+//!   best-effort diagnostic on stderr).
+//!
+//! A broken pipe is not status `3`: frot restores SIGPIPE's default
+//! disposition at the stdout seam and re-raises, dying with the true 141
+//! status pipelines expect (posix.md §5.2).
 
 use std::io::Write;
 
@@ -26,25 +32,61 @@ pub fn run(argv: &[String]) -> u8 {
 }
 
 pub(crate) fn run_io(argv: &[String], out: &mut dyn Write, err: &mut dyn Write) -> u8 {
-    let args = match cli::parse(argv) {
-        Ok(a) => a,
-        Err(e) if e.is_help_or_version() => {
-            let _ = writeln!(out, "{}", e);
-            return 0;
+    run_with(argv, out, err, libc::SIG_DFL)
+}
+
+/// The pipeline with the broken-pipe SIGPIPE disposition taken through the
+/// call signature: production (`run_io`) passes `SIG_DFL`, so a broken-pipe
+/// delivery dies with the true 141 status; tests pass `SIG_IGN` to walk the
+/// same path and survive.
+fn run_with(
+    argv: &[String],
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+    pipe_disposition: libc::sighandler_t,
+) -> u8 {
+    let (product, exit) = match cli::parse(argv) {
+        Ok(args) => {
+            let env = build_envelope(&args);
+            let exit = match env.status {
+                StatusKind::Ok | StatusKind::Needs => 0,
+                StatusKind::Error => 1,
+            };
+            (env.to_json_string(), exit)
         }
+        Err(e) if e.is_help_or_version() => (e.to_string(), 0),
         Err(e) => {
             let _ = writeln!(err, "{}", e);
             return 2;
         }
     };
-
-    let env = build_envelope(&args);
-    let exit = match env.status {
-        StatusKind::Ok | StatusKind::Needs => 0,
-        StatusKind::Error => 1,
-    };
-    let _ = writeln!(out, "{}", env.to_json_string());
-    exit
+    // The one seam where the product is delivered (posix.md §4.2: stdout
+    // carries exactly one product). A failed write here means the product is
+    // lost, and the exit status must say so (§4.4).
+    match writeln!(out, "{product}") {
+        Ok(()) => exit,
+        // Reader gone (EPIPE). Rust ignores SIGPIPE process-wide so socket
+        // writes surface EPIPE as ordinary fetch errors; only here, at the
+        // stdout seam, the pipeline convention applies: restore the default
+        // disposition and re-raise so the shell observes 141 (§5.2).
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => {
+            unsafe {
+                libc::signal(libc::SIGPIPE, pipe_disposition);
+                libc::raise(libc::SIGPIPE);
+            }
+            // Under SIG_DFL the raise terminated above; reached only when the
+            // injected disposition keeps SIGPIPE ignored. The product is
+            // still lost, so the lost-product status holds.
+            3
+        }
+        // Any other write failure (ENOSPC, EBADF, …): the product is lost.
+        // The diagnostic is best-effort — stderr may be gone too, and a
+        // failed diagnostic must not recurse or panic.
+        Err(e) => {
+            let _ = writeln!(err, "frot: stdout write failed: {e}");
+            3
+        }
+    }
 }
 
 fn build_envelope(args: &cli::Args) -> Envelope {
@@ -206,6 +248,9 @@ mod gather;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod deliver_tests;
 
 #[cfg(test)]
 mod file_tests;

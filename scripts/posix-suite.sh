@@ -1,8 +1,6 @@
 #!/bin/sh
 # posix-suite.sh — gate the POSIX profile (docs/design/posix.md) against a
-# real frot binary. Every assertion cites the §-clause it tests; a pinned
-# deviation (D2: bl-34fb) is asserted at its CURRENT behavior so
-# the fix cannot land without flipping the test and the doc together.
+# real frot binary. Every assertion cites the §-clause it tests.
 #
 # POSIX sh only — no bashisms, no dependency beyond POSIX utilities and
 # Linux's /dev/full (the profile is Linux-scoped, posix.md §7). No network:
@@ -140,25 +138,32 @@ printf 'garbage that must not matter\n' | "$FROT" "$OKURL" --out text >"$TMP/in2
 assert_eq "stdin data: exit 0" 0 "$?"
 assert_same "stdin data: identical product" "$TMP/ok.out" "$TMP/in2.out"
 
-# --- §4.4 D2 (bl-34fb): stdout write failure, pinned current behavior -------
+# --- §4.4 stdout write failure: a lost product must not exit as success -----
 
+# A closed stdout (>&-) cannot surface EBADF: the Rust runtime reopens closed
+# standard descriptors on /dev/null before main (the fd-reuse guard), so >&-
+# behaves exactly like >/dev/null — the write succeeds into the sink and the
+# exit is the envelope's. Asserted here so the remap staying true is a gate.
 "$FROT" "$OKURL" --out text >&- 2>"$TMP/ebadf.err"
-assert_eq "D2 pinned: stdout closed (EBADF), exit by envelope" 0 "$?"
-assert_empty "D2 pinned: EBADF stderr silent" "$TMP/ebadf.err"
+assert_eq "stdout closed ≡ /dev/null: exit by envelope" 0 "$?"
+assert_empty "stdout closed: stderr silent" "$TMP/ebadf.err"
 
 if [ -e /dev/full ]; then
   "$FROT" "$OKURL" --out text >/dev/full 2>"$TMP/enospc.err"
-  assert_eq "D2 pinned: device full (ENOSPC), exit by envelope" 0 "$?"
-  assert_empty "D2 pinned: ENOSPC stderr silent" "$TMP/enospc.err"
+  assert_eq "device full (ENOSPC): exit 3, envelope lost" 3 "$?"
+  assert_has "ENOSPC: diagnostic on stderr" "$TMP/enospc.err" "frot: stdout write failed"
+  # The diagnostic is best-effort: a dead stderr must not change the status.
+  "$FROT" "$OKURL" --out text >/dev/full 2>&-
+  assert_eq "ENOSPC with stderr closed: still exit 3" 3 "$?"
 else
   bad "/dev/full missing — the profile is Linux-scoped (posix.md §7)"
 fi
 
 # EPIPE: the reader is long dead before frot writes. The FIFO sequences it —
 # frot blocks opening the gate, `true` exits at once, the feeder unblocks
-# frot only afterward, so the envelope write hits a widowed pipe. §5.2: frot
-# must not die of SIGPIPE (disposition SIG_IGN), so the status is the
-# envelope's, not 141.
+# frot only afterward, so the envelope write hits a widowed pipe. §4.4/§5.2:
+# frot restores SIGPIPE's default disposition at the stdout seam and
+# re-raises, so the shell observes 141 (128+13) like any pipeline death.
 mkfifo "$TMP/gate.epipe"
 { sleep 1; printf '<p>late</p>' >"$TMP/gate.epipe"; } &
 FEEDER=$!
@@ -168,8 +173,8 @@ FEEDER=$!
 } | true
 wait "$FEEDER"
 read -r epipe_rc <"$TMP/epipe.status"
-assert_eq "D2 pinned: EPIPE, exit by envelope (not 141)" 0 "$epipe_rc"
-assert_empty "D2 pinned: EPIPE stderr silent" "$TMP/epipe.err"
+assert_eq "EPIPE: dies by SIGPIPE, wait reports 141 (XCU 2.8.2)" 141 "$epipe_rc"
+assert_empty "EPIPE: stderr silent (the death is the signal)" "$TMP/epipe.err"
 
 # --- §5.2 signals: inherited dispositions honored, no partial output --------
 
