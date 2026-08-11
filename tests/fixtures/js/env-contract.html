@@ -127,6 +127,146 @@
   }
   eq('coll:illegalConstructor', illegal, 'TypeError');
 
+  // --- DOMTokenList (§3, bl-3a36): every token list the DOM exposes is the
+  // spec-named interface — classList and relList from one maker, live over the
+  // backing attribute. The field trial's Vite preload polyfill dies without
+  // link.relList.supports('modulepreload') early-returning true.
+  eq('tok:DOMTokenList', typeof DOMTokenList, 'function');
+  var probeEl = document.getElementById('probe');
+  probeEl.setAttribute('class', 'one two');
+  var cl = probeEl.classList;
+  check('tok:classList.instanceof', cl instanceof DOMTokenList);
+  check('tok:classList.tag', Object.prototype.toString.call(cl) === '[object DOMTokenList]');
+  eq('tok:length', cl.length, 2);
+  check('tok:indexed', cl[0] === 'one' && cl[1] === 'two' && cl[2] === undefined);
+  check('tok:item', cl.item(1) === 'two' && cl.item(9) === null);
+  eq('tok:value', cl.value, 'one two');
+  check('tok:contains', cl.contains('two') && !cl.contains('three'));
+  cl.add('three');
+  cl.remove('one');
+  check('tok:addRemove.live', probeEl.getAttribute('class') === 'two three');
+  check('tok:toggle', cl.toggle('two') === false && cl.toggle('two') === true);
+  check('tok:replace', cl.replace('three', 'four') === true && cl.contains('four'));
+  check('tok:forEach==Array', DOMTokenList.prototype.forEach === Array.prototype.forEach);
+  var clSpread = [...cl];
+  check('tok:iterable', clSpread.join(',') === probeEl.getAttribute('class').split(' ').join(','));
+  probeEl.setAttribute('class', '');
+  var clThrow;
+  try {
+    cl.supports('anything');
+    clThrow = 'no throw';
+  } catch (e) {
+    clThrow = e.constructor.name;
+  }
+  eq('tok:classList.supports.throws', clThrow, 'TypeError');
+  var tokIllegal;
+  try {
+    new DOMTokenList();
+    tokIllegal = 'no throw';
+  } catch (e) {
+    tokIllegal = e.constructor.name;
+  }
+  eq('tok:illegalConstructor', tokIllegal, 'TypeError');
+  // relList: pinned Firefox 140esr supported-token tables (Gecko
+  // HTMLLinkElement.cpp SUPPORTED_REL_VALUES_BASE + default-on manifest/
+  // modulepreload; Element.cpp sAnchorAndFormRelValues), case-insensitive.
+  var linkRel = document.createElement('link').relList;
+  check('tok:link.relList.instanceof', linkRel instanceof DOMTokenList);
+  check('tok:link.supports.modulepreload', linkRel.supports('modulepreload') === true);
+  check('tok:link.supports.caseless', linkRel.supports('MODULEPRELOAD') === true);
+  check('tok:link.supports.stylesheet', linkRel.supports('stylesheet') === true);
+  check('tok:link.supports.unknown', linkRel.supports('bogus') === false);
+  var aRel = document.createElement('a').relList;
+  check('tok:a.supports.noopener', aRel.supports('noopener') === true);
+  check('tok:a.supports.preload', aRel.supports('preload') === false);
+  eq('tok:div.relList', document.createElement('div').relList, undefined);
+
+  // --- Element/document breadth the modern-bundle field trial exercised
+  // (bl-3a36): each of these was absent and killed a deployed React app inside
+  // a library, not app code.
+  // createElementNS: React/Vue create every SVG element through it; the arena
+  // stores local names, so the namespace argument is honestly dropped.
+  var svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  eq('elem:createElementNS.tag', svgEl.tagName, 'SVG');
+  svgEl.setAttributeNS(null, 'viewBox', '0 0 1 1');
+  eq('elem:setAttributeNS', svgEl.getAttributeNS(null, 'viewBox'), '0 0 1 1');
+  svgEl.removeAttributeNS(null, 'viewBox');
+  eq('elem:removeAttributeNS', svgEl.getAttribute('viewBox'), null);
+  // getRootNode: no shadow DOM, so connected == document, detached == subtree top.
+  check('elem:getRootNode.connected', document.body.getRootNode() === document);
+  check('elem:getRootNode.detached', svgEl.getRootNode()._id === svgEl._id);
+  // Sibling traversal + closest, live over the arena.
+  var sibA = document.createElement('i');
+  var sibB = document.createElement('b');
+  document.body.appendChild(sibA);
+  document.body.appendChild(sibB);
+  check('elem:nextSibling', sibA.nextSibling._id === sibB._id && sibB.nextSibling === null);
+  check('elem:previousSibling', sibB.previousSibling._id === sibA._id);
+  sibA.setAttribute('class', 'sib-a');
+  check('elem:closest', sibA.closest('.sib-a')._id === sibA._id
+    && sibA.closest('body')._id === document.body._id && sibA.closest('.absent') === null);
+  // ParentNode/ChildNode mixin: append takes nodes or strings; remove detaches.
+  sibA.append(document.createElement('u'), 'tail');
+  eq('elem:append', sibA.innerHTML, '<u></u>tail');
+  sibA.prepend('head');
+  eq('elem:prepend', sibA.textContent, 'headtail');
+  sibB.remove();
+  check('elem:remove', sibB.parentNode === null && sibA.nextSibling === null);
+  sibA.remove();
+  // Form-control interfaces carry the same reflection descriptors as the nodes
+  // (Radix reads getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set
+  // and calls it).
+  var selDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+  var inDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked');
+  check('elem:ctl.descriptors', !!(selDesc && selDesc.set && inDesc && inDesc.set));
+  var ctlSel = document.createElement('select');
+  selDesc.set.call(ctlSel, 'picked');
+  eq('elem:ctl.set', ctlSel.getAttribute('value'), 'picked');
+  // new DocumentFragment() is a real staging fragment (React portals into one
+  // and checks nodeType and reaches the document through ownerDocument).
+  var frag = new DocumentFragment();
+  check('elem:fragment.real', frag.nodeType === 11 && frag instanceof DocumentFragment
+    && frag.ownerDocument === document && frag.nodeName === '#document-fragment');
+  var fragKid = document.createElement('span');
+  frag.appendChild(fragKid);
+  var fragKid2 = document.createElement('em');
+  frag.insertBefore(fragKid2, fragKid);
+  check('elem:fragment.insertBefore', frag.firstChild === fragKid2);
+  frag.removeChild(fragKid2);
+  check('elem:fragment.removeChild', frag.firstChild === fragKid && frag.childNodes.length === 1);
+
+  // --- Focus (§7, bl-3a36): one fact — activeElement — that focus()/blur()
+  // move, page-driven only (the host never focuses anything, §11). React's
+  // commit phase runs `autoFocus && el.focus()` on mount; without this the
+  // field trial's TodoMVC root unmounted with one "not a function" report.
+  check('focus:activeElement.init', document.activeElement._id === document.body._id);
+  var focusInput = document.createElement('input');
+  document.body.appendChild(focusInput);
+  var focusEvents = [];
+  focusInput.addEventListener('focus', function () { focusEvents.push('focus'); });
+  focusInput.addEventListener('blur', function () { focusEvents.push('blur'); });
+  focusInput.focus();
+  check('focus:activeElement.moved', document.activeElement._id === focusInput._id);
+  var focusDiv = document.createElement('div');
+  document.body.appendChild(focusDiv);
+  focusDiv.focus(); // unfocusable: Firefox's silent no-op — activeElement holds
+  check('focus:unfocusable.noop', document.activeElement._id === focusInput._id);
+  focusInput.blur();
+  check('focus:blur.restores', document.activeElement._id === document.body._id);
+  eq('focus:events', focusEvents.join(','), 'focus,blur');
+  var focusHidden = document.createElement('input');
+  focusHidden.setAttribute('type', 'hidden');
+  document.body.appendChild(focusHidden);
+  focusHidden.focus();
+  check('focus:hidden.noop', document.activeElement._id === document.body._id);
+  focusDiv.setAttribute('tabindex', '0');
+  focusDiv.focus(); // tabindex makes anything focusable
+  check('focus:tabindex.focusable', document.activeElement._id === focusDiv._id);
+  focusDiv.blur();
+  document.body.removeChild(focusInput);
+  document.body.removeChild(focusDiv);
+  document.body.removeChild(focusHidden);
+
   // --- Lifecycle capture (§4.4/§5): readyState transitions + phase order -----
   RS.inline = document.readyState;      // 'loading' while the script queue runs
   RS.perf0 = performance.now();

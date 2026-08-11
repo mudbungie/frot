@@ -9,7 +9,8 @@
 //!
 //! This is the **core** prelude plus the framework-facing Element/Node breadth
 //! (`elem.js`/`elem2.js`: the `instanceof` interface constructors, `style`,
-//! `classList`, `dataset`, faithful `cloneNode`, form-control reflections, and
+//! `dataset`, faithful `cloneNode`, form-control reflections, and
+//! the DOMTokenList surface — `classList`/`relList` — in `tokenlist.js`, and
 //! the `document`/`createDocumentFragment` breadth React/Vue/jQuery probe), the
 //! geometry facade, the §7 environment breadth, the §5 event loop, and the §6
 //! network layer: `Node`/`Element`/`Document`, `querySelector`,
@@ -44,6 +45,11 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/elem2.js"),
     "\n",
+    // DOMTokenList (bl-3a36): classList/relList as the spec-named interface —
+    // after elem2.js (extends the same Node prototype), before anything reads
+    // classList.
+    include_str!("prelude/tokenlist.js"),
+    "\n",
     include_str!("prelude/geometry.js"),
     "\n",
     // The identity surface (bl-3972), derived from __frot_env_profile: after
@@ -69,6 +75,10 @@ pub const SOURCE: &str = concat!(
     include_str!("prelude/url.js"),
     "\n",
     include_str!("prelude/loop.js"),
+    "\n",
+    // Focus management (bl-3a36): activeElement + focus()/blur() — after loop.js
+    // because moving focus dispatches blur/focus through Node.dispatchEvent.
+    include_str!("prelude/focus.js"),
     "\n",
     include_str!("prelude/net.js"),
     "\n",

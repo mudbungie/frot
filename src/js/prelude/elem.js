@@ -1,6 +1,6 @@
 // Element/Node property breadth the frameworks exercise (js.md §3): the
 // `instanceof` interface constructors, the `style` facade, text `nodeValue`,
-// `ownerDocument`, writable `className`, `classList`, and `dataset`. Layered on
+// `ownerDocument`, writable `className`, and `dataset`. Layered on
 // dom.js's handle-based Node (no cached state — every read/write is a fresh
 // syscall against the one arena, js.md §2). Loads after dom.js; the Node methods
 // and document breadth are in elem2.js (kept split under the 300-line cap).
@@ -181,46 +181,8 @@
     },
   });
 
-  // --- classList: token-list over the `class` attribute --------------------
-  Object.defineProperty(proto, 'classList', {
-    configurable: true,
-    get: function () {
-      var el = this;
-      function tokens() {
-        var c = el.getAttribute('class');
-        return c ? c.trim().split(/\s+/) : [];
-      }
-      function put(list) {
-        el.setAttribute('class', list.join(' '));
-      }
-      return {
-        contains: function (t) {
-          return tokens().indexOf(String(t)) >= 0;
-        },
-        add: function () {
-          var list = tokens();
-          for (var i = 0; i < arguments.length; i++)
-            if (list.indexOf(arguments[i]) < 0) list.push(String(arguments[i]));
-          put(list);
-        },
-        remove: function () {
-          var list = tokens();
-          for (var i = 0; i < arguments.length; i++) {
-            var j = list.indexOf(String(arguments[i]));
-            if (j >= 0) list.splice(j, 1);
-          }
-          put(list);
-        },
-        toggle: function (t, force) {
-          var has = tokens().indexOf(String(t)) >= 0;
-          var on = force === undefined ? !has : !!force;
-          if (on) this.add(t);
-          else this.remove(t);
-          return on;
-        },
-      };
-    },
-  });
+  // classList lives in tokenlist.js: every token list the DOM exposes is a
+  // spec-named DOMTokenList built by that one maker (bl-3a36).
 
   // --- dataset: data-* reflection ------------------------------------------
   Object.defineProperty(proto, 'dataset', {

@@ -62,3 +62,35 @@ Retrieved 2026-08-10 from `https://todomvc.com/examples/javascript-es6/dist/`
 | `todomvc-es6.html` | `index.html` | `3f5e2a1f370e7326c9523fdbaf07a3d98ab11e5fb0dd243ff83d276559f1d87a` |
 | `todomvc-es6.bundle.js` | `app.bundle.js` | `01b56caf970328499b1ea12a405bd4c03e27bc4bad6d6e36d49884fe75159fac` |
 | `todomvc-es6.base.js` | `base.js` | `12d217a42e7349e522ee100e833b734471aa2d14823defa5e1bd77802cf67a9d` |
+
+Retrieved 2026-08-10 from `https://todomvc.com/examples/react/dist/` (the
+TodoMVC "React" deployment whose React 18-era commit phase runs `autoFocus &&
+stateNode.focus()` on the new-todo input, bl-3a36 — absent `Element#focus`,
+React catches the throw and unmounts the root; its base.js differs byte-wise
+from the es6 deployment's, so it is pinned separately):
+
+| File | Live path | sha256 |
+| --- | --- | --- |
+| `react-todomvc.html` | `index.html` | `23b40a8b71f26e44f3e72e682188a3ab238d17fd375ff0ec06295af9971fa959` |
+| `react-todomvc.bundle.js` | `app.bundle.js` | `6197ad9358985fb3f745aef3fca9abbe2fc7f0cd35cd4525cb8570107ae6b78a` |
+| `react-todomvc.base.js` | `base.js` | `8cfbaa8d2bc03e2e52a8b7788e041efda231a17e2a25c8bc4bfe2659adc5bb90` |
+
+Retrieved 2026-08-10 from `https://vite-react-tailwind-template.pages.dev/`
+(the field trial's independent React reproduction, bl-3a36). The page is
+verbatim; the module fixture is **derived, not verbatim**: the failing unit is
+the `vite:build-import-analysis` modulepreload polyfill every Vite production
+build inlines at module top level (`link.relList.supports("modulepreload")`,
+falling through to `new MutationObserver` when relList is absent), so
+`vite-preload.mjs` is that polyfill IIFE cut byte-for-byte from the deployed
+`/assets/index-D22riwjH.js` (bundle sha256
+`bf1e9611b4339cabd44f7681e3909ce308a3bc641ac2477f3b2c3df4c1ec1bdf`, polyfill
+slice sha256
+`1360fef05150c30f23bb0641a7cde33d78e3bf153a7e93ee1cf27f16444ac3ee`) plus one
+appended render line so the outcome detector has app text to see. The remaining
+~577 KB of that bundle is React 19 + the app, whose surface the react
+fixtures above already pin.
+
+| File | Source | sha256 |
+| --- | --- | --- |
+| `vite-preload.html` | `index.html`, verbatim | `590b4162216823aa2067ba712ad0689b88e3f5db18f5692b7c7098580de967ce` |
+| `vite-preload.mjs` | derived (see above) | `d0bfe58d113b5ad5c8d1765b715fee7c9021aa96efc869ca46ef975fbffc962b` |

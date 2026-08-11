@@ -146,6 +146,42 @@ Consequences of the repo's hard rules:
   prototype accessor, the iteration methods ARE the `Array.prototype` ones),
   and instances are snapshots of wrapped nodes: like every wrapper, they cache
   no arena state. The env-contract fixture pins the whole surface.
+- **Token lists are spec-named DOMTokenList instances** (bl-3a36, found live:
+  the `vite:build-import-analysis` modulepreload polyfill that every Vite
+  production build inlines at module top level runs
+  `link.relList.supports("modulepreload")` and, absent `relList`, falls through
+  to a deliberately absent `MutationObserver` — the module rejects, a
+  count-only §10 error, so `--js-errors` showed `errors: 1, messages: []`).
+  Same maker discipline as the collections above, one file (`tokenlist.js`):
+  `classList` and `relList` are both live views over their backing attribute
+  (no cached state), WebIDL-shaped as Gecko exposes them (Illegal constructor,
+  prototype `length`/`value` accessors, live indexed access, the iteration
+  methods ARE the `Array.prototype` ones). `supports()` answers from the
+  pinned Firefox 140.12.0esr supported-token tables (Gecko
+  `HTMLLinkElement.cpp` `SUPPORTED_REL_VALUES_BASE` plus the default-on
+  `manifest`/`modulepreload` prefs; `Element.cpp` `sAnchorAndFormRelValues`
+  for a/area/form), and throws the coherent TypeError for `class`, which
+  defines no supported tokens. `relList` exists only where Firefox has it
+  (link/a/area/form) — elsewhere it stays undefined so feature detection is
+  honest.
+- **Element/document breadth from the modern-bundle field trial** (bl-3a36 —
+  each item below was absent and killed a deployed React app inside library
+  code, so the fix is the general surface, not a per-page shim):
+  `document.createElementNS` and the `*AttributeNS` trio (React/Vue create
+  every SVG element through them; the arena stores local names — the parser
+  already flattens foreign content the same way — so the namespace argument is
+  honestly dropped, and attribute reads normalize to the arena's lowercase
+  names so SVG camelCase round-trips); `closest`/`getRootNode` (no shadow DOM,
+  §11: connected roots to the document, detached to the subtree top);
+  live `nextSibling`/`previousSibling`; the ParentNode/ChildNode mixin
+  `append`/`prepend`/`remove`; the form-control interface prototypes
+  (`HTMLInputElement`/`HTMLTextAreaElement`/`HTMLSelectElement`) carrying the
+  same reflection descriptors as the nodes (Radix-style libraries call
+  `getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set`); and a
+  **constructible** `new DocumentFragment()` returning the real staging
+  fragment with `ownerDocument`/`insertBefore`/`removeChild` (React portals
+  into fresh fragments and reaches the document through the container). The
+  env-contract fixture pins all of it.
 
 ## 4. What runs, and when
 
@@ -516,6 +552,23 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   every fact an enumerable accessor on `Navigator.prototype` (not an own data
   prop), matching Firefox's descriptor shape — so brand/prototype/descriptor
   probes pass, not just values.
+- **Focus** (`bl-3a36`, found live: TodoMVC's deployed React shell dies in the
+  commit phase on `autoFocus && stateNode.focus()` — React catches the throw
+  via `captureCommitPhaseError` and, with no error boundary, unmounts the whole
+  root: a settled run, one `report` message "not a function", an empty shell
+  still reading needs-js. The vendored react19 golden carries the identical
+  commit code but its app never sets `autoFocus`, which is exactly why the
+  golden passed while every deployed bundle that autofocuses died). One
+  document-level fact — `document.activeElement`, initially the body — that
+  `focus()`/`blur()` move, firing `blur` on the loser then `focus` on the
+  gainer through the ordinary listener registry. Focusability follows Firefox
+  (form controls except `input[type=hidden]`, unless disabled; a/area with
+  `href`; anything with `tabindex`/`contenteditable`; all else a silent
+  no-op). **Page-driven only**: §11's "the lifecycle events are the only events
+  the host ever dispatches" holds — frot never focuses anything by itself
+  (native `autofocus` processing at load is deliberately not performed), so a
+  focus event exists only because a page script called `focus()`, exactly like
+  `dispatchEvent`.
 - `screen` / `devicePixelRatio` / visibility (`bl-1cb7`, LANDED): a branded
   `Screen` (`screen.width`/`height`/`availWidth`/`availHeight` = the 1280×720
   layout viewport, **not** a second constant, identity.md §8), `colorDepth`/

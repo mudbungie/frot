@@ -153,7 +153,10 @@
       return this.getAttribute('class') || '';
     }
     getAttribute(name) {
-      var v = g.__frot_attr(this._id, name);
+      // The arena stores attribute names ASCII-lowercased (the parser and
+      // set_attr both normalize), so reads normalize too — SVG's camelCase
+      // (viewBox) round-trips instead of silently missing (bl-3a36).
+      var v = g.__frot_attr(this._id, String(name).toLowerCase());
       return v === null || v === undefined ? null : v;
     }
     setAttribute(name, value) {
@@ -210,6 +213,13 @@
       return this.querySelector('head');
     },
     createElement: function (tag) {
+      return wrap(g.__frot_create_element(String(tag)));
+    },
+    // Namespaced creation (bl-3a36): React/Vue create every SVG/MathML element
+    // through createElementNS — absent, any icon-bearing app dies in commit.
+    // The arena stores local names only (the parser's foreign-content handling
+    // does the same), so the namespace argument is honestly dropped.
+    createElementNS: function (_ns, tag) {
       return wrap(g.__frot_create_element(String(tag)));
     },
     createTextNode: function (text) {
