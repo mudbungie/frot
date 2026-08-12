@@ -12,6 +12,10 @@
 //! source cap was enforced only over a commit's *staged* files, so a file that
 //! went over stayed over — unstaged and unseen — until CI swept the tree.
 //!
+//! And it covers what the checkout goes stale *against* ([`persona`]): the
+//! pinned browser profile expires on the ESR calendar, so the gate is the wall
+//! clock rather than an edit, and nothing but a test run can notice it.
+//!
 //! Every gate here fails on the **class** of leak, never on the instance: the
 //! scrubbed address is deliberately not written down in this crate, since a
 //! test that pinned the literal would re-introduce what it guards against.
@@ -21,6 +25,7 @@ use std::path::{Path, PathBuf};
 
 mod identity;
 mod licensing;
+mod persona;
 mod size;
 
 fn repo(rel: &str) -> PathBuf {

@@ -12,12 +12,10 @@ fn at(date: CivilDate) -> SystemTime {
 
 #[test]
 fn pin_is_current_the_day_before_eol() {
-    let now = at(CivilDate {
-        year: 2027,
-        month: 5,
-        day: 31,
-    });
-    assert!(FIREFOX_140_ESR.is_current(now));
+    // Derived from the const rather than spelled out: the eol date keeps one
+    // definition site (I1), so a re-pin (§4.1) cannot leave a stale literal here.
+    let day_before = at(FIREFOX_140_ESR.eol) - Duration::from_secs(86_400);
+    assert!(FIREFOX_140_ESR.is_current(day_before));
 }
 
 #[test]

@@ -111,11 +111,11 @@ delete.
 
 **Update cadence.** The profile is pinned to an ESR *line*, re-captured on each
 new ESR major (Mozilla ships roughly one per year). The profile constant carries
-its own `PINNED` capture date and its line's `EOL` date, and **a unit test fails
-once `EOL` passes** (see I8) — silent staleness becomes a build failure, with no
-config knob and no calendar to remember. *(The 140esr EOL date is taken from
-Mozilla's published ESR calendar at implementation time; it is not measured
-here.)*
+its own `PINNED` capture date and its line's `EOL` date, and **a test fails once
+`EOL` passes** (see I8, `tests/hygiene/persona.rs`) — silent staleness becomes a
+red test run, with no config knob and no calendar to remember. *(The 140esr EOL
+date is taken from Mozilla's published ESR calendar at implementation time; it
+is not measured here.)*
 
 ---
 
@@ -557,9 +557,21 @@ Each is a testable assertion, not a guideline.
   literal is a bug.
 - **I7 — Profile selection is a constant.** No flag, no env var, no config file.
   Severability: removing a capability deletes config, never edits core.
-- **I8 — The profile expires.** A test asserts `today < profile.eol`. When the
-  pinned ESR line goes end-of-life the build fails, forcing a re-capture. No
-  calendar, no reminder, no knob.
+- **I8 — The profile expires.** `tests/hygiene/persona.rs` asserts
+  `today < profile.eol` against the **wall clock**, and — as a negative control —
+  that the pin *does* go stale one ESR horizon out, so the gate cannot be
+  snoozed by pushing `eol` past the calendar. When the pinned ESR line goes
+  end-of-life, `cargo test` fails, forcing a re-capture. No calendar, no
+  reminder, no knob.
+
+  *Corrected 2026-08-11 (`bl-04ab`): this read "the build fails", and nothing
+  fired at all — `is_current` had no production caller and every test caller
+  passed a fabricated `SystemTime`, so no code ever asked whether the pin was
+  stale today. The gate now exists and it is a **test** failure, matching §2's
+  wording. It is deliberately not a build-script clock read: that would make
+  every compile consult the calendar to catch, later, exactly what the test run
+  catches now, and `cargo build` is the one command that must not depend on what
+  day it is.*
 
 ---
 
