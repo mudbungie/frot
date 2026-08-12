@@ -65,11 +65,14 @@ fn flex_direction(applied: &[Applied]) -> FlexDirection {
 
 /// The winning `display`: a matched author/inline rule ([`Display::parse`]),
 /// else the tag's UA-implicit display — but `<noscript>` is UA-implicit `none`
-/// once `--js` ran (js.md §4: scripting hides noscript), author-overridable.
+/// once `--js` ran (js.md §4: scripting hides noscript), and `[hidden]` is
+/// UA-implicit `none` always ([`Element::hidden`]). Both are author-overridable:
+/// a matched author/inline `display` is the `Some` arm and wins, exactly as a
+/// UA-origin declaration loses to the author origin.
 fn display(applied: &[Applied], el: &Element, js: bool) -> Display {
     match winner(applied, None, "display") {
         Some(v) => Display::parse(v),
-        None if js && el.name == "noscript" => Display::None,
+        None if el.hidden() || (js && el.name == "noscript") => Display::None,
         None => implicit_display(&el.name),
     }
 }

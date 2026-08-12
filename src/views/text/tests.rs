@@ -195,6 +195,16 @@ fn css_hidden_element_suppresses_its_generated_content_and_text() {
 }
 
 #[test]
+fn hidden_attribute_subtree_is_dropped_under_css_but_raw_text_keeps_it() {
+    // The UA rule `[hidden] { display: none }` reaches the text view through the
+    // cascade (`bl-eeb4`). Without `--css` there is no cascade and the raw
+    // source-order dump is unchanged — `--css` is what "apply CSS" means.
+    let html = "<p>keep</p><div hidden><span>Opens in a new tab</span></div>";
+    assert_eq!(t_css(html), "keep");
+    assert!(t(html).contains("Opens in a new tab"));
+}
+
+#[test]
 fn css_with_no_rules_matches_raw_extraction() {
     let html = "<div><p>a</p><p>b</p></div>";
     assert_eq!(t_css(html), t(html));

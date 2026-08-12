@@ -189,9 +189,10 @@ and telegram's 49-element scaffold are the *same fact* — nothing
 renderable — differing only in how much furniture the shell ships. Test
 the fact directly:
 
-One walk over the body with chrome (`header`/`footer`/`nav`/`aside`) and
-never-rendered subtrees (`script`/`style`/`noscript`/`template`) set
-aside collects two content signals:
+One walk over the body with chrome (`header`/`footer`/`nav`/`aside` — see
+the scope rule below) and never-rendered subtrees
+(`script`/`style`/`noscript`/`template`, plus anything this recipe does not
+render) set aside collects two content signals:
 
 - **text** — any non-whitespace text node;
 - **label** — any element carrying a non-empty `alt` or `aria-label`:
@@ -208,6 +209,39 @@ Preconditions unchanged from bl-6bb5: scripts must be present, and the
 check re-runs on the post-settle DOM under `--js`, so `needs:["js"]`
 means "needs more JS than the shim gives" (VISION Phase 4). There is no
 element count.
+
+### 4.1 Non-rendered text is not content (`bl-eeb4`, 2026-08-11)
+
+Two live shells returned `ok` on an empty mount because fallback copy no
+browser paints was counted as body content: a deploy console's `<div hidden>`
+holding "Opens in a new tab", and a task app's CSS-hidden "could not load the
+required files" panel. Both are the false-`ok` direction §1 refuses, from one
+missing invariant — the walk had no notion of *rendered*.
+
+The invariant has one home and every consumer reads it there. The HTML UA
+rule `[hidden] { display: none }` (author-overridable) now lives in the
+cascade's UA-implicit `display` step (`layout.md` §2), which is what already
+feeds `--css` text, the AX tree and geometry — so those three drop hidden
+subtrees without knowing this rule exists. The starvation walk asks the same
+question, against whatever oracle the **recipe** provides: under `--css` the
+cascade (author rules, inline `style=`, and the UA rule folded into one
+`display`); without it, the document's own `hidden` attribute, the only
+visibility fact a recipe with no CSS has. The raw no-`css` views are
+unchanged: `--css` still means "apply author CSS", and a `text` dump without
+it stays a source-order dump.
+
+**Chrome is scoped, not tag-named.** Excluding every `<header>`/`<footer>`
+swallowed rendered apps: TodoMVC live renders `<section id=root><header><h1>
+todos</h1>…</header></section>` and parks its `<main>`/`<footer>` behind
+`hidden` until a todo exists, so with hidden text no longer propping it up the
+page read as starved — a *false* `needs`, the very regression `bl-3a36`
+fixed. HTML-AAM already draws the line: `<header>` is the page `banner` and
+`<footer>` the `contentinfo` **only when no sectioning element**
+(`article`/`aside`/`main`/`nav`/`section`) scopes it; a scoped one is that
+section's own heading or byline, i.e. content. So `header`/`footer` are chrome
+at page scope only, while `nav`/`aside` (landmarks wherever they sit) are
+chrome unconditionally. The canvas-shell fixture — a body-level `<header>`
+masthead over an empty `#root` — still flags, unchanged.
 
 Accepted residuals:
 

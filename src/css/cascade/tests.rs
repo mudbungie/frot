@@ -19,6 +19,21 @@ fn display_none_via_style_element() {
 }
 
 #[test]
+fn hidden_attribute_is_ua_display_none_and_author_overridable() {
+    // HTML's UA sheet: `[hidden] { display: none }` (`bl-eeb4`). Its value is
+    // noise — `hidden` is a boolean attribute.
+    let (doc, s) = styles("<div hidden>x</div>");
+    assert!(s.display_none(first_tag(&doc, "div")));
+    let (doc, s) = styles("<div hidden='until-found'>x</div>");
+    assert!(s.display_none(first_tag(&doc, "div")));
+    // UA origin loses to any author or inline declaration.
+    let (doc, s) = styles("<style>div{display:block}</style><div hidden>x</div>");
+    assert!(!s.display_none(first_tag(&doc, "div")));
+    let (doc, s) = styles("<div hidden style='display:block'>x</div>");
+    assert!(!s.display_none(first_tag(&doc, "div")));
+}
+
+#[test]
 fn non_matching_rule_is_inert() {
     let (doc, s) = styles("<style>div{display:none}</style><p>x</p>");
     assert!(!s.display_none(first_tag(&doc, "p")));

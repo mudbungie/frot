@@ -74,6 +74,10 @@ enum Display { None, Block, Inline, InlineBlock, ListItem, Flex, InlineFlex }
 ```
 
 **Implicit (UA) display by tag** seeds the value when no rule sets `display`.
+The UA sheet also carries two attribute rules, applied at the same step and
+overridden by any author or inline declaration: `[hidden] { display: none }`
+(HTML §15.3.1 — `hidden` is a boolean attribute, so presence is the fact and
+`until-found` hides too, `bl-eeb4`) and, once `--js` ran, `noscript` (js.md §4).
 Its block-level tag set is *the same list* `views::text.rs` already uses for
 block breaks (`BLOCK_TAGS`) — extract it to one place so the two never drift
 (single source of truth). `li` → `ListItem`; everything else → `Inline`.

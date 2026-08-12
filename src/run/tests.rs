@@ -281,3 +281,29 @@ fn css_fetches_external_stylesheets_best_effort() {
     let v = parse_envelope(&out);
     assert_eq!(v["out"], "shown");
 }
+
+#[test]
+fn hidden_fallback_copy_does_not_report_a_dead_shell_as_ok() {
+    // bl-eeb4, field repro 2026-08-11: a shell whose only body text sat in a
+    // `<div hidden>` returned `status:"ok"` with that unpainted string as the
+    // whole impression. End to end it is a starved shell, in both recipes.
+    const SHELL: &str = include_str!("../../tests/fixtures/needs/hidden-fallback-shell.html");
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/")
+        .expect_at_least(1)
+        .with_status(200)
+        .with_body(SHELL)
+        .create();
+    let url = server.url();
+    for args in [vec!["--out", "text"], vec!["--css", "--out", "text"]] {
+        let mut argv = vec![url.as_str()];
+        argv.extend_from_slice(&args);
+        let (code, out, _) = run_capture(&argv);
+        assert_eq!(code, 0);
+        let v = parse_envelope(&out);
+        assert_eq!(v["status"], "needs", "{args:?}: {out}");
+        assert_eq!(v["needs"], serde_json::json!(["js"]), "{args:?}");
+        assert!(v.get("out").is_none(), "{args:?}: {out}");
+    }
+}

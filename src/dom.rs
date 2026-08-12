@@ -29,6 +29,19 @@ impl Element {
             .find(|a| a.name == name)
             .map(|a| a.value.as_str())
     }
+
+    /// The HTML `hidden` attribute — the single home of the UA rule
+    /// `[hidden] { display: none }` (HTML §15.3.1). `hidden` is a boolean
+    /// attribute, so *presence* is the fact and the value is noise
+    /// (`hidden=""`, `hidden="false"` and `hidden="until-found"` are all
+    /// not-rendered). Two consumers keep it honest and cannot drift: the CSS
+    /// cascade's UA-implicit `display` step (`css::computed`), which routes it
+    /// on to `--css` text, the AX tree and geometry, and the needs detector's
+    /// non-content skip (`needs::content_signals`), which has no cascade to
+    /// consult without `--css`.
+    pub fn hidden(&self) -> bool {
+        self.attr("hidden").is_some()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

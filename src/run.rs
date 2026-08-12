@@ -126,13 +126,17 @@ fn build_envelope(args: &cli::Args) -> Envelope {
             // §9: JS runs before needs/CSS/layout/views, so everything downstream
             // consumes the post-JS document exactly as it consumes a static one.
             let (doc, js) = run_scripts(args, doc, &fetched, &session);
-            let needs = needs::detect(args.out, &doc);
+            // Styles come before needs: a subtree the recipe does not render
+            // carries no content, so the starvation detector consults the same
+            // cascade the views will (`needs.md` §4 — a CSS-hidden fallback
+            // must not mask a dead app as `ok`).
+            let styles = compute_styles(args, &doc, &fetched, &session);
+            let needs = needs::detect(args.out, &doc, styles.as_ref());
             if !needs.is_empty() {
                 return Envelope::needs(url, args.out, needs, None)
                     .with_http(http)
                     .with_js(js);
             }
-            let styles = compute_styles(args, &doc, &fetched, &session);
             // Layout is on-demand (`layout.md` §3): `bboxes` always needs
             // geometry, and `ax` forces layout under `--css` — flex
             // `order`/`*-reverse` is the sole source-order↔reading-order

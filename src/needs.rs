@@ -24,9 +24,10 @@
 //! guard also required "at most three elements", a proxy for "a mount
 //! region" that read telegram's big-but-empty scaffold as a rendered page.)
 //!
-//! [`content_signals`] therefore walks the body with chrome
-//! (`header`/`footer`/`nav`/`aside`) and never-rendered nodes
-//! (`script`/`style`/`noscript`/`template`) set aside, collecting the two
+//! [`content_signals`] therefore walks the body with chrome ([`is_chrome`])
+//! and never-rendered nodes
+//! (`script`/`style`/`noscript`/`template`, and any subtree this recipe does
+//! not render — [`not_rendered`]) set aside, collecting the two
 //! ways a document can carry rendered content: **text** (a non-whitespace
 //! text node) and **label** (an element with a non-empty `alt` or
 //! `aria-label` — content a non-text view can express without text).
@@ -39,8 +40,19 @@
 //! test errs toward flagging — the documented residual is a zero-text page
 //! of labeled images, which keeps flagging the `text` view while `ax` reads
 //! it honestly via labels.
+//!
+//! ## Non-rendered is not content (`bl-eeb4`)
+//!
+//! Shells ship fallback copy the user never sees — a `<div hidden>` holding
+//! "Opens in a new tab", a CSS-hidden "could not load the required files"
+//! panel. Counting that text as body content is the false-`ok` direction this
+//! design rejects, so [`not_rendered`] drops those subtrees: with author CSS
+//! in the recipe the cascade is the visibility oracle (it carries the UA
+//! `[hidden] { display: none }` rule); without it the document's own `hidden`
+//! attribute is the only visibility fact there is.
 
-use crate::dom::{Document, NodeId, NodeKind, WalkEvent};
+use crate::css::Styles;
+use crate::dom::{Document, Element, NodeId, NodeKind};
 use crate::envelope::{NeedsKind, View};
 use crate::fetch::header_value;
 
@@ -79,22 +91,24 @@ fn view_depends_on_content(view: View) -> bool {
     matches!(view, View::Text | View::Ax | View::Links | View::Forms)
 }
 
-pub fn detect(view: View, doc: &Document) -> Vec<NeedsKind> {
+/// `styles` is the recipe's cascade when it has one (`--css`), else `None`;
+/// it decides which subtrees render (see [`not_rendered`]).
+pub fn detect(view: View, doc: &Document, styles: Option<&Styles>) -> Vec<NeedsKind> {
     if !view_depends_on_content(view) {
         return Vec::new();
     }
     let mut out = Vec::new();
-    if needs_js(view, doc) {
+    if needs_js(view, doc, styles) {
         out.push(NeedsKind::Js);
     }
     out
 }
 
-fn needs_js(view: View, doc: &Document) -> bool {
+fn needs_js(view: View, doc: &Document, styles: Option<&Styles>) -> bool {
     let Some(body) = find_body(doc) else {
         return false;
     };
-    has_scripts(doc) && starved(view, content_signals(doc, body))
+    has_scripts(doc) && starved(view, content_signals(doc, body, styles))
 }
 
 /// The two ways a body can carry rendered content (module docs).
@@ -117,38 +131,35 @@ fn starved(view: View, c: Content) -> bool {
 /// Collect [`Content`] over the body with chrome and never-rendered subtrees
 /// set aside. An empty `alt`/`aria-label` (the decorative-image marker) is no
 /// label.
-fn content_signals(doc: &Document, body: NodeId) -> Content {
-    let mut skip_depth = 0usize;
+fn content_signals(doc: &Document, body: NodeId, styles: Option<&Styles>) -> Content {
     let mut c = Content {
         text: false,
         label: false,
     };
-    doc.walk(Some(body), &mut |ev, entry| match ev {
-        WalkEvent::Enter(_) => {
-            if let NodeKind::Element(el) = &entry.kind {
-                if is_non_content(&el.name) {
-                    skip_depth += 1;
-                    return;
-                }
-            }
-            if skip_depth > 0 {
+    collect(doc, body, styles, false, &mut c);
+    c
+}
+
+/// Descend `id`, skipping non-content subtrees entirely. `sectioned` is the
+/// only context the walk carries: whether an HTML sectioning ancestor
+/// (`article`/`aside`/`main`/`nav`/`section`) scopes this node, which is what
+/// decides a `<header>`/`<footer>` (see [`is_chrome`]).
+fn collect(doc: &Document, id: NodeId, styles: Option<&Styles>, sectioned: bool, c: &mut Content) {
+    let entry = doc.node(id);
+    match &entry.kind {
+        NodeKind::Element(el) => {
+            if is_non_content(el, id, sectioned, styles) {
                 return;
             }
-            match &entry.kind {
-                NodeKind::Element(el) if has_label(el) => c.label = true,
-                NodeKind::Text(t) if !t.trim().is_empty() => c.text = true,
-                _ => {}
+            c.label |= has_label(el);
+            let sectioned = sectioned || is_sectioning(&el.name);
+            for &kid in &entry.children {
+                collect(doc, kid, styles, sectioned, c);
             }
         }
-        WalkEvent::Exit(_) => {
-            if let NodeKind::Element(el) = &entry.kind {
-                if is_non_content(&el.name) {
-                    skip_depth -= 1;
-                }
-            }
-        }
-    });
-    c
+        NodeKind::Text(t) => c.text |= !t.trim().is_empty(),
+        NodeKind::Comment(_) | NodeKind::Doctype => {}
+    }
 }
 
 /// A non-empty `alt` or `aria-label`: content a non-text view can express.
@@ -158,14 +169,50 @@ fn has_label(el: &crate::dom::Element) -> bool {
         .any(|a| el.attr(a).is_some_and(|v| !v.trim().is_empty()))
 }
 
-/// Chrome frames content without being content; `script`/`style` and friends
-/// never render. Neither their elements nor their text count toward the body's
-/// rendered substance, so their whole subtree is skipped.
-fn is_non_content(name: &str) -> bool {
+/// Chrome frames content without being content ([`is_chrome`]);
+/// `script`/`style` and friends never render; and a subtree this recipe does
+/// not render is not content either ([`not_rendered`]). Neither their elements
+/// nor their text count toward the body's rendered substance, so their whole
+/// subtree is skipped.
+fn is_non_content(el: &Element, id: NodeId, sectioned: bool, styles: Option<&Styles>) -> bool {
     matches!(
-        name,
-        "script" | "style" | "noscript" | "template" | "header" | "footer" | "nav" | "aside"
-    )
+        el.name.as_str(),
+        "script" | "style" | "noscript" | "template"
+    ) || is_chrome(&el.name, sectioned)
+        || not_rendered(el, id, styles)
+}
+
+/// Whether this element frames the page rather than carrying its content.
+/// `nav`/`aside` always do. `header`/`footer` do only at page scope: HTML-AAM
+/// maps them to the `banner`/`contentinfo` landmarks *unless* a sectioning
+/// element scopes them, and a scoped one is that section's own heading or
+/// byline — content. Without this the rule swallows a rendered app: TodoMVC's
+/// live `<section id=root><header><h1>todos</h1>…` is an app that rendered,
+/// not a masthead over a dead mount (`bl-eeb4`).
+fn is_chrome(name: &str, sectioned: bool) -> bool {
+    match name {
+        "nav" | "aside" => true,
+        "header" | "footer" => !sectioned,
+        _ => false,
+    }
+}
+
+/// HTML sectioning content — the ancestors that scope a `<header>`/`<footer>`
+/// (see [`is_chrome`]).
+fn is_sectioning(name: &str) -> bool {
+    matches!(name, "article" | "aside" | "main" | "nav" | "section")
+}
+
+/// Whether the recipe renders this element at all. Under `--css` the cascade
+/// answers — it already folds the UA `[hidden] { display: none }` rule
+/// ([`crate::dom::Element::hidden`]), author rules and inline `style=` into one
+/// `display`. Without it there is no cascade, and the `hidden` attribute is the
+/// document's only visibility fact.
+fn not_rendered(el: &Element, id: NodeId, styles: Option<&Styles>) -> bool {
+    match styles {
+        Some(s) => s.display_none(id),
+        None => el.hidden(),
+    }
 }
 
 fn find_body(doc: &Document) -> Option<NodeId> {
@@ -178,3 +225,6 @@ fn has_scripts(doc: &Document) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod hidden_tests;

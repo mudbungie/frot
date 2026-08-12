@@ -20,6 +20,7 @@ about where an observation came from; none of its content is present.
 | `todo-spa-shell.html` | `needs:["js"]` | A todo SPA: an empty mount `<section>` under a static `footer.info` — the TodoMVC deployments' layout |
 | `canvas-app-shell.html` | `needs:["js"]` | A canvas app: a `<header>` masthead with an SEO `<h1>` around an empty `#root` — Excalidraw's landing shape |
 | `chat-app-scaffold.html` | `needs:["js"]` | A messaging app: dozens of nested empty `<div>`s plus an offscreen `<defs>`-only SVG sprite sheet, zero text, zero labels. Modelled on Telegram Web's scaffold (field trial 2026-07-19, `bl-e22e`), the page that killed the retired element-count guard: big *and* empty, which that guard read as a rendered page |
+| `hidden-fallback-shell.html` | `needs:["js"]` | A deploy console: an empty `#root` beside a `<div hidden>` holding fallback copy no browser paints — the shape that masked a dead SPA as `ok` (`bl-eeb4`, field repro 2026-08-11) |
 | `encyclopedia-article.html` | `ok` | A reference-encyclopedia article: `h1` + prose + a see-also list, chrome above and below |
 | `news-article.html` | `ok` | A newspaper article: `<article>` with a headline and three paragraphs |
 | `link-aggregator-listing.html` | `ok` | A table-layout link listing — the `<table>`-as-layout shape that must collapse to `presentation` in the `ax` view |

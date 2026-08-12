@@ -7,53 +7,53 @@ fn parse(html: &str) -> Document {
 #[test]
 fn dom_view_never_signals_needs() {
     let doc = parse("<html><body></body><script src=app.js></script></html>");
-    assert!(detect(View::Dom, &doc).is_empty());
+    assert!(detect(View::Dom, &doc, None).is_empty());
 }
 
 #[test]
 fn meta_view_never_signals_needs() {
     let doc = parse("<html><body></body><script src=app.js></script></html>");
-    assert!(detect(View::Meta, &doc).is_empty());
+    assert!(detect(View::Meta, &doc, None).is_empty());
 }
 
 #[test]
 fn bboxes_view_never_signals_needs_in_phase_0() {
     let doc = parse("<html><body></body><script></script></html>");
-    assert!(detect(View::Bboxes, &doc).is_empty());
+    assert!(detect(View::Bboxes, &doc, None).is_empty());
 }
 
 #[test]
 fn empty_spa_shell_with_script_signals_js() {
     let doc = parse("<html><body><div id=root></div></body><script src=app.js></script></html>");
-    assert_eq!(detect(View::Text, &doc), vec![NeedsKind::Js]);
-    assert_eq!(detect(View::Links, &doc), vec![NeedsKind::Js]);
-    assert_eq!(detect(View::Forms, &doc), vec![NeedsKind::Js]);
-    assert_eq!(detect(View::Ax, &doc), vec![NeedsKind::Js]);
+    assert_eq!(detect(View::Text, &doc, None), vec![NeedsKind::Js]);
+    assert_eq!(detect(View::Links, &doc, None), vec![NeedsKind::Js]);
+    assert_eq!(detect(View::Forms, &doc, None), vec![NeedsKind::Js]);
+    assert_eq!(detect(View::Ax, &doc, None), vec![NeedsKind::Js]);
 }
 
 #[test]
 fn fully_rendered_page_does_not_signal_needs() {
     let doc = parse("<html><body><h1>Hello</h1><p>This is content.</p></body></html>");
-    assert!(detect(View::Text, &doc).is_empty());
+    assert!(detect(View::Text, &doc, None).is_empty());
 }
 
 #[test]
 fn empty_body_without_scripts_does_not_signal_js() {
     let doc = parse("<html><body></body></html>");
-    assert!(detect(View::Text, &doc).is_empty());
+    assert!(detect(View::Text, &doc, None).is_empty());
 }
 
 #[test]
 fn page_with_scripts_and_text_does_not_signal_js() {
     let doc = parse("<html><body><p>real content</p><script src=app.js></script></body></html>");
-    assert!(detect(View::Text, &doc).is_empty());
+    assert!(detect(View::Text, &doc, None).is_empty());
 }
 
 #[test]
 fn empty_document_does_not_signal_js() {
     // Document::default() has no body at all (no roots).
     let doc = Document::default();
-    assert!(detect(View::Text, &doc).is_empty());
+    assert!(detect(View::Text, &doc, None).is_empty());
 }
 
 #[test]
@@ -61,7 +61,7 @@ fn parser_injected_empty_body_with_only_head_script_signals_js() {
     // html5ever injects <body></body>; the empty body + head script combo is
     // exactly the SPA-shell pattern the heuristic is meant to catch.
     let doc = parse("<html><script></script></html>");
-    assert_eq!(detect(View::Text, &doc), vec![NeedsKind::Js]);
+    assert_eq!(detect(View::Text, &doc, None), vec![NeedsKind::Js]);
 }
 
 #[test]
@@ -72,8 +72,8 @@ fn scaffold_of_empty_boxes_signals_js_regardless_of_size() {
     let doc = parse(
         "<html><body><div></div><div></div><div></div><div></div><div></div></body><script></script></html>",
     );
-    assert_eq!(detect(View::Text, &doc), vec![NeedsKind::Js]);
-    assert_eq!(detect(View::Ax, &doc), vec![NeedsKind::Js]);
+    assert_eq!(detect(View::Text, &doc, None), vec![NeedsKind::Js]);
+    assert_eq!(detect(View::Ax, &doc, None), vec![NeedsKind::Js]);
 }
 
 #[test]
@@ -87,10 +87,10 @@ fn labels_clear_non_text_views_but_not_the_text_view() {
          <button aria-label=Search></button>\
          <script src=app.js></script></body></html>",
     );
-    assert_eq!(detect(View::Text, &doc), vec![NeedsKind::Js]);
-    assert!(detect(View::Ax, &doc).is_empty());
-    assert!(detect(View::Links, &doc).is_empty());
-    assert!(detect(View::Forms, &doc).is_empty());
+    assert_eq!(detect(View::Text, &doc, None), vec![NeedsKind::Js]);
+    assert!(detect(View::Ax, &doc, None).is_empty());
+    assert!(detect(View::Links, &doc, None).is_empty());
+    assert!(detect(View::Forms, &doc, None).is_empty());
 }
 
 #[test]
@@ -99,7 +99,7 @@ fn empty_alt_is_the_decorative_marker_not_a_label() {
         "<html><body><img src=x.png alt=\"\"><div aria-label=\" \"></div>\
          <script src=app.js></script></body></html>",
     );
-    assert_eq!(detect(View::Ax, &doc), vec![NeedsKind::Js]);
+    assert_eq!(detect(View::Ax, &doc, None), vec![NeedsKind::Js]);
 }
 
 #[test]
@@ -110,13 +110,13 @@ fn labels_inside_chrome_are_boilerplate_not_content() {
          <nav><a href=/ aria-label=Home></a></nav>\
          <script src=app.js></script></body></html>",
     );
-    assert_eq!(detect(View::Ax, &doc), vec![NeedsKind::Js]);
+    assert_eq!(detect(View::Ax, &doc, None), vec![NeedsKind::Js]);
 }
 
 #[test]
 fn whitespace_only_body_with_script_signals_js() {
     let doc = parse("<html><body>   \n   </body><script></script></html>");
-    assert_eq!(detect(View::Text, &doc), vec![NeedsKind::Js]);
+    assert_eq!(detect(View::Text, &doc, None), vec![NeedsKind::Js]);
 }
 
 #[test]
@@ -124,7 +124,7 @@ fn inline_script_source_is_not_content_so_shell_signals_js() {
     // A `<script>`'s own source is set aside, not counted as body text: an empty
     // mount div beside an inline bootstrap is still a starved shell.
     let doc = parse("<html><body><div id=root></div><script>var x = 1;</script></body></html>");
-    assert_eq!(detect(View::Text, &doc), vec![NeedsKind::Js]);
+    assert_eq!(detect(View::Text, &doc, None), vec![NeedsKind::Js]);
 }
 
 #[test]
@@ -136,7 +136,7 @@ fn content_inside_chrome_only_still_signals_js() {
          <footer><p>Created by someone</p></footer>\
          <script src=app.js></script></body></html>",
     );
-    assert_eq!(detect(View::Text, &doc), vec![NeedsKind::Js]);
+    assert_eq!(detect(View::Text, &doc, None), vec![NeedsKind::Js]);
 }
 
 // --- Synthetic real-world shapes (tests/fixtures/needs) ---------------------
@@ -159,7 +159,7 @@ const NEWS: &str = include_str!("../../tests/fixtures/needs/news-article.html");
 fn needs_js_for_all_content_views(html: &str) {
     let doc = parse(html);
     for view in [View::Text, View::Ax, View::Links, View::Forms] {
-        assert_eq!(detect(view, &doc), vec![NeedsKind::Js], "{view:?}");
+        assert_eq!(detect(view, &doc, None), vec![NeedsKind::Js], "{view:?}");
     }
 }
 
@@ -167,7 +167,7 @@ fn needs_js_for_all_content_views(html: &str) {
 fn stays_ok_for_all_content_views(html: &str) {
     let doc = parse(html);
     for view in [View::Text, View::Ax, View::Links, View::Forms] {
-        assert!(detect(view, &doc).is_empty(), "{view:?}");
+        assert!(detect(view, &doc, None).is_empty(), "{view:?}");
     }
 }
 

@@ -77,3 +77,25 @@ fn bboxes_with_css_reorders_via_style_block() {
     let is = italic_is(&v);
     assert_eq!(is, vec![is[1] + 1, is[1]]);
 }
+
+#[test]
+fn bboxes_omits_a_hidden_subtree_without_css() {
+    // Geometry is layout, and the UA `[hidden] { display: none }` rule is in the
+    // bare cascade too — a box no browser paints must not appear in the
+    // impression (`bl-eeb4`).
+    let v = serve_and_run(
+        "<p>shown</p><div hidden><p>Opens in a new tab</p></div>",
+        &["--out", "bboxes"],
+    );
+    let texts: Vec<String> = v["out"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|e| e["text"].as_str().map(str::to_string))
+        .collect();
+    assert!(texts.iter().any(|t| t == "shown"), "{texts:?}");
+    assert!(
+        !texts.iter().any(|t| t.contains("Opens in a new tab")),
+        "{texts:?}"
+    );
+}
