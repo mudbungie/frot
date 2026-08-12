@@ -22,7 +22,7 @@ mod host;
 mod messages;
 mod net;
 
-pub use host::{Console, Counters, Env, Host, Log, SharedDoc};
+pub use host::{Console, Counters, CurrentScript, Env, Host, Log, SharedDoc};
 pub use messages::{push as push_message, Message, Messages};
 
 /// One binding group: registers its slice of the table on the realm's globals.
@@ -133,6 +133,13 @@ fn reads<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquickjs::
     bind!(ctx, g, "__frot_text", {
         let d = doc.clone();
         move |id: u32| d.borrow().text_content(id)
+    });
+    // The executing `<script>` (js.md §4.1). A *query* over the host's one cell,
+    // so `document.currentScript` cannot go stale: nothing in JS holds it, and
+    // the host restores the prior value after every script (`Session::run_script`).
+    bind!(ctx, g, "__frot_current_script", {
+        let c = h.current.clone();
+        move || c.get()
     });
     bind!(ctx, g, "__frot_parent", {
         let d = doc.clone();

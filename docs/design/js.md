@@ -116,7 +116,8 @@ Two layers, one narrow interface:
   the single source of selector semantics for both the cascade and
   `querySelector`), geometry (§8), subfetch (§6), the static environment facts
   §7 derives from (the UA string, the final URL, the viewport width, and the
-  refused-navigation count), and console logging. This table is the **entire**
+  refused-navigation count), the executing `<script>` (§4.1
+  `document.currentScript`), and console logging. This table is the **entire**
   Rust↔JS surface.
 - **A bundled JS prelude** (`src/js/prelude/*.js`, embedded via
   `include_str!`, evaluated before any page script) implements the web-facing
@@ -271,6 +272,21 @@ during parse. So:
      input through `eval_script` (sloppy) or `eval_module` (strict); every flag
      is stated at the call, none inherited. The rule is executable:
      `tests/fixtures/js/script-mode.html` + `js::tests::scriptmode`.
+   - **`document.currentScript` is a host query, not a JS field (`bl-a19d`).**
+     While a classic script runs — inline or external — it is that `<script>`
+     element; between scripts, and throughout module evaluation, it is `null`.
+     Found live across at least six Next/Turbopack sites (nextjs.org 36 errors,
+     tailwindcss.com 12, nodejs.org, shadcn, Mantine, Vercel): a fetched chunk
+     derives its own URL from `document.currentScript` to register itself, so
+     with the property absent every chunk threw and the page stayed a shell.
+     The executing script is a fact the *host* has — `run_script_queue` is
+     holding the `NodeId` — so it lives in one host cell the syscall reads back,
+     rather than being mirrored into JS: the host sets it around one evaluation
+     and restores the prior value after, which makes staleness impossible by
+     construction. A throw, a budget trip, and a nested evaluation all restore,
+     because the restore is not something the script could skip. `script.src`
+     (like `href`) reflects **resolved**, as Firefox's getter does, since the
+     chunk's next move is `new URL(currentScript.src)`.
 2. **Order:** source order, one queue. `defer` semantics *are* "after parse,
    in source order", and `async`'s any-order license makes source order a
    legal schedule — so one rule covers all three script modes, no scheduler.

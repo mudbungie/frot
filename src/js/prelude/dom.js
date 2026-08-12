@@ -243,6 +243,14 @@
     getElementById: function (id) {
       return this.querySelector('#' + id);
     },
+    // The classic script executing right now (js.md §4.1), `null` between
+    // scripts and during module evaluation. Turbopack/Next chunks derive their
+    // own URL from it (bl-a19d), so its absence took every Next site dark. A
+    // getter over the host's cell, not a stored field: the host owns the fact,
+    // so a script that throws cannot strand a stale one here.
+    get currentScript() {
+      return wrap(g.__frot_current_script());
+    },
   };
 
   g.Node = Node;

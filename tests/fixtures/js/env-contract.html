@@ -34,6 +34,10 @@
   eq('present:reportError', typeof reportError, 'function');
   eq('present:URL', typeof URL, 'function');
   eq('present:URLSearchParams', typeof URLSearchParams, 'function');
+  // The executing script's own identity (js.md 4.1): this script, right now.
+  // The when-it-is-null half is pinned in `script-mode`'s neighbour fixture and
+  // in js::tests::currentscript; here it is only presence.
+  eq('present:document.currentScript', document.currentScript.tagName, 'SCRIPT');
 
   // --- matchMedia: width queries vs the fixed 1280px viewport (§7) -----------
   // px and em/rem, the latter converting at 16px/unit (80em == 1280px).

@@ -55,6 +55,7 @@ fn host(engine: &Engine, probe: Option<ProbeLog>) -> Host {
         cookie,
         clock: engine.clock(),
         probe,
+        current: Rc::new(std::cell::Cell::new(None)),
     }
 }
 

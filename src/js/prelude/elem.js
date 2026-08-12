@@ -198,21 +198,30 @@
       this.setAttribute('rel', String(v));
     },
   });
-  Object.defineProperty(proto, 'href', {
-    configurable: true,
-    get: function () {
-      var v = this.getAttribute('href');
-      if (v == null) return '';
-      try {
-        return new g.URL(v, g.location.href).href;
-      } catch (e) {
-        return v;
-      }
-    },
-    set: function (v) {
-      this.setAttribute('href', String(v));
-    },
-  });
+  // `href` and `src` reflect RESOLVED against the document URL (both getters are
+  // absolute in Firefox), falling back to the raw value when it will not parse.
+  // One descriptor maker, because they are one rule: `src` earned its place when
+  // Turbopack/Next chunks read `document.currentScript.src` to derive their own
+  // chunk path (bl-a19d) — `new URL(that)` needs the absolute form.
+  function reflectUrl(name) {
+    return {
+      configurable: true,
+      get: function () {
+        var v = this.getAttribute(name);
+        if (v == null) return '';
+        try {
+          return new g.URL(v, g.location.href).href;
+        } catch (e) {
+          return v;
+        }
+      },
+      set: function (v) {
+        this.setAttribute(name, String(v));
+      },
+    };
+  }
+  Object.defineProperty(proto, 'href', reflectUrl('href'));
+  Object.defineProperty(proto, 'src', reflectUrl('src'));
 
   // --- dataset: data-* reflection ------------------------------------------
   Object.defineProperty(proto, 'dataset', {

@@ -5,11 +5,11 @@
 //! the state they close over. [`Host`] gathers all of it into one value so every
 //! binding group can take the same signature (`super::GROUPS`).
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use super::Messages;
-use crate::dom::Document;
+use crate::dom::{Document, NodeId};
 use crate::fetch::SharedJar;
 use crate::js::engine::Clock;
 use crate::js::geometry::SharedGeometry;
@@ -59,6 +59,14 @@ pub struct Counters {
     pub messages: Messages,
 }
 
+/// The `<script>` the host is running *right now*, or `None` between scripts
+/// (js.md §4.1). `document.currentScript` is a query over this cell, never a
+/// mirrored JS field: the host sets it around one classic-script evaluation and
+/// restores it after, so a throw, a budget trip, or a nested evaluation cannot
+/// leave a stale identity behind. Modules never set it — their `currentScript`
+/// is `null` by spec.
+pub type CurrentScript = Rc<Cell<Option<NodeId>>>;
+
 /// One captured `console` call (level + rendered message), in emission order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Log {
@@ -96,4 +104,7 @@ pub struct Host {
     /// ([`super::install`]); `None` is every shipping `--js` run — no probe
     /// syscall, no second prelude, no behaviour change.
     pub probe: Option<ProbeLog>,
+    /// The executing `<script>` (js.md §4.1), read back by the
+    /// `__frot_current_script` syscall — see [`CurrentScript`].
+    pub current: CurrentScript,
 }

@@ -94,3 +94,56 @@ fn beyond_shim_page_settles_clean_yet_still_needs_js() {
         serde_json::json!({"scripts": 1, "errors": 0, "settled": true})
     );
 }
+
+// A minimized Turbopack/Next chunk registration (bl-a19d), modelled on the shape
+// six field-trial sites died on and hand-written rather than vendored: the
+// runtime script installs the registration queue, then each chunk `push`es a
+// tuple whose FIRST member is its own URL, taken from `document.currentScript`
+// while it executes. With no such property the chunk threw before registering
+// anything — nextjs.org reported 36 errors over a shell — so this page renders
+// nothing unless the executing script's identity, and its resolved `src`, are
+// both real.
+const TURBO_PAGE: &str = "<html><body><div id='root'></div>\
+    <script src='/runtime.js'></script>\
+    <script src='/chunks/app.js'></script></body></html>";
+const TURBO_RUNTIME: &str = "globalThis.TURBOPACK = {push: function (chunk) {\
+    var url = chunk[0];\
+    if (!url) throw new Error('chunk path empty but not in a worker');\
+    var path = new URL(url).pathname;\
+    document.getElementById('root').textContent = chunk[1][path]();\
+  }};";
+const TURBO_CHUNK: &str = "(globalThis.TURBOPACK = globalThis.TURBOPACK || []).push([\
+    typeof document === 'object' ? document.currentScript.src : undefined,\
+    {'/chunks/app.js': function () { return 'Hello from a Turbopack chunk'; }}\
+  ]);";
+
+#[test]
+fn a_turbopack_chunk_registers_itself_from_current_script() {
+    let (_s, url) = serve(
+        TURBO_PAGE,
+        &[
+            ("/runtime.js", TURBO_RUNTIME),
+            ("/chunks/app.js", TURBO_CHUNK),
+        ],
+    );
+    // Static shell (no --js): the body is an empty root — honestly needs-js.
+    let (_c, before) = run_capture(&[&url, "--out", "text"]);
+    assert_eq!(env(&before)["status"], "needs");
+    // With --js the chunk knows which URL it came from, registers, and renders.
+    let (code, out) = run_capture(&[&url, "--js", "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = env(&out);
+    assert_eq!(v["status"], "ok");
+    assert!(
+        v["out"]
+            .as_str()
+            .unwrap()
+            .contains("Hello from a Turbopack chunk"),
+        "{}",
+        v["out"]
+    );
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 2, "errors": 0, "settled": true})
+    );
+}

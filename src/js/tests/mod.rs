@@ -12,6 +12,7 @@ use crate::dom::Document;
 use crate::fetch::FetchSession;
 
 mod clock;
+mod currentscript;
 mod envgold;
 mod evloop;
 mod facade;

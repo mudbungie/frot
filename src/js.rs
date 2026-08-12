@@ -175,7 +175,7 @@ fn run_script_queue(session: &Session, report: &mut Report) {
         match script {
             // External `src`: fetched under the §6 subfetch policy, then run as a
             // classic script or evaluated as a module (§4.1).
-            Script::External { module, src } => run_external(session, module, &src, report),
+            Script::External { module, src } => run_external(session, id, module, &src, report),
             // Non-JS `type` / `nomodule`: not for us (§4.1), skipped silently.
             Script::Skip => {}
             // Inline classic body, or an inline module whose imports resolve
@@ -183,7 +183,7 @@ fn run_script_queue(session: &Session, report: &mut Report) {
             Script::Inline {
                 module: false,
                 body,
-            } => run_script(session, &body, report),
+            } => run_script(session, id, &body, report),
             Script::Inline { module: true, body } => {
                 run_module(session, &script::module_base(session), &body, report)
             }
@@ -196,10 +196,10 @@ fn run_script_queue(session: &Session, report: &mut Report) {
 /// failed stylesheet; a 2xx (or `file://`) body runs as a classic script, or —
 /// for `type="module"` — as a module named by its own fetched URL, so its
 /// imports resolve against it (§4.1).
-fn run_external(session: &Session, module: bool, src: &str, report: &mut Report) {
+fn run_external(session: &Session, id: NodeId, module: bool, src: &str, report: &mut Report) {
     match session.subfetch(src, script::external_intent(module)) {
         subfetch::Outcome::Got(f) if f.ok && module => run_module(session, &f.url, &f.body, report),
-        subfetch::Outcome::Got(f) if f.ok => run_script(session, &f.body, report),
+        subfetch::Outcome::Got(f) if f.ok => run_script(session, id, &f.body, report),
         // A failed or non-2xx external `src` leaves nothing to run: counted (§4.2)
         // and captured by its spec, so `--js-errors` names which bundle went dark.
         _ => {
@@ -210,8 +210,10 @@ fn run_external(session: &Session, module: bool, src: &str, report: &mut Report)
 }
 
 /// Evaluate one classic script body under the run's bounds, tallying it (§5).
-fn run_script(session: &Session, body: &str, report: &mut Report) {
-    tally(session, report, session.run_script(body));
+/// `id` is the `<script>` element it came from — inline or external, it is what
+/// `document.currentScript` reports for the length of the evaluation (§4.1).
+fn run_script(session: &Session, id: NodeId, body: &str, report: &mut Report) {
+    tally(session, report, session.run_script(id, body));
 }
 
 /// Evaluate one ES module (`name` = its URL, the import base, js.md §4.1) under

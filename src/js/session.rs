@@ -8,7 +8,7 @@
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 
-use crate::dom::Document;
+use crate::dom::{Document, NodeId};
 use crate::fetch::FetchSession;
 
 use super::engine::{self, Deadline, Engine};
@@ -29,6 +29,10 @@ pub struct Session {
     /// `report` syscall and by [`Session::capture`]).
     counters: syscall::Counters,
     subfetch: subfetch::SharedSubfetch,
+    /// The `<script>` being evaluated right now, which `document.currentScript`
+    /// is a query over (js.md §4.1). Set and restored around one classic script
+    /// by [`run_script`](Self::run_script); never written from JS.
+    current: syscall::CurrentScript,
     /// The final page URL — the document URL every document-relative reference
     /// is ultimately anchored to ([`crate::base`]); external modules use their
     /// own fetched URL.
@@ -129,6 +133,7 @@ impl Session {
         // `Set-Cookie` into, so `document.cookie` at `env.url` reads it and a JS
         // write feeds a later same-origin subfetch.
         let cookie = fetch.cookie_jar();
+        let current: syscall::CurrentScript = Rc::new(std::cell::Cell::new(None));
         // The ES-module resolver/loader (js.md §4.1/§6) rides the same §6 cache as
         // fetch/XHR/external-src, installed before any module evaluates.
         super::loader::install(&engine, &subfetch);
@@ -145,6 +150,7 @@ impl Session {
                 cookie,
                 clock: engine.clock(),
                 probe,
+                current: current.clone(),
             },
         );
         Session {
@@ -153,6 +159,7 @@ impl Session {
             console,
             counters,
             subfetch,
+            current,
             page_url,
         }
     }
@@ -171,12 +178,20 @@ impl Session {
         self.engine.eval_armed(src)
     }
 
-    /// Evaluate one page **classic script** inside the armed bounds (§5). Sloppy
-    /// mode unless the source says otherwise, which is what a browser does with
-    /// a classic script (js.md §4.1) — [`run_task`](Self::run_task) is frot's own
-    /// code and stays strict.
-    pub fn run_script(&self, src: &str) -> Result<String, EvalError> {
-        self.engine.eval_script(src)
+    /// Evaluate one page **classic script** — the element `id`'s — inside the
+    /// armed bounds (§5). Sloppy mode unless the source says otherwise, which is
+    /// what a browser does with a classic script (js.md §4.1);
+    /// [`run_task`](Self::run_task) is frot's own code and stays strict.
+    ///
+    /// `id` is what `document.currentScript` reports while this body runs. The
+    /// prior value is restored on the way out whatever the outcome — a throw, a
+    /// budget trip, or a nested evaluation — because the restore is the host's,
+    /// not something the script could skip.
+    pub fn run_script(&self, id: NodeId, src: &str) -> Result<String, EvalError> {
+        let prior = self.current.replace(Some(id));
+        let out = self.engine.eval_script(src);
+        self.current.set(prior);
+        out
     }
 
     /// Evaluate `src` as an ES module named `name` (its URL) inside the armed
