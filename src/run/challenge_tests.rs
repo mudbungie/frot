@@ -69,7 +69,8 @@ fn cf_mitigated_challenge_flips_to_needs_human() {
 
 #[test]
 fn amzn_waf_challenge_202_flips_to_needs_human_not_needs_js() {
-    // Field trial (bl-7e34, measured 2026-07-22 from [redacted-egress-network]):
+    // Field trial (bl-7e34, measured 2026-07-22 from the reference egress,
+    // `docs/design/identity.md` §3):
     // www.amazon.com answers frot's own request headers with `202` +
     // `x-amzn-waf-action: challenge` + `server: CloudFront` and an AWS WAF
     // `challenge.js` body carrying no rendered text. Before this ball the

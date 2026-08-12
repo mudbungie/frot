@@ -379,8 +379,8 @@ separate decision if Mark wants one.
 ## 8. Q7 — does it actually work? (measure; record a null as loudly as a win)
 
 **Primary case — Amazon** (`identity.md` §3.9, the prompt for this ball):
-`frot https://www.amazon.com/ --js --out text`, ×3 medians, from the **same egress
-IP** used by §3.1/§3.8/§3.9 (`[redacted-egress-ip]`, [redacted-egress-network]) so the
+`frot https://www.amazon.com/ --js --out text`, ×3 medians, from the **same
+reference egress** used by §3.1/§3.8/§3.9 (`identity.md` §3) so the
 comparison is controlled against the existing baselines. Success is
 `status:"ok"` with real Amazon text **and** `challenge:{declared:"x-amzn-waf-action",
 rounds:1, passed:true}`.

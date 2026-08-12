@@ -121,9 +121,17 @@ here.)*
 
 ## 3. Evidence matrix
 
-All rows measured 2026-07-19 from the **same egress IP `[redacted-egress-ip]`**, so
-client identity is separated from IP reputation. frot binary: worktree `bl-0356`
-@ `4aac8b2`, `cargo build --release`.
+All rows measured 2026-07-19 from **the reference egress**, so client identity is
+separated from IP reputation. frot binary: worktree `bl-0356` @ `4aac8b2`,
+`cargo build --release`.
+
+> **The reference egress** is one fixed residential IPv4 on a US consumer ISP,
+> used unchanged for every measurement in this document and in `challenge.md`.
+> The literal address and its ISP/city are deliberately **not recorded here**:
+> they identify a private home network, and they buy no reproducibility, since
+> nobody else can measure from that line anyway. What the evidence rests on is
+> not *which* address it was but that it was the **same** one across every row —
+> each later section states that it re-verified sameness against §3.1.
 
 ### 3.1 Same-egress fingerprint comparison
 
@@ -287,8 +295,8 @@ still differs (one `needs`, one `error`); only the evidence gap is closed. See
 Measured after **every** identity sibling landed — `bl-abca` (Option C: stock
 `rustls 0.23` + `aws-lc-rs` + real h2), `bl-20ec` (one request serializer),
 `bl-5191` (per-invocation session), `bl-3972`/capability balls (JS persona,
-incl. `bl-8733` audio), `bl-e707` (clocks) — from the **same egress IP
-`[redacted-egress-ip]`** as §3.1 (verified identical), release binary from the
+incl. `bl-8733` audio), `bl-e707` (clocks) — from the **same reference egress**
+as §3.1 (§3, verified identical), release binary from the
 `bl-d66b` worktree, `cargo build --release`. Wire persona read black-box through
 `tls.peet.ws/api/all` (the §3.1 tool). This is the §14 falsifier run.
 
@@ -391,8 +399,8 @@ false`). §3.8's capstone measured the 202 with `--out text` and no `--js`, so i
 never exercised the masquerade against the fingerprinter. **Does Amazon still
 202 now that the persona answers its probes coherently?**
 
-**Method.** Egress IP `[redacted-egress-ip]` ([redacted-egress-network]) — the same
-IP as §3.1/§3.8, verified. Release binary from the `bl-7e34` worktree.
+**Method.** The reference egress (§3) — the same address as §3.1/§3.8,
+verified. Release binary from the `bl-7e34` worktree.
 `frot https://www.amazon.com/ --js --out text` ×3 and `--out dom` ×1, then the
 same request replayed through `curl` with frot's exact header set (read back
 from `httpbin.org/headers`) to see the response headers frot's allowlist did
