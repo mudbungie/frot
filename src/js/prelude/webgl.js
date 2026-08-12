@@ -15,6 +15,11 @@
   var brand = g.__frot_brand;
   var mix = g.__frot_webgl_mix;
   var fill = g.__frot_webgl_fill;
+  // Context state (version, seed, digest, drawn flag, the backing canvas) lives
+  // in brand.js's one instance-state WeakMap, and so does the canvas element's
+  // handle on its context: a real Gecko context and a real canvas element both
+  // answer `Object.getOwnPropertyNames` with `[]` (bl-3bdc, identity.md §3.16).
+  var slots = g.__frot_slots;
   var prof = JSON.parse(g.__frot_env_profile());
   var P = prof.webgl;
   var CSEED = prof.canvasSeed >>> 0;
@@ -79,7 +84,7 @@
   // Float32Array for the ALIASED_* ranges, Int32Array for MAX_VIEWPORT_DIMS —
   // freshly built each call, exactly like a real context.
   function getParameter(pname) {
-    var v = MAPS[this._v][pname];
+    var v = MAPS[slots(this).v][pname];
     if (v === undefined) return null;
     if (Array.isArray(v)) {
       return pname === ENUM.ALIASED_LINE_WIDTH_RANGE || pname === ENUM.ALIASED_POINT_SIZE_RANGE
@@ -100,7 +105,7 @@
   var EXTLIST = { 1: P.extensions1, 2: P.extensions2 };
   var EXTSET = { 1: setOf(P.extensions1), 2: setOf(P.extensions2) };
   function getSupportedExtensions() {
-    return EXTLIST[this._v].slice();
+    return EXTLIST[slots(this).v].slice();
   }
   // A supported extension returns a Firefox-shaped object (its @@toStringTag is the
   // extension name; the constant-bearing ones carry their constants/methods); an
@@ -121,7 +126,7 @@
     return o;
   }
   function getExtension(name) {
-    return EXTSET[this._v][name] ? extObject(name) : null;
+    return EXTSET[slots(this).v][name] ? extObject(name) : null;
   }
 
   // getShaderPrecisionFormat: desktop GL / llvmpipe reports IEEE-754 highp for
@@ -152,7 +157,8 @@
   // readPixels writes deterministic RGBA into the caller's view (a READ — it does
   // not fold the digest, so two reads of one scene agree, as on real hardware).
   function readPixels(x, y, width, height, format, type, pixels) {
-    fill(pixels, this._seed, this._d, width >>> 0, height >>> 0, this._drawn);
+    var st = slots(this);
+    fill(pixels, st.seed, st.d, width >>> 0, height >>> 0, st.drawn);
   }
 
   // --- Method zoo ------------------------------------------------------------
@@ -176,15 +182,18 @@
     'createShader', 'createProgram', 'createBuffer', 'createTexture', 'createFramebuffer',
     'createRenderbuffer', 'createVertexArray',
   ];
+  function fold(ctx, s) {
+    slots(ctx).d = mix(slots(ctx).d, s);
+  }
   function defRecord(proto, name, paints) {
     proto[name] = brand(function () {
-      this._d = mix(this._d, name + '(' + argstr(arguments) + ')');
-      if (paints) this._drawn = true;
+      fold(this, name + '(' + argstr(arguments) + ')');
+      if (paints) slots(this).drawn = true;
     }, name);
   }
   function defNew(proto, name) {
     proto[name] = brand(function () {
-      this._d = mix(this._d, name);
+      fold(this, name);
       return {};
     }, name);
   }
@@ -223,14 +232,12 @@
 
   // --- Interfaces ------------------------------------------------------------
   var accessors = {
-    canvas: function () {
-      return this._canvas;
-    },
+    canvas: null,
     drawingBufferWidth: function () {
-      return this._canvas.width;
+      return slots(this).canvas.width;
     },
     drawingBufferHeight: function () {
-      return this._canvas.height;
+      return slots(this).canvas.height;
     },
   };
   function build(name) {
@@ -251,27 +258,28 @@
   // SAME version returns it; a DIFFERENT version returns null — a canvas binds one
   // context type for life, exactly as a real browser enforces.
   function context(canvas, version) {
-    var ex = canvas._ctxgl;
-    if (ex) return ex._v === version ? ex : null;
+    var ex = slots(canvas).ctxgl;
+    if (ex) return slots(ex).v === version ? ex : null;
     var ctx = Object.create(version === 2 ? GL2.prototype : GL1.prototype);
     var seed = ctxSeed(version);
-    Object.defineProperty(ctx, '_canvas', { value: canvas });
-    Object.defineProperty(ctx, '_v', { value: version });
-    Object.defineProperty(ctx, '_seed', { value: seed });
-    Object.defineProperty(ctx, '_d', { value: mix(seed, 'base'), writable: true, configurable: true });
-    Object.defineProperty(ctx, '_drawn', { value: false, writable: true, configurable: true });
-    Object.defineProperty(canvas, '_ctxgl', { value: ctx, configurable: true });
+    var st = slots(ctx);
+    st.canvas = canvas;
+    st.v = version;
+    st.seed = seed;
+    st.d = mix(seed, 'base');
+    st.drawn = false;
+    slots(canvas).ctxgl = ctx;
     return ctx;
   }
   // the deterministic image/png data URL for a WebGL canvas (the toDataURL() body
   // when a webgl context exists). Expands the digest over the full surface and
   // PNG-encodes it through the shared serialiser.
   function dataURL(canvas) {
-    var ctx = canvas._ctxgl;
+    var st = slots(slots(canvas).ctxgl);
     var w = canvas.width;
     var h = canvas.height;
     var px = new Uint8ClampedArray(w * h * 4);
-    fill(px, ctx._seed, ctx._d, w, h, ctx._drawn);
+    fill(px, st.seed, st.d, w, h, st.drawn);
     return g.__frot_canvas_png(px, w, h);
   }
   [['__frot_webgl_ctx', context], ['__frot_webgl_dataurl', dataURL]].forEach(function (p) {

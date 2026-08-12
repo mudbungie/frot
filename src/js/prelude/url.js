@@ -7,6 +7,14 @@
 // standalone module.
 (function (g) {
   'use strict';
+  var attrs = g.__frot_ifaceattrs;
+  // Parsed components and the pair list live in brand.js's one instance-state
+  // WeakMap. A real Gecko `URL`/`URLSearchParams` owns no properties at all —
+  // every component is a prototype accessor — and the `_`-prefixed slots these
+  // replace were readable straight out of `Object.getOwnPropertyNames`
+  // (bl-3bdc, identity.md §3.16). The two internal operations moved with them:
+  // `_setQuery`/`_changed` were own members of the PROTOTYPES, equally visible.
+  var slots = g.__frot_slots;
 
   var COMPONENTS = ['href', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash', 'origin'];
 
@@ -37,32 +45,37 @@
   }
 
   function URLSearchParams(init) {
-    if (init instanceof URLSearchParams) this._pairs = init._pairs.slice();
-    else if (typeof init === 'string') this._pairs = parsePairs(init);
+    var st = slots(this);
+    if (init instanceof URLSearchParams) st.pairs = pairs(init).slice();
+    else if (typeof init === 'string') st.pairs = parsePairs(init);
     else if (Array.isArray(init))
-      this._pairs = init.map(function (p) {
+      st.pairs = init.map(function (p) {
         return [String(p[0]), String(p[1])];
       });
     else if (init && typeof init === 'object')
-      this._pairs = Object.keys(init).map(function (k) {
+      st.pairs = Object.keys(init).map(function (k) {
         return [k, String(init[k])];
       });
-    else this._pairs = [];
-    this._url = null; // set when owned by a URL, to reflect edits back into it
+    else st.pairs = [];
+    st.url = null; // set when owned by a URL, to reflect edits back into it
+  }
+  function pairs(sp) {
+    return slots(sp).pairs;
   }
   // A mutation re-serializes the pairs into the owning URL's query (single
   // source of truth: the URL owns the query string; this is its editable view).
-  URLSearchParams.prototype._changed = function () {
-    if (this._url) this._url._setQuery(this.toString());
-  };
+  function changed(sp) {
+    if (slots(sp).url) setQuery(slots(sp).url, sp.toString());
+  }
   URLSearchParams.prototype.get = function (name) {
     name = String(name);
-    for (var i = 0; i < this._pairs.length; i++) if (this._pairs[i][0] === name) return this._pairs[i][1];
+    var ps = pairs(this);
+    for (var i = 0; i < ps.length; i++) if (ps[i][0] === name) return ps[i][1];
     return null;
   };
   URLSearchParams.prototype.getAll = function (name) {
     name = String(name);
-    return this._pairs
+    return pairs(this)
       .filter(function (p) {
         return p[0] === name;
       })
@@ -74,51 +87,52 @@
     return this.get(String(name)) !== null;
   };
   URLSearchParams.prototype.append = function (name, value) {
-    this._pairs.push([String(name), String(value)]);
-    this._changed();
+    pairs(this).push([String(name), String(value)]);
+    changed(this);
   };
   URLSearchParams.prototype.set = function (name, value) {
     name = String(name);
     value = String(value);
     var done = false;
-    this._pairs = this._pairs.filter(function (p) {
+    var st = slots(this);
+    st.pairs = st.pairs.filter(function (p) {
       if (p[0] !== name) return true;
       if (done) return false;
       done = true;
       p[1] = value;
       return true;
     });
-    if (!done) this._pairs.push([name, value]);
-    this._changed();
+    if (!done) st.pairs.push([name, value]);
+    changed(this);
   };
   URLSearchParams.prototype['delete'] = function (name) {
     name = String(name);
-    this._pairs = this._pairs.filter(function (p) {
+    slots(this).pairs = pairs(this).filter(function (p) {
       return p[0] !== name;
     });
-    this._changed();
+    changed(this);
   };
   URLSearchParams.prototype.forEach = function (fn, thisArg) {
-    this._pairs.forEach(function (p) {
+    pairs(this).forEach(function (p) {
       fn.call(thisArg, p[1], p[0], this);
     }, this);
   };
   URLSearchParams.prototype.keys = function () {
-    return this._pairs
+    return pairs(this)
       .map(function (p) {
         return p[0];
       })
       [Symbol.iterator]();
   };
   URLSearchParams.prototype.values = function () {
-    return this._pairs
+    return pairs(this)
       .map(function (p) {
         return p[1];
       })
       [Symbol.iterator]();
   };
   URLSearchParams.prototype.entries = function () {
-    return this._pairs
+    return pairs(this)
       .map(function (p) {
         return [p[0], p[1]];
       })
@@ -126,7 +140,7 @@
   };
   URLSearchParams.prototype[Symbol.iterator] = URLSearchParams.prototype.entries;
   URLSearchParams.prototype.toString = function () {
-    return this._pairs
+    return pairs(this)
       .map(function (p) {
         return enc(p[0]) + '=' + enc(p[1]);
       })
@@ -137,45 +151,40 @@
     var b = base === undefined || base === null ? undefined : String(base);
     var r = g.__frot_url_parse(String(spec), b);
     if (!r.valid) throw new TypeError('Invalid URL: ' + spec);
-    var self = this;
+    var st = slots(this);
     COMPONENTS.forEach(function (k) {
-      self['_' + k] = r[k];
+      st[k] = r[k];
     });
-    this._sp = null;
+    st.sp = null;
   }
-  COMPONENTS.forEach(function (k) {
-    Object.defineProperty(URL.prototype, k, {
-      enumerable: true,
-      get: function () {
-        return this['_' + k];
-      },
-    });
-  });
+  attrs(URL.prototype, COMPONENTS);
   // Splice a new query into the authoritative href (string surgery, not a
   // re-parse): everything before `?`/`#`, the new query, then the fragment.
-  URL.prototype._setQuery = function (query) {
-    this._search = query ? '?' + query : '';
-    var hashAt = this._href.indexOf('#');
-    var frag = hashAt < 0 ? this._hash : this._href.slice(hashAt);
-    var head = hashAt < 0 ? this._href : this._href.slice(0, hashAt);
+  function setQuery(url, query) {
+    var st = slots(url);
+    st.search = query ? '?' + query : '';
+    var hashAt = st.href.indexOf('#');
+    var frag = hashAt < 0 ? st.hash : st.href.slice(hashAt);
+    var head = hashAt < 0 ? st.href : st.href.slice(0, hashAt);
     var qAt = head.indexOf('?');
     if (qAt >= 0) head = head.slice(0, qAt);
-    this._href = head + this._search + frag;
-  };
-  Object.defineProperty(URL.prototype, 'searchParams', {
-    get: function () {
-      if (!this._sp) {
-        this._sp = new URLSearchParams(this._search);
-        this._sp._url = this;
+    st.href = head + st.search + frag;
+  }
+  attrs(URL.prototype, {
+    searchParams: function () {
+      var st = slots(this);
+      if (!st.sp) {
+        st.sp = new URLSearchParams(st.search);
+        slots(st.sp).url = this;
       }
-      return this._sp;
+      return st.sp;
     },
   });
   URL.prototype.toString = function () {
-    return this._href;
+    return slots(this).href;
   };
   URL.prototype.toJSON = function () {
-    return this._href;
+    return slots(this).href;
   };
 
   g.URL = URL;

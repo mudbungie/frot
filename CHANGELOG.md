@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Under `--js`, a DOM object no longer carries frot's implementation on its
+  face.** Every instance a page can reach — an element, a `Notification`, an
+  audio node, a canvas or WebGL context, an observer, a `URL` — kept its state
+  in `_`-prefixed own properties, which `Object.getOwnPropertyNames` reports
+  whether or not they are enumerable. A real Firefox instance reports nothing
+  there (measured); frot's `Notification` reported ten entries. The state moved
+  behind the prototype accessors WebIDL puts it behind, so anything walking an
+  instance now sees a browser's shape. (`[bl-3bdc]`)
+
 ## [0.0.2](https://github.com/mudbungie/frot/releases/tag/v0.0.2) - 2026-08-12
 
 > **`0.0.0` and `0.0.1` are withdrawn — upgrade to `0.0.2`.**

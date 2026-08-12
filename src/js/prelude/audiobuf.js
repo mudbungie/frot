@@ -7,7 +7,9 @@
 // AudioBuffer (audionode.js), so all three fold and read through one primitive.
 // Runs after brand.js; exposes `__frot_audio_mix` (FNV-1a digest), the one
 // mixing primitive every graph mutation folds through; `__frot_audio_render`
-// (the xorshift float expansion, samples in [-1, 1]); and `__frot_audio_class`
+// (the xorshift float expansion, samples in [-1, 1]); `__frot_audio_fold` (the
+// one graph-digest fold, keeping each context's digest off the instance); and
+// `__frot_audio_class`
 // (a branded, CONSTRUCTABLE Firefox-shaped interface helper, shared so the two
 // node/context modules shape their classes identically). Waveform realism
 // against a real Gecko render is the declared residual — determinism and a
@@ -16,6 +18,7 @@
 (function (g) {
   'use strict';
   var brand = g.__frot_brand;
+  var slots = g.__frot_slots;
 
   // FNV-1a over a string's UTF-16 code units (folded two bytes each) — the one
   // mixing primitive: the audio_seed, each context's graph digest, and every
@@ -28,6 +31,15 @@
       h = Math.imul(h ^ ((c >>> 8) & 0xff), 0x01000193) >>> 0;
     }
     return h >>> 0;
+  }
+
+  // The one graph-digest fold. Every node/param mutation in audionode.js and
+  // every context in audio.js reaches it, and it keeps the running digest in
+  // brand.js's instance-state WeakMap — NOT as a `_d` own property of the
+  // context and NOT as a `_fold` method on `BaseAudioContext.prototype`, both of
+  // which a page reads straight out of `Object.getOwnPropertyNames` (bl-3bdc).
+  function fold(ctx, s) {
+    slots(ctx).d = mix(slots(ctx).d, s);
   }
 
   // A rendered channel's samples: `length` floats deterministically expanded from
@@ -74,6 +86,7 @@
     ['__frot_audio_mix', mix],
     ['__frot_audio_render', render],
     ['__frot_audio_class', klass],
+    ['__frot_audio_fold', fold],
   ].forEach(function (pair) {
     brand(pair[1], pair[0]);
     Object.defineProperty(g, pair[0], { value: pair[1], configurable: true, writable: true });

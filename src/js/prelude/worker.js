@@ -102,16 +102,9 @@
 
   // --- SharedWorker: a `port` (a fresh MessagePort) + onerror ------------------
   var SharedWorker = iface('SharedWorker', function (inst) {
-    Object.defineProperty(inst, '_port', {
-      value: Object.create(MessagePort.prototype),
-      configurable: true,
-    });
+    g.__frot_slots(inst).port = Object.create(MessagePort.prototype);
   });
   inheritEventTarget(SharedWorker);
-  Object.defineProperty(SharedWorker.prototype, 'port', {
-    get: brand(function () { return this._port; }, 'get port'),
-    enumerable: true,
-    configurable: true,
-  });
+  g.__frot_ifaceattrs(SharedWorker.prototype, ['port']);
   onEvent(SharedWorker.prototype, 'onerror');
 })(globalThis);

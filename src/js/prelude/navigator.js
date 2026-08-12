@@ -14,23 +14,22 @@
 
   // --- plugins / mimeTypes: the uniform Gecko PDF-viewer shim set --------------
   // Modern browsers report an identical 5-plugin / 2-mimeType PDF set for anti-
-  // fingerprinting; frot mirrors it. Backing data lives in non-enumerable fields
-  // so a page reading mimeTypes[0] sees only the spec surface, never a `_type`.
+  // fingerprinting; frot mirrors it. Backing data lives in brand.js's one
+  // instance-state WeakMap, so a page reading `mimeTypes[0]` sees only the spec
+  // surface — non-enumerable own slots were still own properties, and
+  // `Object.getOwnPropertyNames` reported every one (bl-3bdc, §3.16).
+  var slots = g.__frot_slots;
   function hidden(o, k, v) {
     Object.defineProperty(o, k, { value: v, configurable: true });
   }
-  var MimeType = g.__frot_iface('MimeType', {
-    type: function () { return this._type; },
-    suffixes: function () { return this._suffixes; },
-    description: function () { return this._description; },
-    enabledPlugin: function () { return this._plugin; },
-  });
+  var MimeType = g.__frot_iface('MimeType',
+    ['type', 'suffixes', 'description', 'enabledPlugin']);
   var Plugin = g.__frot_iface('Plugin', {
-    name: function () { return this._name; },
-    filename: function () { return this._filename; },
-    description: function () { return this._description; },
+    name: null,
+    filename: null,
+    description: null,
     version: function () { return null; },
-    length: function () { return this._mimes.length; },
+    length: function () { return slots(this).mimes.length; },
   });
 
   // A branded array-like collection (PluginArray / MimeTypeArray): fixed items,
@@ -52,9 +51,10 @@
 
   var mimes = [['application/pdf', 'pdf'], ['text/pdf', 'pdf']].map(function (m) {
     var mt = Object.create(MimeType.prototype);
-    hidden(mt, '_type', m[0]);
-    hidden(mt, '_suffixes', m[1]);
-    hidden(mt, '_description', 'Portable Document Format');
+    var st = slots(mt);
+    st.type = m[0];
+    st.suffixes = m[1];
+    st.description = 'Portable Document Format';
     return mt;
   });
   var pluginItems = [
@@ -62,10 +62,11 @@
     'Microsoft Edge PDF Viewer', 'WebKit built-in PDF',
   ].map(function (name) {
     var pl = Object.create(Plugin.prototype);
-    hidden(pl, '_name', name);
-    hidden(pl, '_filename', 'internal-pdf-viewer');
-    hidden(pl, '_description', 'Portable Document Format');
-    hidden(pl, '_mimes', mimes);
+    var st = slots(pl);
+    st.name = name;
+    st.filename = 'internal-pdf-viewer';
+    st.description = 'Portable Document Format';
+    st.mimes = mimes;
     mimes.forEach(function (mt, i) {
       Object.defineProperty(pl, i, { value: mt, enumerable: true, configurable: true });
     });
@@ -73,7 +74,7 @@
   });
   var pluginArray = collection('PluginArray', pluginItems, function (p) { return p.name; });
   var mimeArray = collection('MimeTypeArray', mimes, function (m) { return m.type; });
-  mimes.forEach(function (mt) { hidden(mt, '_plugin', pluginItems[0]); });
+  mimes.forEach(function (mt) { slots(mt).enabledPlugin = pluginItems[0]; });
 
   // --- Navigator: every fact an accessor on the prototype (Firefox shape) -------
   // languages is a frozen array (Firefox reports it immutable), one copy shared.

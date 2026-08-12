@@ -2,7 +2,7 @@
 // masquerade (bl-8733, identity.md §10/§11, js.md §7). Firefox exposes the whole
 // AudioNode hierarchy; a null surface is a louder tell than a costume (§10), so
 // frot returns branded, Firefox-shaped nodes. Every node/param mutation folds
-// into its context's graph digest (ctx._fold), so the rendered buffer (audio.js)
+// into its context's graph digest (__frot_audio_fold), so the rendered buffer
 // is a DETERMINISTIC function of the graph — the same graph hashes identically
 // every invocation, a changed one diverges, never random. Split from audio.js
 // purely to keep both files under the size cap; the contexts reach this through
@@ -16,14 +16,15 @@
   var iface = g.__frot_iface;
   var klass = g.__frot_audio_class;
   var render = g.__frot_audio_render;
+  var attrs = g.__frot_ifaceattrs;
+  var rwAttrs = g.__frot_rwattrs;
+  var fold = g.__frot_audio_fold;
+  // Node/param/buffer state lives in brand.js's one instance-state WeakMap, so a
+  // page walking an oscillator sees the empty own-property list a real Gecko
+  // node has (bl-3bdc, identity.md §3.16) instead of frot's backing slots.
+  var slots = g.__frot_slots;
   var FLT = 3.4028234663852886e38; // generic AudioParam min/max (Float32 max).
 
-  function def(o, k, v, e) {
-    Object.defineProperty(o, k, { value: v, configurable: true, writable: true, enumerable: !!e });
-  }
-  function ro(o, k, v) {
-    Object.defineProperty(o, k, { value: v, configurable: true, enumerable: true });
-  }
   function argstr(a) {
     var parts = [];
     for (var i = 0; i < a.length; i++) parts.push(String(a[i]));
@@ -41,38 +42,31 @@
   // fingerprinter builds — oscillator.frequency.value, the compressor params —
   // deterministically drives the rendered output. defaultValue/minValue/maxValue
   // read fixed slots (min/max the generic float range, a declared residual).
-  var AudioParam = iface('AudioParam', {});
-  ['defaultValue', 'minValue', 'maxValue', 'automationRate'].forEach(function (k) {
-    Object.defineProperty(AudioParam.prototype, k, {
-      get: brand(function () { return this['_' + k]; }, 'get ' + k),
-      enumerable: true, configurable: true,
-    });
-  });
-  Object.defineProperty(AudioParam.prototype, 'value', {
-    get: brand(function () { return this._value; }, 'get value'),
-    set: brand(function (v) {
-      this._value = +v;
-      this._ctx._fold(this._name + '=' + this._value);
-    }, 'set value'),
-    enumerable: true, configurable: true,
+  var AudioParam = iface('AudioParam', ['defaultValue', 'minValue', 'maxValue',
+    'automationRate']);
+  rwAttrs(AudioParam.prototype, ['value'], function () {
+    var st = slots(this);
+    st.value = +st.value;
+    fold(st.ctx, st.name + '=' + st.value);
   });
   ['setValueAtTime', 'linearRampToValueAtTime', 'exponentialRampToValueAtTime',
     'setTargetAtTime', 'setValueCurveAtTime', 'cancelScheduledValues',
     'cancelAndHoldAtTime'].forEach(function (m) {
     AudioParam.prototype[m] = brand(function () {
-      this._ctx._fold(this._name + '.' + m + '(' + argstr(arguments) + ')');
+      fold(slots(this).ctx, slots(this).name + '.' + m + '(' + argstr(arguments) + ')');
       return this;
     }, m);
   });
   function param(ctx, name, dflt) {
     var p = Object.create(AudioParam.prototype);
-    def(p, '_ctx', ctx);
-    def(p, '_name', name);
-    def(p, '_value', dflt);
-    def(p, '_defaultValue', dflt);
-    def(p, '_minValue', -FLT);
-    def(p, '_maxValue', FLT);
-    def(p, '_automationRate', 'a-rate');
+    var st = slots(p);
+    st.ctx = ctx;
+    st.name = name;
+    st.value = dflt;
+    st.defaultValue = dflt;
+    st.minValue = -FLT;
+    st.maxValue = FLT;
+    st.automationRate = 'a-rate';
     return p;
   }
 
@@ -81,26 +75,15 @@
   // structural props are prototype accessors reading per-instance slots; connect
   // returns its destination (so `osc.connect(comp).connect(dest)` chains, exactly
   // as Web Audio does) and folds the edge into the digest.
-  var AudioNode = iface('AudioNode', {});
-  ['context', 'numberOfInputs', 'numberOfOutputs'].forEach(function (k) {
-    Object.defineProperty(AudioNode.prototype, k, {
-      get: brand(function () { return this['_' + k]; }, 'get ' + k),
-      enumerable: true, configurable: true,
-    });
-  });
-  ['channelCount', 'channelCountMode', 'channelInterpretation'].forEach(function (k) {
-    Object.defineProperty(AudioNode.prototype, k, {
-      get: brand(function () { return this['_' + k]; }, 'get ' + k),
-      set: brand(function (v) { def(this, '_' + k, v); }, 'set ' + k),
-      enumerable: true, configurable: true,
-    });
-  });
+  var AudioNode = iface('AudioNode', ['context', 'numberOfInputs', 'numberOfOutputs']);
+  rwAttrs(AudioNode.prototype, ['channelCount', 'channelCountMode',
+    'channelInterpretation']);
   AudioNode.prototype.connect = brand(function (dest) {
-    this._context._fold('connect(' + (dest && dest[Symbol.toStringTag]) + ')');
+    fold(slots(this).context, 'connect(' + (dest && dest[Symbol.toStringTag]) + ')');
     return dest;
   }, 'connect');
   AudioNode.prototype.disconnect = brand(function () {
-    this._context._fold('disconnect(' + argstr(arguments) + ')');
+    fold(slots(this).context, 'disconnect(' + argstr(arguments) + ')');
   }, 'disconnect');
 
   // --- The node specifications (data-driven; io = [inputs, outputs]) ----------
@@ -124,7 +107,7 @@
         'getFloatTimeDomainData', 'getByteTimeDomainData'] },
     AudioBufferSourceNode: { io: [0, 1], params: { playbackRate: 1, detune: 0 },
       data: { loop: false, loopStart: 0, loopEnd: 0 }, methods: ['start', 'stop'] },
-    AudioDestinationNode: { io: [1, 0], ro: { maxChannelCount: function (c) { return c._maxChannels; } } },
+    AudioDestinationNode: { io: [1, 0], ro: { maxChannelCount: function (c) { return slots(c).maxChannels; } } },
   };
 
   // Build one branded, constructable node class subclassing AudioNode. `new
@@ -137,45 +120,46 @@
     Object.setPrototypeOf(C.prototype, AudioNode.prototype);
     (spec.methods || []).forEach(function (m) {
       C.prototype[m] = brand(function () {
-        this._context._fold(name + '.' + m + '(' + argstr(arguments) + ')');
+        fold(slots(this).context, name + '.' + m + '(' + argstr(arguments) + ')');
       }, m);
     });
+    // A concrete node's own members are PROTOTYPE accessors over the instance's
+    // slots — `frequency`, `type`, `maxChannelCount` — not properties stamped
+    // onto each instance, which is both Gecko's shape and the only shape that
+    // leaves the instance's own-property list empty (bl-3bdc).
+    attrs(C.prototype, Object.keys(spec.params || {}));
+    rwAttrs(C.prototype, Object.keys(spec.data || {}), function (key, v) {
+      fold(slots(this).context, name + '.' + key + '=' + String(v));
+    });
+    attrs(C.prototype, Object.keys(spec.ro || {}));
     CLASSES[name] = C;
   });
 
-  function dataProp(inst, ctx, tag, key, dflt) {
-    var slot = '_dp_' + key;
-    def(inst, slot, dflt);
-    Object.defineProperty(inst, key, {
-      get: brand(function () { return this[slot]; }, 'get ' + key),
-      set: brand(function (v) { this[slot] = v; ctx._fold(tag + '=' + String(v)); }, 'set ' + key),
-      enumerable: true, configurable: true,
-    });
-  }
   function initNode(inst, name, ctx, options) {
     var spec = NODES[name];
-    def(inst, '_context', ctx);
-    def(inst, '_numberOfInputs', spec.io[0]);
-    def(inst, '_numberOfOutputs', spec.io[1]);
-    def(inst, '_channelCount', 2);
-    def(inst, '_channelCountMode', 'max');
-    def(inst, '_channelInterpretation', 'speakers');
+    var st = slots(inst);
+    st.context = ctx;
+    st.numberOfInputs = spec.io[0];
+    st.numberOfOutputs = spec.io[1];
+    st.channelCount = 2;
+    st.channelCountMode = 'max';
+    st.channelInterpretation = 'speakers';
     Object.keys(spec.params || {}).forEach(function (pn) {
-      ro(inst, pn, param(ctx, name + '.' + pn, spec.params[pn]));
+      st[pn] = param(ctx, name + '.' + pn, spec.params[pn]);
     });
     Object.keys(spec.data || {}).forEach(function (dn) {
-      dataProp(inst, ctx, name + '.' + dn, dn, spec.data[dn]);
+      st[dn] = spec.data[dn];
     });
     Object.keys(spec.ro || {}).forEach(function (rn) {
       var v = spec.ro[rn];
-      ro(inst, rn, typeof v === 'function' ? v(ctx) : v);
+      st[rn] = typeof v === 'function' ? v(ctx) : v;
     });
     if (options && typeof options === 'object') {
       Object.keys(options).forEach(function (ok) {
         if (ok in inst) inst[ok] = options[ok];
       });
     }
-    ctx._fold('create ' + name);
+    fold(ctx, 'create ' + name);
     return inst;
   }
   function makeNode(name, ctx, options) {
@@ -195,34 +179,31 @@
     shapeBuffer(inst, o.numberOfChannels === undefined ? 1 : o.numberOfChannels >>> 0,
       o.length >>> 0, +o.sampleRate, false, 0, 0);
   });
-  ['sampleRate', 'length', 'numberOfChannels', 'duration'].forEach(function (k) {
-    Object.defineProperty(AudioBuffer.prototype, k, {
-      get: brand(function () { return this['_' + k]; }, 'get ' + k),
-      enumerable: true, configurable: true,
-    });
-  });
+  attrs(AudioBuffer.prototype, ['sampleRate', 'length', 'numberOfChannels', 'duration']);
   function shapeBuffer(b, nc, len, sr, rendered, seed, digest) {
-    def(b, '_numberOfChannels', nc);
-    def(b, '_length', len);
-    def(b, '_sampleRate', sr);
-    def(b, '_duration', sr ? len / sr : 0);
-    def(b, '_rendered', rendered);
-    def(b, '_seed', seed);
-    def(b, '_digest', digest);
-    def(b, '_chan', []);
+    var st = slots(b);
+    st.numberOfChannels = nc;
+    st.length = len;
+    st.sampleRate = sr;
+    st.duration = sr ? len / sr : 0;
+    st.rendered = rendered;
+    st.seed = seed;
+    st.digest = digest;
+    st.chan = [];
     return b;
   }
   function channel(b, ch) {
     ch = ch >>> 0;
-    if (ch >= b._numberOfChannels) {
+    var st = slots(b);
+    if (ch >= st.numberOfChannels) {
       throw domError('IndexSizeError', 'Channel index is out of range.');
     }
-    if (!b._chan[ch]) {
-      b._chan[ch] = b._rendered
-        ? render(b._seed, b._digest, b._length, ch)
-        : new Float32Array(b._length);
+    if (!st.chan[ch]) {
+      st.chan[ch] = st.rendered
+        ? render(st.seed, st.digest, st.length, ch)
+        : new Float32Array(st.length);
     }
-    return b._chan[ch];
+    return st.chan[ch];
   }
   AudioBuffer.prototype.getChannelData = brand(function (ch) { return channel(this, ch); }, 'getChannelData');
   AudioBuffer.prototype.copyFromChannel = brand(function (dest, ch, start) {

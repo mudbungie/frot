@@ -77,14 +77,78 @@
   // discipline this registry exists to remove.
   var built = [];
 
+  // --- Per-instance backing state --------------------------------------------
+  // ONE WeakMap for the whole prelude, for the same reason `reg` above is one:
+  // state kept HERE is state no page can walk. Measured on Firefox 153.0esr
+  // (`bl-3bdc`, identity.md §3.16), `Object.getOwnPropertyNames` of a real
+  // Notification / audio node / canvas context / observer is `[]` — every value a
+  // Gecko instance answers comes from a prototype accessor and the instance owns
+  // nothing. frot backed those accessors with `_`-prefixed own properties, which
+  // `getOwnPropertyNames` reports whether or not they are enumerable (so hiding
+  // them from `for..in` hid nothing), and a page walking one instance read frot's
+  // implementation instead of a WebIDL interface. `slots(inst)` is the store they
+  // moved into: off the instance, weakly keyed so it dies with it, invisible to
+  // every own-property probe — names and symbols alike.
+  //
+  // Total, like `brand`: a primitive keys no WeakMap, so it gets a throwaway
+  // entry rather than "invalid value used as weak map key". That keeps the
+  // WebIDL argument checks reading as they read on a real browser —
+  // `observer.observe(5)` must fail with Gecko's "does not implement interface
+  // Element", not with an engine complaint about frot's store.
+  var backing = new WeakMap();
+  function slots(obj) {
+    var s = backing.get(obj);
+    if (s === undefined) {
+      s = {};
+      if (obj !== null && (typeof obj === 'object' || typeof obj === 'function')) {
+        backing.set(obj, s);
+      }
+    }
+    return s;
+  }
+  function slotGetter(key) {
+    return function () {
+      return slots(this)[key];
+    };
+  }
+  // Read/write WebIDL attributes over those slots. `after(key, value)` runs on
+  // assignment for the ones whose write has a consequence — a fold into a
+  // fingerprint digest, a reflected attribute write; the plain settable case
+  // passes none.
+  function rwAttrs(proto, names, after) {
+    names.forEach(function (key) {
+      Object.defineProperty(proto, key, {
+        get: brand(slotGetter(key), 'get ' + key),
+        set: brand(function (v) {
+          slots(this)[key] = v;
+          if (after) after.call(this, key, v);
+        }, 'set ' + key),
+        enumerable: true,
+        configurable: true,
+      });
+    });
+    return proto;
+  }
+
   // Define WebIDL attributes (enumerable native accessors) on a prototype. Split
   // out of `iface` so a module can interleave in Gecko's own member order —
   // operations first, then attributes (measured across 41 prototypes, §3.15) —
   // instead of being forced to declare every attribute before every method.
+  // `accessors` may also be a plain ARRAY of names, or carry `null` for a name:
+  // that attribute reads the instance's backing slot of the same name. It is by
+  // far the common case — most WebIDL attributes ARE their stored value — so the
+  // registry writes that getter and the call site states only the name.
   function attrs(proto, accessors) {
-    Object.keys(accessors).forEach(function (key) {
+    var spec = accessors;
+    if (Array.isArray(accessors)) {
+      spec = {};
+      accessors.forEach(function (k) {
+        spec[k] = null;
+      });
+    }
+    Object.keys(spec).forEach(function (key) {
       Object.defineProperty(proto, key, {
-        get: brand(accessors[key], 'get ' + key),
+        get: brand(spec[key] || slotGetter(key), 'get ' + key),
         enumerable: true,
         configurable: true,
       });
@@ -157,24 +221,20 @@
   // modules shape these (permissions, worker, screen, idb) and four copies of an
   // accessor pair is four chances for one of them to drift out of Firefox's shape.
   function onEvent(proto, key) {
-    var slot = '_on_' + key;
     Object.defineProperty(proto, key, {
       get: brand(function () {
-        return Object.prototype.hasOwnProperty.call(this, slot) ? this[slot] : null;
+        var fn = slots(this)[key];
+        return fn === undefined ? null : fn;
       }, 'get ' + key),
       set: brand(function (fn) {
-        Object.defineProperty(this, slot, {
-          value: typeof fn === 'function' ? fn : null,
-          configurable: true,
-          writable: true,
-        });
+        slots(this)[key] = typeof fn === 'function' ? fn : null;
       }, 'set ' + key),
       enumerable: true,
       configurable: true,
     });
   }
 
-  // Expose all four as NON-enumerable globals: the persona/capability modules
+  // Expose them as NON-enumerable globals: the persona/capability modules
   // reach them, but a page walking `Object.keys(window)`/`for..in` never sees
   // them (the raw `__frot_*` syscalls' enumerability is a separate, documented
   // residual — js.md §7). Branded native so their own toString does not leak.
@@ -185,6 +245,8 @@
     ['__frot_onevent', onEvent],
     ['__frot_iface_seal', sealInterfaces],
     ['__frot_ifaceattrs', attrs],
+    ['__frot_slots', slots],
+    ['__frot_rwattrs', rwAttrs],
   ].forEach(function (pair) {
     brand(pair[1], pair[0]);
     Object.defineProperty(g, pair[0], {

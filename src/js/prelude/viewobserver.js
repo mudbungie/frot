@@ -16,16 +16,11 @@
 (function (g) {
   'use strict';
   var brand = g.__frot_brand;
-  function def(o, k, v) {
-    Object.defineProperty(o, k, { value: v, configurable: true, writable: true });
-  }
-  function accessor(proto, key, get) {
-    Object.defineProperty(proto, key, {
-      get: brand(get, 'get ' + key),
-      enumerable: true,
-      configurable: true,
-    });
-  }
+  var attrs = g.__frot_ifaceattrs;
+  // Observer bookkeeping and every entry's fields live in brand.js's one
+  // instance-state WeakMap, behind prototype accessors, so an observer and an
+  // entry each own nothing — the shape a real Gecko one has (bl-3bdc, §3.16).
+  var slots = g.__frot_slots;
 
   // A constructable, Firefox-shaped interface (the worker.js pattern; brand.js's
   // __frot_iface is for the Illegal-constructor entry/size classes below).
@@ -60,41 +55,50 @@
   // An emptied wave (everything unobserved before the task ran) invokes
   // nothing — a real observer never calls back with zero entries.
   function schedule(obs, entry) {
-    if (obs._due) return;
-    def(obs, '_due', true);
+    var st = slots(obs);
+    if (st.due) return;
+    st.due = true;
     g.setTimeout(function () {
-      def(obs, '_due', false);
-      var fresh = obs._fresh;
-      def(obs, '_fresh', []);
+      st.due = false;
+      var fresh = st.fresh;
+      st.fresh = [];
       if (!fresh.length) return;
       var entries = [];
       for (var i = 0; i < fresh.length; i++) entries.push(entry(fresh[i]));
-      obs._cb.call(obs, entries, obs);
+      st.cb.call(obs, entries, obs);
     }, 0);
   }
   function watch(obs, target, iface) {
-    if (!target || typeof target._id !== 'number') {
+    if (!target || typeof slots(target).id !== 'number') {
       throw new TypeError(iface + '.observe: Argument 1 does not implement interface Element.');
     }
-    for (var i = 0; i < obs._targets.length; i++) {
-      if (obs._targets[i]._id === target._id) return;
+    var st = slots(obs);
+    for (var i = 0; i < st.targets.length; i++) {
+      if (slots(st.targets[i]).id === slots(target).id) return;
     }
-    obs._targets.push(target);
-    obs._fresh.push(target);
+    st.targets.push(target);
+    st.fresh.push(target);
   }
   function unwatch(obs, target) {
-    var id = target && target._id;
+    var id = target && slots(target).id;
     function keep(t) {
-      return t._id !== id;
+      return slots(t).id !== id;
     }
-    def(obs, '_targets', obs._targets.filter(keep));
-    def(obs, '_fresh', obs._fresh.filter(keep));
+    var st = slots(obs);
+    st.targets = st.targets.filter(keep);
+    st.fresh = st.fresh.filter(keep);
   }
   function baseSlots(inst, cb) {
-    def(inst, '_cb', cb);
-    def(inst, '_targets', []);
-    def(inst, '_fresh', []);
-    def(inst, '_due', false);
+    var st = slots(inst);
+    st.cb = cb;
+    st.targets = [];
+    st.fresh = [];
+    st.due = false;
+  }
+  function clear(obs) {
+    var st = slots(obs);
+    st.targets = [];
+    st.fresh = [];
   }
 
   // --- IntersectionObserver -------------------------------------------------
@@ -132,29 +136,29 @@
   var IO = ctor('IntersectionObserver', function (inst, cb, opts) {
     opts = opts || {};
     baseSlots(inst, cb);
-    def(inst, '_root', opts.root === undefined ? null : opts.root);
-    def(inst, '_margin', margins(opts.rootMargin));
-    def(inst, '_thresholds', thresholds(opts.threshold));
+    var st = slots(inst);
+    st.root = opts.root === undefined ? null : opts.root;
+    st.margin = margins(opts.rootMargin);
+    st.thresholds = thresholds(opts.threshold);
   });
-  accessor(IO.prototype, 'root', function () {
-    return this._root;
-  });
-  accessor(IO.prototype, 'rootMargin', function () {
-    return this._margin
-      .map(function (m) {
-        return m.v + (m.pct ? '%' : 'px');
-      })
-      .join(' ');
-  });
-  accessor(IO.prototype, 'thresholds', function () {
-    return this._thresholds;
+  attrs(IO.prototype, {
+    root: null,
+    rootMargin: function () {
+      return slots(this).margin
+        .map(function (m) {
+          return m.v + (m.pct ? '%' : 'px');
+        })
+        .join(' ');
+    },
+    thresholds: null,
   });
   function ioEntry(inst, target) {
-    var t = box(target._id);
-    var rb = inst._root && typeof inst._root._id === 'number'
-      ? box(inst._root._id)
+    var t = box(slots(target).id);
+    var root = slots(inst).root;
+    var rb = root && typeof slots(root).id === 'number'
+      ? box(slots(root).id)
       : { left: 0, top: 0, w: g.innerWidth, h: g.innerHeight };
-    var m = inst._margin; // [top, right, bottom, left]; % of the root dimension
+    var m = slots(inst).margin; // [top, right, bottom, left]; % of the root dimension
     var mt = m[0].pct ? (m[0].v * rb.h) / 100 : m[0].v;
     var mr = m[1].pct ? (m[1].v * rb.w) / 100 : m[1].v;
     var mb = m[2].pct ? (m[2].v * rb.h) / 100 : m[2].v;
@@ -172,15 +176,18 @@
     var ih = hit ? ib - iy : 0;
     var area = t.w * t.h;
     var e = Object.create(IOEntry.prototype);
-    def(e, 'time', g.performance.now());
-    def(e, 'target', target);
-    def(e, 'boundingClientRect', domRect(t.left, t.top, t.w, t.h));
-    def(e, 'rootBounds', domRect(rb.left, rb.top, rb.w, rb.h));
-    def(e, 'intersectionRect', domRect(hit ? ix : 0, hit ? iy : 0, iw, ih));
-    def(e, 'intersectionRatio', hit ? (area > 0 ? Math.min((iw * ih) / area, 1) : 1) : 0);
-    def(e, 'isIntersecting', hit);
+    var st = slots(e);
+    st.time = g.performance.now();
+    st.target = target;
+    st.boundingClientRect = domRect(t.left, t.top, t.w, t.h);
+    st.rootBounds = domRect(rb.left, rb.top, rb.w, rb.h);
+    st.intersectionRect = domRect(hit ? ix : 0, hit ? iy : 0, iw, ih);
+    st.intersectionRatio = hit ? (area > 0 ? Math.min((iw * ih) / area, 1) : 1) : 0;
+    st.isIntersecting = hit;
     return e;
   }
+  attrs(IOEntry.prototype, ['time', 'target', 'boundingClientRect', 'rootBounds',
+    'intersectionRect', 'intersectionRatio', 'isIntersecting']);
   IO.prototype.observe = brand(function observe(target) {
     var self = this;
     watch(this, target, 'IntersectionObserver');
@@ -192,13 +199,13 @@
     unwatch(this, target);
   }, 'unobserve');
   IO.prototype.disconnect = brand(function disconnect() {
-    def(this, '_targets', []);
-    def(this, '_fresh', []);
+    clear(this);
   }, 'disconnect');
   IO.prototype.takeRecords = brand(function takeRecords() {
     var self = this;
-    var fresh = this._fresh;
-    def(this, '_fresh', []);
+    var st = slots(this);
+    var fresh = st.fresh;
+    st.fresh = [];
     return fresh.map(function (t) {
       return ioEntry(self, t);
     });
@@ -207,26 +214,30 @@
   // --- ResizeObserver -------------------------------------------------------
   var ROEntry = g.__frot_iface('ResizeObserverEntry', {});
   var ROSize = g.__frot_iface('ResizeObserverSize', {});
+  attrs(ROSize.prototype, ['inlineSize', 'blockSize']);
   function roSize(w, h) {
     var s = Object.create(ROSize.prototype);
-    def(s, 'inlineSize', w);
-    def(s, 'blockSize', h);
+    slots(s).inlineSize = w;
+    slots(s).blockSize = h;
     return s;
   }
   function roEntry(target) {
-    var t = box(target._id);
+    var t = box(slots(target).id);
     var e = Object.create(ROEntry.prototype);
-    def(e, 'target', target);
+    var st = slots(e);
+    st.target = target;
     // contentRect's origin is the box's own padding edge — 0,0 in frot's
     // borderless model (§8), where content box == border box; the device-pixel
     // box matches at the profile's devicePixelRatio of 1. Coherent, not a
     // shortcut: those equalities are the model's own contract.
-    def(e, 'contentRect', domRect(0, 0, t.w, t.h));
-    def(e, 'borderBoxSize', [roSize(t.w, t.h)]);
-    def(e, 'contentBoxSize', [roSize(t.w, t.h)]);
-    def(e, 'devicePixelContentBoxSize', [roSize(t.w, t.h)]);
+    st.contentRect = domRect(0, 0, t.w, t.h);
+    st.borderBoxSize = [roSize(t.w, t.h)];
+    st.contentBoxSize = [roSize(t.w, t.h)];
+    st.devicePixelContentBoxSize = [roSize(t.w, t.h)];
     return e;
   }
+  attrs(ROEntry.prototype, ['target', 'contentRect', 'borderBoxSize',
+    'contentBoxSize', 'devicePixelContentBoxSize']);
   var RO = ctor('ResizeObserver', function (inst, cb) {
     baseSlots(inst, cb);
   });
@@ -238,7 +249,6 @@
     unwatch(this, target);
   }, 'unobserve');
   RO.prototype.disconnect = brand(function disconnect() {
-    def(this, '_targets', []);
-    def(this, '_fresh', []);
+    clear(this);
   }, 'disconnect');
 })(globalThis);

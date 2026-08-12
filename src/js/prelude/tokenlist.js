@@ -19,6 +19,11 @@
   'use strict';
   var proto = g.Node.prototype;
   var A = Array.prototype;
+  // The backing element/attribute/supported-token set live in brand.js's one
+  // instance-state WeakMap: a real Gecko `classList` owns no properties, and the
+  // `_el`/`_attr`/`_sup` slots this replaces were readable straight out of
+  // `Object.getOwnPropertyNames` (bl-3bdc, identity.md §3.16).
+  var slots = g.__frot_slots;
 
   // Pinned Firefox 140esr supported-token tables (see header).
   var LINK_REL = [
@@ -28,11 +33,13 @@
   var ANCHOR_REL = ['noreferrer', 'noopener', 'opener'];
 
   function tokens(list) {
-    var v = list._el.getAttribute(list._attr);
+    var st = slots(list);
+    var v = st.el.getAttribute(st.attr);
     return v ? v.trim().split(/\s+/) : [];
   }
   function put(list, toks) {
-    list._el.setAttribute(list._attr, toks.join(' '));
+    var st = slots(list);
+    st.el.setAttribute(st.attr, toks.join(' '));
   }
 
   // The methods are defined first and `length`/`value` after, because that is the
@@ -77,11 +84,11 @@
       return on;
     },
     supports: function supports(t) {
-      if (!this._sup)
+      if (!slots(this).sup)
         throw new TypeError(
           "Operation is not supported: DOMTokenList doesn't have supported tokens defined."
         );
-      return this._sup.indexOf(String(t).toLowerCase()) >= 0;
+      return slots(this).sup.indexOf(String(t).toLowerCase()) >= 0;
     },
     keys: A.keys,
     values: A.values,
@@ -106,10 +113,12 @@
   });
   Object.defineProperty(DOMTokenList.prototype, 'value', {
     get: g.__frot_brand(function () {
-      return this._el.getAttribute(this._attr) || '';
+      var st = slots(this);
+      return st.el.getAttribute(st.attr) || '';
     }, 'get value'),
     set: g.__frot_brand(function (v) {
-      this._el.setAttribute(this._attr, String(v));
+      var st = slots(this);
+      st.el.setAttribute(st.attr, String(v));
     }, 'set value'),
     enumerable: true,
     configurable: true,
@@ -122,27 +131,29 @@
 
   // Live indexed access (`classList[0]`) without caching: a Proxy resolves
   // integer indices against a fresh token split, everything else against the
-  // prototype — the same live-over-the-attribute rule as every other read.
-  var handler = {
-    get: function (t, p, r) {
-      if (typeof p === 'string' && /^\d+$/.test(p)) {
-        var toks = tokens(t);
-        return +p < toks.length ? toks[+p] : undefined;
-      }
-      return Reflect.get(t, p, r);
-    },
-    has: function (t, p) {
-      if (typeof p === 'string' && /^\d+$/.test(p)) return +p < tokens(t).length;
-      return Reflect.has(t, p);
-    },
-  };
+  // prototype — the same live-over-the-attribute rule as every other read. The
+  // traps close over the PROXY, not the target, because the proxy is what a page
+  // holds and therefore what `this` is inside every prototype method — one
+  // object, so one state entry (the target owns nothing, and neither does it).
   function makeList(el, attr, supported) {
-    var t = Object.create(DOMTokenList.prototype, {
-      _el: { value: el },
-      _attr: { value: attr },
-      _sup: { value: supported || null },
+    var list = new Proxy(Object.create(DOMTokenList.prototype), {
+      get: function (t, p, r) {
+        if (typeof p === 'string' && /^\d+$/.test(p)) {
+          var toks = tokens(list);
+          return +p < toks.length ? toks[+p] : undefined;
+        }
+        return Reflect.get(t, p, r);
+      },
+      has: function (t, p) {
+        if (typeof p === 'string' && /^\d+$/.test(p)) return +p < tokens(list).length;
+        return Reflect.has(t, p);
+      },
     });
-    return new Proxy(t, handler);
+    var st = slots(list);
+    st.el = el;
+    st.attr = attr;
+    st.sup = supported || null;
+    return list;
   }
 
   // Both lists are WebIDL `[PutForwards=value]`, so both descriptors come from

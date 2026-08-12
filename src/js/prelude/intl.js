@@ -10,23 +10,24 @@
 (function (g) {
   'use strict';
   var P = JSON.parse(g.__frot_env_profile());
-
-  function hidden(o, k, v) {
-    Object.defineProperty(o, k, { value: v, configurable: true });
-  }
+  // The resolved locale/zone live in brand.js's one instance-state WeakMap: a
+  // real `Intl.DateTimeFormat` owns no properties, and the two `_`-prefixed
+  // slots this replaces answered `Object.getOwnPropertyNames` (bl-3bdc, §3.16).
+  var slots = g.__frot_slots;
 
   function DateTimeFormat(locales, options) {
     if (!(this instanceof DateTimeFormat)) return new DateTimeFormat(locales, options);
     var loc = Array.isArray(locales) ? locales[0] : locales;
-    hidden(this, '_locale', typeof loc === 'string' && loc ? loc : P.locale);
-    hidden(this, '_timeZone', options && options.timeZone ? options.timeZone : P.timeZone);
+    var st = slots(this);
+    st.locale = typeof loc === 'string' && loc ? loc : P.locale;
+    st.timeZone = options && options.timeZone ? options.timeZone : P.timeZone;
   }
   DateTimeFormat.prototype.resolvedOptions = g.__frot_brand(function resolvedOptions() {
     return {
-      locale: this._locale,
+      locale: slots(this).locale,
       calendar: 'gregory',
       numberingSystem: 'latn',
-      timeZone: this._timeZone,
+      timeZone: slots(this).timeZone,
       year: 'numeric',
       month: 'numeric',
       day: 'numeric',

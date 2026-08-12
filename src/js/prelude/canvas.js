@@ -15,6 +15,13 @@
   var SEED = JSON.parse(g.__frot_env_profile()).canvasSeed >>> 0;
   var pixels = g.__frot_canvas_pixels;
   var metrics = g.__frot_canvas_metrics;
+  var attrs = g.__frot_ifaceattrs;
+  var rwAttrs = g.__frot_rwattrs;
+  // Context state — the digest, the drawn flag, the echoed attributes, and every
+  // 2D state property — lives in brand.js's one instance-state WeakMap, so a
+  // walked context owns nothing, as a real Gecko one does (bl-3bdc, §3.16). The
+  // per-canvas context handles live there too, off the ELEMENT.
+  var slots = g.__frot_slots;
 
   // FNV-1a over a string's UTF-16 code units (folded as two bytes each). The one
   // mixing primitive: draw digest, pixel PRNG seed, and text metrics all derive
@@ -30,20 +37,19 @@
   }
   var BASE = mix(SEED, '2d'); // the digest a fresh context starts from.
 
-  function def(o, k, v, enumerable) {
-    Object.defineProperty(o, k, { value: v, configurable: true, enumerable: !!enumerable });
-  }
-
   // --- CanvasGradient / CanvasPattern: recording stand-ins -------------------
   // Fingerprinters occasionally paint via a gradient; a real branded object whose
   // addColorStop folds into the digest keeps the draw coherent (stops vary output).
   var CanvasGradient = g.__frot_iface('CanvasGradient', {});
   var CanvasPattern = g.__frot_iface('CanvasPattern', {});
+  function fold(ctx, s) {
+    slots(ctx).d = mix(slots(ctx).d, s);
+  }
   function gradient(ctx, tag, args) {
-    ctx._d = mix(ctx._d, tag + '(' + argstr(args) + ')');
+    fold(ctx, tag + '(' + argstr(args) + ')');
     var o = Object.create(CanvasGradient.prototype);
     o.addColorStop = brand(function (off, color) {
-      ctx._d = mix(ctx._d, 'stop(' + off + ',' + color + ')');
+      fold(ctx, 'stop(' + off + ',' + color + ')');
     }, 'addColorStop');
     return o;
   }
@@ -55,11 +61,7 @@
   }
 
   // --- CanvasRenderingContext2D ----------------------------------------------
-  var Ctx2D = g.__frot_iface('CanvasRenderingContext2D', {
-    canvas: function () {
-      return this._canvas;
-    },
-  });
+  var Ctx2D = g.__frot_iface('CanvasRenderingContext2D', ['canvas']);
   var proto = Ctx2D.prototype;
 
   // Read/write state properties: each stores its value in a non-enumerable slot and
@@ -84,19 +86,8 @@
     shadowOffsetX: 0, shadowOffsetY: 0, letterSpacing: '0px', wordSpacing: '0px',
     fontKerning: 'auto', fontStretch: 'normal', textRendering: 'auto',
   };
-  Object.keys(DEFAULTS).forEach(function (k) {
-    var slot = '_s_' + k;
-    Object.defineProperty(proto, k, {
-      enumerable: true,
-      configurable: true,
-      get: brand(function () {
-        return Object.prototype.hasOwnProperty.call(this, slot) ? this[slot] : DEFAULTS[k];
-      }, 'get ' + k),
-      set: brand(function (v) {
-        def(this, slot, v);
-        this._d = mix(this._d, k + '=' + String(v));
-      }, 'set ' + k),
-    });
+  rwAttrs(proto, Object.keys(DEFAULTS), function (k, v) {
+    fold(this, k + '=' + String(v));
   });
 
   // Methods that PAINT (mark the bitmap non-blank) vs path/state ops that only fold
@@ -110,8 +101,8 @@
     'resetTransform', 'clip', 'setLineDash'];
   function defMethod(name, paints) {
     proto[name] = brand(function () {
-      this._d = mix(this._d, name + '(' + argstr(arguments) + ')');
-      if (paints) this._drawn = true;
+      fold(this, name + '(' + argstr(arguments) + ')');
+      if (paints) slots(this).drawn = true;
     }, name);
   }
   PAINT.forEach(function (n) {
@@ -128,11 +119,12 @@
   // and `colorSpace` stays `'srgb'` even when `'display-p3'` is requested — so
   // this is not "echo the options", it is two echoed and two pinned.
   proto.getContextAttributes = brand(function () {
+    var st = slots(this);
     return {
-      alpha: this._alpha,
+      alpha: st.alpha,
       colorSpace: 'srgb',
       desynchronized: false,
-      willReadFrequently: this._wrf,
+      willReadFrequently: st.wrf,
     };
   }, 'getContextAttributes');
 
@@ -159,7 +151,7 @@
     return gradient(this, 'conic', arguments);
   }, 'createConicGradient');
   proto.createPattern = brand(function () {
-    this._d = mix(this._d, 'pattern(' + argstr(arguments) + ')');
+    fold(this, 'pattern(' + argstr(arguments) + ')');
     return Object.create(CanvasPattern.prototype);
   }, 'createPattern');
   proto.createImageData = brand(function (a, b) {
@@ -173,8 +165,8 @@
     sy |= 0;
     sw = Math.abs(sw | 0);
     sh = Math.abs(sh | 0);
-    var cw = dim(this._canvas, 'width', 300);
-    var ch = dim(this._canvas, 'height', 150);
+    var cw = dim(this.canvas, 'width', 300);
+    var ch = dim(this.canvas, 'height', 150);
     var full = pixels(this, cw, ch);
     var out = new Uint8ClampedArray(sw * sh * 4);
     for (var y = 0; y < sh; y++) {
@@ -217,9 +209,10 @@
       set: brand(function (v) {
         if (this.tagName !== 'CANVAS') return;
         this.setAttribute(name, String(v >>> 0));
-        if (this._ctx2d) {
-          this._ctx2d._drawn = false;
-          this._ctx2d._d = BASE;
+        var ctx = slots(this).ctx2d;
+        if (ctx) {
+          slots(ctx).drawn = false;
+          slots(ctx).d = BASE;
         }
       }, 'set ' + name),
     });
@@ -229,26 +222,33 @@
 
   // get-or-create the one 2D context for a canvas (the getContext('2d') body).
   function context(canvas, options) {
-    if (!canvas._ctx2d) {
+    if (!slots(canvas).ctx2d) {
       var o = options === null || typeof options !== 'object' ? {} : options;
       var ctx = Object.create(proto);
-      def(ctx, '_canvas', canvas);
+      var st = slots(ctx);
+      st.canvas = canvas;
       // Only the two Gecko echoes are remembered; an unknown key is ignored, as
       // it is there. WebIDL booleanises, so `{alpha: 0}` reads back `false`.
-      def(ctx, '_alpha', !('alpha' in o) || !!o.alpha);
-      def(ctx, '_wrf', 'willReadFrequently' in o && !!o.willReadFrequently);
-      Object.defineProperty(ctx, '_d', { value: BASE, configurable: true, writable: true });
-      Object.defineProperty(ctx, '_drawn', { value: false, configurable: true, writable: true });
-      def(canvas, '_ctx2d', ctx);
+      st.alpha = !('alpha' in o) || !!o.alpha;
+      st.wrf = 'willReadFrequently' in o && !!o.willReadFrequently;
+      st.d = BASE;
+      st.drawn = false;
+      // Every 2D state property starts at its measured default IN THE STORE, so
+      // the getter is one slot read with no has-own fallback to write.
+      Object.keys(DEFAULTS).forEach(function (k) {
+        st[k] = DEFAULTS[k];
+      });
+      slots(canvas).ctx2d = ctx;
     }
-    return canvas._ctx2d;
+    return slots(canvas).ctx2d;
   }
   // the deterministic image/png data URL (the toDataURL() body); an un-contexted
   // canvas is transparent — a valid blank PNG, as in a real browser.
   function dataURL(canvas) {
     var w = dim(canvas, 'width', 300);
     var h = dim(canvas, 'height', 150);
-    var px = canvas._ctx2d ? pixels(canvas._ctx2d, w, h) : new Uint8ClampedArray(w * h * 4);
+    var ctx = slots(canvas).ctx2d;
+    var px = ctx ? pixels(ctx, w, h) : new Uint8ClampedArray(w * h * 4);
     return g.__frot_canvas_png(px, w, h);
   }
   [['__frot_canvas_ctx', context], ['__frot_canvas_dataurl', dataURL]].forEach(function (p) {

@@ -18,6 +18,10 @@
   var onEvent = g.__frot_onevent;
   var brand = g.__frot_brand;
   var iface = g.__frot_iface;
+  var attrs = g.__frot_ifaceattrs;
+  // Per-instance state lives OFF the instance (brand.js's one WeakMap), so a
+  // walked PermissionStatus/Notification owns nothing — Gecko's shape (bl-3bdc).
+  var slots = g.__frot_slots;
 
   // A branded native no-op: close()/addEventListener &c. legally do nothing —
   // there is nothing to dispatch to, so returning undefined IS the honest result.
@@ -33,18 +37,6 @@
   // own dispatchEvent now behaves as a real EventTarget's does.
   function inheritEventTarget(Ctor) {
     Object.setPrototypeOf(Ctor.prototype, g.EventTarget.prototype);
-  }
-
-  // A native prototype getter reading a per-instance non-enumerable slot `_key`.
-  function slotGetter(proto, key) {
-    Object.defineProperty(proto, key, {
-      get: brand(function () { return this['_' + key]; }, 'get ' + key),
-      enumerable: true,
-      configurable: true,
-    });
-  }
-  function setSlot(inst, key, value) {
-    Object.defineProperty(inst, '_' + key, { value: value, configurable: true });
   }
 
   // A CONSTRUCTABLE Firefox-shaped interface: `body(inst, arguments)` shapes each
@@ -82,17 +74,14 @@
 
   // `name` before `state`: that is the own-property order a real
   // PermissionStatus prototype enumerates in (measured, §3.12).
-  var PermissionStatus = iface('PermissionStatus', {
-    name: function () { return this._name; },
-    state: function () { return this._state; },
-  });
+  var PermissionStatus = iface('PermissionStatus', ['name', 'state']);
   inheritEventTarget(PermissionStatus);
   onEvent(PermissionStatus.prototype, 'onchange');
 
   function status(name) {
     var s = Object.create(PermissionStatus.prototype);
-    setSlot(s, 'state', NAMES[name]);
-    setSlot(s, 'name', name);
+    slots(s).state = NAMES[name];
+    slots(s).name = name;
     return s;
   }
 
@@ -147,14 +136,15 @@
         'Notification constructor: At least 1 argument required, but only 0 passed');
     }
     var o = args[1] || {};
-    setSlot(inst, 'title', String(args[0]));
+    var st = slots(inst);
+    st.title = String(args[0]);
     Object.keys(STR).forEach(function (k) {
-      setSlot(inst, k, k in o ? String(o[k]) : STR[k]);
+      st[k] = k in o ? String(o[k]) : STR[k];
     });
-    setSlot(inst, 'requireInteraction', !!o.requireInteraction);
-    setSlot(inst, 'silent', !!o.silent);
-    setSlot(inst, 'data', 'data' in o ? o.data : null);
-    setSlot(inst, 'actions', Object.freeze([]));
+    st.requireInteraction = !!o.requireInteraction;
+    st.silent = !!o.silent;
+    st.data = 'data' in o ? o.data : null;
+    st.actions = Object.freeze([]);
   });
   // Member order is Gecko's, measured: the operation, then the event handlers,
   // then the attributes — not the order the spec lists them in.
@@ -163,10 +153,8 @@
   ['onclick', 'onshow', 'onerror', 'onclose'].forEach(function (k) {
     onEvent(Notification.prototype, k);
   });
-  ['title', 'dir', 'lang', 'body', 'tag', 'icon', 'requireInteraction', 'silent',
-    'data', 'actions'].forEach(function (k) {
-    slotGetter(Notification.prototype, k);
-  });
+  attrs(Notification.prototype, ['title', 'dir', 'lang', 'body', 'tag', 'icon',
+    'requireInteraction', 'silent', 'data', 'actions']);
 
   // Static surface: `permission` stays 'default' (frot prompts nothing), a native
   // accessor like Firefox's; `maxActions` is Firefox's fixed 2; requestPermission

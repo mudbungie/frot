@@ -13,6 +13,7 @@
 // and BEFORE loop.js, permissions.js, worker.js and idb.js, which all reach it.
 (function (g) {
   'use strict';
+  var slots = g.__frot_slots;
 
   // The one registry. Listeners key by TARGET so the stateless Node wrappers
   // (fresh per syscall) never hold them, and so window/document/nodes/fragments/
@@ -118,13 +119,13 @@
   etKeys.set(g, 'window');
   etKeys.set(g.document, 'document');
   g.Node.prototype.addEventListener = function (type, fn) {
-    add('n' + this._id, String(type), fn);
+    add('n' + slots(this).id, String(type), fn);
   };
   g.Node.prototype.removeEventListener = function (type, fn) {
-    remove('n' + this._id, String(type), fn);
+    remove('n' + slots(this).id, String(type), fn);
   };
   g.Node.prototype.dispatchEvent = function (ev) {
-    fire('n' + this._id, ev, this);
+    fire('n' + slots(this).id, ev, this);
     return !(ev && ev.defaultPrevented);
   };
 

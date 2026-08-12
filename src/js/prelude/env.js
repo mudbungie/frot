@@ -10,6 +10,7 @@
 // from the __frot_env_profile channel.
 (function (g) {
   'use strict';
+  var slots = g.__frot_slots;
 
   // --- self/window aliasing (js.md §1 spike, subtask 8) ---------------------
   // The global *is* the window: UMD bundles probe `self`, framework/router code
@@ -178,13 +179,13 @@
     Object.defineProperty(g.Node.prototype, 'clientWidth', {
       get: function () {
         var de = g.document.documentElement;
-        return de && this._id === de._id ? VW : this.offsetWidth;
+        return de && slots(this).id === slots(de).id ? VW : this.offsetWidth;
       },
     });
     Object.defineProperty(g.Node.prototype, 'clientHeight', {
       get: function () {
         var de = g.document.documentElement;
-        return de && this._id === de._id ? VH : this.offsetHeight;
+        return de && slots(this).id === slots(de).id ? VH : this.offsetHeight;
       },
     });
   }

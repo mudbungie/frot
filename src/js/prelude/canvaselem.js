@@ -9,6 +9,7 @@
 (function (g) {
   'use strict';
   var brand = g.__frot_brand;
+  var slots = g.__frot_slots;
   var Node = g.Node;
 
   // HTMLCanvasElement: an `instanceof` interface matching CANVAS elements, exactly
@@ -38,11 +39,11 @@
     // The 2D options bag reaches the context: Gecko echoes `alpha` and
     // `willReadFrequently` back through `getContextAttributes()` (measured,
     // `bl-706b`), so they have to be remembered at creation.
-    if (t === '2d') return this._ctxgl ? null : g.__frot_canvas_ctx(this, options);
+    if (t === '2d') return slots(this).ctxgl ? null : g.__frot_canvas_ctx(this, options);
     if (t === 'webgl' || t === 'experimental-webgl') {
-      return this._ctx2d ? null : g.__frot_webgl_ctx(this, 1);
+      return slots(this).ctx2d ? null : g.__frot_webgl_ctx(this, 1);
     }
-    if (t === 'webgl2') return this._ctx2d ? null : g.__frot_webgl_ctx(this, 2);
+    if (t === 'webgl2') return slots(this).ctx2d ? null : g.__frot_webgl_ctx(this, 2);
     return null;
   }, 'getContext');
 
@@ -52,6 +53,6 @@
   // request returns a coherent PNG, a declared residual (identity.md §11).
   Node.prototype.toDataURL = brand(function () {
     if (this.tagName !== 'CANVAS') return undefined;
-    return this._ctxgl ? g.__frot_webgl_dataurl(this) : g.__frot_canvas_dataurl(this);
+    return slots(this).ctxgl ? g.__frot_webgl_dataurl(this) : g.__frot_canvas_dataurl(this);
   }, 'toDataURL');
 })(globalThis);

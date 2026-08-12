@@ -15,6 +15,7 @@
 // anything that reads markup.
 (function (g) {
   'use strict';
+  var slots = g.__frot_slots;
   var proto = g.Node.prototype;
 
   // §13.3 "escaping a string": `&` and U+00A0 always, plus `<`/`>` (the 2023
@@ -65,12 +66,12 @@
   Object.defineProperty(proto, 'innerHTML', {
     configurable: true,
     get: function () {
-      return nodes(g.__frot_children(this._id), listed(RAW, g.__frot_tag(this._id)));
+      return nodes(g.__frot_children(slots(this).id), listed(RAW, g.__frot_tag(slots(this).id)));
     },
     set: function (html) {
-      this._clear();
+      g.__frot_clear(this);
       var ids = g.__frot_fragment(String(html));
-      for (var i = 0; i < ids.length; i++) g.__frot_insert_child(this._id, ids[i], null);
+      for (var i = 0; i < ids.length; i++) g.__frot_insert_child(slots(this).id, ids[i], null);
     },
   });
 
@@ -85,10 +86,10 @@
   Object.defineProperty(proto, 'outerHTML', {
     configurable: true,
     get: function () {
-      return node(this._id, false);
+      return node(slots(this).id, false);
     },
     set: function (html) {
-      var parent = g.__frot_parent(this._id);
+      var parent = g.__frot_parent(slots(this).id);
       // A root has no parent to replace it within. Browsers reach the Document
       // node here and swap the documentElement; the arena has no document node
       // (js.md §2), so frot throws the spec's error for a parentless element
@@ -100,8 +101,8 @@
         );
       }
       var ids = g.__frot_fragment(String(html));
-      for (var i = 0; i < ids.length; i++) g.__frot_insert_child(parent, ids[i], this._id);
-      g.__frot_detach(this._id);
+      for (var i = 0; i < ids.length; i++) g.__frot_insert_child(parent, ids[i], slots(this).id);
+      g.__frot_detach(slots(this).id);
     },
   });
 })(globalThis);

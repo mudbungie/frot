@@ -11,6 +11,7 @@
 // All state (registrations, record queues) is realm-local per invocation.
 (function (g) {
   'use strict';
+  var slots = g.__frot_slots;
   var brand = g.__frot_brand;
   var raw = {
     insert: g.__frot_insert_child,
@@ -48,11 +49,11 @@
     pending = [];
     for (var i = 0; i < batch.length; i++) {
       var mo = batch[i];
-      mo._queued = false;
+      slots(mo).queued = false;
       var records = mo.takeRecords();
       if (!records.length) continue;
       try {
-        mo._cb.call(mo, records, mo);
+        slots(mo).cb.call(mo, records, mo);
       } catch (e) {
         // A throwing observer callback is an uncaught error in a browser:
         // route it through the §10 reportError channel (counted, and its
@@ -63,9 +64,10 @@
   }
 
   function enqueue(mo, record) {
-    mo._records.push(record);
-    if (!mo._queued) {
-      mo._queued = true;
+    var st = slots(mo);
+    st.records.push(record);
+    if (!st.queued) {
+      st.queued = true;
       pending.push(mo);
     }
     if (!scheduled) {
@@ -124,22 +126,23 @@
   }
 
   // --- MutationRecord: Firefox-shaped ([object MutationRecord], Illegal
-  // constructor), fields as non-enumerable own props over the branded proto.
-  var MutationRecord = g.__frot_iface('MutationRecord', {});
-  function def(o, k, v) {
-    Object.defineProperty(o, k, { value: v, configurable: true, writable: true });
-  }
+  // constructor), every field a PROTOTYPE accessor over the instance's backing
+  // slots — so a record, like a real one, owns nothing (bl-3bdc, §3.16).
+  var FIELDS = ['type', 'target', 'addedNodes', 'removedNodes', 'previousSibling',
+    'nextSibling', 'attributeName', 'attributeNamespace', 'oldValue'];
+  var MutationRecord = g.__frot_iface('MutationRecord', FIELDS);
   function mkRecord(type, targetId) {
     var r = Object.create(MutationRecord.prototype);
-    def(r, 'type', type);
-    def(r, 'target', new g.Node(targetId));
-    def(r, 'addedNodes', g.__frot_nodelist([]));
-    def(r, 'removedNodes', g.__frot_nodelist([]));
-    def(r, 'previousSibling', null);
-    def(r, 'nextSibling', null);
-    def(r, 'attributeName', null);
-    def(r, 'attributeNamespace', null);
-    def(r, 'oldValue', null);
+    var st = slots(r);
+    st.type = type;
+    st.target = new g.Node(targetId);
+    st.addedNodes = g.__frot_nodelist([]);
+    st.removedNodes = g.__frot_nodelist([]);
+    st.previousSibling = null;
+    st.nextSibling = null;
+    st.attributeName = null;
+    st.attributeNamespace = null;
+    st.oldValue = null;
     return r;
   }
   // A childList record for `child` under `parent`; for a removal this runs
@@ -148,9 +151,10 @@
     var r = mkRecord('childList', parentId);
     var kids = raw.children(parentId);
     var at = kids.indexOf(childId);
-    def(r, added ? 'addedNodes' : 'removedNodes', g.__frot_nodelist([childId]));
-    def(r, 'previousSibling', at > 0 ? new g.Node(kids[at - 1]) : null);
-    def(r, 'nextSibling', at >= 0 && at + 1 < kids.length ? new g.Node(kids[at + 1]) : null);
+    var st = slots(r);
+    st[added ? 'addedNodes' : 'removedNodes'] = g.__frot_nodelist([childId]);
+    st.previousSibling = at > 0 ? new g.Node(kids[at - 1]) : null;
+    st.nextSibling = at >= 0 && at + 1 < kids.length ? new g.Node(kids[at + 1]) : null;
     return r;
   }
 
@@ -171,8 +175,8 @@
     raw.setAttr(id, name, value);
     for (var i = 0; i < list.length; i++) {
       var r = mkRecord('attributes', id);
-      def(r, 'attributeName', an);
-      if (list[i].old) def(r, 'oldValue', old);
+      slots(r).attributeName = an;
+      if (list[i].old) slots(r).oldValue = old;
       enqueue(list[i].mo, r);
     }
   });
@@ -185,8 +189,8 @@
     if (old == null) return; // removing an absent attribute is no mutation
     for (var i = 0; i < list.length; i++) {
       var r = mkRecord('attributes', id);
-      def(r, 'attributeName', an);
-      if (list[i].old) def(r, 'oldValue', old);
+      slots(r).attributeName = an;
+      if (list[i].old) slots(r).oldValue = old;
       enqueue(list[i].mo, r);
     }
   });
@@ -197,7 +201,7 @@
     raw.setText(id, text);
     for (var i = 0; i < list.length; i++) {
       var r = mkRecord('characterData', id);
-      if (list[i].old) def(r, 'oldValue', old);
+      if (list[i].old) slots(r).oldValue = old;
       enqueue(list[i].mo, r);
     }
   });

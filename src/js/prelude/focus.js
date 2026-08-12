@@ -17,6 +17,7 @@
 // after events.js (needs Node.dispatchEvent).
 (function (g) {
   'use strict';
+  var slots = g.__frot_slots;
   var proto = g.Node.prototype;
   var active = null; // the focused element's wrapper, or null (=> body)
 
@@ -41,14 +42,14 @@
     },
   });
   proto.focus = function focus() {
-    if (!focusable(this) || (active && active._id === this._id)) return;
+    if (!focusable(this) || (active && slots(active).id === slots(this).id)) return;
     var prev = active;
     active = this;
     if (prev) emit(prev, 'blur'); // blur the loser first, as browsers order it
     emit(this, 'focus');
   };
   proto.blur = function blur() {
-    if (!active || active._id !== this._id) return;
+    if (!active || slots(active).id !== slots(this).id) return;
     active = null;
     emit(this, 'blur');
   };

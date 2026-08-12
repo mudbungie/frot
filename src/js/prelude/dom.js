@@ -1,9 +1,15 @@
 // DOM facade — handle-based Node/Element and the document, over the syscalls.
-// A wrapper is a thin object around an integer NodeId (`_id`); the arena is the
-// one source of truth (js.md §2), so every read/write is a fresh syscall and
-// wrappers hold no cached state.
+// A wrapper is a thin object around an integer NodeId, which lives in brand.js's
+// instance-state WeakMap rather than on the wrapper (bl-3bdc: a real element
+// owns no properties at all); the arena is the one source of truth (js.md §2),
+// so every read/write is a fresh syscall and wrappers hold no cached state.
 (function (g) {
   'use strict';
+  // A node wrapper's arena id, like every other instance's backing state, lives
+  // in brand.js's one WeakMap: a real element owns no properties at all, and
+  // `_id` was one every page could read off `Object.getOwnPropertyNames`
+  // (bl-3bdc, identity.md §3.16).
+  var slots = g.__frot_slots;
 
   function wrap(id) {
     return id === null || id === undefined ? null : new Node(id);
@@ -99,72 +105,72 @@
 
   class Node {
     constructor(id) {
-      this._id = id;
+      slots(this).id = id;
     }
     get nodeType() {
-      var k = g.__frot_kind(this._id);
+      var k = g.__frot_kind(slots(this).id);
       return k === 'element' ? 1 : k === 'text' ? 3 : k === 'comment' ? 8 : 10;
     }
     get nodeName() {
-      return this.tagName || '#' + g.__frot_kind(this._id);
+      return this.tagName || '#' + g.__frot_kind(slots(this).id);
     }
     get tagName() {
-      var t = g.__frot_tag(this._id);
+      var t = g.__frot_tag(slots(this).id);
       return t ? t.toUpperCase() : undefined;
     }
     get parentNode() {
-      return wrap(g.__frot_parent(this._id));
+      return wrap(g.__frot_parent(slots(this).id));
     }
     get childNodes() {
-      return wrapAll(g.__frot_children(this._id));
+      return wrapAll(g.__frot_children(slots(this).id));
     }
     get children() {
       return g.__frot_elems(
-        g.__frot_children(this._id).filter(function (id) {
+        g.__frot_children(slots(this).id).filter(function (id) {
           return g.__frot_kind(id) === 'element';
         })
       );
     }
     get firstChild() {
-      var kids = g.__frot_children(this._id);
+      var kids = g.__frot_children(slots(this).id);
       return kids.length ? wrap(kids[0]) : null;
     }
     get textContent() {
-      return g.__frot_text(this._id);
+      return g.__frot_text(slots(this).id);
     }
     set textContent(value) {
-      this._clear();
-      g.__frot_insert_child(this._id, g.__frot_create_text(String(value)), null);
+      clear(this);
+      g.__frot_insert_child(slots(this).id, g.__frot_create_text(String(value)), null);
     }
     getAttribute(name) {
       // The arena stores attribute names ASCII-lowercased (the parser and
       // set_attr both normalize), so reads normalize too — SVG's camelCase
       // (viewBox) round-trips instead of silently missing (bl-3a36).
-      var v = g.__frot_attr(this._id, String(name).toLowerCase());
+      var v = g.__frot_attr(slots(this).id, String(name).toLowerCase());
       return v === null || v === undefined ? null : v;
     }
     setAttribute(name, value) {
-      g.__frot_set_attr(this._id, name, String(value));
+      g.__frot_set_attr(slots(this).id, name, String(value));
     }
     removeAttribute(name) {
-      g.__frot_remove_attr(this._id, name);
+      g.__frot_remove_attr(slots(this).id, name);
     }
     hasAttribute(name) {
       return this.getAttribute(name) !== null;
     }
     appendChild(child) {
-      g.__frot_insert_child(this._id, child._id, null);
+      g.__frot_insert_child(slots(this).id, slots(child).id, null);
       return child;
     }
     insertBefore(child, ref) {
       // The reference sibling goes through as a node id: the arena resolves the
       // slot after the move unlinks `child`, so a same-parent move (or a ref
       // that is `child` itself) needs no index arithmetic here (bl-ae88).
-      g.__frot_insert_child(this._id, child._id, ref ? ref._id : null);
+      g.__frot_insert_child(slots(this).id, slots(child).id, ref ? slots(ref).id : null);
       return child;
     }
     removeChild(child) {
-      g.__frot_detach(child._id);
+      g.__frot_detach(slots(child).id);
       return child;
     }
     // Replacement is one operation, and the DOM already names it (§4.2.3): the
@@ -173,8 +179,8 @@
     // itself — which `document.body = document.body` is — the general path with
     // its own successor as the reference, not a special case.
     replaceChild(node, child) {
-      var kids = g.__frot_children(this._id);
-      var at = kids.indexOf(child._id);
+      var kids = g.__frot_children(slots(this).id);
+      var at = kids.indexOf(slots(child).id);
       if (at < 0) {
         throw g.__frot_domerror(
           'NotFoundError',
@@ -182,22 +188,32 @@
         );
       }
       var ref = at + 1 < kids.length ? kids[at + 1] : null;
-      g.__frot_detach(child._id);
-      g.__frot_insert_child(this._id, node._id, ref);
+      g.__frot_detach(slots(child).id);
+      g.__frot_insert_child(slots(this).id, slots(node).id, ref);
       return child;
     }
     querySelector(sel) {
-      var hits = g.__frot_query(this._id, sel);
+      var hits = g.__frot_query(slots(this).id, sel);
       return hits.length ? wrap(hits[0]) : null;
     }
     querySelectorAll(sel) {
-      return wrapAll(g.__frot_query(this._id, sel));
-    }
-    _clear() {
-      var kids = g.__frot_children(this._id);
-      for (var i = 0; i < kids.length; i++) g.__frot_detach(kids[i]);
+      return wrapAll(g.__frot_query(slots(this).id, sel));
     }
   }
+
+  // Detach every child of `node`. A module-local function published on the same
+  // non-enumerable seam as `__frot_elems`, NOT a `_clear` method on
+  // `Node.prototype`: a page reads that prototype's own-property list, and
+  // Gecko's carries no such member (bl-3bdc).
+  function clear(node) {
+    var kids = g.__frot_children(slots(node).id);
+    for (var i = 0; i < kids.length; i++) g.__frot_detach(kids[i]);
+  }
+  Object.defineProperty(g, '__frot_clear', {
+    value: g.__frot_brand(clear, '__frot_clear'),
+    configurable: true,
+    writable: true,
+  });
 
   var document = {
     get documentElement() {

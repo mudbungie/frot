@@ -6,18 +6,15 @@
 // the per-instance queue observer.js fills.
 (function (g) {
   'use strict';
+  var slots = g.__frot_slots;
   var brand = g.__frot_brand;
   var hook = g.__frot_mo_hook;
-  function def(o, k, v) {
-    Object.defineProperty(o, k, { value: v, configurable: true, writable: true });
-  }
-
   // Registration key: the document observes under the 'doc' sentinel (matched
   // for connected subtrees); a Node wrapper under its NodeId. A fake node
-  // (elem2.js comment/fragment, _id -1) registers and simply never matches.
+  // (elem2.js comment/fragment, node id -1) registers and simply never matches.
   function keyOf(target) {
     if (target === g.document) return 'doc';
-    if (target && typeof target._id === 'number') return target._id;
+    if (target && typeof slots(target).id === 'number') return slots(target).id;
     throw new TypeError('MutationObserver.observe: Argument 1 does not implement interface Node.');
   }
   // Spec §4.3.1 option validation: *OldValue/attributeFilter imply their type
@@ -62,10 +59,11 @@
       if (typeof cb !== 'function') {
         throw new TypeError('MutationObserver constructor: Argument 1 is not callable.');
       }
-      def(this, '_cb', cb);
-      def(this, '_records', []);
-      def(this, '_queued', false);
-      def(this, '_keys', []);
+      var st = slots(this);
+      st.cb = cb;
+      st.records = [];
+      st.queued = false;
+      st.keys = [];
     },
   };
   var Ctor = brand(holder.MutationObserver, 'MutationObserver');
@@ -74,19 +72,21 @@
   proto.observe = brand(function observe(target, options) {
     var key = keyOf(target);
     var o = normalize(options);
-    if (hook.register(this, key, o)) this._keys.push(key);
+    if (hook.register(this, key, o)) slots(this).keys.push(key);
     return undefined;
   }, 'observe');
   proto.disconnect = brand(function disconnect() {
-    var keys = this._keys;
-    this._keys = [];
+    var st = slots(this);
+    var keys = st.keys;
+    st.keys = [];
     hook.unregister(this, keys);
-    this._records = []; // spec: disconnect empties the record queue
+    st.records = []; // spec: disconnect empties the record queue
     return undefined;
   }, 'disconnect');
   proto.takeRecords = brand(function takeRecords() {
-    var records = this._records;
-    this._records = [];
+    var st = slots(this);
+    var records = st.records;
+    st.records = [];
     return records;
   }, 'takeRecords');
   Object.defineProperty(g, 'MutationObserver', { value: Ctor, configurable: true, writable: true });

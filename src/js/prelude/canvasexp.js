@@ -14,6 +14,7 @@
 (function (g) {
   'use strict';
   var brand = g.__frot_brand;
+  var slots = g.__frot_slots;
   var SEED = JSON.parse(g.__frot_env_profile()).canvasSeed >>> 0;
 
   function def(o, k, v, enumerable) {
@@ -61,11 +62,12 @@
   // Cached on the context under the key that determines it, so repeated reads of an
   // unchanged canvas cost nothing.
   function pixels(ctx, w, h) {
-    var key = w + 'x' + h + ':' + ctx._d + ':' + (ctx._drawn ? 1 : 0);
-    if (ctx._pxKey === key) return ctx._px;
+    var st = slots(ctx);
+    var key = w + 'x' + h + ':' + st.d + ':' + (st.drawn ? 1 : 0);
+    if (st.pxKey === key) return st.px;
     var px = new Uint8ClampedArray(w * h * 4);
-    if (ctx._drawn) {
-      var s = (SEED ^ ctx._d ^ Math.imul(w, 0x9e3779b1) ^ Math.imul(h, 0x85ebca77)) >>> 0;
+    if (st.drawn) {
+      var s = (SEED ^ st.d ^ Math.imul(w, 0x9e3779b1) ^ Math.imul(h, 0x85ebca77)) >>> 0;
       if (s === 0) s = 0x9e3779b1;
       for (var p = 0; p < w * h; p++) {
         s ^= s << 13; s >>>= 0;
@@ -77,8 +79,8 @@
         px[p * 4 + 3] = 255;
       }
     }
-    def(ctx, '_px', px);
-    def(ctx, '_pxKey', key);
+    st.px = px;
+    st.pxKey = key;
     return px;
   }
 

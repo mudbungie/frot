@@ -859,6 +859,75 @@ made, so nothing claims a shape frot does not have. `AbortSignal`'s `aborted`,
 accessors — same class, same ball. `Crypto.prototype` is still missing `subtle`,
 which is `bl-b0f8`'s decision to make.
 
+### 3.16 Instances own nothing (`bl-3bdc`, 2026-08-12)
+
+§3.15 measured where frot's interface **prototypes** diverged and filed what it
+found on the **instances**. This closes that. The measurement, on the same rig
+(SHA-256-verified `153.0esr` tarball, profile under `$HOME`, Marionette, Mesa
+forced to llvmpipe):
+
+```js
+var n = new Notification("t", {body: "b", tag: "g"});
+Object.getOwnPropertyNames(n)   // []
+```
+
+Empty. Every value a real notification answers comes from a
+`Notification.prototype` accessor; the instance owns nothing. frot's answered a
+**ten-entry list** of `_`-prefixed backing slots. `Object.getOwnPropertyNames`
+reports non-enumerable properties too, so making them non-enumerable — which
+every one of them already was — hid nothing: a page walking one instance read
+frot's implementation rather than a WebIDL interface. The same slot pattern ran
+through `PermissionStatus`, the Web Audio zoo, the canvas 2D and WebGL contexts,
+the observers, `URL`/`URLSearchParams`, `DOMTokenList`, `Intl.DateTimeFormat`,
+the plugin/mimeType shims, and — loudest of all, because every page touches one —
+**every element**, whose arena id sat there as an own `_id`.
+
+**One store, not thirty migrations.** `brand.js` already stated the principle for
+its display-name registry: "a WeakMap so a branded function pins no extra
+reference and never becomes enumerable state on any object a page can walk". The
+slots moved into exactly that — one `__frot_slots(inst)` WeakMap for the whole
+prelude, reached by the accessors — and `__frot_ifaceattrs` grew the shape that
+makes it a one-liner per interface: an attribute named with no getter reads the
+backing slot of the same name, so `iface('AudioNode', ['context',
+'numberOfInputs', 'numberOfOutputs'])` is the whole declaration. A companion
+`__frot_rwattrs` does the settable half, with an optional hook for the write's
+side effect (a fingerprint-digest fold, a reflected attribute write). Nine local
+`def`/`slot`/`slotGetter`/`hidden` helpers — one per capability module, each a
+private re-invention of the same four lines — were deleted.
+
+Three consequences fell out of the same move:
+
+- **`_`-prefixed members on PROTOTYPES went too.** `BaseAudioContext.prototype._fold`,
+  `Node.prototype._clear`, `URL.prototype._setQuery`, `URLSearchParams.prototype._changed`,
+  `XMLHttpRequest.prototype._done` and `AudioContext.prototype._baseLatency`/`_outputLatency`
+  were own names on lists a page reads directly. Each is now a module-local
+  function (published on the existing non-enumerable `__frot_*` seam where two
+  modules share it), so the prototype lists carry WebIDL members only.
+- **Concrete audio nodes gained their real prototypes.** `frequency`, `type`,
+  `maxChannelCount` and the rest were stamped onto each instance at construction;
+  they are now accessors on `OscillatorNode.prototype` &c., which is both where
+  WebIDL puts them and the only place that leaves the instance empty.
+- **`AbortSignal`/`AbortController` are interface-shaped.** `aborted`, `reason`,
+  `onabort` and `signal` were instance data; they are prototype accessors now,
+  with `onabort` going through the one `__frot_onevent` maker (whose own `_on_*`
+  slot moved into the store, fixing every event handler on every interface at
+  once).
+
+| surface | verdict | provenance |
+|---|---|---|
+| `Notification` instance own-property list | **`[]` on the binary**, 10 slots in frot — now `[]` | read |
+| every other registry-built interface's instances | own nothing (WebIDL: members live on the interface prototype) | spec |
+| `Plugin` instances own their indices (`0,1`) | correct — a legacy platform object's indexed properties really are own properties | spec |
+
+**Left undone, recorded rather than guessed.** A second family remains, and it
+is *not* this one: objects frot never built an interface for at all, which own
+their whole surface as instance data — `document`, `location`, `history`,
+`localStorage`, `performance`, `CSSStyleDeclaration`, `MediaQueryList`,
+`XMLHttpRequest`, `Response`, `Headers`, `Event`, `DOMRect`, `ImageData`, and the
+`DocumentFragment` stand-in. Fixing those means *building* the interfaces, and a
+prototype needs its member list and Gecko's order for it — which is a
+measurement, not a refactor. None of it is asserted here. Filed as `bl-643d`.
+
 ---
 
 ## 4. The one profile

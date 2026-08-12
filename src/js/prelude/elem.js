@@ -6,6 +6,7 @@
 // and document breadth are in elem2.js (kept split under the 300-line cap).
 (function (g) {
   'use strict';
+  var slots = g.__frot_slots;
   var Node = g.Node;
   var proto = Node.prototype;
 
@@ -184,7 +185,7 @@
       return this.nodeType === 1 ? null : this.textContent;
     },
     set: function (v) {
-      if (this.nodeType !== 1) g.__frot_set_text(this._id, String(v));
+      if (this.nodeType !== 1) g.__frot_set_text(slots(this).id, String(v));
     },
   });
   Object.defineProperty(proto, 'data', {
@@ -193,7 +194,7 @@
       return this.textContent;
     },
     set: function (v) {
-      g.__frot_set_text(this._id, String(v));
+      g.__frot_set_text(slots(this).id, String(v));
     },
   });
 

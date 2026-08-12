@@ -5,6 +5,7 @@
 // feature detection probes. Loads after elem.js (needs its Node breadth).
 (function (g) {
   'use strict';
+  var slots = g.__frot_slots;
   var Node = g.Node;
   var proto = Node.prototype;
 
@@ -14,11 +15,11 @@
   var rawAppend = proto.appendChild;
   var rawInsert = proto.insertBefore;
   proto.appendChild = function (child) {
-    if (child && child.nodeType === 11) return child._drain(this, null), child;
+    if (child && child.nodeType === 11) return slots(child).drain(this, null), child;
     return rawAppend.call(this, child);
   };
   proto.insertBefore = function (child, ref) {
-    if (child && child.nodeType === 11) return child._drain(this, ref), child;
+    if (child && child.nodeType === 11) return slots(child).drain(this, ref), child;
     return rawInsert.call(this, child, ref);
   };
 
@@ -26,19 +27,19 @@
   // getElementsBy* return an HTMLCollection (the spec-named interface, built by
   // dom.js's one collection maker over the same selector hits qSA would find).
   proto.getElementsByTagName = function (tag) {
-    return g.__frot_elems(g.__frot_query(this._id, String(tag)));
+    return g.__frot_elems(g.__frot_query(slots(this).id, String(tag)));
   };
   proto.getElementsByClassName = function (cls) {
-    return g.__frot_elems(g.__frot_query(this._id, '.' + String(cls).trim().split(/\s+/).join('.')));
+    return g.__frot_elems(g.__frot_query(slots(this).id, '.' + String(cls).trim().split(/\s+/).join('.')));
   };
   proto.matches = function (sel) {
     var hits = this.parentNode ? this.parentNode.querySelectorAll(sel) : g.document.querySelectorAll(sel);
     var len = hits.length;
-    for (var i = 0; i < len; i++) if (hits[i]._id === this._id) return true;
+    for (var i = 0; i < len; i++) if (slots(hits[i]).id === slots(this).id) return true;
     return false;
   };
   proto.contains = function (other) {
-    for (var n = other; n; n = n.parentNode) if (n._id === this._id) return true;
+    for (var n = other; n; n = n.parentNode) if (slots(n).id === slots(this).id) return true;
     return false;
   };
   proto.closest = function (sel) {
@@ -80,7 +81,7 @@
     var top = this;
     while (top.parentNode) top = top.parentNode;
     var roots = g.__frot_roots();
-    for (var i = 0; i < roots.length; i++) if (roots[i] === top._id) return g.document;
+    for (var i = 0; i < roots.length; i++) if (roots[i] === slots(top).id) return g.document;
     return top;
   };
   // Sibling reads off the parent's live child list (no cached state, §2).
@@ -89,7 +90,7 @@
     if (!p) return null;
     var kids = p.childNodes;
     for (var i = 0; i < kids.length; i++)
-      if (kids[i]._id === el._id) {
+      if (slots(kids[i]).id === slots(el).id) {
         var j = i + step;
         return j >= 0 && j < kids.length ? kids[j] : null;
       }
@@ -115,7 +116,7 @@
     if (this.nodeType === 3) return g.document.createTextNode(this.textContent);
     if (this.nodeType !== 1) return g.document.createTextNode('');
     var copy = g.document.createElement(this.tagName);
-    var attrs = g.__frot_attrs(this._id);
+    var attrs = g.__frot_attrs(slots(this).id);
     for (var i = 0; i < attrs.length; i++) copy.setAttribute(attrs[i][0], attrs[i][1]);
     if (deep) {
       var kids = this.childNodes;
@@ -130,7 +131,7 @@
   Object.defineProperty(proto, 'lastChild', {
     configurable: true,
     get: function () {
-      var kids = g.__frot_children(this._id);
+      var kids = g.__frot_children(slots(this).id);
       return kids.length ? new Node(kids[kids.length - 1]) : null;
     },
   });
@@ -261,17 +262,16 @@
   // cursor stack, and the *next* render dies on a corrupted context ("You
   // cannot render a <Router> inside another <Router>"). The trio is Node's own
   // (events.js — one registry, one implementation, loaded by the time a page can
-  // construct a fragment), keyed per fragment by a unique negative _id no
+  // construct a fragment), keyed per fragment by a unique negative node id no
   // arena node can ever carry.
   var fragSeq = 0;
   function wrapFragment() {
     var kids = [];
     function indexOfKid(n) {
-      for (var i = 0; i < kids.length; i++) if (kids[i] === n || (n && kids[i]._id === n._id)) return i;
+      for (var i = 0; i < kids.length; i++) if (kids[i] === n || (n && slots(kids[i]).id === slots(n).id)) return i;
       return -1;
     }
-    return {
-      _id: --fragSeq,
+    var frag = {
       addEventListener: proto.addEventListener,
       removeEventListener: proto.removeEventListener,
       dispatchEvent: proto.dispatchEvent,
@@ -299,10 +299,15 @@
         if (i >= 0) kids.splice(i, 1);
         return n;
       },
-      _drain: function (target, at) {
-        for (var i = 0; i < kids.length; i++) target.insertBefore(kids[i], at || null);
-        kids.length = 0;
-      },
     };
+    // Node id and drain hook are STATE, not surface: `_id`/`_drain` were two own
+    // names a page could read off the fragment (bl-3bdc).
+    var st = slots(frag);
+    st.id = --fragSeq;
+    st.drain = function (target, at) {
+      for (var i = 0; i < kids.length; i++) target.insertBefore(kids[i], at || null);
+      kids.length = 0;
+    };
+    return frag;
   }
 })(globalThis);

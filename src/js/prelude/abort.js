@@ -15,15 +15,21 @@
   // DOMException-shaped errors (quickjs lacks DOMException) — brand.js's one
   // maker (bl-273b).
   var named = g.__frot_domerror;
+  var attrs = g.__frot_ifaceattrs;
+  // `aborted`/`reason`/`onabort` were instance DATA — three own properties on
+  // every signal, where Gecko answers them from `AbortSignal.prototype`
+  // accessors and the instance owns nothing. They are prototype accessors here
+  // now, over brand.js's one instance-state WeakMap (bl-3bdc, §3.16).
+  var slots = g.__frot_slots;
 
   // An AbortSignal IS an EventTarget — in Firefox by inheritance, and here too
   // since `bl-6438` moved the listener trio onto `EventTarget.prototype`: a
   // signal's `addEventListener` is now the ONE implementation it inherits, not
   // three methods stamped onto each instance by the constructor.
   function Signal() {
-    this.aborted = false;
-    this.reason = undefined;
-    this.onabort = null;
+    var st = slots(this);
+    st.aborted = false;
+    st.reason = undefined;
   }
   Signal.prototype = Object.create(g.EventTarget.prototype);
   Object.defineProperty(Signal.prototype, 'constructor', {
@@ -34,11 +40,16 @@
   Signal.prototype.throwIfAborted = function () {
     if (this.aborted) throw this.reason;
   };
+  attrs(Signal.prototype, ['aborted', 'reason']);
+  g.__frot_onevent(Signal.prototype, 'onabort');
 
+  // The one place a signal flips: state moves, then the handler, then the
+  // listeners — the delivery order a real signal has.
   function doAbort(sig, reason) {
-    if (sig.aborted) return;
-    sig.aborted = true;
-    sig.reason = reason;
+    var st = slots(sig);
+    if (st.aborted) return;
+    st.aborted = true;
+    st.reason = reason;
     var ev = new g.Event('abort');
     ev.target = sig;
     if (typeof sig.onabort === 'function')
@@ -47,19 +58,31 @@
       } catch (e) {}
     sig.dispatchEvent(ev);
   }
+  // A pre-aborted signal: the same flip, minus the dispatch nobody can be
+  // listening for yet — one path, not a second hand-set of the two slots.
+  function aborted(reason) {
+    var s = new Signal();
+    slots(s).aborted = true;
+    slots(s).reason = reason;
+    return s;
+  }
+  function orAbortError(reason) {
+    return reason !== undefined ? reason : named('AbortError', 'The operation was aborted. ');
+  }
 
-  g.AbortController = function AbortController() {
-    this.signal = new Signal();
+  var Controller = function AbortController() {
+    slots(this).signal = new Signal();
   };
-  g.AbortController.prototype.abort = function (reason) {
-    doAbort(this.signal, reason !== undefined ? reason : named('AbortError', 'The operation was aborted. '));
+  // Operation before attribute: that is the order Gecko's WebIDL codegen emits
+  // members in on all 41 prototypes read in `bl-706b` (identity.md §3.15).
+  Controller.prototype.abort = function (reason) {
+    doAbort(this.signal, orAbortError(reason));
   };
+  attrs(Controller.prototype, ['signal']);
+  g.AbortController = Controller;
 
   Signal.abort = function (reason) {
-    var s = new Signal();
-    s.aborted = true;
-    s.reason = reason !== undefined ? reason : named('AbortError', 'The operation was aborted. ');
-    return s;
+    return aborted(orAbortError(reason));
   };
   Signal.timeout = function (ms) {
     var s = new Signal();
@@ -70,13 +93,9 @@
   };
   Signal.any = function (signals) {
     var list = Array.prototype.slice.call(signals);
-    var s = new Signal();
     for (var i = 0; i < list.length; i++)
-      if (list[i].aborted) {
-        s.aborted = true;
-        s.reason = list[i].reason;
-        return s;
-      }
+      if (list[i].aborted) return aborted(list[i].reason);
+    var s = new Signal();
     list.forEach(function (src) {
       src.addEventListener('abort', function () {
         doAbort(s, src.reason);

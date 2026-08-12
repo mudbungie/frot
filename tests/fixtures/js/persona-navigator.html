@@ -362,6 +362,12 @@
       eq('perm:' + nm + ':name', s.name, nm);
       eq('perm:' + nm + ':onchange', s.onchange, null);
       native('perm:' + nm + ':addEventListener', s.addEventListener);
+      // A PermissionStatus owns nothing either, before or after a handler
+      // (bl-3bdc): `name`/`state`/`onchange` are all prototype accessors.
+      eq('perm:' + nm + ':own-empty', Object.getOwnPropertyNames(s).join(','), '');
+      s.onchange = function () {};
+      eq('perm:' + nm + ':own-empty-after-handler',
+         Object.getOwnPropertyNames(s).join(','), '');
     }, function () { FAILS.push('perm:' + nm + ':rejected'); });
   }
   function permRejects(desc, arg) {
@@ -682,12 +688,17 @@
   // properties, a frozen empty `actions`, `silent` false (not null), and no
   // `badge`/`renotify`/`timestamp` — Gecko exposes none of those three.
   var note = new Notification('t');
-  // NOT asserted: `Object.getOwnPropertyNames(note).length`. Firefox's is 0 —
-  // every value lives behind a prototype accessor — where frot's instance carries
-  // its `_`-prefixed backing slots as own properties (10 of them here). That is a
-  // real divergence, measured, and it is filed rather than papered over, because
-  // the same slot pattern runs through audio, idb and the canvas contexts and the
-  // fix is one shared change (bl-3bdc).
+  // MEASURED on Firefox 153.0esr (`bl-3bdc`, identity.md §3.16): a constructed
+  // Notification's own-property list is EMPTY — every value it answers comes
+  // from a `Notification.prototype` accessor. frot's carried ten `_`-prefixed
+  // backing slots, which `Object.getOwnPropertyNames` reports whether or not
+  // they are enumerable, so a page walking one read frot's implementation
+  // instead of a WebIDL interface. Setting an event handler must not add one
+  // either — `onclick` is a prototype accessor over the same off-instance store.
+  eq('note:own-empty', Object.getOwnPropertyNames(note).length, 0);
+  note.onclick = function () {};
+  eq('note:own-empty-after-handler', Object.getOwnPropertyNames(note).length, 0);
+  eq('note:handler-reads-back', typeof note.onclick, 'function');
   ok('note:actions-frozen-empty', Array.isArray(note.actions) && note.actions.length === 0
     && Object.isFrozen(note.actions));
   eq('note:silent-false', note.silent, false);
@@ -835,6 +846,92 @@
     });
   });
   asyncChecks.push(audioChecks);
+
+  // --- Instances own nothing (bl-3bdc, identity.md §3.16) ---------------------
+  // A WebIDL interface puts every attribute and operation on its PROTOTYPE, so
+  // an instance's own-property list is empty — measured on a real Notification
+  // above, and required by WebIDL for every interface here (PermissionStatus is
+  // checked in the async permission block, where its instances are made). frot backed those accessors
+  // with `_`-prefixed own properties, so each instance advertised its own
+  // implementation to anything that walked it; the state moved into one shared
+  // WeakMap behind the accessors, which no own-property probe can see. The list
+  // is deliberately wide, because the fix was one registry change and a
+  // half-migrated instance is exactly what the sweep has to catch.
+  var oscN = ac.createOscillator();
+  var ioObs = new IntersectionObserver(function () {});
+  var OWN_EMPTY = {
+    Notification: new Notification('t'),
+    AudioContext: ac,
+    OscillatorNode: oscN,
+    AudioParam: oscN.frequency,
+    AnalyserNode: ac.createAnalyser(),
+    AudioDestinationNode: ac.destination,
+    AudioBuffer: ac.createBuffer(2, 128, 44100),
+    CanvasRenderingContext2D: cx,
+    WebGLRenderingContext: gl,
+    WebGL2RenderingContext: gl2,
+    TextMetrics: tm,
+    IDBKeyRange: kr,
+    IDBRequest: indexedDB.open('d', 1),
+    IDBFactory: indexedDB,
+    DOMTokenList: document.body.classList,
+    Element: document.body,
+    MutationObserver: new MutationObserver(function () {}),
+    IntersectionObserver: ioObs,
+    ResizeObserver: new ResizeObserver(function () {}),
+    URL: new URL('https://example.com/a?b=1#c'),
+    URLSearchParams: new URLSearchParams('b=1'),
+    AbortController: new AbortController(),
+    AbortSignal: new AbortController().signal,
+    SharedWorker: new SharedWorker('w.js'),
+    MessagePort: new SharedWorker('w.js').port,
+    Worker: new Worker('w.js'),
+    Screen: screen,
+    ScreenOrientation: screen.orientation,
+    MimeType: navigator.mimeTypes[0],
+    DateTimeFormat: new Intl.DateTimeFormat(),
+  };
+  Object.keys(OWN_EMPTY).forEach(function (k) {
+    eq('own:' + k, Object.getOwnPropertyNames(OWN_EMPTY[k]).join(','), '');
+  });
+  // `Plugin` is the one exception, and an honest one: it is a legacy platform
+  // object with INDEXED properties (`plugins[0][1]` is a MimeType), and indexed
+  // properties genuinely are own properties. So the rule for it is not "owns
+  // nothing" but "owns only its indices" — the backing slots are gone all the
+  // same, which is what this ball was about.
+  eq('own:Plugin-indices-only',
+     Object.getOwnPropertyNames(navigator.plugins[0]).join(','), '0,1');
+  // Mutating an instance must not grow one either: a state write goes to the
+  // store, never back onto the object. Covers the read/write attribute path
+  // (canvas state, audio param and node data) and the event-handler path.
+  cx.fillStyle = '#123456';
+  oscN.frequency.value = 880;
+  oscN.type = 'square';
+  ioObs.observe(document.body);
+  var sig = AbortSignal.timeout(5);
+  sig.onabort = function () {};
+  eq('own:ctx-after-write', Object.getOwnPropertyNames(cx).join(','), '');
+  eq('own:param-after-write', Object.getOwnPropertyNames(oscN.frequency).join(','), '');
+  eq('own:node-after-write', Object.getOwnPropertyNames(oscN).join(','), '');
+  eq('own:observer-after-observe', Object.getOwnPropertyNames(ioObs).join(','), '');
+  eq('own:signal-after-handler', Object.getOwnPropertyNames(sig).join(','), '');
+  // ...and the writes still read back, so the store is load-bearing, not a sink.
+  eq('own:ctx-write-reads-back', cx.fillStyle, '#123456');
+  eq('own:param-write-reads-back', oscN.frequency.value, 880);
+  eq('own:node-write-reads-back', oscN.type, 'square');
+  // No interface PROTOTYPE carries an implementation member either: every
+  // `_`-prefixed name that used to sit on one (`BaseAudioContext.prototype._fold`,
+  // `Node.prototype._clear`, `URL.prototype._setQuery`) is now a module-local
+  // function, so the prototype lists a page reads are WebIDL members only.
+  var underscored = [];
+  Object.getOwnPropertyNames(window).forEach(function (name) {
+    var v = window[name];
+    if (typeof v !== 'function' || !v.prototype || v === Object) return;
+    Object.getOwnPropertyNames(v.prototype).forEach(function (k) {
+      if (k.charAt(0) === '_') underscored.push(name + '.' + k);
+    });
+  });
+  eq('own:no-underscore-prototype-members', underscored.join(','), '');
 
   // --- Absent capability surfaces (§8): masquerade does not fabricate these ----
   eq('serviceWorker', typeof n.serviceWorker, 'undefined');
