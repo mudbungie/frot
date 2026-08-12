@@ -164,6 +164,7 @@ fn native_alternative(doc: &Document, id: NodeId, el: &Element) -> Option<String
         "input" => Some(input_alternative(el)),
         "textarea" => Some(doc.text_content(id)),
         "select" => Some(selected_option_text(doc, id)),
+        "option" | "optgroup" => super::label_attr(el),
         "svg" => svg_title_text(doc, id),
         _ => None,
     }
@@ -180,23 +181,23 @@ fn input_alternative(el: &Element) -> String {
 }
 
 /// An embedded `<select>` speaks its selected option — the first one when the
-/// author marked none, since that is the one the UA selects.
+/// author marked none, since that is the one the UA selects. What the option
+/// says is its own label, so `<option label=X>y</option>` speaks "X" (measured:
+/// Chrome names `<button>Choose <select>…</select></button>` "Choose X").
 fn selected_option_text(doc: &Document, id: NodeId) -> String {
     let (mut first, mut selected) = (None, None);
     doc.walk(Some(id), &mut |ev, e| {
         if let (WalkEvent::Enter(n), NodeKind::Element(el)) = (ev, &e.kind) {
             if el.name == "option" {
-                first = first.or(Some(n));
+                let says = super::label_attr(el).unwrap_or_else(|| doc.text_content(n));
                 if selected.is_none() && el.attr("selected").is_some() {
-                    selected = Some(n);
+                    selected = Some(says.clone());
                 }
+                first.get_or_insert(says);
             }
         }
     });
-    selected
-        .or(first)
-        .map(|n| doc.text_content(n))
-        .unwrap_or_default()
+    selected.or(first).unwrap_or_default()
 }
 
 /// SVG-AAM: an `<svg>` is named by its `<title>` child.

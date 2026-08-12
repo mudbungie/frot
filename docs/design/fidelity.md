@@ -401,7 +401,10 @@ saved and read as the same bytes by both sides.
    measured two more facts in that subtree — `<datalist>` is a UA declaration
    (`layout.md` §2.3) and the collapsed select's absent option boxes are a
    residual (§3.3) — and left the `<optgroup label>` accessible name filed
-   separately.
+   separately as `bl-4093`, since `innerText` carries neither attribute and the
+   text channel already agreed. Fixed there: the `label` content attribute is a
+   name-from-author source on both tags, two rows in `ax::name`'s existing
+   native-name table (`layout.md` §2.4). No `text` output changed.
 4. **Geometry**: 13-element fixture (headings, wrap, flex `order`, float,
    `position:absolute`, sized broken `<img>`): all 13 frot rects differ from
    Chrome's on every axis (body margin 8, real font metrics 37px vs 20px

@@ -260,9 +260,24 @@ other options might have belonged with `<video>`'s prose. Measured in Chrome
   right for the listbox and an over-report of paint for the collapsed one.
   Recorded in `fidelity.md` §3.3, where the text half was already a residual.
 - The **`<optgroup label>` / `<option label>` accessible name** is a fourth
-  fact, in a fourth home (`ax::name`), and is not this section's: Chrome names
-  the `group`/`option` from the attribute and frot does not — filed as
-  `bl-4093`, since `innerText` carries neither and the text channel agrees.
+  fact, in a fourth home (`ax::name`), and was not this section's: Chrome names
+  the `group`/`option` from the attribute and frot did not — filed as `bl-4093`
+  and fixed there, since `innerText` carries neither and the text channel
+  agrees. It turned out to be two rows in the existing native-name table, not a
+  mechanism: the `label` attribute is an HTML-AAM *name from author* source in
+  the same family as `alt` on `<img>`, so it sits below `aria-label` /
+  `aria-labelledby` and above `title` (all four orderings measured). One
+  measured difference from `alt` earns its own line: `label=""` is **not** the
+  empty alternative — HTML defines an option's label as the attribute "if there
+  is one and its value is not the empty string", otherwise the element's text,
+  and Chrome agrees for both tags. The same one fact answers what an embedded
+  `<select>` *says* when it stands in for a control: its selected option's
+  label, not its text (`<button>Choose <select><option label=X>y</option>
+  </select></button>` is named "Choose X"). Measuring it also turned up a
+  *fifth* fact, again in its own home and again filed rather than smuggled in:
+  `aria-labelledby` pointing straight at such an element reads its contents and
+  never its own alternative, so it descends past the group into the option
+  (`bl-0482`) — accname §2B applied to the one node rule 2F is exempt from.
 
 ## 3. "On-demand" — the exact trigger
 

@@ -9,6 +9,8 @@
 //!    - `<input type=image>` — `alt`
 //!    - other form controls (`<input>`, `<textarea>`, `<select>`) — the matching
 //!      `<label for=…>` or the wrapping `<label>` text content
+//!    - `<optgroup>` and `<option>` — the `label` content attribute
+//!      ([`label_attr`]); an `<option>` without one falls back to its contents
 //!    - everything else — the element's descendant text *alternatives* (the
 //!      §2F recursion, [`contents`]), but *only* when the element's role is
 //!      name-from-contents (see [`NAME_FROM_CONTENTS`]); containers (table,
@@ -92,9 +94,27 @@ fn native_name(
         "input" => input_name(doc, id, el, styles),
         "textarea" | "select" => control_label_text(doc, id, el, styles),
         "fieldset" => fieldset_legend_text(doc, id, styles),
+        "optgroup" => label_attr(el),
+        "option" => label_attr(el).or_else(|| Some(alternative_text(doc, id, styles))),
         _ if names_from_contents(doc, id) => Some(alternative_text(doc, id, styles)),
         _ => None,
     }
+}
+
+/// The `label` content attribute of `<optgroup>`/`<option>` — an HTML-AAM name
+/// from author, in the same family as `alt` on `<img>`, and the one home of
+/// this fact for both the name of such an element and what it contributes to
+/// someone else's name ([`contents`]).
+///
+/// Unlike `alt=""`, an empty `label` is **not** the empty alternative: HTML
+/// defines an option's label as its `label` attribute "if there is one and its
+/// value is not the empty string", otherwise the element's text. Measured in
+/// Chrome 139 for both tags — `<option label="">t</option>` is named "t", and
+/// `<optgroup label="">` is nameless rather than named from its options.
+fn label_attr(el: &crate::dom::Element) -> Option<String> {
+    el.attr("label")
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
 }
 
 /// The *author-supplied* name — `aria-label`, `aria-labelledby`, `title` — with
@@ -241,3 +261,6 @@ mod tests;
 
 #[cfg(test)]
 mod contents_tests;
+
+#[cfg(test)]
+mod option_tests;
