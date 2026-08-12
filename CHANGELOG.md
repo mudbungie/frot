@@ -7,6 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.2](https://github.com/mudbungie/frot/releases/tag/v0.0.2) - 2026-08-12
+
+> **`0.0.0` and `0.0.1` are withdrawn — upgrade to `0.0.2`.**
+> Both of those releases packaged design documents that recorded personal
+> network identifiers belonging to the author: the egress address of a field
+> trial and the geolocation derived from it. They were measurement notes; they
+> should never have been published. The identifiers are gone from the tree, the
+> affected versions are being yanked from crates.io, and `0.0.2` is the first
+> clean release. A published crates.io version can never be edited or replaced,
+> so the fix ships as a new version rather than a corrected `0.0.1`. If you have
+> `0.0.0` or `0.0.1` pinned or vendored, move to `0.0.2` — the upgrade itself
+> changes no behaviour, and everything below is a bug fix on top of it.
+
+### Changes
+
+- **Personal network identity is scrubbed, and gated against return** — the
+  packaged design docs no longer carry an egress address or its geolocation
+  gloss, and `tests/hygiene/` fails the build if a globally-routable IPv4
+  literal or a bare autonomous-system number reappears in any tracked file.
+  (`[bl-f521]`, `[bl-f90c]`, `[bl-5638]`)
+- **Vendored test fixtures carry their licence and attribution**, checked by
+  the same hygiene suite. (`[bl-11f5]`)
+- **Public docs match the product** — corrected claims about cookies, phase
+  status and challenge passing; removed directional refusal language.
+  (`[bl-6f85]`, `[bl-0af9]`)
+- **`--out text` and `--out ax` report what a browser actually exposes:**
+  - a closed `<details>` body is no longer emitted as visible text, with or
+    without `--css` (`[bl-74a6]`, `[bl-d470]`);
+  - SVG and MathML text a browser paints is no longer omitted (`[bl-c0a4]`);
+  - adjacent `<option>` texts no longer fuse into one token (`[bl-66ed]`);
+  - fallback content for `<video>`, `<object>`, `<canvas>` and `<picture>` is
+    no longer emitted as page content, and no longer names its ancestor
+    (`[bl-0f83]`, `[bl-0aaf]`, `[bl-e79a]`);
+  - hidden fallback text no longer masks a failed SPA as status `ok`
+    (`[bl-eeb4]`);
+  - accessible names: `title` is a name source, `aria-labelledby` resolves at
+    an element that has its own alternative, `<optgroup label>` and
+    `<option label>` name their elements, and name-from-contents descends into
+    descendant text alternatives (`[bl-d8ff]`, `[bl-0482]`, `[bl-4093]`,
+    `[bl-3d2e]`);
+  - the AX tree honours `aria-hidden` and `inert` subtree exclusion, and
+    implicit roles honour HTML context and conditions (`[bl-2fa6]`,
+    `[bl-a189]`).
+- **CSS and geometry** — inline descendant bboxes keep their containing `x`
+  origin (`[bl-2161]`); a linked stylesheet's `media` is honoured, so print CSS
+  no longer applies on screen (`[bl-4f0a]`); generated pseudo-content
+  contributes layout geometry and its Unicode escapes are decoded instead of
+  emitted literally (`[bl-6fcb]`, `[bl-e94a]`).
+- **`--js` gets through more real-world pages:**
+  - `document.currentScript` exists, so Turbopack chunk loaders work
+    (`[bl-a19d]`);
+  - classic scripts are no longer forced into strict mode (`[bl-0679]`);
+  - `Element.id` and four further DOM properties are writable, as in a browser
+    (`[bl-d313]`, `[bl-273b]`);
+  - Astro pages no longer abort on DOM child insertion or in engine teardown
+    (`[bl-ae88]`, `[bl-5249]`);
+  - a starved heap no longer segfaults during parse (`[bl-c385]`);
+  - `js.stopped` names the bound that actually ended an unsettled run — the
+    compute budget or the network one (`[bl-79dc]`).
+- **Browser-surface fidelity re-measured against a real Firefox** — interface
+  prototypes and their own-property lists, `IDBKeyRange` range semantics and
+  absent statics, `Worker.prototype`'s flattened `EventTarget`, an undeclared
+  `crypto.subtle`, the 2D canvas surface, `navigator.appVersion`, and the
+  remaining capability surfaces are re-pinned to the measured profile, and the
+  profile's end-of-life date is corrected. (`[bl-706b]`, `[bl-6438]`,
+  `[bl-d22f]`, `[bl-1ab7]`, `[bl-b128]`, `[bl-6491]`, `[bl-3595]`, `[bl-04ab]`,
+  `[bl-7523]`)
+- **Fetching and URL resolution** — a relative `<base href>` resolves links
+  (`[bl-409e]`); a fetch with no redirect reports the resolved final URL rather
+  than the raw spelling (`[bl-2832]`); a binary image response is no longer
+  parsed as HTML and reported `ok` (`[bl-0c3e]`); `data:` script sources are no
+  longer counted as failed subfetches (`[bl-91bf]`).
+- **Repo gates** — the formatting and 300-line source caps are keyed on tracked
+  files rather than the staged set, so neither can be skipped at delivery; a
+  golden that measured real wall time is deterministic; dead code removed; the
+  release-plz branch prune no longer fails open and deletes every release
+  branch. (`[bl-0066]`, `[bl-a68b]`, `[bl-c81a]`, `[bl-d673]`, `[bl-a237]`)
+
 ## [0.0.1](https://github.com/mudbungie/frot/releases/tag/v0.0.1) - 2026-08-11
 
 The first release meant to be installed. `0.0.0` existed only to register the
