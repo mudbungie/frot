@@ -78,8 +78,13 @@ The UA sheet also carries two attribute rules, applied at the same step and
 overridden by any author or inline declaration: `[hidden] { display: none }`
 (HTML §15.3.1 — `hidden` is a boolean attribute, so presence is the fact and
 `until-found` hides too, `bl-eeb4`) and, once `--js` ran, `noscript` (js.md §4).
+The same UA block's third rule, `input[type=hidden i] { display: none !important }`,
+is *not* overridable — `!important` in the UA origin outranks the author origin —
+so it is decided before the cascade is consulted (`bl-a189`). Its AX twin is a
+separate fact in a separate home: the HTML-AAM gives `type=hidden` no role at
+all, which is what keeps it out of `--out ax` when no styles are computed.
 
-A third UA rule is **structural** rather than a declaration, and so lands
+A further UA rule is **structural** rather than a declaration, and so lands
 *after* the cascade rather than inside it (`css::cascade::conceal`,
 `dom::Document::concealed`, `bl-74a6`): a `<details>` without `open` renders
 only its first `<summary>` child, and every other child — element **or text

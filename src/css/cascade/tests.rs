@@ -34,6 +34,24 @@ fn hidden_attribute_is_ua_display_none_and_author_overridable() {
 }
 
 #[test]
+fn hidden_input_is_ua_display_none_and_not_author_overridable() {
+    // The other half of the UA "hidden elements" block, and the `!important`
+    // one (`bl-a189`): wordpress.org's six `type=hidden` inputs get no boxes in
+    // Chrome, whatever the page's CSS says.
+    let (doc, s) = styles("<input type=hidden>");
+    assert!(s.display_none(first_tag(&doc, "input")));
+    let (doc, s) = styles("<input type=HIDDEN>");
+    assert!(s.display_none(first_tag(&doc, "input")));
+    let (doc, s) = styles("<style>input{display:block}</style><input type=hidden>");
+    assert!(s.display_none(first_tag(&doc, "input")));
+    let (doc, s) = styles("<input type=hidden style='display:block'>");
+    assert!(s.display_none(first_tag(&doc, "input")));
+    // Every other input type still renders.
+    let (doc, s) = styles("<input type=text>");
+    assert!(!s.display_none(first_tag(&doc, "input")));
+}
+
+#[test]
 fn non_matching_rule_is_inert() {
     let (doc, s) = styles("<style>div{display:none}</style><p>x</p>");
     assert!(!s.display_none(first_tag(&doc, "p")));

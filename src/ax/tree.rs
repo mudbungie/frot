@@ -112,7 +112,7 @@ fn build(
         // own node above), so promote the collected children.
         return children;
     }
-    let role = ax::role(el);
+    let role = ax::role(doc, id);
     if layout_table
         && matches!(
             role,
@@ -185,3 +185,6 @@ mod order_tests;
 
 #[cfg(test)]
 mod hidden_tests;
+
+#[cfg(test)]
+mod oracle_tests;

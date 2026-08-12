@@ -99,3 +99,22 @@ fn bboxes_omits_a_hidden_subtree_without_css() {
         "{texts:?}"
     );
 }
+
+#[test]
+fn bboxes_omits_hidden_inputs() {
+    // wordpress.org/news emitted six `input type=hidden` boxes; Chrome gives
+    // them none, and the UA rule is `!important` so `--css` cannot revive them
+    // (`bl-a189`).
+    let html = "<form><input type=hidden name=a><input type=hidden name=b>\
+                <input type=text name=q></form>";
+    for args in [vec!["--out", "bboxes"], vec!["--css", "--out", "bboxes"]] {
+        let v = serve_and_run(html, &args);
+        let inputs = v["out"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| e["tag"] == "input")
+            .count();
+        assert_eq!(inputs, 1, "{args:?} -> {v}");
+    }
+}

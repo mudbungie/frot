@@ -69,7 +69,14 @@ fn flex_direction(applied: &[Applied]) -> FlexDirection {
 /// UA-implicit `none` always ([`Element::hidden`]). Both are author-overridable:
 /// a matched author/inline `display` is the `Some` arm and wins, exactly as a
 /// UA-origin declaration loses to the author origin.
+///
+/// [`Element::hidden_input`] is the exception that proves it: the UA sheet
+/// marks `input[type=hidden]` `!important`, so it is decided *before* the
+/// author cascade is consulted and nothing can render it.
 fn display(applied: &[Applied], el: &Element, js: bool) -> Display {
+    if el.hidden_input() {
+        return Display::None;
+    }
     match winner(applied, None, "display") {
         Some(v) => Display::parse(v),
         None if el.hidden() || (js && el.name == "noscript") => Display::None,

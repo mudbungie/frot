@@ -43,6 +43,20 @@ impl Element {
     pub fn hidden(&self) -> bool {
         self.attr("hidden").is_some()
     }
+
+    /// `<input type=hidden>` — the other half of the same UA "hidden elements"
+    /// block (HTML §15.3.1), and the one declaration in it marked
+    /// `!important`, so unlike [`Element::hidden`] no author rule can render
+    /// it. Kept a distinct predicate for exactly that reason: same rule, two
+    /// origins. The AX side is separate and stays separate — the HTML-AAM gives
+    /// `type=hidden` *no role* (`ax::role`), which is what removes it from
+    /// `--out ax` when no styles are computed at all.
+    pub fn hidden_input(&self) -> bool {
+        self.name == "input"
+            && self
+                .attr("type")
+                .is_some_and(|t| t.eq_ignore_ascii_case("hidden"))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

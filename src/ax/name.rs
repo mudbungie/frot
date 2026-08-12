@@ -90,9 +90,25 @@ fn native_name(
         "input" => input_name(doc, id, el, styles),
         "textarea" | "select" => control_label_text(doc, id, el, styles),
         "fieldset" => fieldset_legend_text(doc, id, styles),
-        _ if names_from_contents(el) => Some(name_text(doc, id, styles)),
+        _ if names_from_contents(doc, id) => Some(name_text(doc, id, styles)),
         _ => None,
     }
+}
+
+/// The *author-supplied* name — `aria-label`, `aria-labelledby`, `title` — with
+/// no native step. This is the sub-algorithm the HTML-AAM's conditional role
+/// mappings ask about ("if the element has an accessible name"): they apply to
+/// elements with no native name source, so for them the two agree, and asking
+/// only this way keeps role resolution free of any dependency on the role
+/// resolution of descendants.
+pub fn author_name(
+    doc: &Document,
+    el: &crate::dom::Element,
+    styles: Option<&Styles>,
+) -> Option<String> {
+    trimmed_attr(el, "aria-label")
+        .or_else(|| labelledby_text(doc, el, styles))
+        .or_else(|| trimmed_attr(el, "title"))
 }
 
 /// Roles whose accessible name is computed from descendant text — the
@@ -122,9 +138,9 @@ const NAME_FROM_CONTENTS: &[&str] = &[
     "treeitem",
 ];
 
-/// Whether `el`'s effective role is in [`NAME_FROM_CONTENTS`].
-fn names_from_contents(el: &crate::dom::Element) -> bool {
-    matches!(crate::ax::role(el), Some(r) if NAME_FROM_CONTENTS.contains(&r))
+/// Whether the node's effective role is in [`NAME_FROM_CONTENTS`].
+fn names_from_contents(doc: &Document, id: NodeId) -> bool {
+    matches!(crate::ax::role(doc, id), Some(r) if NAME_FROM_CONTENTS.contains(&r))
 }
 
 fn input_name(

@@ -1,27 +1,44 @@
 //! ARIA role resolution.
 //!
-//! [`role`] returns the effective role for an element: an explicit `role=`
+//! [`role`] returns the effective role of a node: an explicit `role=`
 //! attribute if it names a known role, otherwise the element's implicit role
-//! per the HTML AAM. Returns `None` when no semantic role applies (e.g.
-//! `<br>`, `<link>`, `<meta>`).
+//! per the HTML-AAM. `None` means "no semantic role at all" — the node
+//! contributes nothing to the AX tree (`<br>`, `<link>`, `<meta>`,
+//! `<input type=hidden>`).
+//!
+//! ## Why the whole document, not just the element
+//!
+//! Most HTML-AAM mappings are *conditional*: `<th>` is a `rowheader` or a
+//! `columnheader` depending on `scope` and its position in the row, `<footer>`
+//! is `contentinfo` only outside a sectioning ancestor, `<section>` is a
+//! `region` only when it is named, `<li>` is a `listitem` only inside a list.
+//! A flat tag→role table cannot express any of that, so resolution takes
+//! `(doc, id)` and reads the context it needs through [`context`]. There is one
+//! resolver and it is the authority; nothing downstream re-derives a role.
 //!
 //! [`level`] extracts the integer level for heading roles (h1–h6), honoring
 //! `aria-level` if present.
 
-use crate::dom::Element;
+use crate::dom::{Document, Element, NodeId, NodeKind};
 
-/// Effective ARIA role for an element, or `None` for elements that contribute
-/// no semantics at all.
-pub fn role(el: &Element) -> Option<&'static str> {
-    if let Some(r) = el.attr("role") {
-        let token = r.split_whitespace().next().unwrap_or("");
-        if !token.is_empty() {
-            if let Some(found) = KNOWN_ROLES.iter().find(|known| **known == token) {
-                return Some(*found);
-            }
-        }
-    }
-    implicit_role(el)
+mod context;
+mod implicit;
+
+/// Effective ARIA role for the node `id`, or `None` when it carries no
+/// semantics (a non-element node, or an element the HTML-AAM maps to nothing).
+pub fn role(doc: &Document, id: NodeId) -> Option<&'static str> {
+    let NodeKind::Element(el) = &doc.node(id).kind else {
+        return None;
+    };
+    explicit(el).or_else(|| implicit::role(doc, id, el))
+}
+
+/// An author `role=` attribute, resolved to its first known token. An
+/// unrecognized token is ignored entirely (the implicit role stands), which is
+/// what browsers do with a typo'd role.
+fn explicit(el: &Element) -> Option<&'static str> {
+    let token = el.attr("role")?.split_whitespace().next()?;
+    KNOWN_ROLES.iter().find(|known| **known == token).copied()
 }
 
 /// Heading level. Returns the `aria-level` value first if present and
@@ -42,103 +59,6 @@ pub fn level(el: &Element) -> Option<u32> {
         "h5" => Some(5),
         "h6" => Some(6),
         _ => None,
-    }
-}
-
-fn implicit_role(el: &Element) -> Option<&'static str> {
-    match el.name.as_str() {
-        "a" | "area" => {
-            if el.attr("href").is_some() {
-                Some("link")
-            } else {
-                Some("generic")
-            }
-        }
-        "article" => Some("article"),
-        "aside" => Some("complementary"),
-        "blockquote" => Some("blockquote"),
-        "body" => Some("generic"),
-        "button" => Some("button"),
-        "caption" => Some("caption"),
-        "code" => Some("code"),
-        "datalist" => Some("listbox"),
-        "dd" => Some("definition"),
-        "del" | "s" => Some("deletion"),
-        "details" => Some("group"),
-        "dfn" => Some("term"),
-        "dialog" => Some("dialog"),
-        "div" | "span" => Some("generic"),
-        "dl" => Some("list"),
-        "dt" => Some("term"),
-        "em" => Some("emphasis"),
-        "fieldset" => Some("group"),
-        "figcaption" => Some("caption"),
-        "figure" => Some("figure"),
-        "footer" => Some("contentinfo"),
-        "form" => Some("form"),
-        "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => Some("heading"),
-        "header" => Some("banner"),
-        "hr" => Some("separator"),
-        "img" => {
-            if el.attr("alt").map(|s| s.is_empty()).unwrap_or(false) {
-                Some("presentation")
-            } else {
-                Some("img")
-            }
-        }
-        "input" => Some(input_role(el)),
-        "ins" => Some("insertion"),
-        "li" => Some("listitem"),
-        "main" => Some("main"),
-        "mark" => Some("mark"),
-        "math" => Some("math"),
-        "menu" => Some("list"),
-        "meter" => Some("meter"),
-        "nav" => Some("navigation"),
-        "ol" | "ul" => Some("list"),
-        "optgroup" => Some("group"),
-        "option" => Some("option"),
-        "output" => Some("status"),
-        "p" => Some("paragraph"),
-        "progress" => Some("progressbar"),
-        "section" => Some("region"),
-        "select" => Some(select_role(el)),
-        "strong" => Some("strong"),
-        "sub" => Some("subscript"),
-        "summary" => Some("button"),
-        "sup" => Some("superscript"),
-        "svg" => Some("graphics-document"),
-        "table" => Some("table"),
-        "tbody" | "tfoot" | "thead" => Some("rowgroup"),
-        "td" => Some("cell"),
-        "textarea" => Some("textbox"),
-        "th" => Some("columnheader"),
-        "time" => Some("time"),
-        "tr" => Some("row"),
-        _ => None,
-    }
-}
-
-fn input_role(el: &Element) -> &'static str {
-    let raw = el.attr("type").unwrap_or("text").to_ascii_lowercase();
-    match raw.as_str() {
-        "button" | "image" | "reset" | "submit" => "button",
-        "checkbox" => "checkbox",
-        "radio" => "radio",
-        "range" => "slider",
-        "search" => "searchbox",
-        "email" | "tel" | "url" | "password" | "number" | "text" => "textbox",
-        _ => "textbox",
-    }
-}
-
-fn select_role(el: &Element) -> &'static str {
-    let multiple = el.attr("multiple").is_some();
-    let size: u32 = el.attr("size").and_then(|s| s.parse().ok()).unwrap_or(0);
-    if multiple || size > 1 {
-        "listbox"
-    } else {
-        "combobox"
     }
 }
 
@@ -206,6 +126,8 @@ const KNOWN_ROLES: &[&str] = &[
     "scrollbar",
     "search",
     "searchbox",
+    "sectionfooter",
+    "sectionheader",
     "separator",
     "slider",
     "spinbutton",
