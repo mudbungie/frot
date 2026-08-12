@@ -191,6 +191,31 @@ fn external_hrefs_resolves_only_stylesheet_links() {
 }
 
 #[test]
+fn external_hrefs_resolve_against_the_document_base() {
+    // bl-409e: the gather resolved sheets against the page URL and ignored
+    // `<base href>` entirely, so a based page fetched URLs no browser would.
+    let doc = crate::dom::Document::parse(
+        "<base href='/'>\
+         <link rel='stylesheet' href='styles/main.css'>",
+    );
+    assert_eq!(
+        external_hrefs(&doc, "http://example.com/dir/page"),
+        vec!["http://example.com/styles/main.css".to_string()]
+    );
+}
+
+#[test]
+fn a_file_base_on_a_remote_page_cannot_unlock_local_sheets() {
+    // The remote→local block keys on the *page* scheme, never the base: a
+    // `<base href="file:...">` is page-controlled content, so honouring it here
+    // would let any origin read the caller's disk.
+    let doc = crate::dom::Document::parse(
+        "<base href='file:///etc/'><link rel='stylesheet' href='passwd'>",
+    );
+    assert!(external_hrefs(&doc, "http://example.com/").is_empty());
+}
+
+#[test]
 fn external_hrefs_empty_when_base_unparseable() {
     let doc = crate::dom::Document::parse("<link rel='stylesheet' href='/a.css'>");
     assert!(external_hrefs(&doc, "not a url").is_empty());

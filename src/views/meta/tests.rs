@@ -75,6 +75,16 @@ fn canonical_resolved_against_base_href() {
 }
 
 #[test]
+fn root_relative_base_href_still_yields_an_absolute_canonical() {
+    // bl-409e: a raw `/` base left the canonical unresolved.
+    let v = run(
+        "<head><base href='/'><link rel='canonical' href='canon'></head>",
+        "https://example.com/docs/intro",
+    );
+    assert_eq!(v["canonical"], "https://example.com/canon");
+}
+
+#[test]
 fn canonical_kept_as_is_when_base_unparseable() {
     let v = run(
         "<head><link rel='canonical' href='/canon'></head>",

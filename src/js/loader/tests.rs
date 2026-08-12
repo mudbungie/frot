@@ -195,6 +195,31 @@ fn a_clean_module_with_no_imports_settles() {
 }
 
 #[test]
+fn an_inline_modules_imports_resolve_against_the_document_base() {
+    // bl-409e: an inline module's import base is the *document base URL*, so a
+    // `<base href>` moves the graph exactly as it does in a browser. The page
+    // lives in one directory and the dependency in another the base points at,
+    // so only a base-aware resolve can find it.
+    let page_dir = tmpdir("base-page");
+    let dep_dir = tmpdir("base-dep");
+    fs::write(dep_dir.join("dep.js"), "export const msg = 'based!';").unwrap();
+    let base = url::Url::from_directory_path(&dep_dir).unwrap();
+    let html = format!(
+        "<head><base href='{base}'></head>{}",
+        module_page(
+            "import {msg} from './dep.js'; \
+             document.getElementById('root').textContent = msg;"
+        )
+    );
+    let (doc, r) = drive_at(&html, &page_url(&page_dir));
+    assert_eq!((r.scripts, r.errors, r.settled()), (1, 0, true));
+    let root = doc.find_by_tag("div")[0];
+    assert_eq!(doc.text_content(root), "based!");
+    fs::remove_dir_all(&page_dir).unwrap();
+    fs::remove_dir_all(&dep_dir).unwrap();
+}
+
+#[test]
 fn an_endless_module_trips_the_budget_and_is_unsettled() {
     // A module that never returns burns the `EXEC_CPU_MS` compute budget (§5):
     // the run is unsettled and the trip is counted, like a classic script.

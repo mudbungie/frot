@@ -202,6 +202,46 @@ fn envelope_records_both_requested_and_final_urls() {
 }
 
 #[test]
+fn based_links_are_absolute_against_the_final_url() {
+    // bl-409e end to end: `<base href="/">` on a page reached through a
+    // redirect. The base is the *landing* URL's origin root, and every emitted
+    // href is absolute — the README's "links with absolute hrefs" promise, which
+    // an unresolved raw base silently broke.
+    let mut server = mockito::Server::new();
+    let _m1 = server
+        .mock("GET", "/start")
+        .with_status(301)
+        .with_header("location", "/docs/intro")
+        .create();
+    let _m2 = server
+        .mock("GET", "/docs/intro")
+        .with_status(200)
+        .with_body(
+            "<head><base href='/'>\
+             <link rel='apple-touch-icon' href='/assets/icon.png'></head>\
+             <body><a href='guide'>g</a></body>",
+        )
+        .create();
+    let start = format!("{}/start", server.url());
+    let (code, out, _) = run_capture(&[&start, "--out", "links"]);
+    assert_eq!(code, 0);
+    let v = parse_envelope(&out);
+    let hrefs: Vec<String> = v["out"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| l["href"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(
+        hrefs,
+        vec![
+            format!("{}/assets/icon.png", server.url()),
+            format!("{}/guide", server.url()),
+        ]
+    );
+}
+
+#[test]
 fn css_flag_applies_visibility_to_text_view() {
     let mut server = mockito::Server::new();
     let _m = server

@@ -176,13 +176,13 @@ fn run_script_queue(session: &Session, report: &mut Report) {
             // Non-JS `type` / `nomodule`: not for us (§4.1), skipped silently.
             Script::Skip => {}
             // Inline classic body, or an inline module whose imports resolve
-            // against the page URL (js.md §4.1).
+            // against the document base URL (js.md §4.1).
             Script::Inline {
                 module: false,
                 body,
             } => run_script(session, &body, report),
             Script::Inline { module: true, body } => {
-                run_module(session, session.page_url(), &body, report)
+                run_module(session, &script::module_base(session), &body, report)
             }
         }
     }

@@ -44,6 +44,17 @@ fn base_href_overrides_for_form_action() {
 }
 
 #[test]
+fn root_relative_base_href_still_yields_an_absolute_action() {
+    // bl-409e: a raw `/` base left the action unresolved. One authority now
+    // resolves it against the page first, so forms match links and meta.
+    let r = run(
+        "<head><base href='/'></head><body><form action='search'></form></body>",
+        "https://example.com/docs/intro",
+    );
+    assert_eq!(r[0]["action"], "https://example.com/search");
+}
+
+#[test]
 fn explicit_enctype_kept() {
     let r = run(
         "<form enctype='multipart/form-data'></form>",

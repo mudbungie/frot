@@ -29,8 +29,9 @@ pub struct Session {
     /// `report` syscall and by [`Session::capture`]).
     counters: syscall::Counters,
     subfetch: subfetch::SharedSubfetch,
-    /// The final page URL — the base an inline `type="module"` script's imports
-    /// resolve against (js.md §4.1); external modules use their own fetched URL.
+    /// The final page URL — the document URL every document-relative reference
+    /// is ultimately anchored to ([`crate::base`]); external modules use their
+    /// own fetched URL.
     page_url: String,
 }
 
@@ -177,7 +178,8 @@ impl Session {
         self.engine.eval_module(name, src)
     }
 
-    /// The final page URL — an inline module script's import base (js.md §4.1).
+    /// The final page URL — the anchor the document base URL derives from
+    /// ([`script::module_base`], js.md §4.1).
     pub(super) fn page_url(&self) -> &str {
         &self.page_url
     }
@@ -266,7 +268,7 @@ impl Session {
     /// before the cache's parallel dispatch, which rides the run's `NET_BUDGET_MS`
     /// wall deadline and byte pool.
     pub(super) fn warm_initial_scripts(&self) {
-        let reqs = script::initial_externals(&self.doc.borrow());
+        let reqs = script::initial_externals(&self.doc.borrow(), &self.page_url);
         self.subfetch.borrow_mut().warm(&reqs);
     }
 }

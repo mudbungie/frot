@@ -12,13 +12,13 @@
 //! }
 //! ```
 
+use crate::base;
 use crate::dom::{Document, Element, NodeId, NodeKind, WalkEvent};
 use serde_json::{json, Value};
 use url::Url;
 
 pub fn forms(doc: &Document, page_url: &str) -> Value {
-    let base = effective_base(doc, page_url);
-    let base_url = Url::parse(&base).ok();
+    let base_url = base::base_url(doc, page_url);
     let mut out = Vec::new();
     doc.walk(None, &mut |ev, e| {
         if let (WalkEvent::Enter(id), NodeKind::Element(el)) = (ev, &e.kind) {
@@ -30,32 +30,9 @@ pub fn forms(doc: &Document, page_url: &str) -> Value {
     Value::Array(out)
 }
 
-fn effective_base(doc: &Document, fallback: &str) -> String {
-    let mut found: Option<String> = None;
-    doc.walk(None, &mut |ev, entry| {
-        if found.is_some() {
-            return;
-        }
-        if let (WalkEvent::Enter(_), NodeKind::Element(el)) = (ev, &entry.kind) {
-            if el.name == "base" {
-                if let Some(href) = el.attr("href").filter(|h| !h.is_empty()) {
-                    found = Some(href.to_string());
-                }
-            }
-        }
-    });
-    found.unwrap_or_else(|| fallback.to_string())
-}
-
-fn resolve(base: Option<&Url>, href: &str) -> String {
-    base.and_then(|b| b.join(href).ok())
-        .map(|u| u.to_string())
-        .unwrap_or_else(|| href.to_string())
-}
-
 fn build_form(doc: &Document, id: NodeId, form_el: &Element, base: Option<&Url>) -> Value {
     let action_raw = form_el.attr("action").unwrap_or("");
-    let action = resolve(base, action_raw);
+    let action = base::resolve(base, action_raw);
     let method = form_el
         .attr("method")
         .map(|m| m.to_ascii_lowercase())

@@ -42,6 +42,62 @@ fn base_href_overrides_page_url() {
 }
 
 #[test]
+fn root_relative_base_href_still_yields_absolute_links() {
+    // bl-409e, the angular.dev shape: `<base href="/">` is not itself a URL, so
+    // a raw base left every href unresolved. Resolved against the page it is the
+    // origin root, and the icon link comes out absolute — as `document.baseURI`
+    // and the element's `href` report in Chrome at the same final URL.
+    let r = run(
+        "<head><base href='/'>\
+         <link rel='apple-touch-icon' href='/assets/icons/apple-touch-icon.png'></head>\
+         <body><a href='guide'>guide</a></body>",
+        "https://example.com/docs/intro",
+    );
+    assert_eq!(
+        href_of(&r[0]),
+        "https://example.com/assets/icons/apple-touch-icon.png"
+    );
+    assert_eq!(href_of(&r[1]), "https://example.com/guide");
+}
+
+#[test]
+fn path_relative_base_href_resolves_against_the_page_directory() {
+    let r = run(
+        "<head><base href='build/'></head><body><a href='x'>x</a></body>",
+        "https://example.com/docs/intro",
+    );
+    assert_eq!(href_of(&r[0]), "https://example.com/docs/build/x");
+}
+
+#[test]
+fn scheme_relative_base_href_takes_the_page_scheme() {
+    let r = run(
+        "<head><base href='//cdn.example.com/a/'></head><body><a href='x'>x</a></body>",
+        "https://example.com/",
+    );
+    assert_eq!(href_of(&r[0]), "https://cdn.example.com/a/x");
+}
+
+#[test]
+fn invalid_base_href_falls_back_to_page_url() {
+    let r = run(
+        "<head><base href='http://'></head><body><a href='/y'>y</a></body>",
+        "https://example.com/",
+    );
+    assert_eq!(href_of(&r[0]), "https://example.com/y");
+}
+
+#[test]
+fn only_the_first_base_href_counts() {
+    let r = run(
+        "<head><base href='/first/'><base href='/second/'></head>\
+         <body><a href='x'>x</a></body>",
+        "https://example.com/",
+    );
+    assert_eq!(href_of(&r[0]), "https://example.com/first/x");
+}
+
+#[test]
 fn empty_base_href_falls_back_to_page_url() {
     let r = run(
         "<head><base href=''></head><body><a href='/y'>y</a></body>",

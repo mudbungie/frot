@@ -78,12 +78,15 @@ pub(crate) fn gather_within(
 }
 
 /// Absolute URLs of `<link rel="stylesheet">` hrefs, resolved against the
-/// page's final URL. Non-stylesheet links, empty hrefs, and hrefs that fail
-/// to resolve are dropped. A `file:` sheet is kept only when the page itself
-/// is `file:` — remote content must never cause local reads.
-pub(crate) fn external_hrefs(doc: &Document, base: &str) -> Vec<String> {
-    let base_url = Url::parse(base).ok();
-    let base_is_file = base_url.as_ref().is_some_and(|b| b.scheme() == "file");
+/// document base URL ([`crate::base`]) — the same authority the views resolve
+/// through, so a `<base href>` moves the sheets a browser would fetch and the
+/// ones frot fetches together. Non-stylesheet links, empty hrefs, and hrefs that
+/// fail to resolve are dropped. A `file:` sheet is kept only when the *page*
+/// is `file:` — remote content must never cause local reads, and a `<base>` the
+/// page controls cannot unlock them.
+pub(crate) fn external_hrefs(doc: &Document, page_url: &str) -> Vec<String> {
+    let base_url = crate::base::base_url(doc, page_url);
+    let page_is_file = Url::parse(page_url).is_ok_and(|p| p.scheme() == "file");
     let mut out = Vec::new();
     doc.walk(None, &mut |ev, e| {
         if let WalkEvent::Enter(_) = ev {
@@ -96,7 +99,7 @@ pub(crate) fn external_hrefs(doc: &Document, base: &str) -> Vec<String> {
                 if is_sheet {
                     if let Some(h) = el.attr("href").filter(|s| !s.is_empty()) {
                         if let Some(u) = base_url.as_ref().and_then(|b| b.join(h).ok()) {
-                            if u.scheme() != "file" || base_is_file {
+                            if u.scheme() != "file" || page_is_file {
                                 out.push(u.to_string());
                             }
                         }

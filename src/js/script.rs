@@ -5,6 +5,9 @@
 //! driver (`super::run_script_queue`) owns the ordering and execution; this owns
 //! only the "what kind of script is this" question.
 
+use url::Url;
+
+use crate::base;
 use crate::dom::{Document, NodeId, NodeKind};
 use crate::fetch::Intent;
 
@@ -16,8 +19,9 @@ use super::Session;
 pub(super) enum Script {
     /// Inline body to evaluate — as a module when `module`, else a classic script.
     Inline { module: bool, body: String },
-    /// External `src` (the attribute value) — fetched under §6, then run as a
-    /// classic script or, when `module`, evaluated as a module (§4.2).
+    /// External `src`, already resolved against the document base URL — fetched
+    /// under §6, then run as a classic script or, when `module`, evaluated as a
+    /// module (§4.2).
     External { module: bool, src: String },
     /// Non-JS `type` or `nomodule`: intentionally not run, not counted.
     Skip,
@@ -40,30 +44,44 @@ pub(super) fn external_intent(module: bool) -> Intent {
 /// script inserts later is not here, so it is never speculatively prefetched
 /// (js.md §6 / the task's explicit non-goal). Inline and non-JS scripts have no
 /// resource to fetch and are skipped.
-pub(super) fn initial_externals(doc: &Document) -> Vec<(String, Intent)> {
+pub(super) fn initial_externals(doc: &Document, page_url: &str) -> Vec<(String, Intent)> {
+    let base = base::base_url(doc, page_url);
     doc.find_by_tag("script")
         .into_iter()
-        .filter_map(|id| match classify(doc, id) {
+        .filter_map(|id| match classify(doc, id, base.as_ref()) {
             Script::External { module, src } => Some((src, external_intent(module))),
             _ => None,
         })
         .collect()
 }
 
-/// The next `<script>` (document order) not already in `done`, classified.
+/// The next `<script>` (document order) not already in `done`, classified. The
+/// base is derived from the *current* document, so a `<base>` a script inserted
+/// moves what the scripts after it fetch, exactly as in a browser.
 pub(super) fn next_script(session: &Session, done: &[NodeId]) -> Option<(NodeId, Script)> {
     let doc = session.document();
     let id = doc
         .find_by_tag("script")
         .into_iter()
         .find(|id| !done.contains(id))?;
-    Some((id, classify(&doc, id)))
+    let base = base::base_url(&doc, session.page_url());
+    Some((id, classify(&doc, id, base.as_ref())))
 }
 
-/// Classify a `<script>` per §4.1. `find_by_tag` only yields elements, but a
-/// non-element id has nothing to run — a spec-legal-empty [`Script::Skip`],
-/// not a panic.
-fn classify(doc: &Document, id: NodeId) -> Script {
+/// The base an *inline* `type="module"` script's imports resolve against (§4.1):
+/// the document base URL, or the page URL when there is no absolute one to
+/// derive it from. Held in no field — the document is the fact, so it is asked
+/// each time.
+pub(super) fn module_base(session: &Session) -> String {
+    base::base_url(&session.document(), session.page_url())
+        .map_or_else(|| session.page_url().to_string(), |u| u.to_string())
+}
+
+/// Classify a `<script>` per §4.1, resolving an external `src` against the
+/// document base URL so the fetch hits what a browser would. `find_by_tag` only
+/// yields elements, but a non-element id has nothing to run — a spec-legal-empty
+/// [`Script::Skip`], not a panic.
+fn classify(doc: &Document, id: NodeId, base: Option<&Url>) -> Script {
     let NodeKind::Element(el) = &doc.node(id).kind else {
         return Script::Skip;
     };
@@ -72,7 +90,7 @@ fn classify(doc: &Document, id: NodeId) -> Script {
     } else if let Some(src) = el.attr("src").filter(|s| !s.is_empty()) {
         Script::External {
             module: is_module(el.attr("type")),
-            src: src.to_string(),
+            src: base::resolve(base, src),
         }
     } else {
         Script::Inline {

@@ -12,9 +12,9 @@
 //! }
 //! ```
 
+use crate::base;
 use crate::dom::{Document, NodeKind, WalkEvent};
 use serde_json::{json, Value};
-use url::Url;
 
 pub fn meta(doc: &Document, page_url: &str) -> Value {
     let mut title: Option<String> = None;
@@ -22,7 +22,6 @@ pub fn meta(doc: &Document, page_url: &str) -> Value {
     let mut charset: Option<String> = None;
     let mut canonical: Option<String> = None;
     let mut metas: Vec<Value> = Vec::new();
-    let mut base_href: Option<String> = None;
 
     doc.walk(None, &mut |ev, e| {
         if let (WalkEvent::Enter(id), NodeKind::Element(el)) = (ev, &e.kind) {
@@ -32,12 +31,6 @@ pub fn meta(doc: &Document, page_url: &str) -> Value {
                 }
                 "html" if lang.is_none() => {
                     lang = el.attr("lang").map(|s| s.to_string());
-                }
-                "base" if base_href.is_none() => {
-                    base_href = el
-                        .attr("href")
-                        .filter(|h| !h.is_empty())
-                        .map(|s| s.to_string());
                 }
                 "link" => {
                     let rel = el.attr("rel").unwrap_or("");
@@ -72,9 +65,12 @@ pub fn meta(doc: &Document, page_url: &str) -> Value {
         }
     });
 
-    let effective_base = base_href.as_deref().unwrap_or(page_url);
-    let base_url = Url::parse(effective_base).ok();
-    let canonical_resolved = canonical.as_deref().map(|c| resolve(base_url.as_ref(), c));
+    // `canonical` is a URL like any other: resolved against the shared document
+    // base URL authority ([`crate::base`]), never against a raw `<base href>`.
+    let base_url = base::base_url(doc, page_url);
+    let canonical_resolved = canonical
+        .as_deref()
+        .map(|c| base::resolve(base_url.as_ref(), c));
 
     json!({
         "title": title,
@@ -118,12 +114,6 @@ fn build_meta_entry(el: &crate::dom::Element) -> Option<Value> {
     }
     obj.insert("content".into(), Value::String(content.to_string()));
     Some(Value::Object(obj))
-}
-
-fn resolve(base: Option<&Url>, href: &str) -> String {
-    base.and_then(|b| b.join(href).ok())
-        .map(|u| u.to_string())
-        .unwrap_or_else(|| href.to_string())
 }
 
 #[cfg(test)]
