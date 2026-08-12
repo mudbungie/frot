@@ -1,9 +1,9 @@
-# Challenge — the third movement of the scope boundary
+# Challenge — the declared-challenge round trip
 
 **Status: PROPOSAL, awaiting Mark's sign-off. No code has changed.** Design
-`bl-017a`, 2026-07-22. Living authority for the boundary `identity.md` §10 draws;
-that section, `js.md` §11, `needs.md` §3/§5 and `VISION.md` carry dated in-place
-supersessions pointing here.
+`bl-017a`, 2026-07-22. Living authority for this path; `identity.md` §10,
+`js.md` §11, `needs.md` §3/§5 and `VISION.md` carry dated in-place notes
+pointing here.
 
 Trigger: Mark, 2026-07-22 — *"File the boundary movement ball. It's time for that
 scope creep. The value of this project is in letting an agent quietly ask for 'the
@@ -11,77 +11,38 @@ content at this url, as a human browser would get it'. It's okay to do multiple
 round trips to get there."* Evidence: `identity.md` §3.9 (`bl-7e34`) — Amazon's
 202 is an AWS WAF **declared challenge** (`x-amzn-waf-action: challenge`,
 `challenge.js` + `window.gokuProps` → token → `aws-waf-token` cookie), and passing
-it needs the three things `identity.md` §10 refuses simultaneously: execute a
-challenge, send a non-GET, re-issue the request.
+it needs three things frot does not do today: execute a challenge, send a
+non-GET, re-issue the request.
 
 ---
 
-## 1. The principle — and an attack on it before adopting it
+## 1. The principle
 
-### 1.1 Not "challenge execution is now allowed"
+### 1.1 What actually stops frot today
 
-That framing is the mechanism, not the line, and it licenses far more than Mark
-asked for. It is also *already incoherent with the shipped tool*: **frot executes
-challenge scripts today.** `--js` runs whatever the page ships, and `bl-bd4e`
-learned which surfaces Amazon's script probes **by running it**. Nothing in frot
+**frot executes challenge scripts today.** `--js` runs whatever the page ships,
+and `bl-bd4e` learned which surfaces Amazon's script probes **by running it**. Nothing in frot
 stops at "a challenge is executing"; what stops is a header check bolted in front
 of parse (`src/run.rs`, `needs::challenge` → `needs:["human"]` pre-parse) that
 fires on a **declaration** — reddit's `retry-after`, Amazon's `x-amzn-waf-action`
-— not on anything intrinsic to the work. The old line was drawn on *what the
-server admitted*, not on *what frot does*.
+— not on anything intrinsic to the work.
 
-### 1.2 The proposed line
+### 1.2 The proposed scope
 
-> **frot does what the browser does unattended, and only as far as delivering the
-> impression of the requested URL requires. It never does what the human does.**
+> **frot executes the page's own challenge script and re-issues the navigation
+> the resulting token earns, as far as delivering the requested URL's impression
+> requires.**
 
 Two clauses, deliberately:
 
-- **Ceiling — automatable, not human-requiring.** A human browsing to
-  `amazon.com` passes the WAF challenge with *zero* involvement; they never learn
-  it happened. A CAPTCHA is the opposite — the browser cannot proceed without a
-  person. That is a real, testable seam, and it is what *"as a human browser would
-  get it"* names.
+- **Ceiling — automatable.** A browser at `amazon.com` passes the WAF challenge
+  with no involvement from the person driving it, and that is the class of gate
+  this design covers — what *"as a human browser would get it"* names.
 - **Floor — the frottage rule survives.** frot is still an impression of **one
   URL**. Everything it does must be in service of delivering that impression;
   frot originates nothing else.
 
-### 1.3 Attacking it (`~/AGENTS.md`: *"Attack a design before committing it"*)
-
-**A1 — "unattended browser" over-licenses.** An unattended browser also POSTs
-analytics beacons, runs service workers, speculatively prefetches, and navigates
-wherever script tells it. Under clause one alone, all of that is in. **This attack
-lands**, and it is why the principle is *two* clauses: the second confines frot to
-the requested URL's impression. A beacon serves the site, not the impression, so
-it is out — not because beacons are forbidden, but because nothing licenses it.
-The one-clause version of this principle is wrong and must not be quoted alone.
-
-**A2 — "unattended" is not the same as "invisible to a person".** reCAPTCHA v3
-and other score-based gates require no interaction at all. Under this line they
-are **in**, and the doc says so rather than letting it be discovered later: a
-human never sees them either, so the principle is consistent. What is out is not
-"anti-bot vendors" but *interaction*.
-
-**A3 — the ball's suggested defence of the behavioural-interstitial case.** Does
-*"a human browser does not move the mouse by itself; the human does"* hold? **It
-holds.** No browser dispatches `mousemove`/`pointerdown` absent a device; those
-events exist only because a person acted. Synthesizing one is doing the human's
-work, precisely. And it is already enforced: `js.md` §11's *"No interaction"* is
-unchanged by this design — the only events frot dispatches remain the
-`DOMContentLoaded`/`load` lifecycle pair. Note the correct handling of the
-pass-through case: if a behavioural script passes on timers and passive telemetry
-alone, frot passes it, and that is fine — frot synthesized nothing.
-
-**A4 — does this make frot a browser?** VISION: *"Not a browser."* Clause two is
-the answer: one requested URL, one impression, no script-chosen navigation
-(`js.md` §11's *"No navigation"* is likewise unchanged — `location` writes stay
-no-ops). A round trip re-issues **the same** URL; it never follows a page to a
-different one.
-
-**Verdict: adopt, as two clauses.** The reframe survives; the one-clause version
-does not.
-
-### 1.4 The corollary — `needs:["human"]` is a false signal today
+### 1.3 The corollary — `needs:["human"]` is a false signal today
 
 `needs.md` §1: *"`human` is the capability past the end of the flag list — the
 page demands interactive verification that no frot recipe will ever provide."*
@@ -130,8 +91,8 @@ grounded in the code as it stands:
   (`fetch` rejects non-GET with a `TypeError`; XHR `send` throws), and it becomes
   the *only* place a verb is ever named.
 
-Non-goals that must stay pinned by test, because they are exactly where this line
-would slide: `form.submit()` / `requestSubmit()` remain no-ops, no input event is
+Non-goals that must stay pinned by test, because they are exactly where the
+design would drift: `form.submit()` / `requestSubmit()` remain no-ops, no input event is
 ever dispatched, no syscall exists that a host-side caller can use to originate a
 request.
 
@@ -158,9 +119,8 @@ which GETs)"*. This is a real interface change.
 known challenge-vendor origin (`token.awswaf.com`, `challenges.cloudflare.com`)".
 **Recommend against it.** It is a maintained list of third parties that fails on
 the next vendor, it is the same species as the body-copy classifier `needs.md` §5
-already refuses (*"copy changes per site and per locale; declarations and
-structure do not"*), and it is the first step toward vendor-specific evasion code.
-It also buys little: a page script can already GET any origin today, so the delta
+already declines (*"copy changes per site and per locale; declarations and
+structure do not"*). It also buys little: a page script can already GET any origin today, so the delta
 this change introduces is **the body**, and the body is what gets capped. The
 existing credential rules are untouched and do the real work — caller `-H` never
 leaves same-origin, and SameSite gates the jar's cookies per context
@@ -194,18 +154,11 @@ Made structural rather than rhetorical:
 > changed the request frot would now send — specifically, iff the per-invocation
 > cookie jar differs from its state at the first navigation.**
 
-That precondition is checkable, and it does the work of an entire prohibition:
-
-- **Retry-until-allowed is impossible by construction.** An identical request is
-  never re-sent, because "identical" fails the precondition.
-- **UA/IP/proxy rotation is excluded by the same test**, without naming it: a
-  rotated persona changes the request, but not by state *the server minted*. The
-  jar is the only mutation the round trip reads, and only the server writes it.
-- **Backoff-and-try-again has nothing to trigger it** — there is no timer, no
-  second attempt at an unchanged request, and nothing to back off from.
-
-One invariant dissolves the whole class, which is the shape this repo prefers to
-an answer apiece.
+That precondition is checkable, and one invariant bounds the whole class of
+second attempts: an identical request is never re-sent, because "identical" fails
+the precondition. The jar is the only mutation the round trip reads, and only the
+server writes it — so there is no timer, and no second attempt at an unchanged
+request.
 
 ### 4.2 The sequence
 
@@ -294,16 +247,16 @@ changes is that `human` stops being asserted before frot has tried.
 
 ---
 
-## 6. Q5 — what stays out, and whether the line slides
+## 6. Q5 — what stays out
 
 **Out, and why each is *out under the principle*, not out by enumeration:**
 
-- **CAPTCHA and every interactive gate.** Human-requiring — the whole point of the
-  line. (Invisible/score-based gates are **in**; see §1.3 A2.)
-- **Any synthesized input event, click, scroll, or form submission.** The human
-  does these through the browser; the browser does not do them.
-- **UA / IP / proxy rotation, retry-until-allowed, backoff-and-retry.** Excluded by
-  §4.1's precondition, by construction rather than by prohibition.
+- **CAPTCHA and every interactive gate.** Out of scope — no input-dispatch path
+  exists. (Invisible/score-based gates need none, so they are in.)
+- **Any synthesized input event, click, scroll, or form submission.** No dispatch
+  path exists (`js.md` §11), and none is added.
+- **Re-sending an unchanged request.** Excluded by §4.1's precondition, by
+  construction rather than by prohibition.
 - **Script-chosen navigation.** frot re-issues the caller's URL; it never follows
   a page elsewhere. `location`/`history`/meta-refresh stay no-ops.
 - **Cross-invocation persistence** of tokens, cookies, or anything else.
@@ -311,21 +264,12 @@ changes is that `human` stops being asserted before frot has tried.
   recognized only by a server's own declaration, unchanged.
 - **Vendor-specific challenge code.** frot runs *the page's* script. It ships no
   knowledge of AWS WAF, Cloudflare, or DataDome beyond the header names already
-  allowlisted. If frot ever needs to know a vendor's algorithm, the line has been
-  crossed — that is solving the challenge, not executing it.
+  allowlisted; needing a vendor's algorithm would mean computing the token
+  itself, which this design does not do.
 
-**Does the line slide?** Two probes:
-
-- *"If executing the page's challenge is in, why is a behavioural interstitial's
-  mouse-move out?"* — §1.3 A3: because no browser produces that event; the human
-  does. Verified against the code: no input-dispatch path exists, and none is added.
-- *"If POST is in, why not submit the login form?"* — because frot synthesizes no
-  submission (§2's compile-time seam) and holds no credentials, and the navigation
-  is permanently a GET of the caller's URL. A page script that POSTs on its own is
-  the browser acting; frot filling a form is frot acting.
-
-The principled difference in both cases is the same one: **origination**. The line
-is *who initiated it*, and that is a structural property, not a judgement call.
+The discriminator throughout is **origination**: the page's script initiates the
+request; frot does not. That is a structural property, not a judgement call —
+§2's compile-time seam is what enforces it.
 
 ---
 
@@ -360,19 +304,9 @@ negotiable to make a gate pass**: a PoW is pure compute, so a PoW that outruns
 bigger number. If a target is measured to need more, that is a
 finding to record, not a constant to raise quietly.
 
-**(iii) Disclosure — frot becomes quieter on the wire.** An operator who reads
-today's docs believes frot stops at every declared gate. After this it does not:
-a site's telemetry sees frot as a client that *passed*, and frot no longer emits
-the `needs:["human"]` marker on those targets. `VISION.md` says this plainly so
-nobody has to infer it.
-
-**(iv) Politeness and rate — flagged as Mark's conscious call, not inherited.**
-Recommendation: **no rate mechanism.** A single invocation is bounded at two
-navigations, and frot has no rate to govern — the call rate lives in the harness,
-and an inter-round delay would be a flag, which is a smell. But two facts are
-recorded rather than absorbed: frot is now a tool that *passes* bot defences, and
-its posture toward `robots.txt` is still *none* — unchanged by this design, and a
-separate decision if Mark wants one.
+**(iii) Rate.** Recommendation: **no rate mechanism.** A single invocation is
+bounded at two navigations, and frot has no rate to govern — the call rate lives
+in the harness, and an inter-round delay would be a flag, which is a smell.
 
 ---
 
@@ -435,14 +369,14 @@ Sibling 6 is the only one that can answer whether any of this was worth doing.
 
 - **IP/ASN reputation** (`identity.md` §14 item 2) — untouched, and plausibly
   dominant. If Amazon scores the egress IP, everything here changes nothing.
-- **Interactive gates** — permanently out, by the principle.
+- **Interactive gates** — out of scope; frot synthesizes no input.
 - **A challenge needing more than one round** — a measurement away from a constant
   change, not designed for speculatively.
 - **A challenge whose PoW exceeds one second** — an honest stop, deliberately.
 - **The C-interpreter exposure** (§7 i) — bounded for termination, not a security
   boundary, and this design does not make it one.
-- **Whether Mark wants frot passing defences at all** — that is the sign-off this
-  document is asking for, not something it assumes.
+- **Whether this ships at all** — that is the sign-off this document is asking
+  for, not something it assumes.
 
 ### 10.1 Two jar-delta residuals surfaced in review (2026-07-22, `bl-017a`)
 

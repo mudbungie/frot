@@ -39,7 +39,7 @@ of the identity objects.
   budget. Layout is not triggered, so `offsetWidth` font-measurement loops are not
   reached (and are structurally unobservable to the instrument anyway).
 - **Challenge pages:** fetched with exactly one request and **never executed**
-  (`bl-abe5` boundary).
+  (`bl-abe5`).
 
 ## Ranked table — probed surfaces per page (live, 2026-07-21)
 
@@ -75,8 +75,8 @@ fingerprint testbeds confirm the rest.
 > **declared JS challenge** (`challenge.js` + `window.gokuProps`), which
 > computes a token and POSTs it to mint an `aws-waf-token` cookie. So its
 > probes are not a gate a coherent persona can pass — they are one half of a
-> challenge whose other half is work-and-submit, the `identity.md` §10 refused
-> boundary. **frot now flips to `needs:["human"]` pre-parse and never executes
+> challenge whose other half is work-and-submit, which frot does not do today
+> (`docs/design/challenge.md`). **frot now flips to `needs:["human"]` pre-parse and never executes
 > it**, which is also why this row can no longer be re-harvested live. The
 > capability balls it motivated (`bl-05e6`/`bl-f624`/`bl-cf3a`/`bl-1cb7`/
 > `bl-342a`) all landed and keep their independent justification from the

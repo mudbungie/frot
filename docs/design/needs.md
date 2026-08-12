@@ -67,8 +67,8 @@ verification"), so no content test catches it without a magic length
 threshold — exactly the fragile string-adjacent classifier this design
 refuses. The telegram scaffold sends no deferral header, so no transport
 test catches it. One mechanism for both would have to be a body-shape
-classifier of challenge pages, which is both fragile and the first step
-down the evasion road. Two detectors, one honest spelling family.
+classifier of challenge pages, which is fragile. Two detectors, one
+honest spelling family.
 
 ## 3. Transport: declared deferral → `needs:["human"]` (bl-6d75)
 
@@ -107,35 +107,25 @@ Semantics:
   flip beside it in `run.rs`: a `--out dom` of an interstitial is an
   impression of the placeholder presented as the page, so every view
   flips. No `out`, no `js` block — nothing ran.
-- **frot never executes a declared challenge's scripts.** Stopping at the
-  declaration is the refused boundary (VISION "What this is not",
-  `js.md` §11) enforced in code: detection is refusal to pretend, not a
-  step toward evasion. If that boundary ever moves, it moves in its own
-  ball — not by this detector growing capabilities.
+- **A declared challenge's scripts are not executed.** `run.rs` returns at
+  the declaration, pre-parse, so nothing on the challenge page runs.
 
-  > **Superseded 2026-07-22 (`bl-017a`) — that ball was filed, and this is it.**
-  > The bullet above is kept verbatim as the shipped behaviour and as the
-  > superseded line. Under `docs/design/challenge.md` (**proposal, awaiting
-  > sign-off**) the sequence becomes: a declared challenge with `--js` off →
-  > `needs:["js"]`; with `--js` on → the page's *own* challenge script runs in the
-  > existing sandbox, and **iff it changed the request frot would now send** (the
-  > per-invocation cookie jar differs — `bl-6dad`) the original navigation is
-  > re-issued, at most `CHALLENGE_ROUNDS = 1` time. Success is `ok` plus an
+  > **Amended 2026-07-22 (`bl-017a`) — `docs/design/challenge.md`, proposal
+  > awaiting sign-off.** The bullet above is the shipped behaviour. Under that
+  > design the sequence becomes: a declared challenge with `--js` off →
+  > `needs:["js"]`; with `--js` on → the page's *own* challenge script runs in
+  > the existing sandbox, and **iff it changed the request frot would now send**
+  > (the per-invocation cookie jar differs — `bl-6dad`) the original navigation
+  > is re-issued, at most `CHALLENGE_ROUNDS = 1` time. Success is `ok` plus an
   > additive `challenge` block; failure is `needs:["human"]` plus
-  > `challenge:{passed:false}` — earned rather than assumed.
+  > `challenge:{passed:false}`.
   >
-  > **This detector still does not grow capabilities**, and that constraint is
-  > respected exactly as written: §3's job is unchanged — recognize a *server's
-  > own declaration*, from headers, pre-parse. What changes is only what `run.rs`
-  > does *with* that verdict. The declaration remains the sole recognition
-  > mechanism, and no body-copy or vendor-algorithm knowledge enters here or
-  > anywhere else.
-  >
-  > **Why this is not the retry loop `identity.md` §10 refuses:** a round trip
-  > answers a challenge the server posed; a retry loop re-asks an unchanged
-  > question. The jar-delta precondition makes that structural — an identical
-  > request is never re-sent, which excludes retry-until-allowed *and* UA/IP
-  > rotation by construction (`challenge.md` §4.1).
+  > **This detector does not grow capabilities either way.** §3's job is
+  > unchanged — recognize a *server's own declaration*, from headers, pre-parse.
+  > What changes is only what `run.rs` does *with* that verdict. The declaration
+  > remains the sole recognition mechanism, and no body-copy or vendor-algorithm
+  > knowledge enters here or anywhere else. The jar-delta precondition means an
+  > identical request is never re-sent (`challenge.md` §4.1).
 - **Precedence over starvation**: a challenge page may also be starved,
   but `needs:["js"]` would be a lie there — no recipe change helps a page
   the origin refused to serve. `human` subsumes.
@@ -418,16 +408,14 @@ Accepted residuals:
 - No body string-matching ("Please wait…", vendor page titles). Copy
   changes per site and per locale; declarations and structure do not.
 - No challenge solving, token computation, or form submission — the
-  detector's whole job is to stop *earlier* than that.
+  detector recognizes a declaration and reports it; it computes nothing.
   > **Amended 2026-07-22 (`bl-017a`), proposal awaiting sign-off.** Still true
-  > **of this detector**, and that scoping is the whole point: §3 recognizes a
-  > declaration and reports it; it computes nothing. What moved is elsewhere —
-  > `run.rs` may now hand a declared challenge to the *page's own* script rather
-  > than exiting pre-parse (`challenge.md` §4.2). frot still performs **no token
-  > computation of its own** and ships **no vendor algorithm**: the page computes
-  > its token, as it does in a browser. "No form submission" is likewise unmoved —
-  > frot originates nothing; only a page-initiated `fetch`/XHR POST is permitted,
-  > and the top-level navigation stays GET permanently (`challenge.md` §2–§3).
+  > **of this detector**. What moved is elsewhere — `run.rs` may now hand a
+  > declared challenge to the *page's own* script rather than exiting pre-parse
+  > (`challenge.md` §4.2). frot still performs **no token computation of its
+  > own** and ships **no vendor algorithm**: the page computes its token, as it
+  > does in a browser. The top-level navigation stays GET (`challenge.md`
+  > §2–§3).
 - No text-length thresholds. A 37-character page and a 37-kilobyte page
   are both either declared stand-ins or they are not.
 - No new flags. Both signals ride the existing `status`/`needs` shape;

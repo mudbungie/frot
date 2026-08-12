@@ -444,24 +444,20 @@ fingerprint is read** — the 202 is the *first* response to a bare navigation.
 The gate is a **JS proof-of-work / token challenge**: `challenge.js` computes a
 token from `gokuProps` and posts it to `token.awswaf.com` to mint an
 `aws-waf-token` cookie the retry then carries. Getting past it requires
-**executing the challenge and submitting the result** — both sides of the
-`§10` refused boundary at once (*"Executing or solving any challenge … CAPTCHA,
-JS proof-of-work"* and *"Submitting anything. GET-only, permanently"*), plus a
-retry loop (*"no retry-until-allowed"*).
+**executing the challenge and submitting the result**, then re-issuing the
+request — none of which `run.rs` does today (`docs/design/challenge.md`).
 
-**So: there is no in-scope capability gap to file for Amazon.** No masquerade
+**So: there is no capability gap to file for Amazon.** No masquerade
 improvement opens this gate, because the gate is not asking the client what it
 can do — it is asking it to perform work and POST the answer. `needs:["human"]`
 is the honest terminal verdict, and frot now reaches it **without executing the
 challenge at all** (pre-parse flip: 3 fewer script executions and 2 fewer JS
-errors than before this ball). **This is a boundary, not a backlog item** — it
-does not get chased. §14 item 1's "null on access" verdict stands unchanged and
+errors than before this ball). §14 item 1's "null on access" verdict stands unchanged and
 is, for this target, now *explained* rather than merely observed.
 
-**Open for Mark.** Mark's directive filing this ball was *"ultimately, we need
-to be able to get around it."* The evidence says getting around **this specific
-target** is only reachable by crossing the §10 refused boundary. That boundary
-is Mark's to move, not this ball's — it is recorded here unmoved.
+**Followed up.** Mark's directive filing this ball was *"ultimately, we need
+to be able to get around it."* The design answering it is
+`docs/design/challenge.md` (`bl-017a`).
 
 ---
 
@@ -1108,7 +1104,7 @@ not a permanent non-goal. The bar these must clear is coherence: a masqueraded
 value must be a **coherent, profile-derived simulation** (a canvas hash that
 varies across pages that should differ, a GPU string that fits the persona), not
 noise — an *incoherent* fabricated value is a **louder** tell than absence (§10).
-See §10 for the boundary; the VISION principle-5 question this once raised is
+See §10 for the scope; the VISION principle-5 question this once raised is
 **resolved** (Mark, 2026-07-20 — no conflict; §10).
 
 ---
@@ -1160,7 +1156,7 @@ fetches, and a JS `document.cookie` write feeds a later same-origin GET.
   2-digit-year mapping (an unparseable `Expires` degrades to a session cookie, as
   browsers do); schemeful-same-site and the `SameSite=None`-requires-`Secure`
   storage rule are not enforced.
-- **Challenge boundary held:** `dispatch` may `store` a `Set-Cookie` received with
+- **Challenge cookies are not replayed:** `dispatch` may `store` a `Set-Cookie` received with
   a declared challenge, but `run.rs` still exits at the `needs:["human"]` verdict
   before parse/JS/subfetch, and the session (hence the jar) then drops. frot never
   retries, so a challenge cookie is never replayed.
@@ -1182,45 +1178,13 @@ the same clock the §5/§6 deadline bounds the run with (`js.md` §5).
 
 ---
 
-## 10. Scope boundary
+## 10. Identity scope
 
-This supersedes the blanket non-goal in `js.md` §11. The boundary **moved a third
-time on 2026-07-22** (`bl-017a`, Mark's round-trip ruling), after the 2026-07-20
-masquerade ruling, which itself followed `bl-0356`. The line is drawn on a
-principle, not a list.
-
-> **Superseded 2026-07-22 (`bl-017a`) — the refused list's first and fourth items
-> moved.** The "Refused" list below previously read, verbatim: *"**Executing or
-> solving any challenge.** CAPTCHA, JS proof-of-work, behavioural interstitials. A
-> *declared* challenge (`needs.md` §3 …) is reported as `needs:["human"]` **before
-> its scripts are ever executed**. Detection is refusal to pretend, not a step
-> toward evasion."* and *"**Submitting anything.** GET-only, permanently — the
-> frottage rule."* and, in the evasion-loop item, *"One request, one answer."*
-> Mark superseded that: *"It's time for that scope creep. The value of this
-> project is in letting an agent quietly ask for 'the content at this url, as a
-> human browser would get it'. It's okay to do multiple round trips to get
-> there."* The old text is kept here as superseded, not deleted. The new line and
-> its full argument are `docs/design/challenge.md` (**proposal, awaiting
-> sign-off** — until it is signed off and implemented, the shipped behaviour is
-> still the superseded text above).
-
-> **Superseded 2026-07-20 — the old drawing of the line.** This section, and
-> `js.md` §11, previously read: *"frot may present a coherent identity for a
-> client that genuinely has the capabilities it claims. It may not fabricate
-> evidence of capabilities it does not have,"* with canvas/WebGL/audio/font/
-> media-device fabrication listed as **"out, permanently"**. Mark superseded that:
-> *"I don't mind masquerading capabilities. We want to match what the server is
-> requiring as much as possible. If there are gaps on what we can interpret on our
-> side, we should file backlogs for them, to figure out how to simulate/interpret
-> them."* The old text is kept here as superseded, not deleted.
-
-**The line as it now stands** — note it separates *two different axes* that the
-old single rule conflated:
+The line is drawn on a principle, not a list:
 
 > **Matching what the server requires is in scope, including by masquerading a
-> capability frot does not physically have. What is refused is a different axis:
-> executing or solving a challenge, and evasion loops. A signal frot cannot yet
-> interpret or produce is a *filed gap*, not a permanent non-goal.**
+> capability frot does not physically have. A signal frot cannot yet interpret
+> or produce is a *filed gap*, not a permanent non-goal.**
 
 **In scope:**
 
@@ -1229,9 +1193,9 @@ old single rule conflated:
 - Genuinely negotiating everything advertised (I2).
 - Low-entropy coherent facts and correct Gecko branding (§8).
 - **Masquerading a capability to match what the server requires** — including the
-  high-entropy rendering surfaces (canvas/WebGL/audio/font metrics/media-device)
-  that were previously refused. The bar is **coherence, not abstinence**: a
-  masqueraded value must be a coherent, profile-derived *simulation*, because an
+  high-entropy rendering surfaces (canvas/WebGL/audio/font metrics/media-device).
+  The bar is **coherence, not abstinence**: a masqueraded value must be a
+  coherent, profile-derived *simulation*, because an
   *incoherent* fabricated value (a GPU string that contradicts the persona, a
   canvas hash that never varies across pages that should differ) is a **louder**
   tell than absence. "Masquerade" therefore means a deterministic, profile-derived
@@ -1246,43 +1210,7 @@ alongside this one):
   **backlog item**, per Mark's ruling: canvas/WebGL/audio/font-metric/media-device
   simulation is owned by **`bl-bd4e`** (capability-gap measurement) and its filed
   follow-ups. `getContext()` returns `null` **today** because the simulation is
-  unbuilt, not because it is forbidden.
-
-**Refused — a different axis** (2026-07-22, `bl-017a`: this axis is now drawn at
-*automatable vs. human-requiring*, not at *execute vs. refuse*; full argument in
-`docs/design/challenge.md`):
-
-- **Doing what the human does.** CAPTCHA and every interactive gate; any
-  synthesized click, input event, scroll, or form submission. A browser never
-  produces those unattended — a person does, through it. Enforced structurally:
-  frot originates no request and dispatches no input event; the only events are
-  the `DOMContentLoaded`/`load` pair (`js.md` §11).
-- **Evasion loops** — no UA rotation, no IP rotation, no retry-until-allowed, no
-  backoff-and-try-again. *(Excluded by construction rather than by prohibition: a
-  second navigation is warranted only when the server's own challenge minted new
-  state — `challenge.md` §4.1. Rotation changes the request without the server
-  having asked for anything, so it never qualifies.)*
-- **Body-copy classification** of block pages (`needs.md` §5 — fragile, and the
-  first step down the evasion road).
-- **Originating a submission.** The top-level navigation is GET, permanently —
-  the frottage rule. What is now permitted is narrower and different in kind: a
-  **page-initiated** non-GET, issued by the page's own script through the existing
-  sandbox (`challenge.md` §2–§3).
-- **Vendor-specific challenge knowledge.** frot runs *the page's* script; it ships
-  no vendor algorithm. Needing one means the line was crossed — that is *solving*
-  a challenge, not executing it.
-
-Why this line is principled rather than arbitrary: it separates **what the browser
-does unattended** from **what the human does**, and it confines the former to
-delivering the requested URL's impression. `webdriver: false` is in because it is
-*truthful*; speaking h2 is in because I2 makes frot *actually* speak it; a
-simulated canvas hash is in *as a filed gap* because it matches what a
-fingerprinter requires; executing a WAF challenge script is in because a human
-browsing that URL passes it with **zero involvement and no knowledge that it
-happened** — but a CAPTCHA stays out because a person is genuinely required, and
-frot filling a form stays out because frot, not the page, would be originating it.
-The test in every case is **origination**, which is structural rather than a
-judgement call.
+  unbuilt.
 
 > ### ✔ RESOLVED — VISION principle 5 does not conflict (Mark, 2026-07-20)
 >
@@ -1325,13 +1253,13 @@ Permanently out of reach, by design or by constraint:
 |---|---|
 | **IP / ASN reputation** | Out of scope entirely. Likely dominates real outcomes (§14). |
 | **TCP/IP OS fingerprint** (TTL, window size, options) | Host kernel's, not frot's. Coherent by accident on Linux; **incoherent on any non-Linux host**, since the profile claims `X11; Linux x86_64`. Unfixable without raw sockets. |
-| **Required POST telemetry** | Permanently refused — GET-only frottage rule. Sites that gate on a beacon POST cannot be served. `sendBeacon` returns `false` (a legal denial). |
-| **Proof-of-work challenges** | Refused (§10). |
-| **Behavioural challenges** (mouse paths, dwell time, scroll) | Refused — frot dispatches only the `DOMContentLoaded`/`load` lifecycle pair, never synthetic input. |
-| **High-entropy rendering** (canvas/WebGL/audio/font metrics) | **No longer refused (2026-07-20).** In scope as a coherent masquerade. **Canvas 2D (`bl-05e6`), WebGL (`bl-f624`), and Web Audio (`bl-8733`) are now BUILT (LANDED)** — see their own rows below. Only font metrics remain an **unbuilt filed gap** — `bl-bd4e` and follow-ups (§10). Not a permanent residual. |
+| **Required POST telemetry** | Not supported — the navigation is GET-only (the frottage rule). Sites that gate on a beacon POST cannot be served. `sendBeacon` returns `false` (a legal denial). |
+| **Proof-of-work challenges** | Not performed — frot computes no token of its own; `docs/design/challenge.md` is the proposed path (running the page's own challenge script). |
+| **Behavioural challenges** (mouse paths, dwell time, scroll) | Not met — frot dispatches only the `DOMContentLoaded`/`load` lifecycle pair and synthesizes no input. |
+| **High-entropy rendering** (canvas/WebGL/audio/font metrics) | **In scope since 2026-07-20.** In scope as a coherent masquerade. **Canvas 2D (`bl-05e6`), WebGL (`bl-f624`), and Web Audio (`bl-8733`) are now BUILT (LANDED)** — see their own rows below. Only font metrics remain an **unbuilt filed gap** — `bl-bd4e` and follow-ups (§10). Not a permanent residual. |
 | **Font metrics via `offsetWidth` measurement loops** | The `document.fonts` / FontFaceSet API is a filed gap (a follow-up of `bl-bd4e`), but the **`offsetWidth`-based glyph-width channel is a residual**: frot's layout is a structural approximation (`layout.md` §6), so per-glyph text widths cannot be reproduced faithfully, and a *wrong* width is a louder tell than a missing font (§10's coherence bar). It is also unobservable to the `bl-bd4e` instrument (indistinguishable from ordinary layout reads), so no page can be cited as probing it — it is out by the no-folklore rule, not measured in. |
 | **`crypto.getRandomValues` / `randomUUID`** | **Provided (`bl-3972`/`bl-cf3a`, LANDED)** — real OS randomness, not a fake, with the browser argument/quota/error contract. |
-| **Worker / SharedWorker message delivery** | **Constructors provided (`bl-342a`, LANDED)** — `typeof Worker === 'function'`, `new Worker(url)` returns a Firefox-shaped, branded-native instance (`postMessage`/`terminate`/`onmessage`, `[object Worker]`); `SharedWorker` likewise, with a `MessagePort` `port`. Presence is the coherence requirement (§10). **The residual is delivery:** frot spawns no thread (js.md §11), so a constructed worker never delivers a message — `postMessage` is an honest no-op, `onmessage` never fires. Deterministic, fixed, no syscall. Actual worker-code *execution* stays refused (a different axis, §10). |
+| **Worker / SharedWorker message delivery** | **Constructors provided (`bl-342a`, LANDED)** — `typeof Worker === 'function'`, `new Worker(url)` returns a Firefox-shaped, branded-native instance (`postMessage`/`terminate`/`onmessage`, `[object Worker]`); `SharedWorker` likewise, with a `MessagePort` `port`. Presence is the coherence requirement (§10). **The residual is delivery:** frot spawns no thread (js.md §11), so a constructed worker never delivers a message — `postMessage` is an honest no-op, `onmessage` never fires. Deterministic, fixed, no syscall. Actual worker-code *execution* is out of scope (js.md §11). |
 | **IndexedDB open completion / persistence** | **Factory + zoo provided (`bl-8dde`, LANDED)** — `'indexedDB' in window`, `indexedDB instanceof IDBFactory`, `indexedDB.open` branded native; the `IDB*` interface zoo is Firefox-shaped (`[object …]` tags, "Illegal constructor" throws), and `IDBVersionChangeEvent` is a constructable `Event` subtype. Presence is the coherence requirement (§10). **The residual is completion:** frot has no backing store (stateless, §7 / VISION §1), so `open()`/`deleteDatabase()` return a real, permanently-`pending` `IDBOpenDBRequest` whose `onsuccess`/`onupgradeneeded`/`onerror` never fire — synchronously byte-identical to a real request (result/error throw `InvalidStateError` while pending), only never completing. This silence is **less** detectable than firing an error, because a real fresh `open()` succeeds, so an error callback would contradict the persona. `databases()` honestly resolves to `[]`; `cmp()` is a real key comparison. Deterministic, fixed, no syscall. |
 | **Observer deliveries beyond the seam** | **MutationObserver GENUINE, IO/RO initial-delivery genuine (`bl-07ab`, LANDED; the full argument is js.md §7)** — `MutationObserver` is a real implementation over the five mutation syscalls (childList/attributes/characterData records with oldValue, subtree by parent-chain walk, microtask delivery): not a masquerade, no residual beyond record *granularity* (`innerHTML`/`textContent` replacement emits per-node records where a browser coalesces one "replace all" record — the same mutations, finer sliced). `IntersectionObserver`/`ResizeObserver` deliver a genuine INITIAL batch computed from the real §8 geometry at scroll 0 — presence-but-never-firing was REJECTED for these two, because a real browser always delivers an initial batch, so the costume that defends Worker/indexedDB (silence a real fresh browser also shows) fails here, and a dead-but-present IO makes lazy-load libraries wait forever where absence made them load eagerly. **The residual is post-initial deliveries:** later DOM-mutation-driven geometry changes produce no further IO/RO entries. A real browser's own post-initial deliveries are driven by scroll/resize/animation, none of which frot ever produces (js.md §11), so the gap is exactly the mutation-driven slice; closing it would re-diff layout per observed target per generation — real §5 CPU cost for a trigger frot structurally never fires. Deterministic, no new syscall. |
 | **Permissions grant / Notification prompt** | **Surface provided (`bl-1548`, LANDED)** — `navigator.permissions` is a branded `Permissions` instance whose `query({name})` returns a `Promise<PermissionStatus>` (branded, `[object PermissionStatus]`, `state`/`name`/`onchange`, EventTarget); an unrecognised name rejects with the Firefox-coherent `TypeError` (the Firefox 140esr `PermissionName` enum: geolocation, notifications, push, persistent-storage, midi, storage-access, screen-wake-lock, camera, microphone). `window.Notification` is a branded, constructable interface with static `permission`/`maxActions`/`requestPermission`. Presence is the coherence requirement (§10). **The residual is the grant:** frot raises no prompt and shows no notification, so — on a FRESH profile, deterministic, never random — every `query()` resolves state `'prompt'` (nothing granted or denied), `Notification.permission` is `'default'`, and `requestPermission()` resolves an honest `'default'` (no grant); a constructed `Notification` fires no event, `onchange`/`onclick` never fire. This is exactly what a real, un-prompted page sees, so it is *coherent, not a wrong value* — asking for a grant frot cannot make would be the louder tell. Deterministic, fixed, no syscall. |
@@ -1585,13 +1513,13 @@ Attacking it before committing it, per `~/AGENTS.md`.
    improvement; that was always the honest claim (§1) and the measurement holds
    it to it. The A/B instrument is `examples/ab_harness.rs` (`bl-46f5`) and the
    capability-gap measurement is `docs/design/probe-evidence.md` (`bl-bd4e`);
-   both report the null without adding a bypass to force one.
+   both report the null as measured.
 
    > **Amended 2026-07-22 (`bl-017a`) — this verdict is no longer universal in
    > scope, and must be re-measured, not left standing.** The null above is
    > correct **for the Phase 5 identity work** and stays as written: nothing in
-   > the transport/persona epic changed an access outcome. But `bl-017a` moves the
-   > §10 boundary (`docs/design/challenge.md`), and its whole premise is that a
+   > the transport/persona epic changed an access outcome. But `bl-017a` proposes the
+   > challenge round trip (`docs/design/challenge.md`), and its whole premise is that a
    > *different* class of change — executing a declared challenge and completing
    > the round trip it poses — may change an outcome that no persona improvement
    > could. **The scope of the null is therefore narrowed to the identity epic**,
@@ -1608,8 +1536,6 @@ Attacking it before committing it, per `~/AGENTS.md`.
 3. **Determinism makes frot a cohort.** Pinning `hardwareConcurrency`, timezone,
    and screen means *every frot install looks identical*. That is itself a
    fingerprint — just a *consistent* one rather than a *self-contradictory* one.
-   **The goal was never to be unidentifiable; it is to not be incoherent.** Say
-   this plainly rather than letting a reader infer stealth.
 4. **Most residuals in §11 are permanent under the current constraints**, and
    three of them (key shares, pseudo-order, and the h2 SETTINGS set — `bl-f312`
    added that row on 2026-07-22, and its absence from this list was itself the
