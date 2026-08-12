@@ -11,7 +11,8 @@
 // Notification never fires an event. That no-grant / no-fire is the ONE declared
 // residual (identity.md §11): honest silence, not a wrong value — a real,
 // un-prompted page sees exactly this. Runs after brand.js (needs __frot_brand /
-// __frot_iface) and navigator.js (extends Navigator.prototype). No syscall.
+// __frot_iface), events.js (its EventTarget is the one both prototypes inherit)
+// and navigator.js (extends Navigator.prototype). No syscall.
 (function (g) {
   'use strict';
   var onEvent = g.__frot_onevent;
@@ -25,13 +26,13 @@
   }
 
 
-  // The EventTarget methods PermissionStatus / Notification inherit: present and
-  // native. Nothing frot does dispatches to them, so retained listeners would be
-  // dead state; dispatchEvent returns true (not canceled), matching the contract.
-  function eventTarget(proto) {
-    proto.addEventListener = noop('addEventListener');
-    proto.removeEventListener = noop('removeEventListener');
-    proto.dispatchEvent = brand(function () { return true; }, 'dispatchEvent');
+  // PermissionStatus and Notification ARE EventTargets, so they inherit the one
+  // interface events.js owns rather than flattening three copies of its methods
+  // onto each prototype — the shape Firefox has (`bl-6438`, identity.md §3.14).
+  // Nothing frot does dispatches to them (the residual is silence), but a page's
+  // own dispatchEvent now behaves as a real EventTarget's does.
+  function inheritEventTarget(Ctor) {
+    Object.setPrototypeOf(Ctor.prototype, g.EventTarget.prototype);
   }
 
   // A native prototype getter reading a per-instance non-enumerable slot `_key`.
@@ -85,7 +86,7 @@
     name: function () { return this._name; },
     state: function () { return this._state; },
   });
-  eventTarget(PermissionStatus.prototype);
+  inheritEventTarget(PermissionStatus);
   onEvent(PermissionStatus.prototype, 'onchange');
 
   function status(name) {
@@ -154,7 +155,7 @@
     'requireInteraction', 'renotify', 'timestamp'].forEach(function (k) {
     slotGetter(Notification.prototype, k);
   });
-  eventTarget(Notification.prototype);
+  inheritEventTarget(Notification);
   ['onclick', 'onshow', 'onerror', 'onclose'].forEach(function (k) {
     onEvent(Notification.prototype, k);
   });

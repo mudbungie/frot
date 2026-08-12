@@ -130,6 +130,12 @@
   eq('crypto:len', buf.length, 16);
   ok('uuid:v4', /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(crypto.randomUUID()));
   ok('uuid:distinct', crypto.randomUUID() !== crypto.randomUUID());
+  // crypto.subtle is ABSENT, and that absence is the DECLARED residual (identity
+  // .md §11), not an oversight — it is the one place frot knowingly differs here.
+  // Firefox 153.0esr has it (measured, bl-1ab7): typeof 'object', [object
+  // SubtleCrypto], twelve methods, and 'subtle' in Crypto.prototype's own names.
+  // This pins the residual so it cannot change silently in either direction.
+  eq('crypto:subtle-residual', typeof crypto.subtle, 'undefined');
 
   // --- Worker / SharedWorker: coherent constructor presence, no execution ------
   // (bl-342a) Firefox exposes these; frot masquerades the surface (feature detect
@@ -159,6 +165,28 @@
   ok('worker:onmessage-set', w.onmessage === wh);
   // Firefox throws TypeError when the required scriptURL argument is missing.
   eq('worker:no-arg', threw(function () { new Worker(); }), 'TypeError');
+  // Worker.prototype's own-property list, READ off Firefox 153.0esr (bl-6438,
+  // identity.md §3.14): SIX entries in this order, constructor LAST, and no
+  // listener methods — those live on EventTarget, which frot left out of the
+  // chain entirely while flattening three copies onto each prototype.
+  eq('worker:proto-own', Object.getOwnPropertyNames(Worker.prototype).join(','),
+    'terminate,postMessage,onmessage,onmessageerror,onerror,constructor');
+  eq('worker:eventtarget-parent',
+    Object.getPrototypeOf(Worker.prototype).constructor.name, 'EventTarget');
+  ok('worker:is-eventtarget', w instanceof EventTarget);
+  native('worker:addEventListener', w.addEventListener);
+  // frot dispatches nothing to a worker (that silence is the declared residual),
+  // but a page's OWN dispatch behaves as a real EventTarget's does.
+  var wn = 0;
+  w.addEventListener('frot-x', function () { wn++; });
+  ok('worker:dispatch-returns', w.dispatchEvent(new Event('frot-x')) === true);
+  eq('worker:dispatch-own', wn, 1);
+  // ONE EventTarget interface behind every masqueraded event target.
+  ['MessagePort', 'SharedWorker', 'PermissionStatus', 'Notification', 'IDBRequest']
+    .forEach(function (nm) {
+      eq('eventtarget-parent:' + nm,
+        Object.getPrototypeOf(window[nm].prototype).constructor.name, 'EventTarget');
+    });
 
   eq('SharedWorker:type', typeof SharedWorker, 'function');
   native('SharedWorker', SharedWorker);
@@ -225,6 +253,36 @@
   ok('idb:open-good-version', indexedDB.open('x', 3) instanceof IDBOpenDBRequest);
   eq('idb:delete-no-arg', threw(function () { indexedDB.deleteDatabase(); }), 'TypeError');
   ok('idb:delete-req', indexedDB.deleteDatabase('x') instanceof IDBOpenDBRequest);
+
+  // IDBKeyRange is the one IDB interface needing no store — a pure value object,
+  // so it is built completely (bl-6438). Both enumerations below were READ off
+  // Firefox 153.0esr; frot published it presence-only, so every static threw.
+  eq('idbkr:statics', Object.getOwnPropertyNames(IDBKeyRange).join(','),
+    'length,name,prototype,only,lowerBound,upperBound,bound');
+  var kr = IDBKeyRange.bound(1, 2);
+  eq('idbkr:proto-keys', Object.keys(Object.getPrototypeOf(kr)).join(','),
+    'includes,lower,upper,lowerOpen,upperOpen');
+  eq('idbkr:tag', Object.prototype.toString.call(kr), '[object IDBKeyRange]');
+  ok('idbkr:instanceof', kr instanceof IDBKeyRange);
+  // A real key range owns nothing: its bounds are prototype accessors.
+  eq('idbkr:own-empty', Object.getOwnPropertyNames(kr).length, 0);
+  native('idbkr:bound', IDBKeyRange.bound);
+  native('idbkr:includes', kr.includes);
+  eq('idbkr:bounds', [kr.lower, kr.upper, kr.lowerOpen, kr.upperOpen].join(','),
+    '1,2,false,false');
+  ok('idbkr:includes', kr.includes(1) && kr.includes(1.5) && !kr.includes(3));
+  var kro = IDBKeyRange.only('a');
+  ok('idbkr:only', kro.lower === 'a' && kro.upper === 'a'
+    && kro.includes('a') && !kro.includes('b'));
+  var krl = IDBKeyRange.lowerBound(5, true);
+  ok('idbkr:lowerBound', krl.lowerOpen === true && krl.upper === undefined
+    && !krl.includes(5) && krl.includes(6));
+  var kru = IDBKeyRange.upperBound(5);
+  ok('idbkr:upperBound', kru.lower === undefined && kru.upperOpen === false
+    && kru.includes(5) && !kru.includes(6));
+  eq('idbkr:bad-bound', threw(function () { IDBKeyRange.bound(2, 1); }), 'DataError');
+  eq('idbkr:bad-key', threw(function () { IDBKeyRange.only(null); }), 'DataError');
+  eq('idbkr:no-arg', threw(function () { IDBKeyRange.only(); }), 'TypeError');
 
   // Interface zoo: present, native, Firefox-shaped, non-constructable (Illegal).
   ['IDBFactory', 'IDBRequest', 'IDBOpenDBRequest', 'IDBDatabase', 'IDBTransaction',

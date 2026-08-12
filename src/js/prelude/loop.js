@@ -2,7 +2,10 @@
 // The queue and the clock are private state of this realm (per-run, no global):
 // the host drives macrotasks one at a time through __frot_next_timer / __frot_fire,
 // draining microtasks between each (the engine's job queue). Loads after dom.js
-// (needs Node/document) and env.js. Augments the global (= window, §1 spike).
+// (needs Node/document), env.js, and events.js — WHO listens is that file's one
+// registry and EventTarget interface; this file owns only WHEN the host fires,
+// reaching it through the `__frot_dispatch` it exports. Augments the global
+// (= window, §1 spike).
 (function (g) {
   'use strict';
 
@@ -143,93 +146,10 @@
     }
   };
 
-  // --- Events: DOMContentLoaded/load are the only host-fired events (§11);
-  // addEventListener elsewhere registers handlers that fire only if the page
-  // dispatches them itself (no interaction, §11). Listeners key by target so the
-  // stateless Node wrappers (fresh per syscall) never hold them.
-  var reg = Object.create(null);
-  function bucket(key, type) {
-    var t = reg[key] || (reg[key] = Object.create(null));
-    return t[type] || (t[type] = []);
-  }
-  function add(key, type, fn) {
-    if (typeof fn !== 'function') return;
-    var b = bucket(key, type);
-    if (b.indexOf(fn) < 0) b.push(fn);
-  }
-  function remove(key, type, fn) {
-    var b = bucket(key, type);
-    var i = b.indexOf(fn);
-    if (i >= 0) b.splice(i, 1);
-  }
-  function fire(key, ev, target) {
-    var b = bucket(key, ev.type).slice();
-    var errs = 0;
-    for (var i = 0; i < b.length; i++)
-      try {
-        b[i].call(target, ev);
-      } catch (e) {
-        errs++;
-      }
-    return errs;
-  }
-  function bindEvents(o, key, target) {
-    o.addEventListener = function (type, fn) {
-      add(key, String(type), fn);
-    };
-    o.removeEventListener = function (type, fn) {
-      remove(key, String(type), fn);
-    };
-    o.dispatchEvent = function (ev) {
-      fire(key, ev, target);
-      return !(ev && ev.defaultPrevented);
-    };
-  }
-
-  g.Event = function (type, init) {
-    this.type = String(type);
-    this.bubbles = !!(init && init.bubbles);
-    this.defaultPrevented = false;
-    this.target = null;
-  };
-  g.Event.prototype.preventDefault = function () {
-    this.defaultPrevented = true;
-  };
-  g.Event.prototype.stopPropagation = function () {};
-  g.CustomEvent = function (type, init) {
-    g.Event.call(this, type, init);
-    this.detail = init ? init.detail : null;
-  };
-  g.CustomEvent.prototype = Object.create(g.Event.prototype);
-
-  // EventTarget (bl-e81b): Firefox's base interface, constructable since FF 59
-  // — framer-motion resolves animation targets with `t instanceof EventTarget`,
-  // a ReferenceError while the name is absent. Instances ride the one registry
-  // under a unique key; `instanceof` matches by the trio's shape, so every
-  // event-bearing surface (window, document, nodes, fragments, XHR, …) answers
-  // true without a class hierarchy — the elem.js hasInstance pattern.
-  var etSeq = 0;
-  g.EventTarget = function EventTarget() {
-    bindEvents(this, 'et' + ++etSeq, this);
-  };
-  Object.defineProperty(g.EventTarget, Symbol.hasInstance, {
-    value: function (o) {
-      return !!o && (typeof o === 'object' || typeof o === 'function') && typeof o.addEventListener === 'function';
-    },
-  });
-
-  bindEvents(g, 'window', g);
-  bindEvents(g.document, 'document', g.document);
-  g.Node.prototype.addEventListener = function (type, fn) {
-    add('n' + this._id, String(type), fn);
-  };
-  g.Node.prototype.removeEventListener = function (type, fn) {
-    remove('n' + this._id, String(type), fn);
-  };
-  g.Node.prototype.dispatchEvent = function (ev) {
-    fire('n' + this._id, ev, this);
-    return !(ev && ev.defaultPrevented);
-  };
+  // --- Host-fired lifecycle (§4.4 / §5) ---------------------------------------
+  // The listener registry and the EventTarget interface are events.js's; this is
+  // the only place the HOST fires into them, through its one exported dispatch.
+  var dispatch = g.__frot_dispatch;
 
   // readyState transition (js.md §4.4): the field advances loading ->
   // 'interactive' (immediately before DOMContentLoaded) -> 'complete' (before
@@ -240,7 +160,7 @@
     g.document.readyState = state;
     var ev = new g.Event('readystatechange');
     ev.target = g.document;
-    var errs = fire('document', ev, g.document);
+    var errs = dispatch('document', ev, g.document);
     if (typeof g.document.onreadystatechange === 'function')
       try {
         g.document.onreadystatechange.call(g.document, ev);
@@ -259,7 +179,7 @@
     else if (name === 'load') errs += setReadyState('complete');
     var ev = new g.Event(name);
     ev.target = g.document;
-    errs += fire('document', ev, g.document) + fire('window', ev, g);
+    errs += dispatch('document', ev, g.document) + dispatch('window', ev, g);
     var on = 'on' + name.toLowerCase();
     var hosts = [g.document, g];
     for (var i = 0; i < hosts.length; i++)
@@ -280,7 +200,7 @@
   // if nothing suppresses it (no preventDefault, onerror didn't return true) it
   // is an UNHANDLED error and is counted into js.errors via __frot_report_error.
   function raiseError(ev) {
-    fire('window', ev, g);
+    dispatch('window', ev, g);
     var suppressed = ev.defaultPrevented;
     if (typeof g.onerror === 'function') {
       var handled;

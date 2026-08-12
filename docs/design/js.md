@@ -741,7 +741,10 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   `onerror` **never fire** — the declared residual (`identity.md` §11). That
   silence is *less* detectable than an error, because a real fresh `open()`
   succeeds, so an error callback would contradict the persona. `databases()`
-  honestly resolves to `[]`; `cmp()` is a real synchronous key comparison. Apps
+  honestly resolves to `[]`; `cmp()` is a real synchronous key comparison, and
+  `IDBKeyRange` — a pure value object, so it needs no store — is REAL, statics and
+  all (`bl-6438`: `only`/`lowerBound`/`upperBound`/`bound`, and `includes` over the
+  same comparison, in Firefox's measured enumeration order). Apps
   that gate on *existence* work; apps that *await* an open fail into the §10
   outcome story.
 - `navigator.permissions` / `Notification`: **present, but no grant (`bl-1548`,
@@ -802,6 +805,16 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   (native `autofocus` processing at load is deliberately not performed), so a
   focus event exists only because a page script called `focus()`, exactly like
   `dispatchEvent`.
+- **EventTarget is one interface, not a per-object stamp (`bl-6438`).** Its three
+  methods live on `EventTarget.prototype` over the one listener registry
+  (`events.js`, split out of `loop.js`, which keeps only WHEN the host fires), and
+  every event-bearing masquerade inherits it — `Worker`, `SharedWorker`,
+  `MessagePort`, `PermissionStatus`, `Notification`, `IDBRequest`, `AbortSignal`.
+  Measured: `Object.getPrototypeOf(Worker.prototype).constructor.name` is
+  `EventTarget` on Firefox, and `Worker.prototype` owns six properties, none of
+  them a listener method (identity.md §3.14). frot flattened three no-op copies
+  onto each prototype, which also swallowed the listeners a page registered and
+  dispatched itself.
 - **EventTarget + abort surface (`bl-e81b`, found live: the Vite/React-Router
   template died "You cannot render a `<Router>` inside another `<Router>`" —
   an error about frot, not the app; the deployed bundle renders exactly one
@@ -843,7 +856,8 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   OS randomness** (`/dev/urandom` via `__frot_random_bytes`), with the browser
   argument/quota/error contract (integer-typed view or `TypeMismatchError`, >65536
   bytes → `QuotaExceededError`) enforced in JS. Not deterministic and not pinned;
-  separate calls share no state (OQ-2). `crypto.subtle` stays a residual (§11).
+  separate calls share no state (OQ-2). `crypto.subtle` stays a residual — **identity.md §11**, not this document's
+  §11 (Non-goals), which has no such row (`bl-6438`).
 - **Native-code branding** (`bl-3926`, LANDED): frot's web APIs are JS over
   `__frot_*` syscalls, so an un-branded `fetch.toString()` would leak prelude
   source and the name `frot`. **One** `Function.prototype.toString` wrapper backed

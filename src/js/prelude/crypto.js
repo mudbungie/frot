@@ -4,8 +4,12 @@
 // come from the __frot_random_bytes syscall (/dev/urandom), so separate calls
 // share no state and cannot be pinned (OQ-2 resolved against seeding). The
 // Web Crypto argument/quota/error contract is enforced here in JS. crypto.subtle
-// (the full SubtleCrypto surface) stays a declared residual (§11). Runs after
-// brand.js (needs __frot_iface).
+// (the full SubtleCrypto surface) stays a declared residual — **identity.md §11**,
+// the row headed `crypto.subtle (WebCrypto)`, which now also carries what a real
+// 153.0esr reports (twelve methods, `[object SubtleCrypto]`) for whoever lands it.
+// The bare "(§11)" this said before sent an auditor to js.md §11 (Non-goals),
+// which has no such row, and the residual read as undeclared (`bl-6438`). Runs
+// after brand.js (needs __frot_iface).
 (function (g) {
   'use strict';
 

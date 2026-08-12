@@ -2,9 +2,9 @@
 // framer-motion's lazy feature chunk constructs `new AbortController` bare
 // (react-router carries its own typeof-guarded fallback), so absence is a
 // ReferenceError that kills the route render into the app's error boundary.
-// Signals are EventTarget instances riding loop.js's one listener registry;
+// Signals inherit EventTarget, riding events.js's one listener registry;
 // abort() flips state once, then fires onabort and the 'abort' listeners.
-// Runs after loop.js (needs g.EventTarget, g.Event, and the virtual-clock
+// Runs after events.js (needs g.EventTarget / g.Event) and loop.js (the virtual-clock
 // setTimeout for AbortSignal.timeout). Deliberate residual: no subfetch
 // integration — frot's network policy is once-then-frozen (js.md §6), nothing
 // in flight is cancellable, so aborting only marks the signal, which is
@@ -16,12 +16,21 @@
   // maker (bl-273b).
   var named = g.__frot_domerror;
 
+  // An AbortSignal IS an EventTarget — in Firefox by inheritance, and here too
+  // since `bl-6438` moved the listener trio onto `EventTarget.prototype`: a
+  // signal's `addEventListener` is now the ONE implementation it inherits, not
+  // three methods stamped onto each instance by the constructor.
   function Signal() {
-    g.EventTarget.call(this);
     this.aborted = false;
     this.reason = undefined;
     this.onabort = null;
   }
+  Signal.prototype = Object.create(g.EventTarget.prototype);
+  Object.defineProperty(Signal.prototype, 'constructor', {
+    value: Signal,
+    configurable: true,
+    writable: true,
+  });
   Signal.prototype.throwIfAborted = function () {
     if (this.aborted) throw this.reason;
   };

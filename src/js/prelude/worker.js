@@ -7,7 +7,8 @@
 // Worker/SharedWorker simply never delivers a message. That non-delivery is the
 // ONE declared residual (identity.md §11): honest silence, not a wrong value.
 // Every value is fixed / profile-independent; no syscall (pure JS over brand.js,
-// which this runs after — it needs __frot_brand / __frot_iface).
+// which this runs after — it needs __frot_brand / __frot_iface — and events.js,
+// whose one EventTarget interface these three prototypes inherit).
 (function (g) {
   'use strict';
   var onEvent = g.__frot_onevent;
@@ -21,16 +22,31 @@
   }
 
 
-  // The EventTarget methods Worker/SharedWorker/MessagePort inherit: present and
-  // native. add/remove accept and discard — nothing frot does will ever dispatch
-  // a message event to a worker, so retaining listeners would be dead state a
-  // page could never observe fire. A page may still dispatchEvent its own
-  // synthetic event; with no registered listener there is nothing to run, and it
-  // returns true (the event was not canceled), matching EventTarget's contract.
-  function eventTarget(proto) {
-    proto.addEventListener = noop('addEventListener');
-    proto.removeEventListener = noop('removeEventListener');
-    proto.dispatchEvent = brand(function () { return true; }, 'dispatchEvent');
+  // These interfaces ARE EventTargets, so they inherit the one interface in
+  // events.js instead of owning flattened copies of its three methods. Measured
+  // on Firefox 153.0esr (`bl-6438`, identity.md §3.14):
+  //   Object.getPrototypeOf(Worker.prototype).constructor.name === 'EventTarget'
+  // — the link frot lacked entirely, which also left `Worker.prototype` owning
+  // eight properties where Firefox's owns six. Nothing frot does dispatches a
+  // message to a worker (the residual is silence), but a page's OWN
+  // `dispatchEvent` on one now behaves as a real EventTarget's does.
+  function inheritEventTarget(Ctor) {
+    Object.setPrototypeOf(Ctor.prototype, g.EventTarget.prototype);
+  }
+
+  // Gecko's WebIDL codegen defines `constructor` AFTER the interface's members,
+  // so it comes LAST in `Object.getOwnPropertyNames(Worker.prototype)` (measured;
+  // a JS function's `prototype` is born owning it, hence first). Re-defining it
+  // moves it to the end. Applied ONLY to Worker — it is the one prototype whose
+  // own-property list was read off the binary; the others stay as they are rather
+  // than take an unmeasured shape (identity.md §3.14).
+  function constructorLast(Ctor) {
+    delete Ctor.prototype.constructor;
+    Object.defineProperty(Ctor.prototype, 'constructor', {
+      value: Ctor,
+      configurable: true,
+      writable: true,
+    });
   }
 
   // Build a CONSTRUCTABLE Firefox-shaped interface `name` — unlike __frot_iface,
@@ -60,20 +76,23 @@
     return Ctor;
   }
 
-  // --- Worker: postMessage/terminate + the message-event handlers --------------
+  // --- Worker: terminate/postMessage + the message-event handlers -------------
+  // Definition order IS Firefox's own-property order, measured (`bl-6438`):
+  //   ["terminate","postMessage","onmessage","onmessageerror","onerror","constructor"]
   var Worker = iface('Worker', function () {});
-  eventTarget(Worker.prototype);
-  Worker.prototype.postMessage = noop('postMessage');
+  inheritEventTarget(Worker);
   Worker.prototype.terminate = noop('terminate');
+  Worker.prototype.postMessage = noop('postMessage');
   ['onmessage', 'onmessageerror', 'onerror'].forEach(function (k) {
     onEvent(Worker.prototype, k);
   });
+  constructorLast(Worker);
 
   // --- MessagePort: NOT constructable (`new MessagePort()` throws "Illegal
   // constructor", so __frot_iface's throwing ctor is exactly right) — only a
   // SharedWorker's `port` hands one out. Same never-delivers residual.
   var MessagePort = g.__frot_iface('MessagePort', {});
-  eventTarget(MessagePort.prototype);
+  inheritEventTarget(MessagePort);
   MessagePort.prototype.postMessage = noop('postMessage');
   MessagePort.prototype.start = noop('start');
   MessagePort.prototype.close = noop('close');
@@ -88,7 +107,7 @@
       configurable: true,
     });
   });
-  eventTarget(SharedWorker.prototype);
+  inheritEventTarget(SharedWorker);
   Object.defineProperty(SharedWorker.prototype, 'port', {
     get: brand(function () { return this._port; }, 'get port'),
     enumerable: true,

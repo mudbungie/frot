@@ -61,6 +61,12 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/geometry.js"),
     "\n",
+    // events.js before every module that is an EventTarget: it owns the ONE
+    // listener registry and the EventTarget interface whose prototype
+    // permissions.js, worker.js, idb.js and loop.js all reach (bl-6438). Needs
+    // only brand.js and dom.js.
+    include_str!("prelude/events.js"),
+    "\n",
     // The identity surface (bl-3972), derived from __frot_env_profile: after
     // dom.js (extends document/Node), any order among themselves.
     include_str!("prelude/navigator.js"),
