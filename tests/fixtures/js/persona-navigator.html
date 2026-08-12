@@ -444,7 +444,15 @@
   eq('canvas:img-w', img.width, 200);
   eq('canvas:img-h', img.height, 50);
   eq('canvas:img-len', img.data.length, 200 * 50 * 4);
-  eq('canvas:img-colorspace', img.colorSpace, 'srgb');
+  // colorSpace is NOT a member of ImageData on 153esr — re-read on the binary
+  // (identity.md §3.17, bl-643d), instance and prototype both, and
+  // `new ImageData(1,1).colorSpace` is undefined. This line used to assert
+  // 'srgb'; publishing it gave frot a member no Firefox has.
+  ok('canvas:img-no-colorspace', !('colorSpace' in img));
+  // Instances own nothing: width/height/data are prototype accessors (§3.17).
+  eq('canvas:img-owns-nothing', Object.getOwnPropertyNames(img).join(','), '');
+  eq('canvas:img-proto-order',
+    Object.getOwnPropertyNames(ImageData.prototype).join(','), 'width,height,data,constructor');
   ok('canvas:img-stable', cx.getImageData(0, 0, 200, 50).data[123] === img.data[123]);
   // A never-drawn canvas is transparent, exactly like a real one (all-zero pixels).
   ok('canvas:blank-transparent', document.createElement('canvas').getContext('2d').getImageData(0, 0, 1, 1).data[3] === 0);
@@ -938,6 +946,121 @@
   eq('geolocation', typeof n.geolocation, 'undefined');
   // sendBeacon is a legal denial, never a submission (§6): defined, returns false.
   ok('sendBeacon:false', n.sendBeacon() === false);
+
+  // --- Host objects are INTERFACES, not object literals (bl-643d) -------------
+  // Every list below is `Object.getOwnPropertyNames` off Firefox 153.0esr over
+  // Marionette (identity.md §3.17): the member list AND Gecko's member order —
+  // operations, then attributes, then `constructor` — restricted to the subset
+  // frot answers. Before this, each of these objects owned its whole surface, so
+  // a page walking one read frot's implementation instead of a WebIDL interface.
+  function shape(name, obj, expected) {
+    eq('iface:' + name, Object.getOwnPropertyNames(obj).join(','), expected);
+  }
+  function ownsNothing(name, inst) {
+    eq('own:' + name, Object.getOwnPropertyNames(inst).join(','), '');
+  }
+  shape('Storage', Storage.prototype, 'key,getItem,setItem,removeItem,clear,length,constructor');
+  ownsNothing('localStorage', localStorage);
+  eq('iface:storage-shared', Object.getPrototypeOf(localStorage) === Object.getPrototypeOf(sessionStorage), true);
+  localStorage.setItem('k', 'v');
+  // A stored key IS an own property of a real Storage (measured); membership is
+  // asserted, insertion order is frot's own and deliberately not claimed as Gecko's.
+  eq('own:localStorage-key', Object.getOwnPropertyNames(localStorage).join(','), 'k');
+  localStorage.clear();
+
+  shape('History', History.prototype,
+    'go,back,forward,pushState,replaceState,length,scrollRestoration,state,constructor');
+  ownsNothing('history', history);
+
+  // Location is the exception, and it was READ before it was changed: on the
+  // binary `Location.prototype` owns only `constructor` and the instance owns its
+  // whole surface (Location is [LegacyUnforgeable], so every member is
+  // non-configurable). Attributes come FIRST here, then the operations.
+  shape('Location', Location.prototype, 'constructor');
+  shape('location', location,
+    'href,origin,protocol,host,hostname,port,pathname,search,hash,ancestorOrigins,assign,replace,reload,toString,valueOf');
+  eq('iface:location-doc', location === document.location, true);
+  eq('iface:location-valueOf', location.valueOf() === location, true);
+  eq('iface:location-unforgeable', Object.getOwnPropertyDescriptor(location, 'href').configurable, false);
+  eq('iface:location-valueOf-hidden', Object.getOwnPropertyDescriptor(location, 'valueOf').enumerable, false);
+  eq('iface:ancestorOrigins', Object.prototype.toString.call(location.ancestorOrigins), '[object DOMStringList]');
+  eq('iface:ancestorOrigins-empty', location.ancestorOrigins.length, 0);
+
+  var mql = matchMedia('(min-width: 1px)');
+  shape('MediaQueryList', MediaQueryList.prototype,
+    'addListener,removeListener,media,matches,onchange,constructor');
+  ownsNothing('MediaQueryList', mql);
+  eq('iface:mql-eventtarget', Object.getPrototypeOf(MediaQueryList.prototype) === EventTarget.prototype, true);
+  eq('iface:mql-tag', Object.prototype.toString.call(mql), '[object MediaQueryList]');
+
+  shape('Performance', Performance.prototype,
+    'now,getEntries,getEntriesByType,getEntriesByName,timeOrigin,constructor');
+  ownsNothing('performance', performance);
+
+  var rect = document.getElementById('probe').getBoundingClientRect();
+  shape('DOMRectReadOnly', DOMRectReadOnly.prototype,
+    'toJSON,x,y,width,height,top,right,bottom,left,constructor');
+  shape('DOMRect', DOMRect.prototype, 'x,y,width,height,constructor');
+  ownsNothing('DOMRect', rect);
+  eq('iface:rect-parent', Object.getPrototypeOf(DOMRect.prototype) === DOMRectReadOnly.prototype, true);
+  eq('iface:rect-edges', rect.right - rect.left, rect.width);
+
+  var cs = getComputedStyle(document.getElementById('probe'));
+  shape('CSSStyleDeclaration', CSSStyleDeclaration.prototype,
+    'item,getPropertyValue,getPropertyPriority,setProperty,removeProperty,cssText,length,parentRule,constructor');
+  ownsNothing('computedStyle', cs);
+  eq('iface:cs-tag', Object.prototype.toString.call(cs), '[object CSSStyleProperties]');
+  eq('iface:cs-readonly', threw(function () { cs.setProperty('color', 'red'); }), 'NoModificationAllowedError');
+
+  var ev = new Event('x');
+  shape('Event', Event.prototype,
+    'stopPropagation,preventDefault,type,target,bubbles,defaultPrevented,constructor');
+  // A real event owns exactly ONE property, and frot never published it.
+  eq('own:Event', Object.getOwnPropertyNames(ev).join(','), 'isTrusted');
+  eq('iface:event-isTrusted', ev.isTrusted, false);
+  shape('CustomEvent', CustomEvent.prototype, 'detail,constructor');
+
+  var xhr = new XMLHttpRequest();
+  shape('XMLHttpRequestEventTarget', XMLHttpRequestEventTarget.prototype,
+    'onabort,onerror,onload,constructor');
+  shape('XMLHttpRequest', XMLHttpRequest.prototype,
+    'open,setRequestHeader,send,abort,getResponseHeader,getAllResponseHeaders,' +
+    'onreadystatechange,readyState,status,statusText,response,responseText,' +
+    'UNSENT,OPENED,HEADERS_RECEIVED,LOADING,DONE,constructor');
+  ownsNothing('XMLHttpRequest', xhr);
+  eq('iface:xhr-parent', Object.getPrototypeOf(XMLHttpRequest.prototype) === XMLHttpRequestEventTarget.prototype, true);
+  eq('iface:xhr-eventtarget', Object.getPrototypeOf(XMLHttpRequestEventTarget.prototype) === EventTarget.prototype, true);
+  eq('iface:xhr-DONE', XMLHttpRequest.DONE, 4);
+  eq('iface:xhr-DONE-frozen', Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'DONE').writable, false);
+
+  shape('Headers', Headers.prototype, 'get,has,constructor');
+  shape('Response', Response.prototype,
+    'clone,json,text,url,status,ok,statusText,headers,bodyUsed,constructor');
+  var res = new Response('body');
+  ownsNothing('Response', res);
+  eq('iface:response-status', res.status, 200);
+  shape('Request', Request.prototype, 'method,url,constructor');
+  ownsNothing('Request', new Request('http://example.invalid/'));
+
+  var frag = document.createDocumentFragment();
+  shape('DocumentFragment', DocumentFragment.prototype,
+    'appendChild,insertBefore,removeChild,nodeType,nodeName,ownerDocument,childNodes,firstChild,constructor');
+  ownsNothing('DocumentFragment', frag);
+  eq('iface:frag-tag', Object.prototype.toString.call(frag), '[object DocumentFragment]');
+  eq('iface:frag-nodeType', frag.nodeType, 11);
+  ok('iface:frag-eventtarget', frag instanceof EventTarget);
+  ok('iface:frag-instanceof', frag instanceof DocumentFragment);
+
+  // `constructor` is LAST on every one of them (identity.md §3.15) — the
+  // registry's single seal, not per-call-site discipline. Asserted here as a
+  // property of the whole family rather than one prototype at a time.
+  [Storage, History, Location, MediaQueryList, Performance, DOMRect, DOMRectReadOnly,
+    CSSStyleDeclaration, Event, CustomEvent, XMLHttpRequest, XMLHttpRequestEventTarget,
+    Headers, Response, Request, DocumentFragment, ImageData, DOMStringList].forEach(function (C) {
+    var names = Object.getOwnPropertyNames(C.prototype);
+    ok('seal:' + C.name, names[names.length - 1] === 'constructor');
+    native('iface:' + C.name, C);
+  });
 
   var de = document.documentElement;
   de.setAttribute('data-ua', ua);

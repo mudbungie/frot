@@ -156,12 +156,40 @@
     return proto;
   }
 
-  function iface(name, accessors) {
+  // Define WebIDL *operations* on a prototype, from a plain object of functions.
+  // The companion to `attrs`, and the other half of Gecko's member order —
+  // operations first, then attributes (§3.15). A WebIDL operation is a writable,
+  // enumerable, configurable data property, which is exactly what an assignment
+  // makes, so the only thing this adds over `proto.f = fn` is the branding every
+  // call site had to remember: an unbranded prelude function discloses its source
+  // through `toString()`, and its `.name` reads `''` where Gecko's reads the
+  // member name. Eight modules were spelling that pair out per member.
+  function ops(proto, table) {
+    Object.keys(table).forEach(function (key) {
+      proto[key] = brand(table[key], key);
+    });
+    return proto;
+  }
+
+  // `body(inst, args)` makes the interface CONSTRUCTABLE — it shapes each new
+  // instance and may throw the one synchronous WebIDL check. Omit it and `new
+  // Ctor()` throws "Illegal constructor.", which is right for the interfaces a
+  // page can only receive (Storage, Location, Performance) and WRONG for the
+  // ones it can build (Event, Headers, Response, XMLHttpRequest, Notification):
+  // an interface that refuses `new` where Firefox allows it is as loud a tell as
+  // one that allows it where Firefox refuses. Constructable interfaces used to
+  // be a private helper in permissions.js; this is that helper, moved to the one
+  // registry so they all seal `constructor` last and publish the same way.
+  function iface(name, accessors, body) {
     var holder = {};
-    holder[name] = function () {
-      // Measured on 153.0esr (`bl-1ab7`): the message ends in a period.
-      throw new TypeError('Illegal constructor.');
-    };
+    holder[name] = body
+      ? function () {
+        body(this, arguments);
+      }
+      : function () {
+        // Measured on 153.0esr (`bl-1ab7`): the message ends in a period.
+        throw new TypeError('Illegal constructor.');
+      };
     var Ctor = holder[name];
     brand(Ctor, name);
     var proto = Ctor.prototype;
@@ -245,6 +273,7 @@
     ['__frot_onevent', onEvent],
     ['__frot_iface_seal', sealInterfaces],
     ['__frot_ifaceattrs', attrs],
+    ['__frot_ifaceops', ops],
     ['__frot_slots', slots],
     ['__frot_rwattrs', rwAttrs],
   ].forEach(function (pair) {

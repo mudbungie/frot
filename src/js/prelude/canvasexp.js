@@ -24,36 +24,33 @@
   // --- ImageData: constructable, Firefox-shaped ------------------------------
   // Published as the global interface; canvas.js's `getImageData`/`createImageData`
   // read it back from there, as a page does.
-  (function () {
-    var holder = {};
-    holder.ImageData = function (a, b, c) {
-      if (arguments.length < 2) {
-        throw new TypeError('ImageData constructor requires at least 2 arguments');
-      }
-      var data;
-      var w;
-      var h;
-      if (typeof a === 'object') {
-        data = a;
-        w = b >>> 0;
-        h = c === undefined ? (data.length / 4 / w) >>> 0 : c >>> 0;
-      } else {
-        w = a >>> 0;
-        h = b >>> 0;
-        data = new Uint8ClampedArray(w * h * 4);
-      }
-      def(this, 'data', data, true);
-      def(this, 'width', w, true);
-      def(this, 'height', h, true);
-      def(this, 'colorSpace', 'srgb', true);
-    };
-    var C = brand(holder.ImageData, 'ImageData');
-    Object.defineProperty(C.prototype, Symbol.toStringTag, {
-      value: 'ImageData',
-      configurable: true,
-    });
-    Object.defineProperty(g, 'ImageData', { value: C, configurable: true, writable: true });
-  })();
+  //
+  // Re-read on Firefox 153.0esr (identity.md §3.17, bl-643d) and two things were
+  // wrong. The instance owned `data`, `width`, `height` and `colorSpace` where a
+  // real one owns NOTHING — all three come off `ImageData.prototype`, in the
+  // order width, height, data. And `colorSpace` **does not exist on 153esr at
+  // all**: not on the prototype, not on the instance, and `new ImageData(1,1)
+  // .colorSpace` is `undefined`. frot published it as `'srgb'`, so a page could
+  // read a member off frot's ImageData that no Firefox has — a costume with an
+  // extra button. It is removed. (`getContextAttributes().colorSpace` is a
+  // different object and stays: that one was measured present, §3.15.)
+  var ImageData = g.__frot_iface('ImageData', null, function (inst, args) {
+    if (args.length < 2) {
+      throw new TypeError('ImageData constructor requires at least 2 arguments');
+    }
+    var a = args[0];
+    var st = slots(inst);
+    if (typeof a === 'object') {
+      st.data = a;
+      st.width = args[1] >>> 0;
+      st.height = args[2] === undefined ? (a.length / 4 / args[1]) >>> 0 : args[2] >>> 0;
+    } else {
+      st.width = a >>> 0;
+      st.height = args[1] >>> 0;
+      st.data = new Uint8ClampedArray(st.width * st.height * 4);
+    }
+  });
+  g.__frot_ifaceattrs(ImageData.prototype, ['width', 'height', 'data']);
 
   // --- the bitmap ------------------------------------------------------------
   // A never-painted canvas is transparent (like a real one); a painted one expands

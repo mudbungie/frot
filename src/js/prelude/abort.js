@@ -51,7 +51,6 @@
     st.aborted = true;
     st.reason = reason;
     var ev = new g.Event('abort');
-    ev.target = sig;
     if (typeof sig.onabort === 'function')
       try {
         sig.onabort.call(sig, ev);

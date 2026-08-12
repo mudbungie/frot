@@ -928,6 +928,96 @@ their whole surface as instance data — `document`, `location`, `history`,
 prototype needs its member list and Gecko's order for it — which is a
 measurement, not a refactor. None of it is asserted here. Filed as `bl-643d`.
 
+### 3.17 The interfaces frot never built, read off the binary (`bl-643d`, 2026-08-12)
+
+§3.16 closed the instances of every interface frot **had**. This closes the
+second family it named: the host objects frot never built an interface for at
+all — plain object literals and hand-rolled constructors whose entire surface was
+own data, so a page walking one read frot's implementation where Gecko has an
+empty instance and a prototype full of accessors.
+
+Fixing them meant *building* the interfaces, and a prototype needs its member
+list **and Gecko's member order**, which is a measurement. Same rig as §3.15/
+§3.16: the official Mozilla `linux-x86_64` en-US tarball `firefox-153.0esr.tar.xz`,
+SHA-256 verified against Mozilla's published `SHA256SUMS`
+(`fcf81e87…9c71`) and never the distro snap (§2), `application.ini` `BuildID`
+`20260716160951` — the same binary §3.10 pinned the persona from. Headless from a
+profile under `$HOME`, driven over Marionette, Mesa forced to llvmpipe. Three
+rounds: the member lists and orders, then the property *descriptors*, then the
+behaviours the first two left open. The rig checked itself first — it reproduced
+`Event.prototype` and `ImageData.prototype` character-identically to `bl-706b`'s
+independent capture three weeks earlier.
+
+**The premise was wrong for one of the thirteen, and reading it first is the only
+reason that was caught.** `Location.prototype` owns **only `constructor`**: a
+real `location` owns its whole surface as own properties, because `Location` is
+`[LegacyUnforgeable]` and every member must be non-configurable so a cross-origin
+page cannot redefine it. frot's plain-object `location` was therefore already the
+right *shape*; what was wrong was the order (`origin` was last, Gecko has it
+second), two missing members (`ancestorOrigins`, `valueOf`), and descriptors a
+page could overwrite where Gecko's cannot be. Moving it onto a prototype — the
+"fix" this ball was filed to apply — would have made it *less* like Firefox.
+
+**`ImageData.colorSpace` does not exist on 153esr.** Not on the prototype, not on
+the instance; `new ImageData(1,1).colorSpace` is `undefined`. frot published it as
+`'srgb'` and the golden oracle asserted it — a member no Firefox has, inherited
+from the 140esr era and never re-read. Removed. (`getContextAttributes()
+.colorSpace` is a different object and stays: §3.15 measured that one present.)
+
+**A real `Event` instance owns exactly one property.** `isTrusted` — an
+enumerable, **non-configurable** accessor reading `false` for a page-constructed
+event — and frot published it nowhere. "Instances own nothing" (§3.16) is the
+rule, and this is its one measured exception; it was added, not flattened away.
+
+| surface | verdict | provenance |
+|---|---|---|
+| `Storage`, `History`, `Performance`, `MediaQueryList` | **whole surface was instance data** — now prototypes in Gecko's order | read |
+| `Location` | premise refuted: Gecko's own instance owns everything (`[LegacyUnforgeable]`); order + 2 members + descriptors fixed | read |
+| `CSSStyleDeclaration` / `CSSStyleProperties` | two interfaces, not one; the tag is `[object CSSStyleProperties]` | read |
+| `DOMRect` / `DOMRectReadOnly` | `DOMRect` subclasses the read-only one and re-declares only the four settable members | read |
+| `XMLHttpRequest` / `XMLHttpRequestEventTarget` | the `on*` handlers are a separate parent interface over `EventTarget`; constants on ctor **and** prototype, non-writable | read |
+| `Response`, `Headers`, `Request` | member order; instances own nothing; `new Response(x)` is status 200 | read |
+| `Event` instance owns `isTrusted` (`false`, non-configurable) | **frot published it nowhere** — added | read |
+| `ImageData.colorSpace` | **absent on 153esr** — frot invented it | read |
+| `history.scrollRestoration`, `DOMRect` x/y/width/height, `cssText` | the only settable attributes among them | read |
+| computed-style refusals (`NoModificationAllowedError`, three exact messages) | verbatim | read |
+| `location.ancestorOrigins` is an empty `DOMStringList` (`item`, `contains`, `length`) | read; empty is the honest value — one arena, no frames (js.md §11) | read |
+| `constructor` last on all of them | via the one `__frot_iface_seal`, per §3.15 | read |
+
+**Left undone, recorded rather than guessed.**
+
+- **`Document`/`HTMLDocument` is not built.** Measured and written down here so
+  the next agent starts from the reading: `Document.prototype` carries **232**
+  members, `HTMLDocument.prototype` carries only `constructor`, the chain is
+  `HTMLDocument → Document → Node → EventTarget`, the tag is
+  `[object HTMLDocument]`, and a real `document` owns **exactly one** property —
+  `location`. frot's `document` owns 37. It is the largest surface here by an
+  order of magnitude, six prelude modules assign onto it, and making it a real
+  `Node` subclass is a host change (frot's `document` has no arena node id), not
+  a shape change. Filed as its own ball.
+- **A computed style's 383 indexed properties.** A real one enumerates every
+  longhand — `length` is 383, `item(0)` is `accent-color`, each index an own
+  property. frot computes the js.md §8 subset, so it can neither list 383
+  honestly nor pass its four off as that list. `length` is 0 and the indices are
+  absent.
+- **`DocumentFragment`'s parent is `Node.prototype`** on the binary, and
+  `appendChild`/`insertBefore`/`removeChild`/`childNodes`/`firstChild` come from
+  there. frot's fragment is a staging object *outside* the arena, so those five
+  stay on `DocumentFragment.prototype` and the parent is `EventTarget` — which is
+  where the listener trio genuinely comes from. Same host change as `Document`.
+- **A populated `Storage`'s key order.** Its keys are own properties on the
+  binary (asserted), but the binary answered in neither insertion nor sorted
+  order — its internal hash order, which a deterministic tool cannot reproduce
+  (VISION principle 1). frot answers in insertion order and claims nothing more.
+- **`navigator.webdriver` is `true` under Marionette.** A capture distortion of
+  the rig, not a persona fact; frot's `false` is correct and unchanged.
+
+Cost: the prelude grew 5,664 → 6,021 lines, **+1.2–1.5 ms CPU per run** (debug
+build, 120 interleaved A/B pairs) against `CPU_GUARD_MS` = 500 ms (half of `EXEC_CPU_MS` = 1,000), the §5 margin
+`run_guarded` enforces. The canvas, WebGL and audio fingerprint digests are
+byte-identical across the change — the golden oracle pins them across two
+independent invocations and both still match.
+
 ---
 
 ## 4. The one profile

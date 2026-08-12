@@ -18,8 +18,10 @@
 //! the HTML-string direction pair `innerHTML`/`outerHTML` and its one
 //! serializer (`markup.js`), `textContent`, `console`, the
 //! geometry facade (`getBoundingClientRect`/`offset*`/`getComputedStyle`, js.md
-//! §8), the environment shims (`env.js`: storage, cookie, `navigator`/
-//! `location`/`matchMedia`, `self`/`window` aliasing, spec-legal denials), the
+//! §8), the environment shims (`env.js`: cookie, `self`/`window` aliasing, the
+//! viewport facts, spec-legal denials — with the four ambient objects that are
+//! real interfaces, `Storage`/`Location`/`History`/`MediaQueryList`, in
+//! `envobj.js`), the
 //! WHATWG-subset `URL`/`URLSearchParams` (`url.js`, over the `__frot_url_parse`
 //! syscall), the
 //! event registry and interfaces (`events.js`: `EventTarget`/`Event`/
@@ -65,13 +67,6 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/elem2.js"),
     "\n",
-    // doc.js after elem2.js (bl-6da7): the `document` object's own breadth and
-    // the DocumentFragment it hands out, split off elem2.js on the seam that
-    // file already named. elem2.js's appendChild/insertBefore drain a fragment
-    // through the `drain` slot doc.js sets, so it must be loaded before a page
-    // script can build one.
-    include_str!("prelude/doc.js"),
-    "\n",
     // DOMTokenList (bl-3a36): classList/relList as the spec-named interface —
     // after elem2.js (extends the same Node prototype), before anything reads
     // classList.
@@ -84,6 +79,14 @@ pub const SOURCE: &str = concat!(
     // permissions.js, worker.js, idb.js and loop.js all reach (bl-6438). Needs
     // only brand.js and dom.js.
     include_str!("prelude/events.js"),
+    "\n",
+    // doc.js (bl-6da7): the `document` object's own breadth and the
+    // DocumentFragment it hands out, split off elem2.js on the seam that file
+    // already named. AFTER events.js, because the staging fragment is an
+    // EventTarget and inherits that interface (bl-643d); elem2.js's
+    // appendChild/insertBefore drain a fragment through the `drain` slot doc.js
+    // sets, and both are loaded before any page script can build one.
+    include_str!("prelude/doc.js"),
     "\n",
     // The identity surface (bl-3972), derived from __frot_env_profile: after
     // dom.js (extends document/Node), any order among themselves.
@@ -104,6 +107,11 @@ pub const SOURCE: &str = concat!(
     include_str!("prelude/worker.js"),
     "\n",
     include_str!("prelude/env.js"),
+    "\n",
+    // The environment's four ambient objects as interfaces (bl-643d): Storage,
+    // Location, History, MediaQueryList. Split out of env.js; after events.js
+    // because MediaQueryList inherits its EventTarget.
+    include_str!("prelude/envobj.js"),
     "\n",
     include_str!("prelude/url.js"),
     "\n",

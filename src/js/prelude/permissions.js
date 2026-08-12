@@ -39,25 +39,6 @@
     Object.setPrototypeOf(Ctor.prototype, g.EventTarget.prototype);
   }
 
-  // A CONSTRUCTABLE Firefox-shaped interface: `body(inst, arguments)` shapes each
-  // instance and may throw the one synchronous WebIDL check. @@toStringTag gives
-  // `[object <name>]`; the constructor is a NON-enumerable global (as browsers
-  // expose their interfaces). Unlike __frot_iface, whose ctor throws "Illegal
-  // constructor", this one builds — Notification is constructable in Firefox.
-  function ctor(name, body) {
-    var holder = {};
-    holder[name] = function () {
-      body(this, arguments);
-    };
-    var C = brand(holder[name], name);
-    Object.defineProperty(C.prototype, Symbol.toStringTag, {
-      value: name,
-      configurable: true,
-    });
-    Object.defineProperty(g, name, { value: C, configurable: true, writable: true });
-    return C;
-  }
-
   // --- Permissions / PermissionStatus ----------------------------------------
   // The PermissionName enum, and each name's state on a FRESH profile — both
   // READ from Firefox 153.0esr, two fresh profiles, `bl-1ab7` (identity.md
@@ -130,7 +111,7 @@
   // not `null`. `timestamp` was also the one non-deterministic value in the
   // persona — it was `Date.now()`, so two runs of the same page disagreed.
   var STR = { dir: 'auto', lang: '', body: '', tag: '', icon: '' };
-  var Notification = ctor('Notification', function (inst, args) {
+  var Notification = iface('Notification', null, function (inst, args) {
     if (args.length < 1) {
       throw new TypeError(
         'Notification constructor: At least 1 argument required, but only 0 passed');

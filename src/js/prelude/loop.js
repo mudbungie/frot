@@ -38,23 +38,36 @@
   Date.now = function () {
     return origin + observe();
   };
-  g.performance = {
-    now: function () {
+  // `performance` is a WebIDL interface, not an object literal: measured on
+  // Firefox 153.0esr (identity.md §3.17) its instance owns nothing, its parent
+  // is EventTarget, and its prototype lists the operations first — now, toJSON,
+  // getEntries, getEntriesByType, getEntriesByName, … — with `timeOrigin` among
+  // the attributes after them. frot publishes the subset it can answer, in that
+  // measured relative order (bl-643d).
+  var Performance = g.__frot_iface('Performance');
+  Object.setPrototypeOf(Performance.prototype, g.EventTarget.prototype);
+  g.__frot_ifaceops(Performance.prototype, {
+    now: function now() {
       return observe();
     },
-    timeOrigin: origin,
-    getEntries: function () {
+    getEntries: function getEntries() {
       return resourceEntries();
     },
-    getEntriesByType: function (type) {
+    getEntriesByType: function getEntriesByType(type) {
       return type === 'resource' ? resourceEntries() : [];
     },
-    getEntriesByName: function (name) {
+    getEntriesByName: function getEntriesByName(name) {
       return resourceEntries().filter(function (e) {
         return e.name === name;
       });
     },
-  };
+  });
+  g.__frot_ifaceattrs(Performance.prototype, {
+    timeOrigin: function () {
+      return origin;
+    },
+  });
+  g.performance = Object.create(Performance.prototype);
   // PerformanceResourceTiming for the real subfetches only (§6/§8): frot measures
   // start + duration off the one clock; every phase it does not measure (DNS/TCP/
   // TLS) stays 0 — spec-legal for a cross-origin resource, never fabricated. No
@@ -159,7 +172,6 @@
   function setReadyState(state) {
     g.document.readyState = state;
     var ev = new g.Event('readystatechange');
-    ev.target = g.document;
     var errs = dispatch('document', ev, g.document);
     if (typeof g.document.onreadystatechange === 'function')
       try {
@@ -178,7 +190,6 @@
     if (name === 'DOMContentLoaded') errs += setReadyState('interactive');
     else if (name === 'load') errs += setReadyState('complete');
     var ev = new g.Event(name);
-    ev.target = g.document;
     errs += dispatch('document', ev, g.document) + dispatch('window', ev, g);
     var on = 'on' + name.toLowerCase();
     var hosts = [g.document, g];
@@ -216,7 +227,6 @@
   }
   g.reportError = function (err) {
     var ev = new g.Event('error');
-    ev.target = g;
     ev.error = err;
     ev.message = err && err.message != null ? String(err.message) : String(err);
     raiseError(ev);

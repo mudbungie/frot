@@ -1,13 +1,12 @@
-// Environment shims (js.md §7) — no persistence. localStorage/sessionStorage
-// and document.cookie are in-memory, born empty, and die with the process;
-// navigator/location are the static facts frot already has (UA it sends, final
-// URL); matchMedia delegates to the Rust media-query evaluator (the one @media
-// blocks cascade through — src/css/media.rs); the rest are spec-legal denials
-// (null/false/absent), never silent lies. Layered on the __frot_location /
-// __frot_viewport_width / __frot_media_matches / __frot_denied syscalls; runs
-// after dom.js so it can extend `document` and `Node`. The navigator/screen/
-// Intl/crypto identity surface moved to its own modules (bl-3972), all derived
-// from the __frot_env_profile channel.
+// Environment shims (js.md §7) — no persistence. What is left here is what is
+// NOT an interface: the `self`/`window` aliasing, the document.cookie bridge onto
+// the Rust jar, and the viewport facts. The four ambient OBJECTS that used to
+// live here — localStorage/sessionStorage, location, history, and matchMedia's
+// return — moved to envobj.js when they became real interfaces with their
+// members on a prototype in Gecko's order (bl-643d); the navigator/screen/Intl/
+// crypto identity surface moved to its own modules (bl-3972). Layered on the
+// __frot_cookie_* / __frot_viewport_* syscalls; runs after dom.js so it can
+// extend `document` and `Node`.
 (function (g) {
   'use strict';
   var slots = g.__frot_slots;
@@ -21,53 +20,6 @@
   g.top = g;
   g.parent = g;
   g.frameElement = null;
-
-  // --- Storage: real semantics, in-memory, born empty (§7) ------------------
-  function makeStorage() {
-    var map = Object.create(null);
-    var api = {
-      getItem: function (k) {
-        k = String(k);
-        return k in map ? map[k] : null;
-      },
-      setItem: function (k, v) {
-        map[String(k)] = String(v);
-      },
-      removeItem: function (k) {
-        delete map[String(k)];
-      },
-      clear: function () {
-        map = Object.create(null);
-      },
-      key: function (i) {
-        var ks = Object.keys(map);
-        return i >= 0 && i < ks.length ? ks[i] : null;
-      },
-    };
-    // A Proxy gives the bracket/dot sugar (`store.foo`, `store[k] = v`) real
-    // Storage exposes, while the method names and `length` pass through.
-    return new Proxy(api, {
-      get: function (t, p) {
-        if (p === 'length') return Object.keys(map).length;
-        if (p in t) return t[p];
-        return typeof p === 'string' && p in map ? map[p] : undefined;
-      },
-      set: function (t, p, v) {
-        if (p in t) return false;
-        map[String(p)] = String(v);
-        return true;
-      },
-      has: function (t, p) {
-        return p in t || (typeof p === 'string' && p in map);
-      },
-      deleteProperty: function (t, p) {
-        delete map[String(p)];
-        return true;
-      },
-    });
-  }
-  g.localStorage = makeStorage();
-  g.sessionStorage = makeStorage();
 
   // --- document.cookie: the one shared jar (bl-6dad, identity.md §9) ---------
   // Not a second in-memory string: get/set delegate to the Rust cookie jar the
@@ -89,79 +41,6 @@
   // derives from the one BrowserProfile SSOT through __frot_env_profile, so no
   // identity literal lives here and the JS persona cannot contradict the wire
   // (identity.md §4/§8). See navigator.js / screen.js / intl.js / crypto.js.
-
-  // --- location: the final URL; assignment is navigation = counted no-op ----
-  var L = g.__frot_location();
-  var loc = {
-    assign: function () {
-      g.__frot_denied();
-    },
-    replace: function () {
-      g.__frot_denied();
-    },
-    reload: function () {
-      g.__frot_denied();
-    },
-    toString: function () {
-      return L.href;
-    },
-  };
-  ['href', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash', 'origin'].forEach(
-    function (k) {
-      Object.defineProperty(loc, k, {
-        enumerable: true,
-        get: function () {
-          return L[k];
-        },
-        // href/etc assignment is navigation (js.md §7/§11) — observable, so counted.
-        set: function () {
-          g.__frot_denied();
-        },
-      });
-    }
-  );
-  // `location = url` / `window.location = url` are navigation too (js.md §11).
-  Object.defineProperty(g, 'location', {
-    configurable: true,
-    get: function () {
-      return loc;
-    },
-    set: function () {
-      g.__frot_denied();
-    },
-  });
-  Object.defineProperty(g.document, 'location', {
-    configurable: true,
-    get: function () {
-      return loc;
-    },
-    set: function () {
-      g.__frot_denied();
-    },
-  });
-
-  // --- history: in-memory, no navigation (§7) -------------------------------
-  // Routers read `history.state` on first render; absent, they throw. pushState/
-  // replaceState set `.state` (the only fact read back); pushState also bumps
-  // `length`. They do NOT mutate `location`: it stays the honest fetched URL
-  // (§7, "location is a static fact") — frot takes ONE impression, and SPA
-  // routers pick their initial route from that location. go/back/forward are
-  // no-ops (there is nowhere to go). Born fresh, discarded at exit (§7).
-  g.history = {
-    state: null,
-    length: 1,
-    scrollRestoration: 'auto',
-    pushState: function (state, title, url) {
-      this.state = state;
-      this.length += 1;
-    },
-    replaceState: function (state, title, url) {
-      this.state = state;
-    },
-    go: function () {},
-    back: function () {},
-    forward: function () {},
-  };
 
   // --- viewport & width facts (§7/§8) ---------------------------------------
   // A fixed 1280×720 viewport (layout.rs VIEWPORT_WIDTH/VIEWPORT_HEIGHT). Pages
@@ -189,28 +68,6 @@
       },
     });
   }
-
-  // --- matchMedia: the shared Rust media-query evaluator (§7) ---------------
-  // One authority for media-query semantics (src/css/media.rs): @media blocks
-  // in the CSS cascade and matchMedia here both evaluate through it, via the
-  // __frot_media_matches syscall — CSS and JS can never disagree. Width/height
-  // queries in px/em/rem (16px per em/rem) against the fixed viewport;
-  // screen/all match, print and anything unknown never does.
-  g.matchMedia = function (query) {
-    query = String(query);
-    return {
-      matches: g.__frot_media_matches(query),
-      media: query,
-      onchange: null,
-      addListener: function () {},
-      removeListener: function () {},
-      addEventListener: function () {},
-      removeEventListener: function () {},
-      dispatchEvent: function () {
-        return false;
-      },
-    };
-  };
 
   // canvas `getContext`/`toDataURL` are the 2D-fingerprint masquerade, owned by
   // canvas.js (bl-05e6): getContext('2d') returns a branded, deterministic

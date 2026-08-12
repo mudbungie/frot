@@ -728,6 +728,13 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
 
 ## 7. Environment shims — no persistence
 
+Every object in this section is a **WebIDL interface**, not an object literal:
+its members live on a prototype in Gecko's own member order, and the instance
+owns nothing (the one measured exception is `location`, which is
+`[LegacyUnforgeable]` and really does own its whole surface). Read off Firefox
+153.0esr and recorded in `identity.md` §3.17, 2026-08-12 (`bl-643d`) — before
+that, a page walking any of them read frot's implementation instead.
+
 - `localStorage` / `sessionStorage`: real `Storage` semantics, in-memory,
   born empty, discarded at exit. Pages that gate on its *existence* work;
   nothing survives the process (VISION: no persistence).

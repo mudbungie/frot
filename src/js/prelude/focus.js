@@ -31,7 +31,6 @@
   }
   function emit(el, type) {
     var ev = new g.Event(type);
-    ev.target = el;
     el.dispatchEvent(ev);
   }
 

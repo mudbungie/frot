@@ -34,6 +34,13 @@
     if (i >= 0) b.splice(i, 1);
   }
   function fire(key, ev, target) {
+    // The dispatcher sets `event.target`, as a real one does — it is not a value
+    // the code raising the event writes. Four call sites used to assign it by
+    // hand, which stopped being possible when `target` became the read-only
+    // prototype accessor Gecko has (bl-643d). Set once: a lifecycle event is
+    // dispatched to document AND window, and its target stays the document.
+    var st = slots(ev);
+    if (st.target === null || st.target === undefined) st.target = target;
     var b = bucket(key, ev.type).slice();
     var errs = 0;
     for (var i = 0; i < b.length; i++)
@@ -59,21 +66,44 @@
     return k;
   }
 
-  g.Event = function (type, init) {
-    this.type = String(type);
-    this.bubbles = !!(init && init.bubbles);
-    this.defaultPrevented = false;
-    this.target = null;
-  };
-  g.Event.prototype.preventDefault = function () {
-    this.defaultPrevented = true;
-  };
-  g.Event.prototype.stopPropagation = function () {};
-  g.CustomEvent = function (type, init) {
-    g.Event.call(this, type, init);
-    this.detail = init ? init.detail : null;
-  };
-  g.CustomEvent.prototype = Object.create(g.Event.prototype);
+  // Event / CustomEvent are real interfaces (bl-643d): they were constructors
+  // that stamped four values onto each instance, where a real event owns exactly
+  // ONE own property. Measured on Firefox 153.0esr (identity.md §3.17), a
+  // constructed `new Event('x')` owns `isTrusted` alone — an enumerable,
+  // NON-configurable accessor reading `false` — and everything else (type,
+  // target, bubbles, defaultPrevented, preventDefault, stopPropagation) comes
+  // off `Event.prototype`, operations before attributes as everywhere else. So
+  // `isTrusted` is added here rather than dropped: it is the one own property
+  // Gecko really has, and frot never published it at all.
+  var Event = g.__frot_iface('Event', null, function (inst, args) {
+    var st = slots(inst);
+    st.type = String(args[0]);
+    st.bubbles = !!(args[1] && args[1].bubbles);
+    st.defaultPrevented = false;
+    st.target = null;
+    Object.defineProperty(inst, 'isTrusted', {
+      get: g.__frot_brand(function () {
+        return false;
+      }, 'get isTrusted'),
+      enumerable: true,
+      configurable: false,
+    });
+  });
+  g.__frot_ifaceops(Event.prototype, {
+    stopPropagation: function stopPropagation() {},
+    preventDefault: function preventDefault() {
+      slots(this).defaultPrevented = true;
+    },
+  });
+  g.__frot_ifaceattrs(Event.prototype, ['type', 'target', 'bubbles', 'defaultPrevented']);
+
+  // CustomEvent.prototype: initCustomEvent, detail, constructor — parent Event.
+  var CustomEvent = g.__frot_iface('CustomEvent', null, function (inst, args) {
+    Event.call(inst, args[0], args[1]);
+    slots(inst).detail = args[1] ? args[1].detail : null;
+  });
+  Object.setPrototypeOf(CustomEvent.prototype, Event.prototype);
+  g.__frot_ifaceattrs(CustomEvent.prototype, ['detail']);
 
   // EventTarget (bl-e81b): Firefox's base interface, constructable since FF 59
   // — framer-motion resolves animation targets with `t instanceof EventTarget`,
