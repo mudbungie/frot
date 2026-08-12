@@ -205,6 +205,28 @@ glyph advance (8px), line-height 1.25 (20px) — as named constants, with greedy
 word-boundary line-breaking against the viewport width. Boxes are therefore
 **structural estimates, not pixel truth.**
 
+**Generated content is inline content** (bl-6fcb). `--css` capability model:
+computed `::before`/`::after` content propagates to *all* subsequent outputs, so
+it must reach layout too — an icon span whose whole content is
+`::before{content:"\e609"}` has a real box in a browser, and the inline content
+after it is displaced by it. The rule is a reframe, not a special case: the
+computed generated string is tokenized by the *same* tokenizer as a text child
+(`src/layout/inline.rs`), at the position a browser puts it — `::before` ahead of
+the element's children, `::after` behind them — so it wraps, advances the line
+cursor, and unions into the originating element's rect and its inline ancestors'
+exactly like text. Consequences, all of them inherited rather than invented:
+
+- A pseudo with `display:none` computes no string in the cascade, so it
+  contributes no geometry — no layout-side check.
+- `attr()` content re-tokenizes whenever the tables are recomputed, so a
+  post-`--js` attribute change moves the geometry (js.md §8's per-generation
+  cache) with no extra mechanism.
+- Generated content on a container that *also* has block-level children is
+  dropped, exactly as a stray text child in that position is: Phase 3 promotes no
+  anonymous block boxes (§1). Same gap, same reason, for both.
+- Widths stay estimates: the glyph advance is the same 8px, so an icon glyph is
+  8px wide here where a browser's font gives it ~21px.
+
 **The needs/error story (VISION principle 5).** frot must never "silently
 produce a degraded result that looks complete." For layout the honest posture is:
 

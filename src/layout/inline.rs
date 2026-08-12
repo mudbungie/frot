@@ -9,6 +9,16 @@
 //! (`line_count * LINE_HEIGHT`) and fills each inline element's box with the
 //! union of its word fragments.
 //!
+//! **`::before`/`::after` generated content is inline content** (`layout.md`
+//! §6): an element's computed generated strings are tokenized by the same
+//! [`tokenize`] as a text child, at the same position a browser puts them —
+//! `::before` ahead of the children, `::after` behind — so an icon span with no
+//! text still gets a box, and the content that follows it shifts. A pseudo whose
+//! `display` is `none` computes no string (`css::computed`) and so contributes
+//! nothing here. Generated content in a container that also has block-level
+//! children is dropped exactly as a stray text child there is: no anonymous
+//! block promotion (`layout.md` §1).
+//!
 //! **These are structural estimates, not pixel truth** (design §6): no font is
 //! loaded, so a word's width is `glyphs * GLYPH_ADVANCE`, an inter-word space
 //! advances the same, and every line is `LINE_HEIGHT` tall. The value is
@@ -42,11 +52,7 @@ pub(super) fn flow(
     width_px: i32,
     boxes: &mut [Option<Rect>],
 ) -> i32 {
-    let mut words = Vec::new();
-    let mut ancestors = Vec::new();
-    for &c in &doc.node(block_id).children {
-        collect(doc, styles, c, &mut ancestors, &mut words);
-    }
+    let words = content_of(doc, styles, block_id);
     let (rects, line_count) = break_lines(&words, block_y, width_px);
     fill_unions(&words, &rects, boxes);
     line_count * LINE_HEIGHT
@@ -56,22 +62,48 @@ pub(super) fn flow(
 /// (unwrapped) line, with a single `GLYPH_ADVANCE` gap between adjacent words.
 /// `0` when the subtree renders no word. A crude intrinsic size for a flex row
 /// item (`layout.md` §6: structural estimate, not exact item sizing); reuses the
-/// same [`collect`] tokenizer and metrics as [`flow`] (single source of truth).
+/// same [`content_of`] tokenizer and metrics as [`flow`], generated content
+/// included (single source of truth).
 pub(super) fn max_content_width(doc: &Document, styles: &Styles, id: NodeId) -> i32 {
-    let mut words = Vec::new();
-    let mut ancestors = Vec::new();
-    for &c in &doc.node(id).children {
-        collect(doc, styles, c, &mut ancestors, &mut words);
-    }
+    let words = content_of(doc, styles, id);
     let glyphs: i32 = words.iter().map(|w| w.glyphs).sum();
     let gaps = words.len().saturating_sub(1) as i32;
     glyphs * GLYPH_ADVANCE + gaps * GLYPH_ADVANCE
 }
 
+/// Every [`Word`] element `id` contributes as inline content, in layout order.
+/// The enclosing inline-element stack starts empty: `id`'s own box is sized by
+/// its block/flex caller, not by the fragment union.
+fn content_of(doc: &Document, styles: &Styles, id: NodeId) -> Vec<Word> {
+    let mut words = Vec::new();
+    contents(doc, styles, id, &mut Vec::new(), &mut words);
+    words
+}
+
+/// Rendered element `id`'s inline content in layout order: its `::before`
+/// generated string, its children, then its `::after` — generated content is
+/// tokenized exactly like a text child in that position, so it wraps, advances
+/// the line cursor, and unions into `id` and its inline ancestors like any other
+/// text (`layout.md` §6).
+fn contents(
+    doc: &Document,
+    styles: &Styles,
+    id: NodeId,
+    ancestors: &mut Vec<NodeId>,
+    words: &mut Vec<Word>,
+) {
+    tokenize(styles.before(id), ancestors, words);
+    for &c in &doc.node(id).children {
+        collect(doc, styles, c, ancestors, words);
+    }
+    tokenize(styles.after(id), ancestors, words);
+}
+
 /// Walk `id` in source order, appending a [`Word`] per whitespace-separated run
 /// of its rendered text. `ancestors` tracks the enclosing inline-element stack; a
-/// `display:none`/non-rendered element and its whole subtree are skipped, a text
-/// node is tokenized, any other node kind contributes nothing.
+/// `display:none`/non-rendered element and its whole subtree are skipped (its
+/// generated content with it), a text node is tokenized, any other node kind
+/// contributes nothing.
 fn collect(
     doc: &Document,
     styles: &Styles,
@@ -80,25 +112,30 @@ fn collect(
     words: &mut Vec<Word>,
 ) {
     match &doc.node(id).kind {
-        NodeKind::Text(t) => {
-            for w in t.split_whitespace() {
-                words.push(Word {
-                    glyphs: w.chars().count() as i32,
-                    ancestors: ancestors.clone(),
-                });
-            }
-        }
+        NodeKind::Text(t) => tokenize(Some(t), ancestors, words),
         NodeKind::Element(_) => {
             if !is_rendered_element(doc, id, styles) {
                 return;
             }
             ancestors.push(id);
-            for &c in &doc.node(id).children {
-                collect(doc, styles, c, ancestors, words);
-            }
+            contents(doc, styles, id, ancestors, words);
             ancestors.pop();
         }
         _ => {}
+    }
+}
+
+/// Append one [`Word`] per whitespace-separated run of `text` under the current
+/// inline-ancestor stack — the single tokenizer for both DOM text and generated
+/// content, so the two are metrically indistinguishable.
+fn tokenize(text: Option<&str>, ancestors: &[NodeId], words: &mut Vec<Word>) {
+    if let Some(text) = text {
+        for w in text.split_whitespace() {
+            words.push(Word {
+                glyphs: w.chars().count() as i32,
+                ancestors: ancestors.to_vec(),
+            });
+        }
     }
 }
 
@@ -155,5 +192,7 @@ fn union(a: Rect, b: Rect) -> Rect {
     Rect { x, y, w, h }
 }
 
+#[cfg(test)]
+mod pseudo_tests;
 #[cfg(test)]
 mod tests;

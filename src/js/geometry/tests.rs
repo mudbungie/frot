@@ -179,3 +179,34 @@ fn style_source_selects_bare_or_authored_cascade() {
         "none"
     );
 }
+
+/// Generated content is inline content (`layout.md` §6), so an otherwise-empty
+/// icon span has a real box through the same layout authority `bboxes` reads —
+/// and `attr()` content re-measures after JS changes the attribute, because the
+/// mutation bumps the generation and the cache recomputes (js.md §8).
+#[test]
+fn generated_content_has_geometry_that_tracks_attribute_changes() {
+    let s = authored(
+        "<html><head><style>#i::before{content:\"\\e609\"}\
+         #j::before{content:attr(data-x)}</style></head>\
+         <body><p><span id='i'></span><span id='j' data-x='ab'></span></p></body></html>",
+        Vec::new(),
+    );
+    s.eval("globalThis.i = __frot_query_doc('#i')[0]").unwrap();
+    s.eval("globalThis.j = __frot_query_doc('#j')[0]").unwrap();
+    // One glyph (8px) then the two-glyph attr string, one 8px gap between them.
+    assert_eq!(
+        s.eval("JSON.stringify(__frot_rect(i))").unwrap(),
+        "[0,0,8,20]"
+    );
+    assert_eq!(
+        s.eval("JSON.stringify(__frot_rect(j))").unwrap(),
+        "[16,0,16,20]"
+    );
+    // Widening the attribute widens the box it generates.
+    s.eval("__frot_set_attr(j, 'data-x', 'abcd')").unwrap();
+    assert_eq!(
+        s.eval("JSON.stringify(__frot_rect(j))").unwrap(),
+        "[16,0,32,20]"
+    );
+}

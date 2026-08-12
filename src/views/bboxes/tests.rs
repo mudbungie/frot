@@ -134,3 +134,21 @@ fn bare_ignores_style_block_that_css_would_reorder() {
         .collect();
     assert_eq!(full_ems, ["b", "a"]);
 }
+
+/// The python.org icon-span shape (bl-6fcb): a span whose whole content is
+/// `::before` generated text emits a real rect, not the all-zero placeholder,
+/// and the heading it sits in is one line tall.
+#[test]
+fn generated_content_gives_an_icon_span_a_real_rect() {
+    let (doc, l, s) = full(
+        "<style>.icon::before{content:\"\\e609\"}</style>\
+         <h1><span class=\"icon\"></span>Download</h1>",
+    );
+    let out = entries(bboxes(&doc, &l, &s));
+    let span = tag(&out, "span");
+    // One glyph at the line start: 8px wide, one line tall — not Rect::ZERO.
+    assert_eq!(span["rect"], serde_json::json!({"x":0,"y":0,"w":8,"h":20}));
+    // The span carries no direct text of its own; the generated glyph is not it.
+    assert_eq!(span["text"], Value::Null);
+    assert_eq!(tag(&out, "h1")["rect"]["h"], 20);
+}
