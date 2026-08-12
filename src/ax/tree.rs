@@ -50,35 +50,31 @@ pub fn ax_tree(doc: &Document, styles: Option<&Styles>, layout: Option<&Layout>)
     Value::Array(nodes)
 }
 
-/// The child `NodeId`s of `id` in AX emission order — **none** for a
-/// `<video>`/`<audio>`/`<iframe>`, whose children are fallback content for a UA
-/// without the element and whose subtree the UA replaces outright
-/// ([`Document::withholds_children_from_ax`], `bl-0f83`/`bl-e79a`); that is a
-/// content-model fact, so it holds with or without `--css`, and the element's
-/// own node and name are untouched. A `<canvas>` is deliberately *not* in that
-/// set: HTML makes its fallback content the element's accessible sub-tree, so
-/// the AX tree keeps every child the page paints none of. Under a computed
-/// `Layout`,
-/// a flex container (`Display::Flex`/`InlineFlex`) emits its children in flex
-/// reading order — [`Layout::child_order`], the single reorder primitive from
-/// subtask 3.5 (`layout.md` §5). Every other node, and *every* node when
-/// `layout` is `None` (no `--css`), keeps source order, so `ax` without layout
-/// is bit-for-bit unchanged. Reordering stays within a container: children are
-/// resequenced among siblings, never moved across containers.
+/// The child `NodeId`s of `id` in AX emission order: [`Document::ax_children`]
+/// decides *which* children exist — the accessor `ax::name::contents` descends
+/// through too, so nothing cut from the tree can still name it (`bl-0aaf`) —
+/// and this decides their order.
+///
+/// Under a computed `Layout`, a flex container
+/// (`Display::Flex`/`InlineFlex`) emits its children in flex reading order —
+/// [`Layout::child_order`], the single reorder primitive from subtask 3.5
+/// (`layout.md` §5). Every other node, and *every* node when `layout` is `None`
+/// (no `--css`), keeps source order, so `ax` without layout is bit-for-bit
+/// unchanged. Reordering stays within a container: children are resequenced
+/// among siblings, never moved across containers. `child_order` needs no
+/// concealment filter of its own — it reads the render tree, which
+/// `layout::renders` already built without the unpainted nodes.
 fn ordered_children(
     doc: &Document,
     id: NodeId,
     styles: Option<&Styles>,
     layout: Option<&Layout>,
 ) -> Vec<NodeId> {
-    if doc.withholds_children_from_ax(id) {
-        return Vec::new();
-    }
     match (layout, styles) {
         (Some(l), Some(s)) if matches!(s.display(id), Display::Flex | Display::InlineFlex) => {
             l.child_order(id)
         }
-        _ => doc.node(id).children.clone(),
+        _ => doc.ax_children(id).collect(),
     }
 }
 

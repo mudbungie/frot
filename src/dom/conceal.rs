@@ -41,6 +41,20 @@
 //! canvas fallback is ordinary. Authored `display:none` inside it still hides
 //! it from AX, in Chrome and here alike, because that arrives through the
 //! cascade rather than through these rules.
+//!
+//! ## One accessor, not two walks (`bl-0aaf`)
+//!
+//! `concealed` used to be *asked* by the AX tree builder and *not* asked by the
+//! accname §2F recursion, so a `<video>`'s fallback was cut from the tree while
+//! its text still named the tree's `<a>` — but only without `--css`, since with
+//! a cascade the same fact arrived a second time as `display:none`. Two
+//! traversals over one arena, each with its own idea of what was excluded.
+//!
+//! So `concealed` is no longer a predicate anyone remembers to ask.
+//! [`Document::ax_children`] is the single accessor both AX walks descend
+//! through, and it applies `concealed` itself. The agreement is structural: a
+//! node absent from the tree is unreachable by the name walk *because there is
+//! no other way in*, in every recipe, with or without a cascade.
 
 use super::{Document, NodeId, NodeKind};
 use crate::tags;
@@ -69,21 +83,22 @@ impl Document {
         let Some(parent) = self.node(id).parent else {
             return false;
         };
-        self.tag_withholds(parent, keeps)
+        matches!(&self.node(parent).kind, NodeKind::Element(el) if !keeps(&el.name))
             || (self.closed_details(parent) && self.first_summary(parent) != Some(id))
     }
 
-    /// Whether `id` is an element that withholds its children by `keeps` —
-    /// asked of the *element*, not of a child, which is what the AX tree's own
-    /// recipe-independent cut needs (it has no cascade to consult without
-    /// `--css`). `<source>`/`<track>` are covered like any other child: they
-    /// configure the box, they are never rendered beside it.
-    pub fn withholds_children_from_ax(&self, id: NodeId) -> bool {
-        self.tag_withholds(id, tags::exposes_children)
-    }
-
-    fn tag_withholds(&self, id: NodeId, keeps: fn(&str) -> bool) -> bool {
-        matches!(&self.node(id).kind, NodeKind::Element(el) if !keeps(&el.name))
+    /// `id`'s children as the accessibility tree sees them: every child that is
+    /// not [`Document::concealed`]. This is the *only* way into a node's
+    /// children from `ax` (module docs, "One accessor, not two walks"), so the
+    /// tree walk and the name walk cannot disagree about what is there.
+    /// `<source>`/`<track>` need no mention: they are children of a
+    /// fallback-content element like any other, and go with the rest.
+    pub fn ax_children(&self, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        self.node(id)
+            .children
+            .iter()
+            .copied()
+            .filter(move |&c| !self.concealed(c))
     }
 
     /// Whether `id` is a `<details>` element carrying no `open` attribute.

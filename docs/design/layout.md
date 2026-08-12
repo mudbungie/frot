@@ -116,7 +116,7 @@ two queries over one tag table:
 | query | means | read by |
 |---|---|---|
 | `Document::unpainted` | generates no box | `layout::renders`, `needs::not_rendered` |
-| `Document::concealed` | unpainted **and** absent from the AX tree | `css::cascade::conceal` → `display:none` |
+| `Document::concealed` | unpainted **and** absent from the AX tree | `Document::ax_children`, `css::cascade::conceal` → `display:none` |
 
 `concealed` is the strict subset; they differ on `<canvas>` alone. Canvas
 fallback must stay out of the cascade's `display:none` precisely because
@@ -133,11 +133,8 @@ reads the same predicate for an element's `text` field, so a replaced box is
 never sized or captioned from copy nothing paints.
 
 The fallback half is a *content model* fact rather than a UA stylesheet one, so
-it also holds without `--css`: `views::text` and `ax::tree` read
-`tags::renders_children` / `tags::exposes_children` in their own
-recipe-independent skips, the same way they already skip
-`<script>`/`<svg>`/`<math>`. The `<details>` half is state in the document and
-stays cascade-gated like `[hidden]`.
+it also holds without `--css`: `views::text` reads `tags::renders_children` in
+the recipe-independent skip it already keeps for `<script>`.
 
 Its block-level tag set is *the same list* `views::text.rs` already uses for
 block breaks (`BLOCK_TAGS`) — extract it to one place so the two never drift
@@ -165,6 +162,40 @@ block breaks (`BLOCK_TAGS`) — extract it to one place so the two never drift
 
 Coercion is deterministic and documented; it is not a silent failure (§6, honest
 signals).
+
+### 2.2 `ax` descends through one accessor, in every recipe (`bl-0aaf`)
+
+`bl-0f83` claimed the fallback rule "holds in every recipe" on the strength of
+those skip sets. It did not, for `ax`. The AX **tree** walk asked
+`concealed` and the AX **name** walk (`ax::name::contents`, accname §2F) did
+not, so `<a><video>Sorry, your browser does not support embedded
+videos</video></a>` gave `link` a `null` name under `--css` and named it from
+the fallback prose without — the node cut from the tree, its text still naming
+the tree. The cascade was accidentally covering for it: with `--css` the same
+fact arrived a second time as `display:none`, which the name walk *did* check.
+
+The fix is not a third caller of `concealed`. `Document::ax_children` is now the
+only way into a node's children from `ax`, and it applies `concealed` itself, so
+the tree walk and the name walk agree **by construction** rather than by both
+remembering:
+
+```
+ax::tree::ordered_children  ─┐
+                             ├─► Document::ax_children ─► Document::concealed
+ax::name::contents          ─┘        (which children)         (the one fact)
+```
+
+`ordered_children` keeps only what it alone knows — flex reading order. Two
+consequences follow, both of them subtractions:
+
+- The `<details>` half is no longer cascade-gated *for `ax`*. `ax_children`
+  carries it in every recipe, which is what Chrome 139 does: a link wrapping
+  `<details><summary>SUMM</summary><p>SECRET2` is named "SUMM" and `SECRET2`
+  has no AX node at all. (`[hidden]` is unaffected — it is an attribute
+  rule, and stays in the cascade.)
+- The §2F recursion no longer checks a *text* node for hiddenness. It cannot
+  reach a hidden one: a hidden element is cut above it, and a concealed one
+  never comes out of `ax_children`.
 
 ## 3. "On-demand" — the exact trigger
 

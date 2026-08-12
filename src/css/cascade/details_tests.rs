@@ -107,12 +107,12 @@ fn concealed_text_nodes_are_display_none_too() {
     let (doc, s) = styles("<a href=x><details><summary>Q</summary>An answer.</details></a>");
     let a = first_tag(&doc, "a");
     assert_eq!(accessible_name(&doc, a, Some(&s)).as_deref(), Some("Q"));
-    // Without the concealment there would be nothing to hold the answer back —
-    // that is what the walk sees with no `--css` table at all.
-    assert_eq!(
-        accessible_name(&doc, a, None).as_deref(),
-        Some("QAn answer.")
-    );
+    // And the cascade is not what holds the answer back: the name walk descends
+    // through `Document::ax_children`, which applies the same concealment with
+    // no `Styles` table at all, so the answer is the same in either recipe
+    // (`bl-0aaf`). Chrome 139 agrees — a link wrapping a closed `<details>` is
+    // named from its summary, and the disclosure body has no AX node.
+    assert_eq!(accessible_name(&doc, a, None).as_deref(), Some("Q"));
 }
 
 #[test]

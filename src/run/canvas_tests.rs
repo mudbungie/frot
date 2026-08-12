@@ -67,6 +67,22 @@ fn canvas_fallback_stays_in_the_ax_tree_in_either_recipe() {
 }
 
 #[test]
+fn canvas_fallback_still_names_the_element_around_it() {
+    // The counterpart to `fallback_tests::fallback_prose_never_names_the
+    // _element_around_it`: one accessor decides both, and it must let this
+    // one through. Chrome 139 names `<a><canvas>CANVAS_FALLBACK</canvas></a>`
+    // "CANVAS_FALLBACK" — the same markup with `<video>` names it from the
+    // player, never the prose.
+    let page = "<html><body><a href=/x><canvas width=100 height=50>\
+         Chart of monthly totals</canvas></a></body></html>";
+    for args in [vec!["--out", "ax"], vec!["--css", "--out", "ax"]] {
+        let v = serve_and_run(page, &args);
+        assert_eq!(v["out"][0]["role"], "link", "{args:?}");
+        assert_eq!(v["out"][0]["name"], "Chart of monthly totals", "{args:?}");
+    }
+}
+
+#[test]
 fn canvas_fallback_gets_no_geometry() {
     // Chrome gives every canvas-fallback element a zero rect; `bboxes` is one
     // entry per *rendered* element, so it gets no entry at all — and the

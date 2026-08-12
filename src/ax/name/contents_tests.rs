@@ -268,8 +268,13 @@ fn label_text_is_css_aware() {
 #[test]
 fn a_closed_details_body_is_not_read_into_the_name() {
     // The UA conceals everything but the first `<summary>`, text nodes
-    // included (`bl-74a6`), so the name is the summary alone.
+    // included (`bl-74a6`), so the name is the summary alone — in *both*
+    // recipes, since the walk descends through `Document::ax_children` rather
+    // than waiting for a cascade to spell the same fact as `display:none`
+    // (`bl-0aaf`). Chrome 139: `<a><details><summary>SUMM</summary><p>SECRET2`
+    // is named "SUMM", and SECRET2 has no AX node at all.
     let html = "<h2><details><summary>Sum</summary>Body text</details></h2>";
-    assert_eq!(name_css(html, "h2"), Some("Sum".into()));
-    assert_eq!(name(html, "h2"), Some("SumBody text".into()));
+    for got in [name_css(html, "h2"), name(html, "h2")] {
+        assert_eq!(got, Some("Sum".into()));
+    }
 }

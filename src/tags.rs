@@ -70,10 +70,11 @@ pub fn is_block(name: &str) -> bool {
 ///
 /// This is a *content model* fact, not a CSS one, so unlike `[hidden]` it holds
 /// in every recipe and needs no cascade to see. Its readers are therefore both
-/// kinds: the recipe-independent subtree skips in `views::text` and `ax::tree`,
-/// and [`crate::dom::Document::unpainted`] / [`crate::dom::Document::concealed`],
-/// the two structural queries that route it into layout, the cascade, `bboxes`
-/// and the needs walk.
+/// kinds: the recipe-independent subtree skip in `views::text`, and
+/// [`crate::dom::Document::unpainted`] / [`crate::dom::Document::concealed`],
+/// the two structural queries that route it into layout, the cascade, `bboxes`,
+/// the needs walk, and — through [`crate::dom::Document::ax_children`], the one
+/// accessor both AX walks descend through (`bl-0aaf`) — `--out ax`.
 ///
 /// Not in this set, each on measured evidence rather than analogy (`bl-e79a`):
 ///

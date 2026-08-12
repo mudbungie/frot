@@ -20,6 +20,13 @@
 //!   anything CSS made invisible — contribute nothing, matching what a screen
 //!   reader would read.
 //!
+//! The recursion descends through [`Document::ax_children`], never through the
+//! raw child list, so a node the AX *tree* does not contain cannot name it
+//! either: a `<video>`'s fallback prose is not the name of the `<a>` around it,
+//! in any recipe, and a closed `<details>`'s body is not the name of its
+//! heading (`bl-0aaf`). That is one accessor rather than two walks each
+//! remembering to ask the same question.
+//!
 //! Each node contributes **at most once**: the visited set is the spec's cycle
 //! guard, so `aria-labelledby` pointing back into the subtree (or at itself)
 //! terminates instead of looping.
@@ -58,7 +65,7 @@ fn children_text(
     out: &mut String,
 ) {
     out.push_str(styles.and_then(|s| s.before(id)).unwrap_or(""));
-    for &c in &doc.node(id).children {
+    for c in doc.ax_children(id) {
         node_text(doc, c, styles, visited, out);
     }
     out.push_str(styles.and_then(|s| s.after(id)).unwrap_or(""));
@@ -72,11 +79,11 @@ fn node_text(
     out: &mut String,
 ) {
     match &doc.node(id).kind {
-        NodeKind::Text(t) => {
-            if !hidden(id, None, styles) {
-                out.push_str(t);
-            }
-        }
+        // A text node needs no check of its own: the only ways it can be
+        // outside the name are its parent element being hidden (caught below,
+        // before the recursion reaches here) and structural concealment
+        // (caught by [`Document::ax_children`], which is the only way in).
+        NodeKind::Text(t) => out.push_str(t),
         NodeKind::Element(el) => element_text(doc, id, el, styles, visited, out),
         NodeKind::Comment(_) | NodeKind::Doctype => {}
     }
@@ -90,7 +97,7 @@ fn element_text(
     visited: &mut Vec<NodeId>,
     out: &mut String,
 ) {
-    if hidden(id, Some(el), styles) || visited.contains(&id) {
+    if hidden(id, el, styles) || visited.contains(&id) {
         return;
     }
     // Not popped: once counted, a node is spent for this whole computation.
@@ -105,11 +112,11 @@ fn element_text(
     }
 }
 
-/// Whether the node is outside the accessible name: semantically excluded, or
-/// invisible. `visibility:hidden` counts — an invisible label is not a label —
-/// even though it leaves its box in place for geometry.
-fn hidden(id: NodeId, el: Option<&Element>, styles: Option<&Styles>) -> bool {
-    el.is_some_and(ax::excluded)
+/// Whether the element is outside the accessible name: semantically excluded,
+/// or invisible. `visibility:hidden` counts — an invisible label is not a label
+/// — even though it leaves its box in place for geometry.
+fn hidden(id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
+    ax::excluded(el)
         || styles.is_some_and(|s| {
             s.display_none(id) || s.visibility(id) == crate::css::Visibility::Hidden
         })

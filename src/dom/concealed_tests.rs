@@ -219,21 +219,51 @@ fn a_closed_details_is_both_unpainted_and_concealed() {
     );
 }
 
+/// The tags of `id`'s AX children — the accessor both `ax` walks descend
+/// through, so this is exactly what `--out ax` can see and name.
+fn ax_child_tags(doc: &Document, id: NodeId) -> Vec<String> {
+    doc.ax_children(id)
+        .map(|c| match &doc.node(c).kind {
+            NodeKind::Element(el) => el.name.clone(),
+            kind => format!("{kind:?}"),
+        })
+        .collect()
+}
+
 #[test]
-fn only_the_replaced_subtree_elements_withhold_children_from_ax() {
+fn only_the_replaced_subtree_elements_hide_their_children_from_ax() {
     let doc = Document::parse(
-        "<video></video><audio></audio><iframe></iframe><canvas></canvas>\
-         <object></object><picture></picture><div></div>",
+        "<video><b>f</b></video><audio><b>f</b></audio><iframe></iframe>\
+         <canvas><b>f</b></canvas><object><b>f</b></object>\
+         <picture><b>f</b></picture><div><b>f</b></div>",
     );
-    let withheld: Vec<&str> = [
+    let keeps: Vec<&str> = [
         "video", "audio", "iframe", "canvas", "object", "picture", "div",
     ]
     .into_iter()
-    .filter(|t| doc.withholds_children_from_ax(first_element(&doc, t)))
+    .filter(|t| !ax_child_tags(&doc, first_element(&doc, t)).is_empty())
     .collect();
-    assert_eq!(withheld, ["video", "audio", "iframe"]);
-    // Asked of a non-element node it is simply false — there is no tag.
-    let text = Document::parse("<p>t</p>");
-    let p = first_element(&text, "p");
-    assert!(!text.withholds_children_from_ax(text.node(p).children[0]));
+    assert_eq!(keeps, ["canvas", "object", "picture", "div"]);
+}
+
+#[test]
+fn a_closed_details_offers_the_ax_walks_its_summary_alone() {
+    let doc = Document::parse("<details><summary>S</summary><p>body</p>raw</details>");
+    assert_eq!(
+        ax_child_tags(&doc, first_element(&doc, "details")),
+        ["summary"]
+    );
+}
+
+#[test]
+fn a_parent_with_no_tag_hides_nothing() {
+    // `insert_child` is deliberately permissive (`dom::mutate`), so a text node
+    // can end up a parent. It has no tag to withhold by, and it is no closed
+    // `<details>`, so the child is neither unpainted nor concealed.
+    let mut doc = Document::parse("<p>t</p>");
+    let text = doc.node(first_element(&doc, "p")).children[0];
+    let child = doc.create_element("b");
+    doc.insert_child(text, child, None);
+    assert!(!doc.unpainted(child) && !doc.concealed(child));
+    assert_eq!(ax_child_tags(&doc, text), ["b"]);
 }

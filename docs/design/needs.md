@@ -281,8 +281,13 @@ itself lives in `tags::renders_children`, and that placement is the difference:
 media fallback is a **content model** fact, not a UA *stylesheet* one, so no
 cascade is needed to see it and `--css` is not what makes it true. It therefore
 also holds in the raw views, which read it in the recipe-independent skips they
-already keep for `<script>`/`<svg>`. `[hidden]` and a closed `<details>` are
-document *state* and stay cascade-gated; this is what the markup means.
+already keep for `<script>`. `[hidden]` is an attribute rule and stays
+cascade-gated; this is what the markup means. The `<details>` half is document
+*state*: it stays cascade-gated for `views::text`, while `ax` and `needs` carry
+it in every recipe (`Document::ax_children`, `Document::unpainted`).
+
+The "holds in every recipe" claim was true only of the views carrying such a
+skip, which `ax`'s **name** walk was not — see the `bl-0aaf` correction below.
 
 **The audit of the rest of the class (`bl-e79a`).** `<object>`/`<canvas>`/
 `<picture>` were left out of `bl-0f83` pending evidence. Measured 2026-08-11
@@ -331,6 +336,27 @@ theirs.
 only body copy is canvas fallback paints nothing, so the `text` view honestly has
 no impression, and `needs: js` is literally right — a canvas has no content
 until a script draws one.
+
+**The correction the claim needed (`bl-0aaf`).** "Holds in every recipe" was a
+claim about the *views*, and `ax` has two walks, not one. The tree walk asked
+`concealed`; the name walk (`ax::name::contents`, accname §2F) walked the raw
+child list and consulted only `Styles` — so without `--css`,
+`<a><video>Sorry, your browser does not support embedded videos</video></a>`
+came out as `link` named from the fallback prose, and with `--css` as `link`
+named `null`. The node was cut from the AX tree while its text still named the
+tree; the cascade was covering for it by spelling the same fact a second time as
+`display:none`.
+
+Two traversals over one arena, each with its own idea of what is excluded, is
+the shape that produced the bug, so the fix is not a third caller.
+`Document::ax_children` is now the only way into a node's children from `ax` and
+applies `concealed` itself, so the two walks agree by construction rather than
+by both remembering (`layout.md` §2.2). Chrome 139 names that link "Unable to
+play media." — its own UA string for the player, never the fallback; frot
+invents no UA strings, so `null` in both recipes is the honest answer. The
+canvas counterpart is the same accessor letting content *through*:
+`<a><canvas>CANVAS_FALLBACK</canvas></a>` is named "CANVAS_FALLBACK" in Chrome
+and in frot, in both recipes.
 
 **Still open, measured but out of scope.** `views::text` skips `<svg>` and
 `<math>` outright, but Chrome paints and exposes their text: `<svg><a

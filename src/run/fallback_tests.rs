@@ -93,6 +93,27 @@ fn ax_exposes_no_fallback_node_in_either_recipe() {
     }
 }
 
+/// The `bl-0aaf` reproduction: the same prose, wrapped in a link. The
+/// fallback was cut from the AX *tree* while its text still named the tree —
+/// and only without `--css`, because a cascade spelled the same fact a second
+/// time as `display:none`.
+const LINKED_MEDIA: &str = "<html><body><a href='/x'><video src='v.mp4'>\
+     Sorry, your browser does not support embedded videos</video></a></body></html>";
+
+#[test]
+fn fallback_prose_never_names_the_element_around_it() {
+    // Chrome 139 names this link "Unable to play media." — its own UA string
+    // for the player, never the fallback prose. frot invents no UA strings, so
+    // the honest name is null; what matters is that it is null in *both*
+    // recipes, since the accname walk and the tree walk now descend through
+    // one accessor (`Document::ax_children`).
+    for args in [vec!["--out", "ax"], vec!["--css", "--out", "ax"]] {
+        let v = serve_and_run(LINKED_MEDIA, &args);
+        assert_eq!(v["out"][0]["role"], "link", "{args:?}");
+        assert_eq!(v["out"][0]["name"], Value::Null, "{args:?}");
+    }
+}
+
 #[test]
 fn geometry_gives_the_fallback_no_box() {
     // `bboxes` is one entry per *rendered* element: the media box may be
