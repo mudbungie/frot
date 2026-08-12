@@ -103,13 +103,15 @@ lands ungated even if the hook is skipped or absent:
 
 - **`.github/workflows/ci.yml`** (every push + pull request) — `cargo fmt
   --check`, `make lint` (clippy `-D warnings`), `make cov` (100% lines +
-  regions), the source-file line cap, `make posix` (the POSIX conformance
+  regions), `make size` (the source-file line cap), `make posix` (the POSIX conformance
   suite gating `docs/design/posix.md` at the process boundary), and `make
   package` (`cargo publish --dry-run --locked` — the crates.io packaging gate;
   it never publishes). The gate values are never re-typed in CI: coverage
-  delegates to `make cov`, the 300-line limit is enforced by
-  `scripts/line-limit.sh` (the same script the pre-commit hook calls), and the
-  conformance checks live in `scripts/posix-suite.sh` alone.
+  delegates to `make cov`, the line cap delegates to `make size` — where
+  `scripts/source-files.sh` owns *which* files are source (Rust, the JS
+  prelude, the gate shell; never `tests/fixtures/`, which is data) and
+  `scripts/line-limit.sh` owns the 300 — and the conformance checks live in
+  `scripts/posix-suite.sh` alone.
 - **`.github/workflows/release-plz.yml`** — the release pipeline. Every push to
   main refreshes a single "release PR" that bumps the version and stages the
   changelog; merging that PR is the human control point. Once CI concludes green

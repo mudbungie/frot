@@ -11,7 +11,8 @@
 //! (`elem.js`/`elem2.js`: the `instanceof` interface constructors, `style`,
 //! `dataset`, faithful `cloneNode`, form-control reflections, and
 //! the DOMTokenList surface — `classList`/`relList` — in `tokenlist.js`, and
-//! the `document`/`createDocumentFragment` breadth React/Vue/jQuery probe), the
+//! the `document`/`createDocumentFragment` breadth React/Vue/jQuery probe in
+//! `doc.js`), the
 //! geometry facade, the §7 environment breadth, the §5 event loop, and the §6
 //! network layer: `Node`/`Element`/`Document`, `querySelector`,
 //! the HTML-string direction pair `innerHTML`/`outerHTML` and its one
@@ -37,8 +38,9 @@
 ///
 /// The concatenated prelude source. Each module is an IIFE over `globalThis`, so
 /// order matters only where one module extends another's globals: `elem.js`/
-/// `elem2.js` (and `env.js`, `loop.js`) run after `dom.js` because they extend
-/// the `document` and `Node` it defines — `elem2.js` after `elem.js` — and
+/// `elem2.js` (and `doc.js`, `env.js`, `loop.js`) run after `dom.js` because
+/// they extend the `document` and `Node` it defines — `elem2.js` after
+/// `elem.js`, `doc.js` after `elem2.js` — and
 /// `net.js` runs after `events.js` because its XHR uses `g.Event`. `url.js` is
 /// standalone (it extends no other module, only the `__frot_url_parse` syscall),
 /// so its position is free.
@@ -62,6 +64,13 @@ pub const SOURCE: &str = concat!(
     include_str!("prelude/elem.js"),
     "\n",
     include_str!("prelude/elem2.js"),
+    "\n",
+    // doc.js after elem2.js (bl-6da7): the `document` object's own breadth and
+    // the DocumentFragment it hands out, split off elem2.js on the seam that
+    // file already named. elem2.js's appendChild/insertBefore drain a fragment
+    // through the `drain` slot doc.js sets, so it must be loaded before a page
+    // script can build one.
+    include_str!("prelude/doc.js"),
     "\n",
     // DOMTokenList (bl-3a36): classList/relList as the spec-named interface —
     // after elem2.js (extends the same Node prototype), before anything reads

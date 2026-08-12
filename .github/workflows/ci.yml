@@ -40,10 +40,13 @@ jobs:
       - name: Coverage (100% lines + regions)
         run: make cov
 
-      # Feeds every tracked .rs file to the shared line-cap script — the same
-      # script the pre-commit hook calls, so the 300 limit is never duplicated.
+      # Delegates to `make size` — scripts/source-files.sh owns which files are
+      # source (Rust, the JS prelude, the gate shell; never tests/fixtures,
+      # which is data) and scripts/line-limit.sh owns the 300. Neither the set
+      # nor the number is duplicated here, so this and the pre-commit hook
+      # cannot drift apart the way they did in bl-6da7.
       - name: Source-file line limit
-        run: git ls-files '*.rs' | scripts/line-limit.sh
+        run: make size
 
       # Delegates to `make posix` — the /bin/sh conformance harness gating the
       # CLI contract (docs/design/posix.md) at the process boundary: argv,

@@ -13,10 +13,21 @@ set -euo pipefail
 # index by bl-a68b; this is the rest of that move. The set is the same sweep CI
 # runs, so the local close gate and CI cannot disagree about what passes.
 #
-# A tree with no Rust in it has nothing here to gate; everything below then
-# applies vacuously, so say so once instead of four times.
-tracked_rs="$(git ls-files '*.rs')"
-[ -n "$tracked_rs" ] || exit 0
+# Line cap, over EVERY source language and not just Rust — so it runs first,
+# ahead of the cargo gates that a Rust-less tree would make vacuous. `make size`
+# composes the two homes (scripts/source-files.sh: what is source;
+# scripts/line-limit.sh: the number), so this, CI and tests/hygiene/size.rs run
+# one sweep. Before bl-6da7 both callers spelled out `git ls-files '*.rs'` and
+# the whole JS prelude went unchecked, with elem2.js over the cap.
+make size || {
+  echo "pre-commit: a source file is over the line cap (make size)" >&2
+  exit 1
+}
+
+# The cargo gates below need Rust. A tree with no Rust in it has nothing left
+# here to gate; they would all apply vacuously, so say so once instead of four
+# times.
+[ -n "$(git ls-files '*.rs')" ] || exit 0
 
 # Formatting. Cheap (well under a second), fails fast, and in lockstep with
 # CI's `cargo fmt --check` (rust-toolchain.toml pins the formatter so both
@@ -26,10 +37,6 @@ cargo fmt --check || {
   echo "pre-commit: run 'cargo fmt' — tree is not formatted" >&2
   exit 1
 }
-
-# Line cap. The limit itself lives in scripts/line-limit.sh (one home, shared
-# with CI); both callers feed it the same sweep.
-printf '%s\n' "$tracked_rs" | scripts/line-limit.sh || exit 1
 
 # Clippy. Runs before coverage so a lint error fails faster than the
 # instrumented build. Calls the Makefile `lint` target (one home, shared with

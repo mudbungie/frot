@@ -130,7 +130,11 @@ Two layers, one narrow interface:
 Consequences of the repo's hard rules:
 
 - **≤300 lines applies to prelude files too** — hence a `prelude/` directory
-  of concatenated modules, not one giant file.
+  of concatenated modules, not one giant file. *Enforced* only since 2026-08-12
+  (bl-6da7): the cap's callers both swept `git ls-files '*.rs'`, so this rule
+  was a claim in this document and nothing else, and `elem2.js` was over it.
+  The swept set now has one home, `scripts/source-files.sh`, and covers every
+  language frot is written in.
 - **Coverage:** `cargo llvm-cov` cannot see JS lines. The syscall layer gets
   100% Rust coverage as usual; the prelude is exercised by the golden fixture
   suite (subtask 9), which is the test regime VISION principle 7 demands

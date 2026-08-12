@@ -1,4 +1,4 @@
-.PHONY: setup build test fmt lint cov package posix posix-musl precommit-install precommit-run clean
+.PHONY: setup build test fmt lint cov size package posix posix-musl precommit-install precommit-run clean
 
 setup:
 	@command -v cargo-llvm-cov >/dev/null 2>&1 || cargo install cargo-llvm-cov --locked
@@ -25,6 +25,13 @@ lint:
 
 cov:
 	cargo llvm-cov --fail-under-lines 100 --fail-under-regions 100
+
+# The source-file line cap. Two facts, one home each and composed only here, so
+# the hook, CI and tests/hygiene/size.rs cannot disagree: source-files.sh owns
+# WHICH files are source (Rust, the JS prelude, the gate shell — never
+# tests/fixtures, which is data), line-limit.sh owns HOW LONG one may be.
+size:
+	scripts/source-files.sh | scripts/line-limit.sh
 
 # The crates.io packaging gate: builds the .crate the registry would receive and
 # verifies it compiles from its own contents. --locked so the packaged Cargo.lock
