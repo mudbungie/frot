@@ -116,11 +116,16 @@ pub const SOURCE: &str = concat!(
     include_str!("prelude/idb.js"),
     "\n",
     // Canvas 2D fingerprint (bl-05e6): a coherent, deterministic simulation.
-    // canvaspng.js (the PNG serialiser) first, then canvas.js (the context +
-    // deterministic bitmap, seeded by the profile's fixed `canvasSeed`), then
-    // canvaselem.js (getContext/toDataURL on the element). After dom.js (extends
-    // Node) and env.js is immaterial — it reads the always-bound profile syscall.
+    // canvaspng.js (the PNG serialiser) first, then canvasexp.js (the two digest
+    // expansions a page reads back — the bitmap and the twelve TextMetrics fields —
+    // plus the ImageData they arrive in), then canvas.js (the context: state
+    // properties, draw API, element bridge, and the digest fold seeded by the
+    // profile's fixed `canvasSeed`), then canvaselem.js (getContext/toDataURL on the
+    // element). After dom.js (extends Node) and env.js is immaterial — it reads the
+    // always-bound profile syscall.
     include_str!("prelude/canvaspng.js"),
+    "\n",
+    include_str!("prelude/canvasexp.js"),
     "\n",
     include_str!("prelude/canvas.js"),
     "\n",

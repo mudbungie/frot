@@ -2,20 +2,23 @@
 // (bl-05e6, identity.md §10/§11, js.md §7/§11). frot has no rasteriser, but §10's
 // coherence bar makes a null 2D context a louder tell than a costume: Firefox
 // returns one, and canvas fingerprinting is a most-probed surface. So `getContext('2d')`
-// returns a branded `CanvasRenderingContext2D` whose draw ops fold into a per-
-// context digest; `toDataURL()`/`getImageData()` are a deterministic function of
-// (the FIXED profile `canvasSeed` + exact draw sequence + dimensions): the SAME
-// draws hash identically every invocation, DIFFERENT draws diverge, never random
-// per call (the tell privacy tools show). The pixels are a digest expansion, not a
-// glyph render — a declared §11 residual for pixel realism. WebGL stays bl-f624's.
-// Runs after brand.js/dom.js/canvaspng.js; no syscall (determinism forbids entropy).
+// returns a branded `CanvasRenderingContext2D` whose draw ops and state writes fold
+// into a per-context digest. This file owns that CONTEXT — its properties, its draw
+// API, and the element bridge; the two expansions of the digest a page reads back
+// (the bitmap and the twelve `TextMetrics` magnitudes) live in canvasexp.js, which
+// states their shared §11 residual once. The whole surface was re-read off Firefox
+// 153.0esr in `bl-d22f` (identity.md §3.12). Runs after brand.js/dom.js/canvaspng.js
+// /canvasexp.js; no syscall (determinism forbids entropy).
 (function (g) {
   'use strict';
   var brand = g.__frot_brand;
   var SEED = JSON.parse(g.__frot_env_profile()).canvasSeed >>> 0;
+  var pixels = g.__frot_canvas_pixels;
+  var metrics = g.__frot_canvas_metrics;
 
   // FNV-1a over a string's UTF-16 code units (folded as two bytes each). The one
-  // mixing primitive: draw digest, pixel PRNG seed, and measureText width all use it.
+  // mixing primitive: draw digest, pixel PRNG seed, and text metrics all derive
+  // from what it folds.
   function mix(h, s) {
     h = h >>> 0;
     for (var i = 0; i < s.length; i++) {
@@ -27,38 +30,6 @@
   }
   var BASE = mix(SEED, '2d'); // the digest a fresh context starts from.
 
-  // --- ImageData: constructable, Firefox-shaped ------------------------------
-  var ImageData = (function () {
-    var holder = {};
-    holder.ImageData = function (a, b, c) {
-      if (arguments.length < 2) {
-        throw new TypeError('ImageData constructor requires at least 2 arguments');
-      }
-      var data;
-      var w;
-      var h;
-      if (typeof a === 'object') {
-        data = a;
-        w = b >>> 0;
-        h = c === undefined ? (data.length / 4 / w) >>> 0 : c >>> 0;
-      } else {
-        w = a >>> 0;
-        h = b >>> 0;
-        data = new Uint8ClampedArray(w * h * 4);
-      }
-      def(this, 'data', data, true);
-      def(this, 'width', w, true);
-      def(this, 'height', h, true);
-      def(this, 'colorSpace', 'srgb', true);
-    };
-    var C = brand(holder.ImageData, 'ImageData');
-    Object.defineProperty(C.prototype, Symbol.toStringTag, {
-      value: 'ImageData',
-      configurable: true,
-    });
-    Object.defineProperty(g, 'ImageData', { value: C, configurable: true, writable: true });
-    return C;
-  })();
   function def(o, k, v, enumerable) {
     Object.defineProperty(o, k, { value: v, configurable: true, enumerable: !!enumerable });
   }
@@ -74,24 +45,6 @@
     o.addColorStop = brand(function (off, color) {
       ctx._d = mix(ctx._d, 'stop(' + off + ',' + color + ')');
     }, 'addColorStop');
-    return o;
-  }
-
-  // --- TextMetrics: deterministic, font/text-derived -------------------------
-  var TextMetrics = g.__frot_iface('TextMetrics', {});
-  function textMetrics(font, text) {
-    var hh = mix(mix(BASE, 'measure'), font + '|' + text);
-    // A plausible advance width: ~7px/char plus sub-pixel entropy from the digest.
-    var width = text.length * 7 + (hh % 1000) / 1000;
-    var asc = 7 + ((hh >>> 10) % 4);
-    var o = Object.create(TextMetrics.prototype);
-    def(o, 'width', width, true);
-    def(o, 'actualBoundingBoxLeft', 0, true);
-    def(o, 'actualBoundingBoxRight', width, true);
-    def(o, 'actualBoundingBoxAscent', asc, true);
-    def(o, 'actualBoundingBoxDescent', 2, true);
-    def(o, 'fontBoundingBoxAscent', asc + 1, true);
-    def(o, 'fontBoundingBoxDescent', 3, true);
     return o;
   }
 
@@ -112,14 +65,24 @@
   // Read/write state properties: each stores its value in a non-enumerable slot and
   // folds the assignment into the digest, so a state change (colour, font, alpha…)
   // coherently changes the resulting image, as on a real canvas painted afterwards.
+  //
+  // Every name and default below was READ off Firefox 153.0esr (`bl-d22f`, §3.12),
+  // which cost the set two corrections. `imageSmoothingQuality` is GONE:
+  // `'imageSmoothingQuality' in ctx` is FALSE on Firefox — Gecko does not implement
+  // it, so publishing it (at a spec-derived `'low'`) was frot claiming a capability
+  // no Firefox has, the same class of tell as an over-specific WebGL renderer
+  // string. The text-shaping five — letterSpacing, wordSpacing, fontKerning,
+  // fontStretch, textRendering — are the other direction: real, present, and
+  // missing here, with the defaults measured beside them.
   var DEFAULTS = {
     fillStyle: '#000000', strokeStyle: '#000000', globalAlpha: 1,
     lineWidth: 1, lineCap: 'butt', lineJoin: 'miter', miterLimit: 10,
     lineDashOffset: 0, font: '10px sans-serif', textAlign: 'start',
     textBaseline: 'alphabetic', direction: 'inherit', filter: 'none',
     globalCompositeOperation: 'source-over', imageSmoothingEnabled: true,
-    imageSmoothingQuality: 'low', shadowBlur: 0, shadowColor: 'rgba(0, 0, 0, 0)',
-    shadowOffsetX: 0, shadowOffsetY: 0,
+    shadowBlur: 0, shadowColor: 'rgba(0, 0, 0, 0)',
+    shadowOffsetX: 0, shadowOffsetY: 0, letterSpacing: '0px', wordSpacing: '0px',
+    fontKerning: 'auto', fontStretch: 'normal', textRendering: 'auto',
   };
   Object.keys(DEFAULTS).forEach(function (k) {
     var slot = '_s_' + k;
@@ -158,8 +121,24 @@
     defMethod(n, false);
   });
 
+  // The four keys, in this order, and these values, are what a bare
+  // `getContext('2d').getContextAttributes()` returns on Firefox 153.0esr
+  // (measured, `bl-d22f`). frot's `getContext` takes no options — a request for
+  // `{alpha: false}` is neither honoured nor echoed, because whether Gecko echoes a
+  // non-default attribute here was not measured and is not going to be guessed
+  // (§11). Absent, this threw a TypeError where every real browser answers.
+  proto.getContextAttributes = brand(function () {
+    return {
+      alpha: true,
+      colorSpace: 'srgb',
+      desynchronized: false,
+      willReadFrequently: false,
+    };
+  }, 'getContextAttributes');
+
   proto.measureText = brand(function (text) {
-    return textMetrics(this.font, String(text));
+    var s = String(text);
+    return metrics(mix(mix(BASE, 'measure'), this.font + '|' + s), s.length);
   }, 'measureText');
   proto.getLineDash = brand(function () {
     return [];
@@ -186,43 +165,17 @@
   proto.createImageData = brand(function (a, b) {
     var w = typeof a === 'object' ? a.width : a >>> 0;
     var h = typeof a === 'object' ? a.height : b >>> 0;
-    return new ImageData(w, h);
+    return new g.ImageData(w, h);
   }, 'createImageData');
 
-  // The deterministic bitmap: a never-painted canvas is transparent (like a real
-  // one); a painted one expands its digest through an xorshift PRNG into opaque RGBA
-  // noise — stable per (seed, draws, size), content-varying, never uniform/random.
-  function pixels(ctx) {
-    var w = dim(ctx._canvas, 'width', 300);
-    var h = dim(ctx._canvas, 'height', 150);
-    var key = w + 'x' + h + ':' + ctx._d + ':' + (ctx._drawn ? 1 : 0);
-    if (ctx._pxKey === key) return ctx._px;
-    var px = new Uint8ClampedArray(w * h * 4);
-    if (ctx._drawn) {
-      var s = (SEED ^ ctx._d ^ Math.imul(w, 0x9e3779b1) ^ Math.imul(h, 0x85ebca77)) >>> 0;
-      if (s === 0) s = 0x9e3779b1;
-      for (var p = 0; p < w * h; p++) {
-        s ^= s << 13; s >>>= 0;
-        s ^= s >>> 17;
-        s ^= s << 5; s >>>= 0;
-        px[p * 4] = s & 0xff;
-        px[p * 4 + 1] = (s >>> 8) & 0xff;
-        px[p * 4 + 2] = (s >>> 16) & 0xff;
-        px[p * 4 + 3] = 255;
-      }
-    }
-    def(ctx, '_px', px);
-    def(ctx, '_pxKey', key);
-    return px;
-  }
   proto.getImageData = brand(function (sx, sy, sw, sh) {
     sx |= 0;
     sy |= 0;
     sw = Math.abs(sw | 0);
     sh = Math.abs(sh | 0);
-    var full = pixels(this);
     var cw = dim(this._canvas, 'width', 300);
     var ch = dim(this._canvas, 'height', 150);
+    var full = pixels(this, cw, ch);
     var out = new Uint8ClampedArray(sw * sh * 4);
     for (var y = 0; y < sh; y++) {
       for (var x = 0; x < sw; x++) {
@@ -237,7 +190,7 @@
         out[di + 3] = full[si + 3];
       }
     }
-    return new ImageData(out, sw, sh);
+    return new g.ImageData(out, sw, sh);
   }, 'getImageData');
 
   // --- canvas element bridge -------------------------------------------------
@@ -290,7 +243,7 @@
   function dataURL(canvas) {
     var w = dim(canvas, 'width', 300);
     var h = dim(canvas, 'height', 150);
-    var px = canvas._ctx2d ? pixels(canvas._ctx2d) : new Uint8ClampedArray(w * h * 4);
+    var px = canvas._ctx2d ? pixels(canvas._ctx2d, w, h) : new Uint8ClampedArray(w * h * 4);
     return g.__frot_canvas_png(px, w, h);
   }
   [['__frot_canvas_ctx', context], ['__frot_canvas_dataurl', dataURL]].forEach(function (p) {

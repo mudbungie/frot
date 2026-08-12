@@ -887,7 +887,9 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   **coherent, deterministic fingerprint masquerade** (`bl-05e6`, identity.md §11):
   a branded `CanvasRenderingContext2D` whose draws fold into a profile-seeded
   digest, so `toDataURL`/`getImageData` are stable across invocations and vary with
-  content; `getContext('webgl')`/`'webgl2'` are the **same masquerade** (`bl-f624`,
+  content — its property surface, `getContextAttributes()` and the twelve
+  `TextMetrics` fields were read off the binary (`bl-d22f`, identity.md §3.13),
+  which also DELETED `imageSmoothingQuality`, a property Gecko does not implement; `getContext('webgl')`/`'webgl2'` are the **same masquerade** (`bl-f624`,
   §11): branded `WebGL`/`WebGL2RenderingContext` contexts with masked
   masked `VENDOR` (`"Mozilla"`) with the generalized renderer `"llvmpipe, or
   similar"` in both the `RENDERER` and `UNMASKED_RENDERER_WEBGL` slots, via

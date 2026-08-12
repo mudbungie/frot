@@ -391,6 +391,50 @@
   // gate can prove it is byte-identical ACROSS two independent frot invocations.
   var CANVAS_HASH = url;
 
+  // --- Canvas 2D surface, READ off Firefox 153.0esr (bl-d22f, identity.md §3.12) -
+  // Everything below is a measurement, not a spec reading. Reads only: none of it
+  // folds the draw digest, so it sits after CANVAS_HASH is taken.
+  // getContextAttributes existed on every real browser and threw a TypeError here.
+  native('canvas:getContextAttributes', cx.getContextAttributes);
+  var attrs = cx.getContextAttributes();
+  eq('canvas:ctxattr-keys', Object.keys(attrs).join(','),
+    'alpha,colorSpace,desynchronized,willReadFrequently');
+  eq('canvas:ctxattr-alpha', attrs.alpha, true);
+  eq('canvas:ctxattr-colorspace', attrs.colorSpace, 'srgb');
+  eq('canvas:ctxattr-desync', attrs.desynchronized, false);
+  eq('canvas:ctxattr-willread', attrs.willReadFrequently, false);
+  // Firefox does NOT implement imageSmoothingQuality — `in` is false. frot must
+  // not publish a capability the browser it presents as lacks (the same class of
+  // tell as an over-specific WebGL renderer string), so this asserts an ABSENCE.
+  eq('canvas:no-smoothing-quality', 'imageSmoothingQuality' in cx, false);
+  eq('canvas:smoothing-enabled', cx.imageSmoothingEnabled, true);
+  // The five text-shaping properties Firefox does have, with measured defaults.
+  eq('canvas:letterSpacing', cx.letterSpacing, '0px');
+  eq('canvas:wordSpacing', cx.wordSpacing, '0px');
+  eq('canvas:fontKerning', cx.fontKerning, 'auto');
+  eq('canvas:fontStretch', cx.fontStretch, 'normal');
+  eq('canvas:textRendering', cx.textRendering, 'auto');
+  // TextMetrics carries TWELVE fields, as ACCESSORS ON THE PROTOTYPE, in this
+  // order; an instance owns nothing (JSON.stringify of one is '{}'). frot had the
+  // first seven, as own value properties — the five absent ones are exactly what a
+  // font-metrics fingerprinter reads. The magnitudes stay a §11 digest expansion.
+  var TM_FIELDS = ['width', 'actualBoundingBoxLeft', 'actualBoundingBoxRight',
+    'fontBoundingBoxAscent', 'fontBoundingBoxDescent', 'actualBoundingBoxAscent',
+    'actualBoundingBoxDescent', 'emHeightAscent', 'emHeightDescent',
+    'hangingBaseline', 'alphabeticBaseline', 'ideographicBaseline'];
+  var tm = cx.measureText('abc');
+  eq('canvas:tm-tag', Object.prototype.toString.call(tm), '[object TextMetrics]');
+  eq('canvas:tm-order', Object.getOwnPropertyNames(TextMetrics.prototype).filter(
+    function (k) { return k !== 'constructor'; }).join(','), TM_FIELDS.join(','));
+  eq('canvas:tm-own-empty', Object.getOwnPropertyNames(tm).length, 0);
+  eq('canvas:tm-json', JSON.stringify(tm), '{}');
+  ok('canvas:tm-numeric', TM_FIELDS.every(function (k) { return typeof tm[k] === 'number'; }));
+  ok('canvas:tm-deterministic', TM_FIELDS.every(function (k) {
+    return cx.measureText('abc')[k] === tm[k];
+  }));
+  native('canvas:tm-getter', Object.getOwnPropertyDescriptor(TextMetrics.prototype,
+    'emHeightAscent').get);
+
   // --- WebGL: a coherent, DETERMINISTIC fingerprint masquerade (bl-f624) --------
   // (identity.md §10/§11) Firefox exposes WebGL(2)RenderingContext and a context;
   // frot does too, Firefox-shaped and branded native. VENDOR/RENDERER are masked to
