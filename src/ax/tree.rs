@@ -6,7 +6,8 @@
 //! Elements whose effective role is `None`, `generic`, `presentation`, or
 //! `none` do not contribute a node — their AX children promote into the
 //! parent's child list. Subtrees under `<script>`, `<style>`, `<template>`,
-//! and `<noscript>` are skipped entirely.
+//! and `<noscript>` are skipped entirely, as are subtrees excluded by
+//! `aria-hidden`/`inert` ([`crate::ax::hidden`]).
 //!
 //! ## Layout-table demotion
 //!
@@ -82,6 +83,12 @@ fn build(
         return Vec::new();
     };
     if SKIP_TAGS.contains(&el.name.as_str()) {
+        return Vec::new();
+    }
+    // Semantic subtree cut (`aria-hidden`/`inert`, [`ax::excluded`]) — before
+    // descendants are built, so inheritance and "no escape from an excluded
+    // ancestor" fall out of the recursion instead of needing their own rules.
+    if ax::excluded(el) {
         return Vec::new();
     }
     if styles.is_some_and(|s| s.display_none(id)) {
@@ -175,3 +182,6 @@ mod tests;
 
 #[cfg(test)]
 mod order_tests;
+
+#[cfg(test)]
+mod hidden_tests;
