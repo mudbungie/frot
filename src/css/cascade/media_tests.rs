@@ -12,7 +12,8 @@
 //! the cascade, so it is not author-overridable — the box belongs to the
 //! `<video>`, not to the fallback.
 
-use crate::css::{compute, rendered_subtree_text, Display, Styles};
+use crate::ax::accessible_name;
+use crate::css::{compute, Display, Styles};
 use crate::dom::{Document, NodeId};
 
 fn styles(html: &str) -> (Document, Styles) {
@@ -66,8 +67,11 @@ fn raw_fallback_text_is_concealed_with_the_elements() {
     let text_node = *doc.node(v).children.last().unwrap();
     assert!(s.display_none(text_node));
     // The accessible-name walk reads the same table, so the fallback is not
-    // part of any name computed from the media element's contents either.
-    assert_eq!(rendered_subtree_text(&doc, v, &s), "");
+    // part of any name computed over the media element either: a link wrapping
+    // nothing but a `<video>` has no name to take from its contents.
+    let (doc, s) =
+        styles("<a href=x><video>Sorry, your browser does not support embedded videos</video></a>");
+    assert_eq!(accessible_name(&doc, first_tag(&doc, "a"), Some(&s)), None);
 }
 
 #[test]

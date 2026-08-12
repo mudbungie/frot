@@ -74,21 +74,26 @@ fn accessors_expose_the_computed_table() {
     assert_eq!(s.get(id("s")), &ComputedStyle::default());
 }
 
+/// The table as `--out text` consumes it: a `display:none` subtree is gone and
+/// `::before`/`::after` are inline text. Asserted through the view the caller
+/// actually gets, since the cascade owns no traversal of its own.
 #[test]
-fn rendered_subtree_text_applies_display_none_and_generated_content() {
+fn display_none_and_generated_content_reach_the_rendered_text() {
     let doc = Document::parse(
         "<style>p::before{content:'['}p::after{content:']'}q{display:none}</style>\
          <div><!--c--><p>hi</p><q>skip</q>tail</div>",
     );
     let s = compute(&doc);
-    let div = *doc.find_by_tag("div").first().unwrap();
-    assert_eq!(rendered_subtree_text(&doc, div, &s), "[hi]tail");
+    assert_eq!(crate::views::text::text(&doc, Some(&s)), "[hi]\ntail");
+    // Without the table the suppressed element speaks and the pseudo-content
+    // is absent — so the assertion above is the cascade's doing, not the view's.
+    assert_eq!(crate::views::text::text(&doc, None), "hi\nskiptail");
 }
 
-/// Generated content reaches the rendered text with its CSS escapes decoded —
-/// the python.org icon-font case (`.icon-download:before{content:"\e609"}` is
-/// one private-use glyph, not the literal text `e609`), one assertion per
-/// escape class.
+/// Generated content lands in the table with its CSS escapes decoded — the
+/// python.org icon-font case (`.icon-download:before{content:"\e609"}` is one
+/// private-use glyph, not the literal text `e609`), one assertion per escape
+/// class.
 #[test]
 fn generated_content_decodes_css_escapes() {
     let doc = Document::parse(
@@ -105,13 +110,13 @@ b" }
            <span class="nul">N</span>"#,
     );
     let s = compute(&doc);
-    let text = |i| {
-        let id = doc.find_by_tag("span")[i];
-        rendered_subtree_text(&doc, id, &s)
-    };
-    assert_eq!(text(0), "\u{e609}Download");
-    assert_eq!(text(1), "—D");
-    assert_eq!(text(2), "\"q\"Q");
-    assert_eq!(text(3), "abC");
-    assert_eq!(text(4), "\u{fffd}N");
+    let before = |i| s.before(doc.find_by_tag("span")[i]).map(str::to_string);
+    assert_eq!(before(0).as_deref(), Some("\u{e609}"));
+    // The space after `\2014` terminates the escape and is consumed with it.
+    assert_eq!(before(1).as_deref(), Some("—"));
+    assert_eq!(before(2).as_deref(), Some("\"q\""));
+    assert_eq!(before(3).as_deref(), Some("ab"));
+    assert_eq!(before(4).as_deref(), Some("\u{fffd}"));
+    // …and out through the view, where each glyph precedes its element's text.
+    assert!(crate::views::text::text(&doc, Some(&s)).starts_with("\u{e609}Download—D"));
 }
