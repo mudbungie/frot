@@ -145,3 +145,16 @@ fn colon_inside_quotes_is_not_the_separator() {
     // a colon that only appears inside quotes leaves no separator.
     assert!(parse_decls(r#"" : ""#).is_empty());
 }
+
+/// A literal is opaque to declaration splitting even when it contains an
+/// escaped delimiter: the `;` and `:` inside it are not separators.
+#[test]
+fn escaped_delimiter_keeps_a_literal_opaque_to_splitting() {
+    assert_eq!(
+        parse_decls(r#"content:"a\";b:c";display:none"#),
+        vec![
+            d("content", r#""a\";b:c""#, false),
+            d("display", "none", false)
+        ]
+    );
+}

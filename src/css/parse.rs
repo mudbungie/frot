@@ -7,6 +7,7 @@
 //! Every other `@`-rule (`@supports`, `@layer`, `@import`, …) is still
 //! skipped wholesale, including any `{…}` body.
 
+use super::escape::Quoting;
 use super::media;
 use super::selector::Selector;
 use super::selparse::{parse_selector_list, split_top};
@@ -99,21 +100,13 @@ fn parse_decl(s: &str) -> Option<Decl> {
     })
 }
 
-/// Index of the first `:` outside quotes — the name/value separator.
+/// Index of the first `:` outside quotes — the name/value separator. String
+/// literals are opaque, escapes included ([`super::escape::Quoting`]).
 fn top_colon(s: &str) -> Option<usize> {
-    let mut quote: Option<char> = None;
+    let mut quoting = Quoting::default();
     for (idx, ch) in s.char_indices() {
-        match quote {
-            Some(q) => {
-                if ch == q {
-                    quote = None;
-                }
-            }
-            None => match ch {
-                '"' | '\'' => quote = Some(ch),
-                ':' => return Some(idx),
-                _ => {}
-            },
+        if !quoting.feed(ch) && ch == ':' {
+            return Some(idx);
         }
     }
     None

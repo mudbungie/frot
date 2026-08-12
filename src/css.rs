@@ -12,6 +12,7 @@
 mod cascade;
 mod computed;
 mod content;
+mod escape;
 mod index;
 pub mod media;
 mod parse;

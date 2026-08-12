@@ -151,7 +151,8 @@ fn content_token_edges() {
     assert_eq!(st.before(first_tag(&doc, "r")), Some("open"));
     assert_eq!(st.before(first_tag(&doc, "s")), Some("ok"));
     assert_eq!(st.before(first_tag(&doc, "t")), Some(""));
-    assert_eq!(st.before(first_tag(&doc, "w")), Some("z\\"));
+    // a `\` with nothing after it denotes nothing (CSS Syntax §4.3.5).
+    assert_eq!(st.before(first_tag(&doc, "w")), Some("z"));
 }
 
 #[test]

@@ -84,3 +84,34 @@ fn rendered_subtree_text_applies_display_none_and_generated_content() {
     let div = *doc.find_by_tag("div").first().unwrap();
     assert_eq!(rendered_subtree_text(&doc, div, &s), "[hi]tail");
 }
+
+/// Generated content reaches the rendered text with its CSS escapes decoded —
+/// the python.org icon-font case (`.icon-download:before{content:"\e609"}` is
+/// one private-use glyph, not the literal text `e609`), one assertion per
+/// escape class.
+#[test]
+fn generated_content_decodes_css_escapes() {
+    let doc = Document::parse(
+        r#"<style>
+             .icon-download::before { content: "\e609" }
+             .dash::before          { content: "\2014 " }
+             .quote::before         { content: "\"q\"" }
+             .cont::before          { content: "a\
+b" }
+             .nul::before           { content: "\0" }
+           </style>
+           <span class="icon-download">Download</span><span class="dash">D</span>
+           <span class="quote">Q</span><span class="cont">C</span>
+           <span class="nul">N</span>"#,
+    );
+    let s = compute(&doc);
+    let text = |i| {
+        let id = doc.find_by_tag("span")[i];
+        rendered_subtree_text(&doc, id, &s)
+    };
+    assert_eq!(text(0), "\u{e609}Download");
+    assert_eq!(text(1), "—D");
+    assert_eq!(text(2), "\"q\"Q");
+    assert_eq!(text(3), "abC");
+    assert_eq!(text(4), "\u{fffd}N");
+}

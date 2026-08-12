@@ -1,5 +1,6 @@
 //! Selector-list parsing into the [`super::selector`] AST.
 
+use super::escape::Quoting;
 use super::selector::{Combinator, Compound, Pseudo, Selector, Simple};
 
 /// Split a selector list on top-level commas (commas inside `[]`, `()`, or
@@ -39,25 +40,19 @@ fn is_queryable(sel: &Selector) -> bool {
     })
 }
 
-/// Split on `sep` at bracket/paren depth 0 and outside quotes.
+/// Split on `sep` at bracket/paren depth 0 and outside quotes — string
+/// literals are opaque, escapes included ([`super::escape::Quoting`]).
 pub fn split_top(s: &str, sep: char) -> Vec<String> {
     let mut out = Vec::new();
     let mut buf = String::new();
     let mut depth = 0u32;
-    let mut quote: Option<char> = None;
+    let mut quoting = Quoting::default();
     for ch in s.chars() {
-        if let Some(q) = quote {
+        if quoting.feed(ch) {
             buf.push(ch);
-            if ch == q {
-                quote = None;
-            }
             continue;
         }
         match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                buf.push(ch);
-            }
             '[' | '(' => {
                 depth += 1;
                 buf.push(ch);
