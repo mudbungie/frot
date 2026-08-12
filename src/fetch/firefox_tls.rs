@@ -8,7 +8,7 @@
 //! calls the single most important fact (rustls CVEs now arrive by `cargo
 //! update`), at the price of a byte-exact handshake. The persona facts frot
 //! *can* enforce through stock rustls are wired from the one profile
-//! ([`FIREFOX_140_ESR`]): the ALPN offer (`h2, http/1.1`), the key-exchange
+//! ([`FIREFOX_153_ESR`]): the ALPN offer (`h2, http/1.1`), the key-exchange
 //! group order (X25519MLKEM768 first), and the cipher order. What stock rustls
 //! cannot reproduce — the full 17-cipher list, the Firefox extension order/set,
 //! three key shares — is a **declared residual** in the §12 oracle, never a
@@ -24,7 +24,7 @@ use rustls::crypto::aws_lc_rs::{cipher_suite, kx_group};
 use rustls::crypto::{aws_lc_rs, CryptoProvider, SupportedKxGroup};
 use rustls::{ClientConfig, RootCertStore, SupportedCipherSuite};
 
-use super::profile::FIREFOX_140_ESR;
+use super::profile::FIREFOX_153_ESR;
 
 /// The Mozilla webpki root set (the roots ureq/rustls default to). The tests
 /// inject a throwaway CA instead so a local server is reachable with real
@@ -42,7 +42,7 @@ pub(crate) fn webpki_roots() -> RootCertStore {
 /// the persona also lists are not offered by aws-lc-rs, a declared residual
 /// (§6.4), so they map to nothing.
 fn firefox_kx_groups() -> Vec<&'static dyn SupportedKxGroup> {
-    FIREFOX_140_ESR
+    FIREFOX_153_ESR
         .tls
         .groups
         .iter()

@@ -9,7 +9,7 @@
 //! Two recorded contracts live here:
 //! - **`persona-http-head.txt`** — the h1 request head over plain `http://`,
 //!   the navigation set `bl-20ec` derives from the persona (identity.md §3.3/§4:
-//!   Firefox 140esr UA, Firefox-shaped `Accept` with no `image/avif`, the RFC
+//!   Firefox 153esr UA, Firefox-shaped `Accept` with no `image/avif`, the RFC
 //!   9218 `Priority`). Title-Cased on both schemes (hyper's
 //!   `http1_title_case_headers`), dissolving §3.4's old scheme-dependent
 //!   lowercase tell. The declared h1-fallback residuals of hyper's pooled

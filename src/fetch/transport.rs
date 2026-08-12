@@ -32,7 +32,7 @@ use rustls::RootCertStore;
 use tokio::runtime::Runtime;
 
 use super::firefox_tls::firefox_client_config;
-use super::profile::FIREFOX_140_ESR;
+use super::profile::FIREFOX_153_ESR;
 use super::{FetchError, POOL_PER_HOST};
 use crate::envelope::kinds;
 
@@ -92,11 +92,11 @@ impl Transport {
         let https = HttpsConnectorBuilder(roots).build();
         let client = Client::builder(TokioExecutor::new())
             .pool_max_idle_per_host(POOL_PER_HOST)
-            .http2_initial_stream_window_size(FIREFOX_140_ESR.h2.initial_window_size)
+            .http2_initial_stream_window_size(FIREFOX_153_ESR.h2.initial_window_size)
             .http2_initial_connection_window_size(
-                FIREFOX_140_ESR.h2.connection_window_increment + H2_DEFAULT_CONNECTION_WINDOW,
+                FIREFOX_153_ESR.h2.connection_window_increment + H2_DEFAULT_CONNECTION_WINDOW,
             )
-            .http2_max_frame_size(FIREFOX_140_ESR.h2.max_frame_size)
+            .http2_max_frame_size(FIREFOX_153_ESR.h2.max_frame_size)
             .http1_title_case_headers(true)
             .build(https);
         let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -159,7 +159,7 @@ impl Transport {
         // derivation supplies both for a real page load; this fills them in only
         // for a bare direct call (recorder/transport tests), from the same SSOTs.
         if !has_header(headers, "user-agent") {
-            builder = builder.header("user-agent", FIREFOX_140_ESR.user_agent());
+            builder = builder.header("user-agent", FIREFOX_153_ESR.user_agent());
         }
         if !has_header(headers, "accept-encoding") {
             builder = builder.header("accept-encoding", super::decode::ACCEPT_ENCODING);

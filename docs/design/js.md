@@ -248,7 +248,8 @@ Consequences of the repo's hard rules:
   (no cached state), WebIDL-shaped as Gecko exposes them (Illegal constructor,
   prototype `length`/`value` accessors, live indexed access, the iteration
   methods ARE the `Array.prototype` ones). `supports()` answers from the
-  pinned Firefox 140.12.0esr supported-token tables (Gecko
+  Firefox 140.12.0esr supported-token tables (measured on the then-pinned line;
+  not re-read for the 153esr re-pin — `bl-b128`) (Gecko
   `HTMLLinkElement.cpp` `SUPPORTED_REL_VALUES_BASE` plus the default-on
   `manifest`/`modulepreload` prefs; `Element.cpp` `sAnchorAndFormRelValues`
   for a/area/form), and throws the coherent TypeError for `class`, which
@@ -685,7 +686,7 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   fidelity is now cheap because it derives from one place.)* One derivation —
   `fetch::request::derive_headers` — builds the protocol-correct ordered header
   set for **every** request from `(Intent, target, initiator, caller -H)` against
-  the pinned Firefox 140.12.0esr persona (`identity.md` §4), replacing the old
+  the pinned Firefox ESR persona (`identity.md` §4), replacing the old
   `DOCUMENT_HEADERS` const and the ad-hoc `fetch::fetch` subfetch policy. A
   navigation carries `Accept: text/html,…`, `Upgrade-Insecure-Requests`,
   `Sec-Fetch-Dest: document` / `Mode: navigate` / `Site: none` / `User: ?1`,
@@ -752,7 +753,8 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   `permission`/`maxActions`/`requestPermission`). Every value is fixed / never
   random: on a FRESH profile nothing is granted or denied, so `query()` resolves
   `state: 'prompt'` for every recognised name (the Firefox 140esr `PermissionName`
-  enum; an unrecognised name **rejects** with the coherent `TypeError`),
+  enum, as measured then and not re-read for the 153esr re-pin — `bl-b128`; an
+  unrecognised name **rejects** with the coherent `TypeError`),
   `Notification.permission` is `'default'`, and `requestPermission()` resolves an
   honest `'default'`. frot raises no prompt and shows no notification — a
   constructed `Notification` fires no event; `onchange`/`onclick` **never fire** —

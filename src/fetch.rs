@@ -38,7 +38,7 @@ pub(crate) use concurrent::fetch_many;
 pub(crate) use cookie::{CookieJar, SharedJar};
 pub(crate) use decode::decode_body;
 pub(crate) use media::non_document;
-pub use profile::{BrowserProfile, H2Profile, TlsProfile, FIREFOX_140_ESR};
+pub use profile::{BrowserProfile, H2Profile, TlsProfile, FIREFOX_153_ESR};
 pub use session::{FetchSession, Intent};
 pub(crate) use transport::Transport;
 pub(crate) use webgl::facts as webgl_facts;
@@ -59,20 +59,20 @@ pub(crate) const POOL_PER_HOST: usize = 6;
 
 /// The effective User-Agent: a `-H "User-Agent: …"` override when the caller
 /// supplied one, else the pinned persona's derived UA
-/// ([`BrowserProfile::user_agent`], Firefox 140esr). `navigator.userAgent`
+/// ([`BrowserProfile::user_agent`], Firefox 153esr). `navigator.userAgent`
 /// (js.md §7) reports this same string, so the shim never lies about who
-/// fetched; wiring the *JS-visible* UA to 140esr is bl-3972's, so a transient
+/// fetched; wiring the *JS-visible* UA to 153esr is bl-3972's, so a transient
 /// HTTP-UA/JS-UA gap within this epic is expected and reconciles then.
 pub fn user_agent(headers: &[(String, String)]) -> String {
     headers
         .iter()
         .find(|(n, _)| n.eq_ignore_ascii_case("user-agent"))
-        .map_or_else(|| FIREFOX_140_ESR.user_agent(), |(_, v)| v.clone())
+        .map_or_else(|| FIREFOX_153_ESR.user_agent(), |(_, v)| v.clone())
 }
 
 /// The effective `Accept-Language`: a `-H "Accept-Language: …"` override when the
 /// caller supplied one, else the persona's derived value
-/// ([`BrowserProfile::accept_language`], `en-US,en;q=0.5`). The JS layer derives
+/// ([`BrowserProfile::accept_language`], `en-US,en;q=0.9`). The JS layer derives
 /// `navigator.language`/`.languages` from this *same* string (`bl-3972`,
 /// identity.md §4.2/§8), so the header and the `navigator` facts can never
 /// disagree — an override updates only the facts those headers imply (I5).
@@ -80,7 +80,7 @@ pub fn accept_language(headers: &[(String, String)]) -> String {
     headers
         .iter()
         .find(|(n, _)| n.eq_ignore_ascii_case("accept-language"))
-        .map_or_else(|| FIREFOX_140_ESR.accept_language(), |(_, v)| v.clone())
+        .map_or_else(|| FIREFOX_153_ESR.accept_language(), |(_, v)| v.clone())
 }
 
 #[derive(Debug, Clone)]

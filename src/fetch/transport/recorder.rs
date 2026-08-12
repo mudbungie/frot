@@ -30,7 +30,7 @@ use std::time::Duration;
 use super::ja4::{is_grease, Ja4Hello};
 use super::Transport;
 use crate::fetch::firefox_tls::webpki_roots;
-use crate::fetch::profile::FIREFOX_140_ESR;
+use crate::fetch::profile::FIREFOX_153_ESR;
 use crate::fetch::MAX_BODY_BYTES;
 
 /// Parsed ordered fields of a ClientHello — everything JA4 reads plus the
@@ -136,14 +136,14 @@ fn capture() -> ClientHello {
 
 /// The persona's §4.1 lists as a JA4 input — a *declaration*, not an observation.
 fn persona_hello() -> Ja4Hello<'static> {
-    let tls = FIREFOX_140_ESR.tls;
+    let tls = FIREFOX_153_ESR.tls;
     Ja4Hello {
         version: 0x0304,
         sni: true,
         ciphers: tls.ciphers,
         extensions: tls.extensions,
         sig_algs: tls.sig_algs,
-        alpn: FIREFOX_140_ESR.alpn[0],
+        alpn: FIREFOX_153_ESR.alpn[0],
     }
 }
 
@@ -174,7 +174,7 @@ fn the_client_hello_carries_the_pinned_cipher_and_group_order() {
 #[test]
 fn the_firefox_only_extensions_are_absent_and_neither_side_greases() {
     let hello = capture();
-    let tls = FIREFOX_140_ESR.tls;
+    let tls = FIREFOX_153_ESR.tls;
     // Residuals, asserted *as* residuals (§11, §6.1): rustls has no API for
     // either extension, so frot omits both although the persona declares them.
     // The persona values are named in the message so the gap stays legible.
@@ -188,7 +188,7 @@ fn the_firefox_only_extensions_are_absent_and_neither_side_greases() {
         "compress_certificate absent; persona algorithms {:?} are a declared residual",
         tls.cert_compression
     );
-    // Absence of GREASE is a real MATCH, not a residual: Firefox 140esr sends
+    // Absence of GREASE is a real MATCH, not a residual: Firefox 153esr sends
     // none and rustls sends none. Asserted on both the wire and the declaration
     // by the *class* — `ja4::is_grease`, the one definition of RFC 8701's
     // `0x?a?a` — so no GREASE literal is written down here at all.

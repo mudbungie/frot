@@ -41,10 +41,10 @@ no route delivers a byte-exact Firefox inside those constraints.
   HEADERS `PRIORITY` flag, so Firefox's `m,p,a,s` and weight-42 priority need a
   fork. Byte-exact Firefox in pure Rust means owning **two** forks indefinitely —
   which is exactly how frot acquired `craftls`.
-- **The ESR escape hatch is closed.** 140esr postdates both the PQ key share
-  (Firefox 132, Nov 2024) and zstd `Accept-Encoding` (Firefox 126). Measured:
-  140.12.0esr sends X25519MLKEM768 **first** in both `supported_groups` and
-  `key_share`, and sends `zstd`. The only PQ-free Firefox is ≤131, i.e. EOL
+- **The ESR escape hatch is closed.** Every live ESR line postdates both the PQ
+  key share (Firefox 132, Nov 2024) and zstd `Accept-Encoding` (Firefox 126).
+  Measured on both pins: 140.12.0esr and 153.0esr send X25519MLKEM768 **first**
+  in `supported_groups` and `key_share`, and send `zstd`. The only PQ-free Firefox is ≤131, i.e. EOL
   115esr. Pinning ESR does not avoid X25519MLKEM768 and never could.
 
 **Therefore the goal of this design is stated as a first-class commitment, not an
@@ -56,7 +56,7 @@ apology:**
 
 The rationale is that coherence is the property that is actually *achievable* and
 *testable*, and incoherence is what is actually *cheap to detect*. A defence that
-sees a Firefox-140esr ClientHello followed by a Chrome-shaped `Accept` header, or
+sees a Firefox-153esr ClientHello followed by a Chrome-shaped `Accept` header, or
 by a refusal to speak h2, does not need a hash database — it needs one `if`.
 Removing every such `if` is a finite, verifiable job. Matching a hash is not.
 
@@ -72,50 +72,74 @@ VISION-level trade, not an implementation detail.
 
 ## 2. The persona
 
-**Pinned: Mozilla Firefox `140.12.0esr`, the official Mozilla `linux-x86_64`
-en-US tarball build.**
+**Pinned: Mozilla Firefox `153.0esr`, the official Mozilla `linux-x86_64` en-US
+tarball build.**
 
-Captured 2026-07-19 from a real binary driven through Gecko's own network stack
+Captured 2026-08-11 from a real binary driven through Gecko's own network stack
 (necko/NSS) via Marionette — not curl, not a library. `application.ini` `Version`
-`140.12.0`, `BuildID` `20260609153453`, `SourceStamp`
-`7df86525c2c876c7c92320e49c3e0771f7a605c0`.
+`153.0`, `BuildID` `20260716160951`, `SourceStamp`
+`abd1fe67f4c3b677caecb582d55601a7b1191dc4`, `SourceRepository`
+`releases/mozilla-esr153`; tarball SHA-256 checked against Mozilla's published
+`SHA256SUMS`. The full re-capture is §3.10.
 
-**Why ESR 140 over rapid-release 152:**
+**Why the 140esr pin ended (`bl-3595`, 2026-08-11).** Two facts, both off
+Mozilla's calendar rather than off this document:
 
-1. **Stability.** 140.x is the sole ESR line (`FIREFOX_ESR_NEXT` empty), so the
-   fingerprint holds still for the support window. 152's moves every ~4 weeks,
-   and every move invalidates every golden capture.
-2. **Migration cost is near zero on the cipher axis.** frot's current JA4 cipher
-   hash is **`5b57614c22b0`**; 140esr's is **`5b57614c22b0`**; 152's is
-   `86a278354501`. frot's inherited `FIREFOX_105` cipher list is *already the
-   140esr list* — 17 suites, same set, including `0xc009`
-   (`ECDHE_ECDSA_AES_128_CBC_SHA`) which 152 dropped. Pinning 152 would mean
-   removing a cipher and regenerating everything; pinning 140esr means changing
-   nothing on that axis. *(Verified: the JA4 sorted cipher lists in
-   `fingerprints.md` and `firefox-esr140.md` are character-identical. Wire
-   **order** — `ja4_ro` — was not captured for frot and must be confirmed against
-   140esr's `ja4_ro` during `bl-abca`.)*
-3. **`accept-language` already matches.** 140esr emits `en-US,en;q=0.5`; frot
-   emits `en-US,en;q=0.5`. 152 emits `q=0.9`.
-4. **The feared drift did not happen.** `zstd`, X25519MLKEM768-first, and ECH-last
-   were all flagged as likely 140esr regressions and all three are measured
-   non-issues. The pin costs no modernity.
+- **ESR 153 branched 2026-07-21.** The old argument for 140 opened with "140.x is
+  the sole ESR line (`FIREFOX_ESR_NEXT` empty)" — that premise expired the day
+  153 branched, and the const repeated it as its own justification.
+- **ESR 140's line ends 2026-09-29** (endoflife.date/firefox; Mozilla's train
+  schedule at whattrainisitnow.com reads "ESR 140 branch is EOL October 13").
+  The const's `eol` said `2027-06-01`: eight months of snooze, so the I8
+  tripwire would have fired long after the line stopped taking security fixes.
+
+ESR 115 still ships beside 153, but only for Windows 7–8.1 and macOS 10.12–10.14
+(to March 2027). It is not a Linux desktop line and not a pin candidate.
+
+**Why an ESR line at all** is unchanged, and stronger than it was: the rapid
+train now ships every two weeks (154 on 2026-08-18, 155 on 2026-09-01, 156 on
+2026-09-15), and every move invalidates every golden capture. An ESR line holds
+its fingerprint still for its support window.
+
+**What the re-pin cost on the wire: one cipher.** Measured 140.12.0esr →
+153.0esr, every §4.1 field re-captured, only three moved:
+
+| field | 140.12.0esr | **153.0esr** |
+|---|---|---|
+| `ciphers` | 17, `0xc009` at index 10 | **16 — `0xc009` (`ECDHE_ECDSA_AES_128_CBC_SHA`) dropped**, the rest identical in wire order |
+| JA4 | `t13d1717h2_5b57614c22b0_3cbfd9057e0d` | **`t13d1617h2_86a278354501_3cbfd9057e0d`** — cipher hash and count only |
+| `Accept-Language` | `en-US,en;q=0.5` | **`en-US,en;q=0.9`** (the 152-era q-value, now the ESR's) |
+
+Everything else re-measured *identical*: the 17 extensions and their wire order
+(ECH 65037 last, `compress_certificate` 27 present with zlib/brotli/zstd),
+`supported_groups` `4588,29,23,24,25,256,257`, the three key shares, the 11
+signature algorithms in order, ALPN `h2, http/1.1`, `record_size_limit` 16385,
+every h2 fact (`1:65536;2:0;4:131072;5:16384 | 12517377 | 0 | m,p,a,s`, first
+stream id 3, HEADERS `PRIORITY` weight 42), `Accept`, `Accept-Encoding`,
+`navigator.buildID` `20181001000000`, `productSub`, `platform`, GREASE absent.
+The akamai-h2 fingerprint is byte-for-byte the 140esr one.
 
 **Mozilla tarball, not the Ubuntu snap — deliberately.** The 152 capture showed
 `Mozilla/5.0 (X11; **Ubuntu**; Linux x86_64; rv:152.0) …`; the `Ubuntu` token is
 a *distro artifact* (the snap patches `general.useragent.vendor`), not a version
-difference. The 140esr tarball omits it. frot pins the tarball persona because
-the TLS/h2 bytes it reproduces are the tarball's: copying a snap UA onto
+difference. The 153esr tarball omits it (measured: `Mozilla/5.0 (X11; Linux
+x86_64; rv:153.0) Gecko/20100101 Firefox/153.0`). frot pins the tarball persona
+because the TLS/h2 bytes it reproduces are the tarball's: copying a snap UA onto
 tarball-shaped everything-else is precisely the incoherence this phase exists to
 delete.
 
-**Update cadence.** The profile is pinned to an ESR *line*, re-captured on each
-new ESR major (Mozilla ships roughly one per year). The profile constant carries
-its own `PINNED` capture date and its line's `EOL` date, and **a test fails once
-`EOL` passes** (see I8, `tests/hygiene/persona.rs`) — silent staleness becomes a
-red test run, with no config knob and no calendar to remember. *(The 140esr EOL
-date is taken from Mozilla's published ESR calendar at implementation time; it
-is not measured here.)*
+**Update cadence, and what `eol` now means.** The profile is pinned to an ESR
+*line* and re-captured on each new ESR major. **Mozilla has published no EOL for
+ESR 153** (endoflife.date carries the cycle with `eol: false`; the train
+schedule states an EOL for the 140 branch and none for 153). So `eol` is not a
+guess at the line's death and never an extrapolation from "roughly a year": it
+is **the last 153.x security release Mozilla has actually scheduled — 153.11 on
+2027-01-26** — i.e. the horizon of published knowledge. Past that date nobody
+here knows whether the line is still maintained, which is exactly when a human
+must re-read the calendar, and **a test fails once `eol` passes** (I8,
+`tests/hygiene/persona.rs`) — with no config knob and no calendar to remember.
+The rule this replaces the old note with: *the date is copied from something
+Mozilla published, or the pin does not move.*
 
 ---
 
@@ -135,7 +159,7 @@ separated from IP reputation. frot binary: worktree `bl-0356` @ `4aac8b2`,
 
 ### 3.1 Same-egress fingerprint comparison
 
-| field | frot (today) | **Firefox 140.12.0esr** *(the pin)* | Firefox 152.0.5 | curl 8.18.0 |
+| field | frot (today) | **Firefox 140.12.0esr** *(the pin at the time; §3.10 re-measures the 153esr pin)* | Firefox 152.0.5 | curl 8.18.0 |
 |---|---|---|---|---|
 | negotiated version | HTTP/1.1 | **h2** | h2 | h2 |
 | ALPN offered | `["http/1.1"]` | **`["h2","http/1.1"]`** | `["h2","http/1.1"]` | `["h2","http/1.1"]` |
@@ -302,7 +326,7 @@ as §3.1 (§3, verified identical), release binary from the
 
 **Transport, frot then → now (same oracle, same egress):**
 
-| field | frot 2026-07-19 (pre-transport) | **frot 2026-07-21 (as-built)** | Firefox 140.12.0esr (the pin) |
+| field | frot 2026-07-19 (pre-transport) | **frot 2026-07-21 (as-built)** | Firefox 140.12.0esr (the pin then) |
 |---|---|---|---|
 | negotiated version | HTTP/1.1 | **h2** | h2 |
 | ALPN | `["http/1.1"]` | **`["h2","http/1.1"]`** (h2 selected) | `["h2","http/1.1"]` |
@@ -353,11 +377,11 @@ CI (`src/js/tests/persona_gold.rs`, cross-invocation stable).
    the h1-under-a-Firefox-UA contradiction (h2 now), the Chrome-shaped `Accept`,
    the scheme-dependent header casing, the Firefox-121/140-cipher mismatch, and
    the one-connection-per-request anomaly (3→1). frot now presents *one*
-   internally consistent Firefox-140esr identity across TLS, ALPN, HTTP/2,
+   internally consistent Firefox-ESR identity across TLS, ALPN, HTTP/2,
    headers, and `navigator`. This is the win the epic was actually premised on
    (§6.3/§14) and it is real.
 2. **Byte-exact fingerprint: not achieved, by design (Option C).** JA4 is
-   `t13d1011h2_…`, **not** the pin's `t13d1717h2_…`: stock rustls emits 10
+   `t13d1011h2_…`, **not** the pin's `t13d1617h2_…`: stock rustls emits 10
    ciphers (not 17), 11 extensions (not 17), ≤2 key shares (not 3); the `h2`
    crate emits `m,s,a,p` (not `m,p,a,s`); `Accept-Encoding` stays `gzip, br`.
    Every one of these is a **declared residual** (§6.4/§7/§11/§14), asserted in
@@ -461,6 +485,83 @@ to be able to get around it."* The design answering it is
 
 ---
 
+### 3.10 Re-pin re-measurement: 140.12.0esr → 153.0esr (`bl-3595`, 2026-08-11)
+
+The ESR line frot pinned reaches end-of-life 2026-09-29 and its successor had
+already branched (§2), so the persona was re-captured from scratch. **Nothing in
+§4.1 was carried forward on faith: every field below was re-measured**, and the
+fields that did not move say so because they were read again, not because they
+were left alone.
+
+**Method — identical to §3.1, deliberately.** The official Mozilla
+`linux-x86_64` en-US **tarball** `firefox-153.0esr.tar.xz`, SHA-256 verified
+against Mozilla's published `SHA256SUMS`, never the distro snap (§2). Run
+headless from a profile under `$HOME` (a snap's private `/tmp` silently ignores
+a `--profile` there; the tarball has no such trap, and `$HOME` keeps the two
+captures comparable), driven over the Marionette wire protocol, so the bytes come
+from Gecko's own necko/NSS. Read black-box through **`tls.peet.ws/api/all`** and
+**`tls.browserleaks.com/json`** — the same two services that cross-validated the
+140esr capture — from the same reference egress as §3.1 (§3, verified
+unchanged). Two independent services, two rounds each; every value below was
+reported identically by both.
+
+`application.ini`: `Version` `153.0`, `BuildID` `20260716160951`, `SourceStamp`
+`abd1fe67f4c3b677caecb582d55601a7b1191dc4`, `SourceRepository`
+`releases/mozilla-esr153`.
+
+**What moved:**
+
+| field | 140.12.0esr | 153.0esr |
+|---|---|---|
+| `ciphers` | 17, `0xc009` at index 10 | **16 — `0xc009` dropped**, rest identical in wire order |
+| JA4 | `t13d1717h2_5b57614c22b0_3cbfd9057e0d` | **`t13d1617h2_86a278354501_3cbfd9057e0d`** |
+| `Accept-Language` | `en-US,en;q=0.5` | **`en-US,en;q=0.9`** |
+| UA / `rv:` | `140.0` | **`153.0`** (no `Ubuntu` token — tarball, §2) |
+
+**What did not move — re-read, not assumed:** the 17 ClientHello extensions *and
+their wire order* (`0,23,65281,10,11,35,16,5,34,18,51,43,13,45,28,27,65037`, ECH
+last); `compress_certificate` = zlib(1), brotli(2), zstd(3); `record_size_limit`
+= `0x4001`; `supported_groups` `4588,29,23,24,25,256,257`; three key shares
+(4588, 29, 23); the 11 signature algorithms in order; ALPN `h2, http/1.1`; no
+GREASE; SETTINGS `1:65536;2:0;4:131072;5:16384`; connection WINDOW_UPDATE
+`12517377`; first client stream id 3; HEADERS `PRIORITY` weight 42, depends-on 0,
+non-exclusive, on the **navigation** (a `fetch`/XHR on the same connection
+carries weight 22 — a request-class fact, not a line change); pseudo-header order
+`m,p,a,s`; akamai text and hash byte-for-byte the 140esr ones; `Accept` for a
+document; `Accept-Encoding: gzip, deflate, br, zstd`; `navigator.buildID`
+`20181001000000`; `productSub`; `platform`/`oscpu`.
+
+One corroboration worth naming: the JA4 measured here for 153esr is
+*character-identical* to the one §3.1 measured for rapid-release **152.0.5** on
+2026-07-19 — the cipher change frot is absorbing is the one 152 already made, now
+arriving on the ESR line. Two captures, three weeks and two Firefox channels
+apart, agreeing.
+
+**The oracle checked itself.** `ja4.rs` computes the persona's JA4 from the §4.1
+lists alone; on the new lists it produces `t13d1617h2_86a278354501_3cbfd9057e0d`
+— **character-identical to what both services independently reported for the
+real binary**, JA4_r included. That is the §12 property working in the direction
+it is meant to: the declaration and the wire were derived from different things
+and agreed anyway. (`ja4_ro` differs from browserleaks' rendering in one respect
+— browserleaks keeps `server_name` in its unsorted list where frot drops SNI and
+ALPN from both raw forms, per JA4's own exclusion rule. peet.ws agrees with
+frot. Pre-existing, not a re-pin effect.)
+
+**What this re-capture did *not* re-measure**, and is therefore still 140esr
+evidence: the audio-DSP constants (`fetch/audio.rs`), the WebGL vendor/renderer
+strings (`fetch/webgl.rs`, which are Mesa/llvmpipe facts more than Gecko ones),
+and the wider `navigator`/DOM surface of §8 beyond the ★ rows. Each file says
+which line it was measured on. Tracked as **`bl-b128`** rather than assumed
+here — a value nobody measured is a value nobody may write down (§2).
+
+One thing the re-capture *did* surface as a defect rather than a drift:
+`navigator.appVersion` reads `5.0 (X11)` on both ESR lines, where §4.2 derives it
+as the UA minus its `Mozilla/` prefix. That derivation rule has been wrong since
+it was written, and §8's own measured table said so. Filed as **`bl-6491`**;
+not fixed here, because it is a `src/js/` change and not a pin fact.
+
+---
+
 ## 4. The one profile
 
 `BrowserProfile` is a single `const` (proposed home: `src/fetch/profile.rs`).
@@ -474,13 +575,13 @@ Today these facts are scattered across four files, which is the defect:
 
 ### 4.1 Stored — the profile constant
 
-| fact | value (Firefox 140.12.0esr) |
+| fact | value (Firefox 153.0esr) |
 |---|---|
-| `version_major` | `140` |
-| `pinned` / `eol` | `2026-07-19` / *(ESR calendar, filled at implementation)* |
-| `user_agent` | `Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0` |
+| `version_major` | `153` |
+| `pinned` / `eol` | `2026-08-11` / `2027-01-26` — the last **published** 153.x release, never an estimate (§2) |
+| `user_agent` | `Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0` |
 | `locale` | `en-US`, fallback `en` |
-| `ciphers` (17, wire order) | `1301,1303,1302,c02b,c02f,cca9,cca8,c02c,c030,c00a,c009,c013,c014,009c,009d,002f,0035` |
+| `ciphers` (16, wire order) | `1301,1303,1302,c02b,c02f,cca9,cca8,c02c,c030,c00a,c013,c014,009c,009d,002f,0035` — 140esr's `c009` is gone (§2) |
 | `extensions` (17, wire order) | `0,23,65281,10,11,35,16,5,34,18,51,43,13,45,28,27,65037` |
 | `supported_groups` | `4588,29,23,24,25,256,257` |
 | `key_share_groups` | `4588,29,23` — **3 shares** |
@@ -515,7 +616,7 @@ the list stored, a count beside it was the same fact twice (I1/I6).
 
 | derived fact | from |
 |---|---|
-| `Accept-Language: en-US,en;q=0.5` | `locale` (the q-value is Gecko's rendering of `en-US, en`) |
+| `Accept-Language: en-US,en;q=0.9` | `locale` (the q-value is Gecko's rendering of `en-US, en`; 153esr raised it from the `q=0.5` 140esr sent) |
 | `navigator.language` / `.languages` | `locale` — **the same source as the header**, which is why they can no longer disagree |
 | `navigator.userAgent` / `.appVersion` | `user_agent` (`appVersion` = UA minus the `Mozilla/` prefix) |
 | `navigator.platform` / `.oscpu` | the UA's platform segment |
@@ -606,7 +707,7 @@ path, config (c) below, is **preserved as the size-optimized fallback**.
 >
 > **What stock rustls + aws-lc-rs *does* reproduce from the profile:** ALPN order
 > `h2, http/1.1`; kx-group order with X25519MLKEM768 first; cipher wire order;
-> absence of GREASE (140esr has none); the h2 SETTINGS initial-window / max-frame
+> absence of GREASE (no ESR line sends any); the h2 SETTINGS initial-window / max-frame
 > values. **Declared residuals (asserted in §12, never silent):** the cipher
 > *list* is rustls's 9 AEAD suites, not Firefox's 17 (so the JA4 *cipher*
 > component also differs, not only the extension component); the ClientHello
@@ -794,7 +895,7 @@ Stated plainly so no reader mistakes the recommendation for a match:
   component; Firefox emits 4588, 29, **and** 23. Closing this needs a rustls
   patch. *(JA4 does not encode key-share count; a deep inspector sees it.)*
 - **Pseudo-order and HEADERS PRIORITY** — see §7.
-- `padding(21)`: frot sends it where the 140esr capture does not. Padding is
+- `padding(21)`: frot sends it where neither the 140esr nor the 153esr capture does. Padding is
   ClientHello-length-dependent and varies with SNI in real browsers too
   (frot's own extension hash differs between peet and browserleaks for this
   reason) — **not a defect**, and normalized out of the oracle (§12).
@@ -835,7 +936,7 @@ surface bought with nothing.
 
 Read against `hyper-1.9.0` and `h2-0.4.15` rather than assumed:
 
-| akamai-h2 fingerprint component | frot | Firefox 140esr | owning the pool fixes it? |
+| akamai-h2 fingerprint component | frot | Firefox ESR (140esr and 153esr, identical) | owning the pool fixes it? |
 |---|---|---|---|
 | SETTINGS id 1 `HEADER_TABLE_SIZE` | absent | `65536` | **yes** — `http2::Builder::header_table_size(impl Into<Option<u32>>)` |
 | SETTINGS id 6 `MAX_HEADER_LIST_SIZE` | `16384` | *omitted* | **no** — hyper types it `u32` and applies it unconditionally (`proto/h2/client.rs`: `.max_header_list_size(config.max_header_list_size)`); `h2`'s own `client::Builder::max_header_list_size(u32)` can only set `Some`. Omission needs a fork of `h2`. |
@@ -996,7 +1097,7 @@ tells. Firefox always negotiates h2; Firefox always sends `m,p,a,s`. Neither
 residual hides. Three things break the tie:
 
 1. **The oracle is unreachable without h2.** JA4 *embeds ALPN*:
-   `t13d1717**h2**_…` vs `t13d1717**h1**_…`. An h1-only frot can **never** match
+   `t13d1617**h2**_…` vs `t13d1617**h1**_…`. An h1-only frot can **never** match
    the pinned profile's JA4 — not approximately, but by construction. §12's test
    oracle would be unsatisfiable on its most-cited field.
 2. **The residuals are not equally shaped.** ALPN h1-only is a *contradiction*
@@ -1037,25 +1138,25 @@ grounds alone.
 
 ## 8. The allowed JS surface (`bl-3972`)
 
-**In: low-entropy, coherent, correct branding.** Facts a real Firefox 140esr
+**In: low-entropy, coherent, correct branding.** Facts a real Firefox ESR
 reports that frot can report truthfully or plausibly, all derived from §4.
 
 Measured stock values to adopt, and frot's current gaps:
 
-| fact | 140esr (measured) | frot today | action |
+| fact | ESR (measured 140esr 2026-07-19; ★ = re-measured unchanged on the 153esr pin, 2026-08-11) | frot today | action |
 |---|---|---|---|
-| `userAgent`, `appVersion`, `appName`, `appCodeName`, `product`, `productSub` | `…rv:140.0…`, `5.0 (X11)`, `Netscape`, `Mozilla`, `Gecko`, `20100101` | present, but **UA is 121** | derive from profile |
+| `userAgent`, `appVersion`, `appName`, `appCodeName`, `product`, `productSub` ★ | `…rv:153.0…`, `5.0 (X11)`, `Netscape`, `Mozilla`, `Gecko`, `20100101` | present, but **UA is 121** | derive from profile |
 | `vendor` / `vendorSub` | `""` / `""` | `vendor` only | add `vendorSub` |
-| `platform` / `oscpu` | `Linux x86_64` / `Linux x86_64` | `platform` only | add `oscpu` |
-| `language` / `languages` | `en-US` / **`["en-US","en"]`** | `en-US` / **`["en-US"]`** | **fix** — derive both from `locale`, same source as `Accept-Language` |
-| `doNotTrack` | **`"unspecified"`** | **`null`** | **fix** |
-| `buildID` | **`20181001000000`** (privacy-frozen constant) | **absent** | add — reporting the *real* BuildID would itself be a tell |
+| `platform` / `oscpu` ★ | `Linux x86_64` / `Linux x86_64` | `platform` only | add `oscpu` |
+| `language` / `languages` ★ | `en-US` / **`["en-US","en"]`** | `en-US` / **`["en-US"]`** | **fix** — derive both from `locale`, same source as `Accept-Language` |
+| `doNotTrack` ★ | **`"unspecified"`** | **`null`** | **fix** |
+| `buildID` ★ | **`20181001000000`** (privacy-frozen constant — still frozen at this value on 153esr) | **absent** | add — reporting the *real* BuildID would itself be a tell |
 | `pdfViewerEnabled` | `true` | absent | add |
 | `plugins.length` / `mimeTypes.length` | `5` / `2` (Gecko PDF shims) | absent | add |
 | `deviceMemory`, `userAgentData` | **absent** (`in navigator` → false) | absent | correct — keep absent |
 | `maxTouchPoints`, `cookieEnabled`, `onLine` | `0`, `true`, `true` | matching | keep |
-| **`webdriver`** | capture shows `true` — **Marionette's distortion, not stock** | **`false`** | **keep `false`. Real Firefox reports `false`; frot is under no remote control. Do not copy `true` into a golden capture.** |
-| `hardwareConcurrency` | `16` — **host-dependent** | `1` | **pin `8`** — see below |
+| **`webdriver`** ★ | capture shows `true` on both pins — **Marionette's distortion, not stock** | **`false`** | **keep `false`. Real Firefox reports `false`; frot is under no remote control. Do not copy `true` into a golden capture.** |
+| `hardwareConcurrency` ★ | `16` — **host-dependent** (same box, both captures) | `1` | **pin `8`** — see below |
 
 **`hardwareConcurrency`: pinned, not reported.** The real value is host-dependent
 (this box: 16). Reporting the true host count would leak host entropy *and* make
@@ -1274,7 +1375,7 @@ Permanently out of reach, by design or by constraint:
 | **Cipher *list* breadth (9 vs 17) → JA4 cipher component** | rustls advertises only its AEAD suites, not Firefox's legacy CBC/RSA. The cipher *order* matches; the *list* (and thus the JA4 cipher hash) does not. Declared residual (§6.1). |
 | **secp521r1 + FFDHE2048/3072 groups** | Not offered by aws-lc-rs; the other four persona groups match in order (§6.1). |
 | **`m,p,a,s` pseudo-order + HEADERS PRIORITY + first stream id** | Deferred to stage C (§7); the `h2` crate hardcodes `m,s,a,p`, exposes no client PRIORITY, and opens client streams at 1 where the persona's first request rides stream 3. **Asserted since `bl-7523` (2026-08-12)** in `src/fetch/transport/h2_request.rs`, off a real HEADERS frame: order `m,s,a,p` decoded from the HPACK block, `PRIORITY` flag clear (persona weight 42 named), stream 1 (persona `h2_initial_stream_id` 3 named). Before that ball, none of the three was asserted anywhere — §12 claimed all three, and the only mention of `pseudo_order`/`priority_weight` outside the const compared the const to its own literal. |
-| **h2 SETTINGS id 1 `HEADER_TABLE_SIZE` absent; id 6 `MAX_HEADER_LIST_SIZE` present** | Blocked by `hyper-util` (`bl-f312`, 2026-07-22). frot sends `2:0; 4:131072; 5:16384; 6:16384`; Firefox 140esr sends `1:65536; 2:0; 4:131072; 5:16384`. ids 4 and 5 are enforced from the profile and the connection WINDOW_UPDATE increment now matches Firefox exactly (12517377). The two that do not: `hyper`'s conn builder has `header_table_size`, but `hyper-util`'s **pooled** `Client` builder — the one giving frot h2 connection reuse (§3.5) — exposes no passthrough and keeps its `h2_builder` private, so id 1 cannot be sent; and hyper types `max_header_list_size` as `u32`, not `Option<u32>`, so id 6 cannot be omitted. Both are asserted, with the persona's 65536 kept as the reference, in `src/fetch/transport/h2_preface.rs`. **Cost corrected 2026-07-24 (`bl-fa12`, §6.5)** — the earlier wording "closing either means dropping the pool or forking hyper" conflated two different prices, verified against `hyper-1.9.0`/`h2-0.4.15`: **id 1** closes by dropping `hyper_util::Client` for a frot-owned pool over `hyper::client::conn` (whose `http2::Builder` *does* have `header_table_size`); **id 6** closes for nobody short of forking `h2` — hyper applies `max_header_list_size` unconditionally and `h2::client::Builder` can only set `Some`. §6.5 declines the pool: it would leave three of the four akamai components still mismatched, so the hash still differs. |
+| **h2 SETTINGS id 1 `HEADER_TABLE_SIZE` absent; id 6 `MAX_HEADER_LIST_SIZE` present** | Blocked by `hyper-util` (`bl-f312`, 2026-07-22). frot sends `2:0; 4:131072; 5:16384; 6:16384`; Firefox ESR sends `1:65536; 2:0; 4:131072; 5:16384` (measured identical on 140esr and 153esr). ids 4 and 5 are enforced from the profile and the connection WINDOW_UPDATE increment now matches Firefox exactly (12517377). The two that do not: `hyper`'s conn builder has `header_table_size`, but `hyper-util`'s **pooled** `Client` builder — the one giving frot h2 connection reuse (§3.5) — exposes no passthrough and keeps its `h2_builder` private, so id 1 cannot be sent; and hyper types `max_header_list_size` as `u32`, not `Option<u32>`, so id 6 cannot be omitted. Both are asserted, with the persona's 65536 kept as the reference, in `src/fetch/transport/h2_preface.rs`. **Cost corrected 2026-07-24 (`bl-fa12`, §6.5)** — the earlier wording "closing either means dropping the pool or forking hyper" conflated two different prices, verified against `hyper-1.9.0`/`h2-0.4.15`: **id 1** closes by dropping `hyper_util::Client` for a frot-owned pool over `hyper::client::conn` (whose `http2::Builder` *does* have `header_table_size`); **id 6** closes for nobody short of forking `h2` — hyper applies `max_header_list_size` unconditionally and `h2::client::Builder` can only set `Some`. §6.5 declines the pool: it would leave three of the four akamai components still mismatched, so the hash still differs. |
 | **h1 pool check-in is eventual, so a same-origin request can re-dial** | Declared 2026-07-24 (`bl-fa12`, §6.5; measured `bl-df88`). `hyper_util`'s `Client` checks an **HTTP/1.1** connection back in from a task it spawns, not inline, so a next same-origin request arriving before that task is scheduled dials a second socket: 16 of 200 sequential pairs on a saturated 16-core box, 0 of 200 with a 5 ms gap. **h2 is unaffected** (checked in inline via `drop(pooled)`), which is what the fingerprinting origins speak. Accepted rather than fixed because a second h1 socket is *inside* the persona's own behaviour — Firefox opens up to six per host, which is what `POOL_PER_HOST = 6` copies — and because the re-dial rides TLS session resumption (rustls's default `Resumption::in_memory_sessions(256)`, one `ClientConfig` per invocation), so it is an abbreviated handshake exactly as a browser's second connection is. No `hyper-util` knob makes check-in synchronous; owning the pool would, at the cost of rebuilding ALPN-h2 connect dedup, checkout liveness, the checkout/dial race, and canceled-request retry (§6.5). Invariant tests therefore assert reuse as **eventual**, never as a scheduler outcome. |
 | **UTC timezone** | Deliberate — determinism over realism (§9). |
 | **frot is identifiable *as frot*** | See §14 — this is accepted, not solved. |
@@ -1337,7 +1438,7 @@ they are tested, not hidden.
 > fingerprint-load-bearing extensions (`supported_groups`, ALPN, `key_share`)
 > are **present**; the two Firefox-only ones are **absent, asserted as declared
 > residuals** with the persona's own values named in the failure message; and
-> **GREASE is absent on both sides** — a real match, since 140esr sends none and
+> **GREASE is absent on both sides** — a real match, since 153esr sends none and
 > rustls sends none, asserted by RFC 8701's `0x?a?a` *class* rather than by
 > listing values. The extension **set** still reaches the JA4 hash below, so a
 > set change is caught there even though the order is free to move.
@@ -1345,7 +1446,9 @@ they are tested, not hidden.
 **Not normalized — an exact Firefox match where reachable, else a pinned
 residual.** Ordered capabilities are identity:
 
-- cipher list **and wire order** (17, `0xc009` at index 10)
+- cipher list **and wire order** (16; `0xc009`, which 140esr carried at index
+  10, is **absent** — the one ClientHello fact the 153esr re-pin moved, so its
+  absence is what `profile/tests.rs` pins)
 - extension list **as a set** (17, ECH last in the persona). The *order* is
   deliberately unpinned — see the 2026-08-12 correction above.
 - `supported_groups` **and order** (`4588,29,23,24,25,256,257`)

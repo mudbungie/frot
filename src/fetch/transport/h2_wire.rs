@@ -16,7 +16,7 @@ use std::thread;
 use rustls::{RootCertStore, ServerConfig, ServerConnection, StreamOwned};
 use rustls_pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 
-use crate::fetch::profile::FIREFOX_140_ESR;
+use crate::fetch::profile::FIREFOX_153_ESR;
 
 /// The client connection preface (RFC 9113 §3.4), sent before the first frame.
 pub(super) const PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
@@ -134,10 +134,10 @@ pub(super) fn akamai(
     format!("{}|{window_update}|{priority}|{pseudo}", entries.join(";"))
 }
 
-/// The persona's akamai-h2 fingerprint, derived entirely from `FIREFOX_140_ESR.h2`
+/// The persona's akamai-h2 fingerprint, derived entirely from `FIREFOX_153_ESR.h2`
 /// — a *declaration*, computed the same way as the capture so neither is stored.
 pub(super) fn persona_akamai() -> String {
-    let h2 = FIREFOX_140_ESR.h2;
+    let h2 = FIREFOX_153_ESR.h2;
     akamai(
         &[
             (1, h2.header_table_size),
@@ -254,9 +254,9 @@ fn the_hpack_reader_walks_every_field_form_and_stops_at_the_first_real_header() 
 fn the_akamai_fingerprint_is_built_from_the_profile_and_nowhere_else() {
     // A drift guard on the *builder*, not on the wire: it proves the four
     // akamai fields are laid out as `SETTINGS|WINDOW_UPDATE|PRIORITY|PSEUDO`
-    // and that every value comes from `FIREFOX_140_ESR.h2`. The wire comparison
+    // and that every value comes from `FIREFOX_153_ESR.h2`. The wire comparison
     // is `h2_request.rs`.
-    let h2 = FIREFOX_140_ESR.h2;
+    let h2 = FIREFOX_153_ESR.h2;
     assert_eq!(
         persona_akamai(),
         format!(

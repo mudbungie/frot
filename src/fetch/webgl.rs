@@ -1,5 +1,5 @@
 //! The WebGL fingerprint persona — SSOT for `bl-f624` (identity.md §10/§11,
-//! js.md §7). A companion to [`super::profile`]'s [`FIREFOX_140_ESR`]: the
+//! js.md §7). A companion to [`super::profile`]'s [`FIREFOX_153_ESR`]: the
 //! browser persona's WebGL facts, kept out of `profile.rs` only because that file
 //! sits at the source-line cap. Delivered through the SAME one channel
 //! (`__frot_env_profile`, `env.rs`) so the JS `webgl.js` prelude carries no
@@ -16,7 +16,7 @@
 //! set all track ONE real Mesa 24.2 generation (Ubuntu 24.04.x) so nothing here
 //! can contradict anything else here.
 //!
-//! [`FIREFOX_140_ESR`]: super::FIREFOX_140_ESR
+//! [`FIREFOX_153_ESR`]: super::FIREFOX_153_ESR
 
 use serde_json::{json, Value};
 
@@ -56,8 +56,11 @@ pub struct WebglProfile {
     pub extensions2: &'static [&'static str],
 }
 
-/// The pinned WebGL persona: Firefox 140 ESR on Linux x86_64, Mesa 24.2 llvmpipe
-/// (LLVM 19.1.7). Captured against browserleaks/webgl behaviour + Mesa docs.
+/// The WebGL persona, **measured on Firefox 140 ESR** (Linux x86_64, Mesa 24.2
+/// llvmpipe, LLVM 19.1.7) against browserleaks/webgl behaviour + Mesa docs. Not
+/// re-measured for the 153esr re-pin (`bl-3595`, identity.md §3.10): these are
+/// Mesa strings more than Gecko ones, but "probably unchanged" is not a
+/// measurement — `bl-b128` re-reads them.
 pub const FIREFOX_WEBGL: WebglProfile = WebglProfile {
     masked: "Mozilla",
     unmasked_vendor: "Mesa",

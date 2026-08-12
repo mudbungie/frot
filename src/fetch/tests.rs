@@ -56,12 +56,12 @@ fn body_len_gate_accepts_at_limit_and_rejects_over() {
 
 #[test]
 fn user_agent_defaults_to_the_persona_and_a_caller_overrides() {
-    // The default is derived from the pinned persona (Firefox 140esr), not a
+    // The default is derived from the pinned persona (Firefox 153esr), not a
     // stale literal; a `-H` override wins verbatim.
-    assert_eq!(user_agent(&[]), FIREFOX_140_ESR.user_agent());
+    assert_eq!(user_agent(&[]), FIREFOX_153_ESR.user_agent());
     assert_eq!(
         user_agent(&[]),
-        "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
+        "Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0"
     );
     let h = vec![("User-Agent".to_string(), "custom/1".to_string())];
     assert_eq!(user_agent(&h), "custom/1");
@@ -71,8 +71,8 @@ fn user_agent_defaults_to_the_persona_and_a_caller_overrides() {
 fn accept_language_defaults_to_the_persona_and_a_caller_overrides() {
     // The JS `navigator.language(s)` derive from this same string (bl-3972), so
     // the default matches the profile's derived header and a `-H` override wins.
-    assert_eq!(accept_language(&[]), FIREFOX_140_ESR.accept_language());
-    assert_eq!(accept_language(&[]), "en-US,en;q=0.5");
+    assert_eq!(accept_language(&[]), FIREFOX_153_ESR.accept_language());
+    assert_eq!(accept_language(&[]), "en-US,en;q=0.9");
     let h = vec![("Accept-Language".to_string(), "fr-CA,fr;q=0.8".to_string())];
     assert_eq!(accept_language(&h), "fr-CA,fr;q=0.8");
 }

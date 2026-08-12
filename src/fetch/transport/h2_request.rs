@@ -22,7 +22,7 @@ use super::h2_wire::{
     PRIORITY_FLAG,
 };
 use super::Transport;
-use crate::fetch::profile::FIREFOX_140_ESR;
+use crate::fetch::profile::FIREFOX_153_ESR;
 use crate::fetch::MAX_BODY_BYTES;
 
 /// An empty h2 SETTINGS frame — the server preface the client waits for before
@@ -53,7 +53,7 @@ fn the_first_request_headers_frame_is_the_declared_h2_residual() {
     let captured = rx.recv().unwrap();
     let frames = frames(&captured);
     let headers = first(&frames, 0x1);
-    let h2 = FIREFOX_140_ESR.h2;
+    let h2 = FIREFOX_153_ESR.h2;
 
     // Residual 1 — stream id. `h2` opens client streams at 1; the persona's
     // first request rides stream 3 (§4.1), because Firefox opens a priority tree

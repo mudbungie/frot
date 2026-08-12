@@ -15,7 +15,7 @@
 //! wall-clock test cannot do, and equally what they cannot do is notice a date
 //! that has simply arrived.
 
-use frot::fetch::FIREFOX_140_ESR;
+use frot::fetch::FIREFOX_153_ESR;
 use std::time::{Duration, SystemTime};
 
 /// How far out an end-of-life can honestly sit. Mozilla ships roughly one ESR
@@ -34,11 +34,11 @@ const REPIN: &str = "Re-capture a current ESR line and re-pin it in \
 #[test]
 fn the_pinned_persona_is_current_today() {
     assert!(
-        FIREFOX_140_ESR.is_current(SystemTime::now()),
+        FIREFOX_153_ESR.is_current(SystemTime::now()),
         "the pinned persona ({} {}) is past the end-of-life recorded beside it. \
          {REPIN}",
-        FIREFOX_140_ESR.name,
-        FIREFOX_140_ESR.version
+        FIREFOX_153_ESR.name,
+        FIREFOX_153_ESR.version
     );
 }
 
@@ -50,7 +50,7 @@ fn the_tripwire_still_fires_within_one_esr_horizon() {
     // clock forward by the horizon closes both holes at once: the pin must go
     // stale within a span the ESR calendar actually spans.
     assert!(
-        !FIREFOX_140_ESR.is_current(SystemTime::now() + HORIZON),
+        !FIREFOX_153_ESR.is_current(SystemTime::now() + HORIZON),
         "the pin still reads current two years out, so this gate can no longer \
          fail: either `is_current` stopped discriminating, or `eol` was pushed \
          past the ESR calendar (roughly one line a year, identity.md §2) rather \

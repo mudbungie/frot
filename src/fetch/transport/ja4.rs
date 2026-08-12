@@ -78,13 +78,13 @@ fn sha12(input: &str) -> String {
 }
 
 impl Ja4Hello<'_> {
-    /// `JA4_a` — `t13d1717h2`: TCP, version, SNI presence, cipher count,
+    /// `JA4_a` — `t13d1617h2`: TCP, version, SNI presence, cipher count,
     /// extension count (SNI and ALPN *are* counted here), first ALPN's first and
     /// last character.
     ///
-    /// The two counts are 2-digit by the spec; both inputs are 17 entries, far
-    /// under the spec's 99 clamp, so no clamp is implemented — a persona with a
-    /// 100-entry list would need one.
+    /// The two counts are 2-digit by the spec; the persona's inputs are 16 and
+    /// 17 entries, far under the spec's 99 clamp, so no clamp is implemented — a
+    /// persona with a 100-entry list would need one.
     fn header(&self) -> String {
         let ciphers = self.ciphers.iter().filter(|&&v| !is_grease(v)).count();
         let extensions = self.extensions.iter().filter(|&&v| !is_grease(v)).count();

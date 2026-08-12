@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use super::h2_wire::{frames, settings, spawn_origin, PREFACE};
 use super::Transport;
-use crate::fetch::profile::FIREFOX_140_ESR;
+use crate::fetch::profile::FIREFOX_153_ESR;
 use crate::fetch::MAX_BODY_BYTES;
 
 #[test]
@@ -36,10 +36,10 @@ fn the_h2_preface_carries_the_pinned_settings_and_window_update() {
     let frames = frames(&captured);
 
     // Frame 1: SETTINGS. The set, its order and its values, expectations derived
-    // from the profile so a persona edit moves the test with it. Firefox 140esr
+    // from the profile so a persona edit moves the test with it. Firefox 153esr
     // sends `1:65536; 2:0; 4:131072; 5:16384`; the two differences are the §12
     // declared residuals asserted below, and nothing else may appear.
-    let h2 = FIREFOX_140_ESR.h2;
+    let h2 = FIREFOX_153_ESR.h2;
     assert_eq!(frames[0].kind, 0x4, "first frame is SETTINGS");
     assert_eq!(
         settings(&frames[0].payload),

@@ -68,7 +68,7 @@ pub struct TlsProfile {
     /// `signature_algorithms` target order (11 entries, identity.md §3.1). The
     /// two legacy SHA-1 schemes are a residual where the provider omits them.
     pub sig_algs: &'static [u16],
-    /// The persona's advertised cipher suites in wire order (17, incl. legacy
+    /// The persona's advertised cipher suites in wire order (16, incl. legacy
     /// CBC/RSA). Stock rustls advertises only its AEAD suites, so the cipher list
     /// — and thus the JA4 cipher component — is a declared residual (Mark,
     /// 2026-07-21). Stored whole, not as a count, because `ja4.rs` hashes the
@@ -92,7 +92,7 @@ pub struct TlsProfile {
 pub struct BrowserProfile {
     /// Marketing name, e.g. `Firefox`.
     pub name: &'static str,
-    /// Full pinned version string, e.g. `140.12.0esr`.
+    /// Full pinned version string, e.g. `153.0esr`.
     pub version: &'static str,
     /// Major version — the number a UA string and `navigator` report.
     pub major: u16,
@@ -208,11 +208,13 @@ impl BrowserProfile {
     }
 
     /// The `Accept-Language` header, derived from `language` (identity.md §4.2:
-    /// `en-US,en;q=0.5` is Gecko's rendering of the `en-US` UI locale). The base
-    /// language rides at `q=0.5`; a bare locale with no region degrades to itself.
+    /// `en-US,en;q=0.9` is Gecko's rendering of the `en-US` UI locale — measured
+    /// 2026-08-11 on the 153esr pin, which raised the weight 140esr sent at
+    /// `q=0.5`). The base language rides at `q=0.9`; a bare locale with no region
+    /// degrades to itself.
     pub fn accept_language(&self) -> String {
         match self.language.split_once('-') {
-            Some((base, _)) => format!("{},{base};q=0.5", self.language),
+            Some((base, _)) => format!("{},{base};q=0.9", self.language),
             None => self.language.to_string(),
         }
     }
@@ -269,7 +271,7 @@ impl BrowserProfile {
 /// The one pinned persona (§4.1) — its own file, so a re-pin is one file's edit.
 mod pin;
 
-pub use pin::FIREFOX_140_ESR;
+pub use pin::FIREFOX_153_ESR;
 
 #[cfg(test)]
 mod tests;

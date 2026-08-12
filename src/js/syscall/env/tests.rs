@@ -56,7 +56,7 @@ fn sess_lang(accept_language: &str) -> Session {
 fn persona_serializes_the_pinned_facts_from_the_profile() {
     // The pure builder is the single derivation site; asserting its JSON directly
     // covers every field in Rust (no JS, no starvation edges). The UA/appVersion
-    // come from the effective UA — here the pinned Firefox 140esr persona.
+    // come from the effective UA — here the pinned Firefox 153esr persona.
     let ua = crate::fetch::user_agent(&[]);
     let json = super::persona(&ua, "en-US,en;q=0.5");
     let v: serde_json::Value = serde_json::from_str(&json).expect("persona is valid JSON");
@@ -66,7 +66,7 @@ fn persona_serializes_the_pinned_facts_from_the_profile() {
         serde_json::json!(ua.strip_prefix("Mozilla/").unwrap())
     );
     assert!(
-        ua.contains("rv:140.0"),
+        ua.contains("rv:153.0"),
         "the pinned persona UA drives JS too"
     );
     assert_eq!(v["platform"], "Linux x86_64");

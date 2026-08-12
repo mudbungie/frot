@@ -1,5 +1,5 @@
 //! The Web Audio fingerprint persona — SSOT for `bl-8733` (identity.md §10/§11,
-//! js.md §7). A companion to [`super::profile`]'s [`FIREFOX_140_ESR`] and a
+//! js.md §7). A companion to [`super::profile`]'s [`FIREFOX_153_ESR`] and a
 //! sibling to [`super::webgl`]: the browser persona's audio facts, kept out of
 //! `profile.rs` only because that file sits at the source-line cap. Delivered
 //! through the SAME one channel (`__frot_env_profile`, `env.rs`) so the JS
@@ -36,7 +36,7 @@
 //! residual, exactly as pixel realism is for canvas/WebGL; determinism and
 //! coherence are what a fingerprint reads.
 //!
-//! [`FIREFOX_140_ESR`]: super::FIREFOX_140_ESR
+//! [`FIREFOX_153_ESR`]: super::FIREFOX_153_ESR
 
 use serde_json::{json, Value};
 
@@ -58,7 +58,10 @@ pub struct AudioProfile {
     pub max_channel_count: u32,
 }
 
-/// The pinned audio persona: Firefox 140 ESR on Linux x86_64, 44.1 kHz stereo.
+/// The audio persona, **measured on Firefox 140 ESR** (Linux x86_64, 44.1 kHz
+/// stereo) and NOT re-measured for the 153esr re-pin (`bl-3595`, identity.md
+/// §3.10) — an audio-DSP capture is its own rig. `bl-b128` owns that; until it
+/// lands this names the line it was actually read from, which is not the pin.
 pub const FIREFOX_AUDIO: AudioProfile = AudioProfile {
     sample_rate: 44_100,
     // Opaque fixed seed; mixed with the graph digest, never surfaced raw.

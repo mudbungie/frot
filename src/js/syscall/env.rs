@@ -9,7 +9,7 @@ use rquickjs::{Ctx, Function, Object};
 use url::Url;
 
 use super::Host;
-use crate::fetch::FIREFOX_140_ESR;
+use crate::fetch::FIREFOX_153_ESR;
 use crate::layout::{VIEWPORT_HEIGHT, VIEWPORT_WIDTH};
 
 /// Bind one named host function, keeping the `?` error paths on the call line so
@@ -33,7 +33,7 @@ macro_rules! bind {
 /// identity.md §4/§8) draws every navigator/screen/Intl fact from — the way the
 /// UA already flowed — so no identity literal is duplicated in the prelude (I1).
 /// The effective UA and Accept-Language ride from `host.env` (a `-H` override
-/// updates only those, I5); everything else derives from the [`FIREFOX_140_ESR`]
+/// updates only those, I5); everything else derives from the [`FIREFOX_153_ESR`]
 /// SSOT, so HTTP and JS cannot contradict each other.
 pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::Result<()> {
     let denials = &host.counters.denials;
@@ -87,14 +87,14 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
 /// single serialize edge (infallible for this fixed shape — the [`envelope`]
 /// pattern), and stays a pure, directly-testable function.
 ///
-/// The pinned facts come from [`FIREFOX_140_ESR`]; `userAgent`/`appVersion` and
+/// The pinned facts come from [`FIREFOX_153_ESR`]; `userAgent`/`appVersion` and
 /// the `language(s)` come from the *effective* `ua`/`accept_language` (a `-H`
 /// override touches only those, I5), guaranteeing HTTP↔JS coherence. Screen
 /// geometry is *not* here — it stays the layout viewport constant (§8).
 ///
 /// [`envelope`]: crate::envelope
 fn persona(ua: &str, accept_language: &str) -> String {
-    let p = &FIREFOX_140_ESR;
+    let p = &FIREFOX_153_ESR;
     let langs = languages(accept_language);
     let facts = serde_json::json!({
         "userAgent": ua,

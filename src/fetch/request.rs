@@ -25,7 +25,7 @@
 use url::Url;
 
 use super::decode::ACCEPT_ENCODING;
-use super::profile::FIREFOX_140_ESR;
+use super::profile::FIREFOX_153_ESR;
 use super::{same_origin, Intent};
 
 /// Derive the ordered request header description for one hop.
@@ -53,7 +53,7 @@ pub(crate) fn derive_headers(
     caller: &[(String, String)],
     cookie: Option<&str>,
 ) -> Vec<(String, String)> {
-    let p = &FIREFOX_140_ESR;
+    let p = &FIREFOX_153_ESR;
     let meta = p.request_meta(intent);
     let mut h: Vec<(String, String)> = Vec::new();
     push(&mut h, "User-Agent", p.user_agent());

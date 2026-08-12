@@ -14,14 +14,14 @@ fn at(date: CivilDate) -> SystemTime {
 fn pin_is_current_the_day_before_eol() {
     // Derived from the const rather than spelled out: the eol date keeps one
     // definition site (I1), so a re-pin (§4.1) cannot leave a stale literal here.
-    let day_before = at(FIREFOX_140_ESR.eol) - Duration::from_secs(86_400);
-    assert!(FIREFOX_140_ESR.is_current(day_before));
+    let day_before = at(FIREFOX_153_ESR.eol) - Duration::from_secs(86_400);
+    assert!(FIREFOX_153_ESR.is_current(day_before));
 }
 
 #[test]
 fn pin_expires_on_its_eol_day() {
     // On the eol day itself `today < eol` is false — the tripwire fires.
-    assert!(!FIREFOX_140_ESR.is_current(at(FIREFOX_140_ESR.eol)));
+    assert!(!FIREFOX_153_ESR.is_current(at(FIREFOX_153_ESR.eol)));
 }
 
 #[test]
@@ -29,7 +29,7 @@ fn a_pre_epoch_clock_is_treated_as_day_zero() {
     // `duration_since(UNIX_EPOCH)` errors before 1970; the fallback pins today at
     // day 0, which is still current. Covers the error arm of `is_current`.
     let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
-    assert!(FIREFOX_140_ESR.is_current(before_epoch));
+    assert!(FIREFOX_153_ESR.is_current(before_epoch));
 }
 
 #[test]
@@ -60,22 +60,23 @@ fn days_since_epoch_anchors_and_spans_both_month_branches() {
 #[test]
 fn transport_targets_are_the_pinned_persona_facts() {
     // Guards the const against silent drift of the facts firefox_tls enforces.
-    assert_eq!(FIREFOX_140_ESR.alpn, &["h2", "http/1.1"]);
-    assert_eq!(FIREFOX_140_ESR.tls.groups[0], 4588);
-    assert_eq!(FIREFOX_140_ESR.tls.key_share_groups, &[4588, 29, 23]);
-    assert_eq!(FIREFOX_140_ESR.tls.sig_algs.len(), 11);
+    assert_eq!(FIREFOX_153_ESR.alpn, &["h2", "http/1.1"]);
+    assert_eq!(FIREFOX_153_ESR.tls.groups[0], 4588);
+    assert_eq!(FIREFOX_153_ESR.tls.key_share_groups, &[4588, 29, 23]);
+    assert_eq!(FIREFOX_153_ESR.tls.sig_algs.len(), 11);
     // The §4.1 ordered lists, whose *contents* the `recorder.rs`/`ja4.rs` oracle
-    // reads. §12 pins `0xc009` at index 10 of the cipher list and ECH last in
+    // reads. §12 pins the one ClientHello fact that moved 140esr → 153esr — the
+    // **absence** of `0xc009`, which 140esr carried at index 10 — and ECH last in
     // the extension list; both are checked here rather than restated as a second
     // copy of the whole table.
-    assert_eq!(FIREFOX_140_ESR.tls.ciphers.len(), 17);
-    assert_eq!(FIREFOX_140_ESR.tls.ciphers[10], 0xc009);
-    assert_eq!(FIREFOX_140_ESR.tls.extensions.len(), 17);
-    assert_eq!(FIREFOX_140_ESR.tls.extensions[16], 65037);
-    assert_eq!(FIREFOX_140_ESR.tls.record_size_limit, 16_385);
-    assert_eq!(FIREFOX_140_ESR.tls.cert_compression, &[1, 2, 3]);
+    assert_eq!(FIREFOX_153_ESR.tls.ciphers.len(), 16);
+    assert!(!FIREFOX_153_ESR.tls.ciphers.contains(&0xc009));
+    assert_eq!(FIREFOX_153_ESR.tls.extensions.len(), 17);
+    assert_eq!(FIREFOX_153_ESR.tls.extensions[16], 65037);
+    assert_eq!(FIREFOX_153_ESR.tls.record_size_limit, 16_385);
+    assert_eq!(FIREFOX_153_ESR.tls.cert_compression, &[1, 2, 3]);
     assert_eq!(
-        FIREFOX_140_ESR.h2,
+        FIREFOX_153_ESR.h2,
         H2Profile {
             header_table_size: 65_536,
             enable_push: false,
@@ -87,36 +88,36 @@ fn transport_targets_are_the_pinned_persona_facts() {
             priority_weight: 42,
         }
     );
-    assert_eq!(FIREFOX_140_ESR.major, 140);
-    assert_eq!(FIREFOX_140_ESR.product_sub, "20100101");
-    assert_eq!(FIREFOX_140_ESR.platform, "Linux x86_64");
-    assert_eq!(FIREFOX_140_ESR.language, "en-US");
-    assert_eq!(FIREFOX_140_ESR.name, "Firefox");
-    assert_eq!(FIREFOX_140_ESR.version, "140.12.0esr");
+    assert_eq!(FIREFOX_153_ESR.major, 153);
+    assert_eq!(FIREFOX_153_ESR.product_sub, "20100101");
+    assert_eq!(FIREFOX_153_ESR.platform, "Linux x86_64");
+    assert_eq!(FIREFOX_153_ESR.language, "en-US");
+    assert_eq!(FIREFOX_153_ESR.name, "Firefox");
+    assert_eq!(FIREFOX_153_ESR.version, "153.0esr");
     // The canvas digest seed is a fixed persona constant (bl-05e6): pinned here so
     // a silent change — which would shift every deterministic canvas hash — fails.
-    assert_eq!(FIREFOX_140_ESR.canvas_seed, 0x_f00d_c0de);
+    assert_eq!(FIREFOX_153_ESR.canvas_seed, 0x_f00d_c0de);
 }
 
 #[test]
 fn derived_headers_come_from_the_pinned_facts() {
     // UA and Accept-Language are computed from `platform`/`major`/`language`, so a
-    // re-pin needs no second edit (§4.2). The region `en-US` rides at q=0.5.
+    // re-pin needs no second edit (§4.2). The region `en-US` rides at q=0.9.
     assert_eq!(
-        FIREFOX_140_ESR.user_agent(),
-        "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
+        FIREFOX_153_ESR.user_agent(),
+        "Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0"
     );
-    assert_eq!(FIREFOX_140_ESR.accept_language(), "en-US,en;q=0.5");
+    assert_eq!(FIREFOX_153_ESR.accept_language(), "en-US,en;q=0.9");
     // A region-less locale degrades to itself (the fallback arm).
-    let mut bare = FIREFOX_140_ESR;
+    let mut bare = FIREFOX_153_ESR;
     bare.language = "en";
     assert_eq!(bare.accept_language(), "en");
     // Every intent maps to its own destination/mode; navigation alone is a
     // user-activated, upgrade-insecure document.
     assert_eq!(
-        FIREFOX_140_ESR.request_meta(Intent::Navigation).dest,
+        FIREFOX_153_ESR.request_meta(Intent::Navigation).dest,
         "document"
     );
-    assert!(FIREFOX_140_ESR.request_meta(Intent::Navigation).uir);
-    assert_eq!(FIREFOX_140_ESR.request_meta(Intent::FetchXhr).user, None);
+    assert!(FIREFOX_153_ESR.request_meta(Intent::Navigation).uir);
+    assert_eq!(FIREFOX_153_ESR.request_meta(Intent::FetchXhr).user, None);
 }
