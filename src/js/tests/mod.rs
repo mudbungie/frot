@@ -18,6 +18,7 @@ mod facade;
 mod iterator;
 mod net;
 mod persona_gold;
+mod scriptmode;
 
 fn test_env() -> Env {
     Env {

@@ -164,10 +164,19 @@ impl Session {
         self.engine.arm();
     }
 
-    /// Evaluate a script/driver call inside the armed bounds (§5), draining
-    /// microtasks — the [`super::run`] path's one execution primitive.
+    /// Evaluate one of frot's own event-loop driver calls inside the armed
+    /// bounds (§5), draining microtasks — the [`super::run`] path's host
+    /// primitive, strict like the prelude it calls into.
     pub fn run_task(&self, src: &str) -> Result<String, EvalError> {
         self.engine.eval_armed(src)
+    }
+
+    /// Evaluate one page **classic script** inside the armed bounds (§5). Sloppy
+    /// mode unless the source says otherwise, which is what a browser does with
+    /// a classic script (js.md §4.1) — [`run_task`](Self::run_task) is frot's own
+    /// code and stays strict.
+    pub fn run_script(&self, src: &str) -> Result<String, EvalError> {
+        self.engine.eval_script(src)
     }
 
     /// Evaluate `src` as an ES module named `name` (its URL) inside the armed

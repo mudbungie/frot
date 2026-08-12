@@ -3,8 +3,9 @@
      records any regression into `data-fail` (empty array == all pass); the Rust
      gate (src/js/tests/envgold.rs) only reads that array plus the report facts it
      alone can see (scripts/errors/settled). THIS FILE is the one place to edit
-     when a future ball adds or removes an API. Page scripts run strict (a bare
-     undeclared assignment throws), so every global is declared via `var`. -->
+     when a future ball adds or removes an API. Classic page scripts are sloppy
+     (js.md §4.1); this probe still declares every global via `var`, so it reads
+     the same either way — the mode itself is pinned by `script-mode.html`. -->
 <html>
 <body>
 <div id="probe">probe</div>

@@ -1,0 +1,81 @@
+<!-- script-mode golden (js.md §4.1) — the EXECUTABLE contract for the LANGUAGE
+     MODE frot evaluates each kind of script in. A classic script is sloppy
+     unless its own source opts in; an ES module is always strict. The probe
+     self-checks every mode-sensitive fact in JS and records regressions into
+     `data-fail` (empty array == all pass); the Rust gate
+     (src/js/tests/scriptmode.rs) reads that array plus the script/error counts
+     only the host can see. THIS FILE is the one place to edit when the mode
+     rules move. Deliberately written in the sloppy dialect — no `var` on the
+     first assignment, an octal literal, a `delete` of an identifier — every one
+     of which is a SyntaxError or a TypeError under the strictness frot used to
+     force on page scripts (bl-0679). -->
+<html>
+<body>
+<div id="probe">probe</div>
+<script>
+  // The undeclared assignment IS the first assertion: under forced strict mode
+  // this line throws ReferenceError and the whole probe goes dark, which is
+  // exactly how svelte.dev and hn.svelte.dev failed.
+  FAILS = [];
+  function check(name, cond) { if (!cond) FAILS.push(name); }
+  function threw(fn) { try { fn(); return null; } catch (e) { return e.name; } }
+
+  // --- Sloppy: the assignment above really created a global property ---------
+  check('sloppy:implicitGlobal', globalThis.FAILS === FAILS);
+  // The two generated names the field trial died on, assigned exactly as the
+  // SvelteKit inline bootstrap emits them (untyped classic script, no `var`).
+  __sveltekit_v40ne8 = { base: '', assets: '' };
+  __sveltekit_1yo3ys8 = { base: '' };
+  check('sloppy:sveltekit.svelte.dev', typeof __sveltekit_v40ne8.base === 'string');
+  check('sloppy:sveltekit.hn', typeof globalThis.__sveltekit_1yo3ys8 === 'object');
+
+  // --- Sloppy: `this` --------------------------------------------------------
+  // Top-level `this` is the global in a classic script either way (it is the
+  // global environment's this binding, not a mode question) — pinned because
+  // every UMD bundle passes it to its factory.
+  check('sloppy:topLevelThis', this === globalThis);
+  // A plain call's `this`, which IS a mode question: the global when sloppy,
+  // `undefined` when strict. The `(function(){return this})()` global-detection
+  // idiom in older bundles depends on it.
+  check('sloppy:callThis', (function () { return this; })() === globalThis);
+
+  // --- Sloppy: syntax and operators strict mode rejects ----------------------
+  check('sloppy:octalLiteral', 0755 === 493);
+  check('sloppy:deleteIdentifier', (function () { var d = 1; return delete d; })() === false);
+  // Assigning a read-only property is a silent no-op sloppy, a TypeError strict.
+  var frozen = Object.freeze({ a: 1 });
+  check('sloppy:silentReadonlyWrite', threw(function () { frozen.a = 2; }) === null);
+  // Annex B: a function declaration in a block is hoisted to the enclosing
+  // function scope in sloppy mode — jQuery-era code relies on it.
+  check('sloppy:blockFunctionHoisting', (function () {
+    if (true) { function inner() { return 'hoisted'; } }
+    return typeof inner === 'function';
+  })());
+</script>
+
+<!-- A classic script that opts IN: the source directive still wins, so the same
+     engine runs this one strict. -->
+<script>
+  'use strict';
+  check('strict:directiveThrowsOnImplicitGlobal',
+        threw(function () { undeclaredInStrictScript = 1; }) === 'ReferenceError');
+  check('strict:directiveCallThis', (function () { return this; })() === undefined);
+  check('strict:directiveReadonlyWrite', threw(function () { frozen.a = 3; }) === 'TypeError');
+</script>
+
+<!-- An ES module: strict by definition, no directive and no opting out. -->
+<script type="module">
+  check('module:implicitGlobalThrows',
+        threw(function () { undeclaredInModule = 1; }) === 'ReferenceError');
+  // Module top-level `this` is undefined — the one place it is NOT the global.
+  check('module:topLevelThis', this === undefined);
+  check('module:readonlyWrite', threw(function () { frozen.a = 4; }) === 'TypeError');
+</script>
+
+<!-- Written last, from a fourth script, so it captures every earlier script's
+     verdict and proves each of them ran. -->
+<script>
+  document.documentElement.setAttribute('data-fail', JSON.stringify(FAILS));
+</script>
+</body>
+</html>

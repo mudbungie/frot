@@ -254,6 +254,23 @@ during parse. So:
    failed/refused/non-2xx module fetch is likewise one counted error. Module
    evaluation is async by spec — top-level `await` and dynamic `import()` settle
    through the §5 microtask drain / settle loop under the one wall-clock deadline.
+   - **Language mode is the script kind's, never the host's (`bl-0679`).** A
+     classic script runs **sloppy** unless its own source opts in with a `'use
+     strict'` directive, which the parser honours as always; an ES module is
+     strict by definition. rquickjs's `EvalOptions::default` forces `strict`, and
+     inheriting that default silently changed the language every page script was
+     written in: found live on svelte.dev and hn.svelte.dev, whose untyped inline
+     bootstrap assigns a generated `__sveltekit_*` global with no `var` and so
+     threw `ReferenceError` under forced strictness — one throw, nothing
+     rendered, in a page Chrome renders. Sloppy is not a laxity setting: implicit
+     globals, a plain call's `this` being the global, silent writes to read-only
+     properties, `delete` of an identifier, legacy octal literals, and Annex B
+     block-function hoisting are all *load-bearing* in real bundles. So frot's
+     own JS (the prelude, the §5 event-loop drivers) evaluates through
+     `Engine::eval_armed` — strict, the mode the prelude is written in — and page
+     input through `eval_script` (sloppy) or `eval_module` (strict); every flag
+     is stated at the call, none inherited. The rule is executable:
+     `tests/fixtures/js/script-mode.html` + `js::tests::scriptmode`.
 2. **Order:** source order, one queue. `defer` semantics *are* "after parse,
    in source order", and `async`'s any-order license makes source order a
    legal schedule — so one rule covers all three script modes, no scheduler.

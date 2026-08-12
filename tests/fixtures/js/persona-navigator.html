@@ -7,7 +7,8 @@
      prototype / descriptor / function-source checks pass, not just values. THIS
      FILE is the one place to edit when the profile moves: version-bound facts are
      asserted structurally (rv:/Firefox/), the stable identity facts exactly.
-     Scripts run strict, so every global is declared via `var`. -->
+     Every global is declared via `var`, so the probe reads the same whatever
+     language mode the script runs in (`script-mode.html` pins that). -->
 <html>
 <body>
 <div id="probe">probe</div>

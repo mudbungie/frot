@@ -196,3 +196,26 @@ fn smoke_runs_the_react_production_bundle() {
     );
     assert_eq!(engine.eval("typeof React.useState").unwrap(), "function");
 }
+
+#[test]
+fn a_page_classic_script_is_sloppy_and_frot_s_own_js_is_strict() {
+    // The bl-0679 seam, at the engine: one mode per kind of source. The prelude
+    // and the §5 drivers are frot's, written strict; a page classic script is the
+    // page's, and browsers run it sloppy unless its own source opts in.
+    let engine = Engine::new();
+    assert_eq!(
+        engine
+            .eval_script("sveltekit_ish = 1; typeof sveltekit_ish")
+            .unwrap(),
+        "number"
+    );
+    assert!(matches!(
+        engine.eval_armed("host_undeclared = 1"),
+        Err(EvalError::Exception(_))
+    ));
+    // A source-level directive still wins in a classic script.
+    assert!(matches!(
+        engine.eval_script("'use strict'; opted_in = 1"),
+        Err(EvalError::Exception(_))
+    ));
+}

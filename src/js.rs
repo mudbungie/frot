@@ -211,7 +211,7 @@ fn run_external(session: &Session, module: bool, src: &str, report: &mut Report)
 
 /// Evaluate one classic script body under the run's bounds, tallying it (§5).
 fn run_script(session: &Session, body: &str, report: &mut Report) {
-    tally(session, report, session.run_task(body));
+    tally(session, report, session.run_script(body));
 }
 
 /// Evaluate one ES module (`name` = its URL, the import base, js.md §4.1) under

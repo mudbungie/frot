@@ -12,12 +12,12 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use rquickjs::function::This;
+use rquickjs::context::EvalOptions;
 use rquickjs::loader::{Loader, Resolver};
-use rquickjs::promise::{Promise, PromiseState};
-use rquickjs::{CatchResultExt, Coerced, Context, Ctx, FromJs, Function, Module, Runtime, Value};
+use rquickjs::{CatchResultExt, Coerced, Context, Ctx, FromJs, Runtime, Value};
 
 mod clock;
+mod module;
 pub use clock::{Clock, Deadline, EXEC_CPU_MS, NET_BUDGET_MS};
 
 /// Engine heap cap. `set_memory_limit` is only honoured on the default C
@@ -36,11 +36,13 @@ pub enum EvalError {
 /// An embedded engine with one realm. `new` installs the interrupt hook and
 /// memory cap once. [`Engine::arm`] opens the run's two §5 windows — the
 /// `cpu` compute budget the interrupt handler spends, and the `net` wall
-/// deadline the §6 subfetch seam dispatches inside; [`Engine::eval_armed`] runs
-/// inside them (the event loop drives every script, lifecycle dispatch, and
-/// timer callback of one JS run under one arming, js.md §5), while
-/// [`Engine::eval`] is `arm` + `eval_armed` for a standalone one-shot. Each eval
-/// drains the microtask queue before returning.
+/// deadline the §6 subfetch seam dispatches inside; the three evals run inside
+/// them (the event loop drives every script, lifecycle dispatch, and timer
+/// callback of one JS run under one arming, js.md §5), one per kind of source:
+/// [`Engine::eval_armed`] for frot's own strict JS, [`Engine::eval_script`] for a
+/// sloppy page classic script, and `eval_module` (`engine::module`) for an ES
+/// module. [`Engine::eval`] is `arm` + `eval_script` for a standalone one-shot.
+/// Each eval drains the microtask queue before returning.
 pub struct Engine {
     rt: Runtime,
     ctx: Context,
@@ -139,11 +141,12 @@ impl Engine {
         self.net.arm();
     }
 
-    /// `arm` then [`eval_armed`](Self::eval_armed) — a standalone one-shot eval
-    /// with its own budget window (`docs/design/js.md` §1 smoke surface).
+    /// `arm` then [`eval_script`](Self::eval_script) — one page classic script
+    /// with its own budget window (`docs/design/js.md` §1 smoke surface, and the
+    /// shape every test that stands in for a page script wants).
     pub fn eval(&self, src: &str) -> Result<String, EvalError> {
         self.arm();
-        self.eval_armed(src)
+        self.eval_script(src)
     }
 
     /// Run one-time host setup (`js::syscall::install`) outside *all three* page
@@ -173,13 +176,40 @@ impl Engine {
         self.setup(|| self.eval_armed(src))
     }
 
-    /// Evaluate inside the current budget window, drain the microtask queue,
-    /// and return the result coerced to a string. Once the budget has tripped
-    /// the result is [`EvalError::Budget`] regardless of the eval's own outcome —
-    /// so a JS `try/catch` that swallows the interrupt still stops the loop.
+    /// Evaluate **frot's own** JS — the prelude and the event-loop drivers —
+    /// inside the current budget window. Strict, because that is the mode the
+    /// prelude is written in; page input goes through
+    /// [`eval_script`](Self::eval_script) or [`eval_module`](Self::eval_module).
     pub fn eval_armed(&self, src: &str) -> Result<String, EvalError> {
+        self.eval_global(src, true)
+    }
+
+    /// Evaluate one **page classic script** inside the current budget window
+    /// (js.md §4.1). Classic scripts are *sloppy* unless their own source opts
+    /// in with a `'use strict'` directive, which the parser still honours — so
+    /// this is the one eval that turns rquickjs's `EvalOptions::default`
+    /// strictness **off** (bl-0679: forcing it made every SvelteKit page throw
+    /// on the generated `__sveltekit_*` global its untyped inline script assigns
+    /// undeclared). ES modules stay strict by definition ([`eval_module`]).
+    pub fn eval_script(&self, src: &str) -> Result<String, EvalError> {
+        self.eval_global(src, false)
+    }
+
+    /// Global-code eval in the named language mode, draining the microtask queue,
+    /// returning the result coerced to a string. Once the budget has tripped the
+    /// result is [`EvalError::Budget`] regardless of the eval's own outcome — so
+    /// a JS `try/catch` that swallows the interrupt still stops the loop.
+    fn eval_global(&self, src: &str, strict: bool) -> Result<String, EvalError> {
         let res = self.ctx.with(|ctx| {
-            ctx.eval::<Value, _>(src)
+            // Every flag stated, none inherited: `global` is script-not-module
+            // code, `promise` off because top-level await is a module thing, and
+            // the backtrace barrier off so a throw names the page's own frames.
+            let mut opts = EvalOptions::default();
+            opts.global = true;
+            opts.strict = strict;
+            opts.backtrace_barrier = false;
+            opts.promise = false;
+            ctx.eval_with_options::<Value, _>(src, opts)
                 .catch(&ctx)
                 .map(|v| coerce_string(&ctx, v))
                 .map_err(|e| e.to_string())
@@ -190,70 +220,6 @@ impl Engine {
         } else {
             res.map_err(EvalError::Exception)
         }
-    }
-
-    /// Evaluate `src` as an ES module named `name` (its URL, the base every
-    /// `import` resolves against, js.md §4.1/§6) inside the current budget
-    /// window, then drain microtasks. The whole `import` graph loads synchronously
-    /// through the installed loader ([`Engine::set_loader`]); an unresolvable
-    /// specifier or failed module fetch throws here and surfaces as
-    /// [`EvalError::Exception`] (a counted §10 error), sibling scripts continuing.
-    /// Module evaluation is async by spec — the returned promise settles as its
-    /// top-level await / dynamic `import()` drain here and, for timer-bound waits,
-    /// across the §5 settle loop; a late unhandled rejection is caught by the §10
-    /// net ([`Engine::rejections`]). A budget trip anywhere is [`EvalError::Budget`].
-    pub fn eval_module(&self, name: &str, src: &str) -> Result<String, EvalError> {
-        let before = self.rejections.get();
-        let res = self.ctx.with(|ctx| -> Result<(), String> {
-            let promise = Module::evaluate(ctx.clone(), name.to_string(), src.to_string())
-                // A synchronous hard failure — syntax error, an unresolvable
-                // specifier, or a failed module fetch (the loader threw) — reaches
-                // here before a promise exists; counted once (js.md §4.1/§10).
-                .catch(&ctx)
-                .map_err(|e| e.to_string())?;
-            self.watch_rejection(&ctx, &promise);
-            // A module that throws *synchronously* at top level is already rejected
-            // here, and quickjs may report that rejection to the tracker more than
-            // once. The watcher owns this promise's outcome, so undo the tracker's
-            // report for it (nothing else ran between `before` and now) — the watcher
-            // counts it exactly once when its reject microtask drains.
-            if promise.state() == PromiseState::Rejected {
-                self.rejections.set(before);
-            }
-            Ok(())
-        });
-        self.drain_jobs();
-        if self.tripped.load(Ordering::Relaxed) {
-            Err(EvalError::Budget)
-        } else {
-            res.map(|()| String::new()).map_err(EvalError::Exception)
-        }
-    }
-
-    /// Attach a rejection watcher to a module evaluation promise (js.md §10). As a
-    /// handler it keeps the promise's *own* rejection from double-reporting through
-    /// the tracker, and its reject arm counts that rejection once via the same net —
-    /// so a top-level throw or a rejected top-level await counts as one, whenever it
-    /// settles (inline, or later across the §5 loop). A `.catch` a page attaches
-    /// itself still nets out through the tracker as before.
-    fn watch_rejection<'js>(&self, ctx: &Ctx<'js>, promise: &Promise<'js>) {
-        let rej = self.rejections.clone();
-        let on_reject = Function::new(ctx.clone(), move |_v: Value<'js>| {
-            rej.set(rej.get() + 1);
-        })
-        .expect("module rejection watcher");
-        let noop = Function::new(ctx.clone(), || {}).expect("module settle noop");
-        promise
-            .then()
-            .and_then(|t| t.call::<_, ()>((This(promise.clone()), noop, on_reject)))
-            .expect("attach module rejection watcher");
-    }
-
-    /// Net unhandled promise rejections observed so far (§10). A late `.catch`
-    /// un-counts an earlier report, so the net never ends negative in practice;
-    /// it is clamped at zero and reported as a `u32`.
-    pub fn rejections(&self) -> u32 {
-        self.rejections.get().max(0) as u32
     }
 
     /// Host-driven microtask drain (§5): run pending jobs until the queue is
