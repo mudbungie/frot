@@ -16,11 +16,18 @@ categories = ["command-line-utilities", "web-programming", "parser-implementatio
 # the only compiler this repo ever builds or tests with, so it is the only floor
 # we can honestly assert. Lower it only with a build on that older toolchain.
 rust-version = "1.95"
-# tests/fixtures/ is excluded: 656K of vendored third-party bundles
-# (jquery/react/vue) and saved real-world pages, read only by `#[cfg(test)]`
+# tests/fixtures/ is excluded: ~1.7M of vendored third-party bundles and
+# deployed pages (jquery/react/vue/TodoMVC/…), read only by `#[cfg(test)]`
 # modules — never by a build of the lib or bin. Shipping them would redistribute
-# other people's content forever under this crate's license and multiply the
+# other people's content forever under *this* crate's license and multiply the
 # download. Tests run from the git checkout, which is what CI does.
+#
+# The exclusion is not the whole answer, because the git checkout is itself
+# distributed: every file under tests/fixtures/ carries its own upstream
+# license, mapped file-by-file in tests/fixtures/NOTICE.md with the texts
+# vendored in tests/fixtures/licenses/. Fixtures that only need a *shape*
+# (tests/fixtures/needs/) are synthetic instead, so nothing third-party is
+# redistributed for them at all.
 exclude = ["tests/fixtures/"]
 
 [lib]

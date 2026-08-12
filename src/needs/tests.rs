@@ -139,17 +139,21 @@ fn content_inside_chrome_only_still_signals_js() {
     assert_eq!(detect(View::Text, &doc), vec![NeedsKind::Js]);
 }
 
-// --- Vendored real-world shells and content pages (tests/fixtures/needs) ----
-// The trial corpus was ephemeral; these stand in for it. The two SPA shells
-// carry static chrome (a todomvc footer, an excalidraw header + SEO h1) around
-// an empty mount region — the case the body-empty heuristic used to miss.
+// --- Synthetic real-world shapes (tests/fixtures/needs) ---------------------
+// The trial corpus was ephemeral; these stand in for it. Each is hand-authored
+// to a real page's *structure* — no third-party markup or prose is reproduced
+// (`tests/fixtures/needs/README.md` records which page each shape models, and
+// `tests/fixtures/NOTICE.md` the licensing rule that keeps this directory
+// synthetic). The shells carry static chrome (a todo footer, a masthead header
+// + SEO h1) around an empty mount region — the case the body-empty heuristic
+// used to miss.
 
-const TODOMVC: &str = include_str!("../../tests/fixtures/needs/todomvc.html");
-const TELEGRAM: &str = include_str!("../../tests/fixtures/needs/telegram.html");
-const EXCALIDRAW: &str = include_str!("../../tests/fixtures/needs/excalidraw.html");
-const WIKIPEDIA: &str = include_str!("../../tests/fixtures/needs/wikipedia.html");
-const HACKERNEWS: &str = include_str!("../../tests/fixtures/needs/hackernews.html");
-const GUARDIAN: &str = include_str!("../../tests/fixtures/needs/guardian.html");
+const TODO_SHELL: &str = include_str!("../../tests/fixtures/needs/todo-spa-shell.html");
+const CHAT_SCAFFOLD: &str = include_str!("../../tests/fixtures/needs/chat-app-scaffold.html");
+const CANVAS_SHELL: &str = include_str!("../../tests/fixtures/needs/canvas-app-shell.html");
+const ENCYCLOPEDIA: &str = include_str!("../../tests/fixtures/needs/encyclopedia-article.html");
+const AGGREGATOR: &str = include_str!("../../tests/fixtures/needs/link-aggregator-listing.html");
+const NEWS: &str = include_str!("../../tests/fixtures/needs/news-article.html");
 
 /// Every content-dependent view must agree the page needs js.
 fn needs_js_for_all_content_views(html: &str) {
@@ -168,23 +172,23 @@ fn stays_ok_for_all_content_views(html: &str) {
 }
 
 #[test]
-fn todomvc_shell_signals_js() {
-    // Empty `section.todoapp` + a static `footer.info` (chrome) + scripts.
-    needs_js_for_all_content_views(TODOMVC);
+fn todo_shell_signals_js() {
+    // Empty `section.taskapp` + a static `footer.info` (chrome) + scripts.
+    needs_js_for_all_content_views(TODO_SHELL);
 }
 
 #[test]
-fn excalidraw_shell_signals_js() {
+fn canvas_shell_signals_js() {
     // `<header>` masthead with an SEO `<h1>` (chrome) around an empty root div.
-    needs_js_for_all_content_views(EXCALIDRAW);
+    needs_js_for_all_content_views(CANVAS_SHELL);
 }
 
 #[test]
-fn telegram_scaffold_signals_js() {
-    // bl-e22e (field trial 2026-07-19, vendored 2026-07-19): dozens of empty
-    // divs plus a `<defs>`-only svg sprite sheet, zero text, zero labels. The
-    // retired element-count guard reported this shell as an `ok` impression.
-    needs_js_for_all_content_views(TELEGRAM);
+fn chat_scaffold_signals_js() {
+    // bl-e22e (field trial 2026-07-19): dozens of empty divs plus a
+    // `<defs>`-only svg sprite sheet, zero text, zero labels. The retired
+    // element-count guard reported this shape as an `ok` impression.
+    needs_js_for_all_content_views(CHAT_SCAFFOLD);
 }
 
 #[test]
@@ -193,23 +197,23 @@ fn dead_app_after_js_still_signals_js() {
     // shim ran but rendered nothing, that document is byte-for-byte the shell —
     // so the signal must survive, honestly reporting "needs more js than frot
     // can give" rather than an empty impression that looks complete.
-    needs_js_for_all_content_views(TODOMVC);
-    needs_js_for_all_content_views(EXCALIDRAW);
+    needs_js_for_all_content_views(TODO_SHELL);
+    needs_js_for_all_content_views(CANVAS_SHELL);
 }
 
 #[test]
-fn wikipedia_article_stays_ok() {
-    stays_ok_for_all_content_views(WIKIPEDIA);
+fn encyclopedia_article_stays_ok() {
+    stays_ok_for_all_content_views(ENCYCLOPEDIA);
 }
 
 #[test]
-fn hackernews_listing_stays_ok() {
-    stays_ok_for_all_content_views(HACKERNEWS);
+fn aggregator_listing_stays_ok() {
+    stays_ok_for_all_content_views(AGGREGATOR);
 }
 
 #[test]
-fn guardian_article_stays_ok() {
-    stays_ok_for_all_content_views(GUARDIAN);
+fn news_article_stays_ok() {
+    stays_ok_for_all_content_views(NEWS);
 }
 
 // --- Transport-declared deferral (needs.md §3) ------------------------------

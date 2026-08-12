@@ -5,6 +5,12 @@ suite (`docs/design/js.md` §9, bl-6358) drives end-to-end through `--js`. They
 are **data, not dependencies** — served from an in-process mock server so tests
 never touch the live network. Pins are exact; do not float them.
 
+> **Licensing.** Every file here is third-party and stays under its own
+> upstream license, mapped row-by-row in `../NOTICE.md` with the texts vendored
+> in `../licenses/`. This file is the authority for *what and from where*;
+> `NOTICE.md` adds only the license layer over these same rows. A new fixture
+> needs a row in both.
+
 | File | Package | Version | Source |
 | --- | --- | --- | --- |
 | `react.production.min.js` | react | 17.0.2 | `https://unpkg.com/react@17.0.2/umd/react.production.min.js` |
