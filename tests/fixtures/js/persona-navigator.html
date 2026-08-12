@@ -407,9 +407,15 @@
   ok('webgl:experimental-same', gcv.getContext('experimental-webgl') === gl);
   native('webgl:getParameter', gl.getParameter);
   native('webgl:getExtension', gl.getExtension);
-  // Masked vendor/renderer (Firefox's anti-fingerprint default), never the GPU.
+  // Masked vendor, generalized renderer: Firefox reports VENDOR 'Mozilla' but a
+  // bucketed '<class>, or similar' renderer, the SAME string the debug extension
+  // gives (measured on 140esr and 153esr, bl-b128) — never the raw driver string.
   eq('webgl:vendor-masked', gl.getParameter(gl.VENDOR), 'Mozilla');
-  eq('webgl:renderer-masked', gl.getParameter(gl.RENDERER), 'Mozilla');
+  eq('webgl:renderer-generalized', gl.getParameter(gl.RENDERER), 'llvmpipe, or similar');
+  var dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  eq('webgl:renderer-same-both-slots', gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL),
+     gl.getParameter(gl.RENDERER));
+  ok('webgl:renderer-no-driver-version', gl.getParameter(gl.RENDERER).indexOf('LLVM') === -1);
   eq('webgl:version', gl.getParameter(gl.VERSION), 'WebGL 1.0');
   eq('webgl:glsl', gl.getParameter(gl.SHADING_LANGUAGE_VERSION), 'WebGL GLSL ES 1.0');
   // UNMASKED via the debug-renderer extension: coherent Mesa/llvmpipe, Linux-plausible.
@@ -426,15 +432,16 @@
   var vp = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
   ok('webgl:viewport-int32', vp instanceof Int32Array && vp[0] === 16384 && vp[1] === 16384);
   var lw = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE);
-  ok('webgl:linewidth-float32', lw instanceof Float32Array && lw[0] === 1 && lw[1] === 255);
+  ok('webgl:linewidth-float32', lw instanceof Float32Array && lw[0] === 1 && lw[1] === 1);
   // Unknown enum -> null, exactly as Firefox answers.
   eq('webgl:unknown-null', gl.getParameter(0x9999), null);
   eq('webgl:ext-unknown-null', gl.getExtension('WEBGL_nonexistent'), null);
-  // Extension list: coherent with software llvmpipe (anisotropy present, ASTC not).
+  // Extension list: coherent with software llvmpipe as MEASURED (anisotropy and
+  // ASTC both present — this Mesa's llvmpipe advertises ASTC, bl-b128).
   var exts = gl.getSupportedExtensions();
   ok('webgl:ext-debug', exts.indexOf('WEBGL_debug_renderer_info') !== -1);
   ok('webgl:ext-aniso', exts.indexOf('EXT_texture_filter_anisotropic') !== -1);
-  ok('webgl:ext-no-astc', exts.join(',').indexOf('astc') === -1);
+  ok('webgl:ext-astc', exts.indexOf('WEBGL_compressed_texture_astc') !== -1);
   // Precision: desktop GL signature — every float qualifier is highp {127,127,23}.
   var hf = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
   eq('webgl:precision-high', hf.precision, 23);
@@ -494,8 +501,10 @@
   eq('ac:sampleRate', ac.sampleRate, 44100);
   eq('ac:state', ac.state, 'suspended');
   eq('ac:currentTime', ac.currentTime, 0);
-  ok('ac:baseLatency', typeof ac.baseLatency === 'number' && ac.baseLatency > 0 && ac.baseLatency < 0.02);
-  ok('ac:outputLatency', ac.outputLatency > ac.baseLatency);
+  // Linux Firefox reports baseLatency 0 with audio flowing (measured, both ESR
+  // lines); outputLatency is the device buffer and is positive.
+  ok('ac:baseLatency', typeof ac.baseLatency === 'number' && ac.baseLatency === 0);
+  ok('ac:outputLatency', ac.outputLatency > 0.033 && ac.outputLatency < 0.044);
   ok('ac:resume-promise', ac.resume() instanceof Promise);
   ok('ac:suspend-promise', ac.suspend() instanceof Promise);
   ok('ac:close-promise', ac.close() instanceof Promise);

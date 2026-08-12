@@ -547,18 +547,89 @@ and agreed anyway. (`ja4_ro` differs from browserleaks' rendering in one respect
 ALPN from both raw forms, per JA4's own exclusion rule. peet.ws agrees with
 frot. Pre-existing, not a re-pin effect.)
 
-**What this re-capture did *not* re-measure**, and is therefore still 140esr
-evidence: the audio-DSP constants (`fetch/audio.rs`), the WebGL vendor/renderer
-strings (`fetch/webgl.rs`, which are Mesa/llvmpipe facts more than Gecko ones),
-and the wider `navigator`/DOM surface of §8 beyond the ★ rows. Each file says
-which line it was measured on. Tracked as **`bl-b128`** rather than assumed
-here — a value nobody measured is a value nobody may write down (§2).
+**What this re-capture did *not* re-measure** — the audio-DSP constants
+(`fetch/audio.rs`), the WebGL vendor/renderer strings (`fetch/webgl.rs`), and the
+wider `navigator`/DOM surface of §8. **Closed by `bl-b128` the same day: §3.11
+re-reads all three from the running binary** and finds, among other things, that
+two of the WebGL strings had never matched any Firefox at all.
 
 One thing the re-capture *did* surface as a defect rather than a drift:
 `navigator.appVersion` reads `5.0 (X11)` on both ESR lines, where §4.2 derives it
 as the UA minus its `Mozilla/` prefix. That derivation rule has been wrong since
 it was written, and §8's own measured table said so. Filed as **`bl-6491`**;
 not fixed here, because it is a `src/js/` change and not a pin fact.
+
+---
+
+### 3.11 Non-transport surfaces re-read, and a 140esr/153esr A/B (`bl-b128`, 2026-08-11)
+
+§3.10 re-measured the transport but left the audio, WebGL and `navigator`
+surfaces as 140esr captures under a 153esr pin. This closes that, the same way:
+values read from the running binary, nothing carried forward on faith.
+
+**Method.** The `bl-3595` rig, run twice over — Mozilla's `linux-x86_64` tarballs
+for **both** `153.0esr` and `140.12.0esr`, each SHA-256 verified against Mozilla's
+published `SHA256SUMS`, headless with a profile under `$HOME`, driven over the
+Marionette wire protocol. Same box, same Mesa, same session, two runs per binary.
+WebGL was read twice: once as the box reports it (a real AMD GPU) and once with
+Mesa forced to llvmpipe (`LIBGL_ALWAYS_SOFTWARE=1`), which is the configuration
+the persona actually describes. Audio was read with autoplay unblocked so the
+context reached `state: "running"` with a live output stream, rather than the
+`suspended` context a fresh page gets.
+
+**Running both ESR lines on one box is what makes this an A/B**: a difference is
+then a Gecko difference, not a driver or hardware difference.
+
+**Finding 1 — almost nothing changed between the lines.** Every `navigator`/DOM
+fact in §8 is identical on 140.12.0esr and 153.0esr except the UA string itself.
+Every Web Audio fact is identical. Every WebGL string, limit and extension is
+identical but **one**:
+
+| fact | 140.12.0esr | 153.0esr |
+|---|---|---|
+| `ALIASED_LINE_WIDTH_RANGE` | `[1, 255]` | **`[1, 1]`** — line width clamped |
+
+Two runs of each binary, stable. That is the whole 140→153 delta outside the
+transport (§3.10's one cipher and one `q`-value).
+
+**Finding 2 — the stored values were wrong for *both* lines.** The re-read did
+not find drift; it found values that never matched any Firefox, because
+`webgl.rs` was built "against browserleaks/webgl behaviour + Mesa docs" rather
+than from a binary. Corrected, all measured:
+
+| fact | stored (unmeasured) | measured, both lines |
+|---|---|---|
+| `getParameter(RENDERER)` | `"Mozilla"` (assumed masked like VENDOR) | **`"llvmpipe, or similar"`** — Gecko generalizes it |
+| `UNMASKED_RENDERER_WEBGL` | `"llvmpipe (LLVM 19.1.7, 256 bits)"` | **`"llvmpipe, or similar"`** — same string as `RENDERER`; no driver/LLVM version reaches content |
+| ASTC compressed textures | absent ("llvmpipe does not support it") | **present** on both contexts |
+| `STENCIL_BITS` | 8 | **0** |
+| `MAX_TEXTURE_IMAGE_UNITS` / `..._VERTEX_...` | 16 / 16 | **32 / 32** |
+| `MAX_COMBINED_TEXTURE_IMAGE_UNITS` | 48 | **160** |
+| `MAX_SAMPLES` (WebGL1) | 4 | **not exposed at all** — WebGL2-only, moved |
+| `MAX_*_UNIFORM_BLOCKS` / `MAX_UNIFORM_BUFFER_BINDINGS` | 14 / 84 | **15 / 120** |
+| `AudioContext.baseLatency` | `128/44100` (a render quantum) | **`0`** on Linux with audio flowing |
+
+Gecko generalizing the renderer is a gift to this persona: the string it now
+reports carries no Mesa or LLVM version, so the const no longer has to track "one
+real Mesa generation" for internal consistency — there is no version in it to
+contradict. The masked/unmasked renderer pair collapsed to **one** field.
+
+**Finding 3 — two audio facts are device entropy and are now labelled as pinned,
+not measured.** `sampleRate` follows the output device (48000 on this box, both
+lines; there is no "Firefox default" to read) and `outputLatency` moved run to
+run on one box (33.6–43.3 ms across four runs). Neither can honestly be called a
+measurement, and a value that varies cannot be pinned to itself, so both are
+**pinned low-entropy constants** — the same treatment §8 gives
+`hardwareConcurrency` and screen geometry — with `outputLatency` pinned to
+1536 frames (34.8 ms), a value inside the band a real client was seen to report.
+`audio_seed` is frot's own and corresponds to nothing a browser exposes.
+
+**What is still not measured.** The `getShaderPrecisionFormat` triples and the
+2D-canvas/WebGL/audio *render* outputs remain declared §11 residuals: frot runs
+no GL and no DSP, so its pixels and samples are digest expansions by design, and
+there is no oracle for an arbitrary scene or graph. Those are residuals, not
+unread facts. Everything in `webgl.rs` and `audio.rs` that a browser *reports*
+now traces to a read.
 
 ---
 
@@ -1169,20 +1240,30 @@ reports that frot can report truthfully or plausibly, all derived from §4.
 
 Measured stock values to adopt, and frot's current gaps:
 
-| fact | ESR (measured 140esr 2026-07-19; ★ = re-measured unchanged on the 153esr pin, 2026-08-11) | frot today | action |
-|---|---|---|---|
-| `userAgent`, `appVersion`, `appName`, `appCodeName`, `product`, `productSub` ★ | `…rv:153.0…`, `5.0 (X11)`, `Netscape`, `Mozilla`, `Gecko`, `20100101` | present, but **UA is 121** | derive from profile |
-| `vendor` / `vendorSub` | `""` / `""` | `vendor` only | add `vendorSub` |
-| `platform` / `oscpu` ★ | `Linux x86_64` / `Linux x86_64` | `platform` only | add `oscpu` |
-| `language` / `languages` ★ | `en-US` / **`["en-US","en"]`** | `en-US` / **`["en-US"]`** | **fix** — derive both from `locale`, same source as `Accept-Language` |
-| `doNotTrack` ★ | **`"unspecified"`** | **`null`** | **fix** |
-| `buildID` ★ | **`20181001000000`** (privacy-frozen constant — still frozen at this value on 153esr) | **absent** | add — reporting the *real* BuildID would itself be a tell |
-| `pdfViewerEnabled` | `true` | absent | add |
-| `plugins.length` / `mimeTypes.length` | `5` / `2` (Gecko PDF shims) | absent | add |
-| `deviceMemory`, `userAgentData` | **absent** (`in navigator` → false) | absent | correct — keep absent |
-| `maxTouchPoints`, `cookieEnabled`, `onLine` | `0`, `true`, `true` | matching | keep |
-| **`webdriver`** ★ | capture shows `true` on both pins — **Marionette's distortion, not stock** | **`false`** | **keep `false`. Real Firefox reports `false`; frot is under no remote control. Do not copy `true` into a golden capture.** |
-| `hardwareConcurrency` ★ | `16` — **host-dependent** (same box, both captures) | `1` | **pin `8`** — see below |
+**Every row carries its own provenance** (`bl-b128`, 2026-08-11). A fact's source
+is a property *of that fact*, not of the table, and the previous whole-table
+footnote is exactly why a re-pin could leave half these rows quietly describing a
+Firefox nobody was running any more. `read` = taken from a running binary on the
+stated line(s); `pinned` = a deliberate constant that is NOT a measurement,
+because the real value is host or device entropy (these are the only two kinds,
+and a row may never claim to be both).
+
+| fact | value | provenance | frot today | action |
+|---|---|---|---|---|
+| `userAgent`, `appVersion`, `appName`, `appCodeName`, `product`, `productSub` | `…rv:153.0…`, `5.0 (X11)`, `Netscape`, `Mozilla`, `Gecko`, `20100101` | read — 140esr + 153esr, identical but the `rv:`/version | present, but **UA is 121** | derive from profile. `appVersion` is `bl-6491`: frot sends the whole UA where Gecko sends `5.0 (X11)` |
+| `vendor` / `vendorSub` | `""` / `""` | read — both lines | `vendor` only | add `vendorSub` |
+| `platform` / `oscpu` | `Linux x86_64` / `Linux x86_64` | read — both lines | `platform` only | add `oscpu` |
+| `language` / `languages` | `en-US` / **`["en-US","en"]`** | read — both lines | `en-US` / **`["en-US"]`** | **fix** — derive both from `locale`, same source as `Accept-Language` |
+| `doNotTrack` | **`"unspecified"`** | read — both lines | **`null`** | **fix** |
+| `buildID` | **`20181001000000`** | read — both lines; Gecko's privacy-frozen constant, unchanged across them | **absent** | add — reporting the *real* BuildID would itself be a tell |
+| `pdfViewerEnabled` | `true` | read — both lines | absent | add |
+| `plugins.length` / `mimeTypes.length` | `5` / `2` (the Gecko PDF shims: `PDF Viewer`, `Chrome PDF Viewer`, `Chromium PDF Viewer`, `Microsoft Edge PDF Viewer`, `WebKit built-in PDF`; `application/pdf`, `text/pdf`) | read — both lines | absent | add |
+| `deviceMemory`, `userAgentData` | **absent** (`in navigator` → false) | read — both lines | absent | correct — keep absent |
+| `maxTouchPoints`, `cookieEnabled`, `onLine` | `0`, `true`, `true` | read — both lines | matching | keep |
+| **`webdriver`** | capture shows `true` on both lines — **Marionette's distortion, not stock** | read, and *rejected* as an artefact of the harness | **`false`** | **keep `false`. Real Firefox reports `false`; frot is under no remote control. Do not copy `true` into a golden capture.** |
+| `hardwareConcurrency` | `16` on the capture box | **pinned** — host entropy, so the read is discarded, not adopted | `1` | **pin `8`** — see below |
+| `screen.colorDepth` / `pixelDepth` | `24` / `24` | read — both lines | matching | keep |
+| screen geometry | `1366×768` on the capture box | **pinned** — a *headless* default, not a persona fact | frot's `1280×720` | keep frot's (see below) |
 
 **`hardwareConcurrency`: pinned, not reported.** The real value is host-dependent
 (this box: 16). Reporting the true host count would leak host entropy *and* make
@@ -1393,8 +1474,8 @@ Permanently out of reach, by design or by constraint:
 | **Observer deliveries beyond the seam** | **MutationObserver GENUINE, IO/RO initial-delivery genuine (`bl-07ab`, LANDED; the full argument is js.md §7)** — `MutationObserver` is a real implementation over the five mutation syscalls (childList/attributes/characterData records with oldValue, subtree by parent-chain walk, microtask delivery): not a masquerade, no residual beyond record *granularity* (`innerHTML`/`textContent` replacement emits per-node records where a browser coalesces one "replace all" record — the same mutations, finer sliced). `IntersectionObserver`/`ResizeObserver` deliver a genuine INITIAL batch computed from the real §8 geometry at scroll 0 — presence-but-never-firing was REJECTED for these two, because a real browser always delivers an initial batch, so the costume that defends Worker/indexedDB (silence a real fresh browser also shows) fails here, and a dead-but-present IO makes lazy-load libraries wait forever where absence made them load eagerly. **The residual is post-initial deliveries:** later DOM-mutation-driven geometry changes produce no further IO/RO entries. A real browser's own post-initial deliveries are driven by scroll/resize/animation, none of which frot ever produces (js.md §11), so the gap is exactly the mutation-driven slice; closing it would re-diff layout per observed target per generation — real §5 CPU cost for a trigger frot structurally never fires. Deterministic, no new syscall. |
 | **Permissions grant / Notification prompt** | **Surface provided (`bl-1548`, LANDED)** — `navigator.permissions` is a branded `Permissions` instance whose `query({name})` returns a `Promise<PermissionStatus>` (branded, `[object PermissionStatus]`, `state`/`name`/`onchange`, EventTarget); an unrecognised name rejects with the Firefox-coherent `TypeError` (the Firefox 140esr `PermissionName` enum: geolocation, notifications, push, persistent-storage, midi, storage-access, screen-wake-lock, camera, microphone). `window.Notification` is a branded, constructable interface with static `permission`/`maxActions`/`requestPermission`. Presence is the coherence requirement (§10). **The residual is the grant:** frot raises no prompt and shows no notification, so — on a FRESH profile, deterministic, never random — every `query()` resolves state `'prompt'` (nothing granted or denied), `Notification.permission` is `'default'`, and `requestPermission()` resolves an honest `'default'` (no grant); a constructed `Notification` fires no event, `onchange`/`onclick` never fire. This is exactly what a real, un-prompted page sees, so it is *coherent, not a wrong value* — asking for a grant frot cannot make would be the louder tell. Deterministic, fixed, no syscall. |
 | **Canvas 2D pixel realism** | **Context + hash provided (`bl-05e6`, LANDED)** — `getContext('2d')` returns a branded, Firefox-shaped `CanvasRenderingContext2D`; the drawing API (`fillRect`/`fillText`/`arc`/`measureText`/…) is present and branded native; `toDataURL()` returns a well-formed, decodable `image/png` data URL and `getImageData()` a right-sized `ImageData`. Both are a DETERMINISTIC function of (the fixed profile `canvas_seed` + the exact draw sequence + dimensions): the SAME draws hash identically on every invocation (asserted across two runs in `persona_gold`), DIFFERENT draws diverge, and the hash is never random per call — which is precisely the tell a randomising privacy tool shows. Presence + determinism are the coherence requirement (§10). **The residual is pixel realism:** the bitmap is a digest expansion (an xorshift PRNG seeded by the draw digest), not a glyph raster, so it is stable and content-varying (the fingerprint properties that matter) but would not survive a pixel-level comparison against a reference Firefox render — and no such reference exists for an arbitrary draw sequence, while determinism defeats the louder randomised-canvas tell. `toDataURL` encodes only PNG (Firefox's default); a `jpeg`/`webp` request returns a coherent PNG (a minor residual). WebGL is a separate ball (`bl-f624`) — `getContext('webgl')` stays null. Deterministic, profile-seeded, **no syscall** (determinism forbids host entropy). |
-| **WebGL rendering realism** | **Context + fingerprint provided (`bl-f624`, LANDED)** — `getContext('webgl')`/`'webgl2'`/`'experimental-webgl'` return branded, Firefox-shaped `WebGLRenderingContext`/`WebGL2RenderingContext` (both published as interfaces; `[object …]` tags; "Illegal constructor" throws). `getParameter(VENDOR)` and `getParameter(RENDERER)` are Firefox's masked `"Mozilla"` (never the real GPU); the real strings surface ONLY through the `WEBGL_debug_renderer_info` extension and are a **coherent, deterministic, Linux-plausible SOFTWARE renderer**: `UNMASKED_VENDOR_WEBGL` = `"Mesa"`, `UNMASKED_RENDERER_WEBGL` = `"llvmpipe (LLVM 19.1.7, 256 bits)"`. llvmpipe is chosen deliberately (Mark's ruling, 2026-07-20): it is common for real headless Linux Firefox and NEVER over-claims specific hardware — an NVIDIA/Intel string on this persona, or a value that varied per invocation, would be a LOUDER tell than absence. `VERSION`/`SHADING_LANGUAGE_VERSION` are Firefox's clean `"WebGL 1.0"`/`"WebGL 2.0"` + `"WebGL GLSL ES 1.0"`/`"3.00"`; the `MAX_*` limits, `getSupportedExtensions()`, and `getShaderPrecisionFormat` (all float qualifiers highp `{127,127,23}` — the desktop-GL signature) are ONE real Mesa 24.2/llvmpipe build's set, internally coherent (anisotropy present ⇔ modern Mesa; ASTC absent ⇔ software, not mobile). Every value is a deterministic function of the pinned profile — the SSOT const `src/fetch/webgl.rs`, delivered via the one `__frot_env_profile` channel `canvas_seed` uses, so `webgl.js` holds no identity literal (I1). `readPixels()`/`toDataURL()` are a deterministic, `canvas_seed`-derived digest expansion (shared with canvas via `webglpix.js`): the SAME draw sequence hashes identically on every invocation (asserted across two runs in `persona_gold`), a DIFFERENT one diverges, never random per call. Unknown enums return `null`, unsupported extensions `null` (Firefox's answers); a canvas binds ONE context type for life, so a cross-type `getContext` is `null`. **The residual is pixel realism:** frot runs no GL, so the pixels are a digest expansion, not a real llvmpipe raster — stable and content-varying (the fingerprint properties that matter) but not byte-equal to a reference render, for which no oracle exists for an arbitrary scene; determinism defeats the louder randomised tell. Deterministic, profile-seeded, **no syscall** (determinism forbids host entropy). |
-| **Web Audio rendering realism** | **Context + fingerprint provided (`bl-8733`, LANDED)** — `AudioContext`/`OfflineAudioContext` are branded, constructable, Firefox-shaped (`[object …]` tags; `BaseAudioContext` is abstract — "Illegal constructor"); no `webkitAudioContext` alias (Firefox has none — an alias would be the tell). The node zoo (`OscillatorNode`/`DynamicsCompressorNode`/`GainNode`/`AnalyserNode`/`BiquadFilterNode`/`AudioBufferSourceNode`/`AudioDestinationNode`), `AudioParam`, and `AudioBuffer` are present and branded native; `create*` factories and `connect`/`disconnect` build a real graph. `sampleRate` is Firefox's `44100`, `destination.maxChannelCount` `2`, `baseLatency`/`outputLatency` DERIVED from the sample rate (`128`/`512` frames ÷ `44100`) so the one rate fact is their single source. The fingerprint — `OfflineAudioContext.startRendering()`'s rendered `AudioBuffer` float samples — is a DETERMINISTIC function of (the fixed profile `audio_seed` + the exact graph digest: every node create, param write, `connect`/`disconnect`, `start`/`stop` folded in order via FNV, exactly the canvas/WebGL digest model): the SAME graph hashes identically on every invocation (asserted across two runs in `persona_gold`), a DIFFERENT graph (e.g. a different oscillator frequency) diverges, never random per call — precisely the tell a randomising privacy tool shows. Samples sit in the plausible `[-1, 1]` range; a constructed (un-rendered) `AudioBuffer` is silent zeros, like a real one. The render digest is frozen at `startRendering()` so it is stable even if the graph is mutated afterward. Every value derives from the pinned profile — the SSOT const `src/fetch/audio.rs`, delivered via the one `__frot_env_profile` channel `canvas_seed`/`webgl` use, so `audio.js` holds no identity literal (I1). **The residual is waveform realism:** frot runs no audio DSP, so the samples are a digest expansion, not a real Gecko oscillator→compressor render — stable and graph-varying (the fingerprint properties that matter) but not sample-equal to a reference Firefox render, for which no oracle exists for an arbitrary graph; determinism defeats the louder randomised tell. Generic `AudioParam` min/max, realtime `currentTime` `0`, and no-op `AnalyserNode` data methods are minor accepted residuals. Deterministic, profile-seeded, **no syscall** (determinism forbids host entropy). |
+| **WebGL rendering realism** | **Context + fingerprint provided (`bl-f624`, LANDED)** — `getContext('webgl')`/`'webgl2'`/`'experimental-webgl'` return branded, Firefox-shaped `WebGLRenderingContext`/`WebGL2RenderingContext` (both published as interfaces; `[object …]` tags; "Illegal constructor" throws). `getParameter(VENDOR)` is Firefox's masked `"Mozilla"`; the RENDERER is **not** masked to `"Mozilla"` — **corrected 2026-08-11 (`bl-b128`, §3.11) against the running binary**, Gecko generalizes it to a bucketed class string and reports the SAME string in `getParameter(RENDERER)` and in `WEBGL_debug_renderer_info`'s `UNMASKED_RENDERER_WEBGL`. The persona's is the **coherent, deterministic, Linux-plausible SOFTWARE** one: `UNMASKED_VENDOR_WEBGL` = `"Mesa"`, renderer = `"llvmpipe, or similar"` in both slots — no driver or LLVM version reaches content at all, so the old `"llvmpipe (LLVM 19.1.7, 256 bits)"` was a string no Firefox emits. llvmpipe is chosen deliberately (Mark's ruling, 2026-07-20): it is common for real headless Linux Firefox and NEVER over-claims specific hardware — an NVIDIA/Intel string on this persona, or a value that varied per invocation, would be a LOUDER tell than absence. `VERSION`/`SHADING_LANGUAGE_VERSION` are Firefox's clean `"WebGL 1.0"`/`"WebGL 2.0"` + `"WebGL GLSL ES 1.0"`/`"3.00"`; the `MAX_*` limits, `getSupportedExtensions()`, and `getShaderPrecisionFormat` (all float qualifiers highp `{127,127,23}` — the desktop-GL signature) are ONE real llvmpipe build's set, **read from the binary** rather than reconstructed from docs (`bl-b128`): anisotropy present, and **ASTC present too** — the earlier "ASTC absent ⇔ software, not mobile" was a belief the measurement refuted. Every value is a deterministic function of the pinned profile — the SSOT const `src/fetch/webgl.rs`, delivered via the one `__frot_env_profile` channel `canvas_seed` uses, so `webgl.js` holds no identity literal (I1). `readPixels()`/`toDataURL()` are a deterministic, `canvas_seed`-derived digest expansion (shared with canvas via `webglpix.js`): the SAME draw sequence hashes identically on every invocation (asserted across two runs in `persona_gold`), a DIFFERENT one diverges, never random per call. Unknown enums return `null`, unsupported extensions `null` (Firefox's answers); a canvas binds ONE context type for life, so a cross-type `getContext` is `null`. **The residual is pixel realism:** frot runs no GL, so the pixels are a digest expansion, not a real llvmpipe raster — stable and content-varying (the fingerprint properties that matter) but not byte-equal to a reference render, for which no oracle exists for an arbitrary scene; determinism defeats the louder randomised tell. Deterministic, profile-seeded, **no syscall** (determinism forbids host entropy). |
+| **Web Audio rendering realism** | **Context + fingerprint provided (`bl-8733`, LANDED)** — `AudioContext`/`OfflineAudioContext` are branded, constructable, Firefox-shaped (`[object …]` tags; `BaseAudioContext` is abstract — "Illegal constructor"); no `webkitAudioContext` alias (Firefox has none — an alias would be the tell). The node zoo (`OscillatorNode`/`DynamicsCompressorNode`/`GainNode`/`AnalyserNode`/`BiquadFilterNode`/`AudioBufferSourceNode`/`AudioDestinationNode`), `AudioParam`, and `AudioBuffer` are present and branded native; `create*` factories and `connect`/`disconnect` build a real graph. `destination.maxChannelCount` is `2` (measured, both ESR lines). `sampleRate` `44100` is **pinned, not measured** — the real rate follows the output device (48000 on the capture box), host entropy like `hardwareConcurrency` (§8). `baseLatency`/`outputLatency` stay DERIVED from the rate so it is their single source, and their numerators were **corrected 2026-08-11 (`bl-b128`, §3.11)**: `baseLatency` is `0` because a real Linux Firefox reports `0` with audio flowing (measured, both lines, four runs — the old `128` frames was a plausible-looking number no Firefox emits), and `outputLatency` is `1536` frames (34.8 ms), pinned inside the 33.6–43.3 ms band actually measured, since the real value moves run to run. The fingerprint — `OfflineAudioContext.startRendering()`'s rendered `AudioBuffer` float samples — is a DETERMINISTIC function of (the fixed profile `audio_seed` + the exact graph digest: every node create, param write, `connect`/`disconnect`, `start`/`stop` folded in order via FNV, exactly the canvas/WebGL digest model): the SAME graph hashes identically on every invocation (asserted across two runs in `persona_gold`), a DIFFERENT graph (e.g. a different oscillator frequency) diverges, never random per call — precisely the tell a randomising privacy tool shows. Samples sit in the plausible `[-1, 1]` range; a constructed (un-rendered) `AudioBuffer` is silent zeros, like a real one. The render digest is frozen at `startRendering()` so it is stable even if the graph is mutated afterward. Every value derives from the pinned profile — the SSOT const `src/fetch/audio.rs`, delivered via the one `__frot_env_profile` channel `canvas_seed`/`webgl` use, so `audio.js` holds no identity literal (I1). **The residual is waveform realism:** frot runs no audio DSP, so the samples are a digest expansion, not a real Gecko oscillator→compressor render — stable and graph-varying (the fingerprint properties that matter) but not sample-equal to a reference Firefox render, for which no oracle exists for an arbitrary graph; determinism defeats the louder randomised tell. Generic `AudioParam` min/max, realtime `currentTime` `0`, and no-op `AnalyserNode` data methods are minor accepted residuals. Deterministic, profile-seeded, **no syscall** (determinism forbids host entropy). |
 | **`crypto.subtle` (WebCrypto)** | Residual. The full `SubtleCrypto` surface is a large capability left absent (`crypto` has no `.subtle`); a filed gap decides if/when it lands. Its absence is a mild coherence tell, accepted. |
 | **`Intl` beyond `DateTimeFormat.resolvedOptions()`** | Residual. quickjs-ng ships without `Intl`; frot provides the low-entropy locale/timezone subset a page reads (`DateTimeFormat` + `resolvedOptions`, `timeZone` pinned UTC). `NumberFormat`/`Collator`/`RelativeTimeFormat`/real locale-aware formatting are unbuilt — a filed gap, not a permanent non-goal. |
 | **`__frot_*` syscall names enumerable on `globalThis`** | Residual. `Function.prototype.toString` no longer leaks their source or the name (`bl-3926` branding), but the syscall **names** are still enumerable globals (`Object.getOwnPropertyNames(window)`). Making them non-enumerable touches every `bind!` site and is tracked as a separate concern. |

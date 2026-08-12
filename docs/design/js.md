@@ -888,7 +888,8 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   digest, so `toDataURL`/`getImageData` are stable across invocations and vary with
   content; `getContext('webgl')`/`'webgl2'` are the **same masquerade** (`bl-f624`,
   §11): branded `WebGL`/`WebGL2RenderingContext` contexts with masked
-  `VENDOR`/`RENDERER` (`"Mozilla"`), coherent Mesa/llvmpipe `UNMASKED_*` via
+  masked `VENDOR` (`"Mozilla"`) with the generalized renderer `"llvmpipe, or
+  similar"` in both the `RENDERER` and `UNMASKED_RENDERER_WEBGL` slots, via
   `WEBGL_debug_renderer_info`, and deterministic `readPixels`/`toDataURL`.
   `Worker`/`SharedWorker`
   are **present as coherent,
@@ -1136,10 +1137,11 @@ Two moves against today's `run.rs`:
   a glyph raster (identity.md §11). No syscall.
 - **No WebGL *rendering*** (`bl-f624`, §7). `getContext('webgl')`/`'webgl2')` (and
   `'experimental-webgl'`) return branded `WebGL`/`WebGL2RenderingContext` contexts:
-  `getParameter(VENDOR)`/`(RENDERER)` are Firefox's masked `"Mozilla"`, the real GPU
-  strings surface only through `WEBGL_debug_renderer_info` and name **Mesa llvmpipe**
-  (software — coherent for headless Linux Firefox, never over-claiming hardware),
-  and the limit/extension/precision set is one real llvmpipe build's (the `webgl`
+  `getParameter(VENDOR)` is Firefox's masked `"Mozilla"`; the renderer is generalized
+  by Gecko to **"llvmpipe, or similar"**, identical in the `RENDERER` and
+  `WEBGL_debug_renderer_info` slots and carrying no driver version (measured on both
+  ESR lines, `bl-b128`) — software, coherent for Linux Firefox, never over-claiming
+  hardware. The limit/extension/precision set is one real llvmpipe build's (the `webgl`
   SSOT, `src/fetch/webgl.rs`, via `__frot_env_profile`). `readPixels`/`toDataURL`
   are the same deterministic digest expansion as 2D (`webglpix.js`), stable across
   invocations and content-varying. **The residual is pixel realism** (no GL runs);

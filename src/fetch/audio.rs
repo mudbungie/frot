@@ -11,25 +11,39 @@
 //! A fingerprinter builds an `OfflineAudioContext`, wires an `OscillatorNode`
 //! through a `DynamicsCompressorNode` to the destination, `startRendering()`s,
 //! and hashes the rendered `AudioBuffer`'s float samples — the hash reflects the
-//! platform's audio-DSP float behaviour. Firefox 140 ESR **exposes** the whole
+//! platform's audio-DSP float behaviour. Firefox ESR **exposes** the whole
 //! `AudioContext`/`OfflineAudioContext` surface, so returning `undefined` (frot's
 //! prior state) is a LOUDER tell than a costume (§10). Under Mark's 2026-07-20
 //! ruling the masquerade is in scope PROVIDED every value is a DETERMINISTIC
 //! function of this const, stable across invocations — a random-per-run or
 //! persona-contradicting sample set would be the louder tell absence was.
 //!
-//! ## The chosen Firefox-140-ESR-on-Linux defaults (all coherent, low-entropy)
+//! ## What is measured here, and what is pinned — they are not the same thing
 //!
-//! * `sample_rate` **44100** — Firefox's default `AudioContext.sampleRate`.
-//! * `base_latency` / `output_latency` — derived `frames / sample_rate`, so the
-//!   one `sample_rate` fact is their single source; small positive values, the
-//!   shape a realtime context reports (an offline context reports `0`, computed
-//!   JS-side, not here).
-//! * `max_channel_count` **2** — a stereo output device, the common low-entropy
-//!   default; an offline context instead reports its own channel count (JS-side).
-//! * `audio_seed` — an opaque FIXED digest seed (never host entropy) so the
-//!   rendered buffer is a deterministic function of `(seed + graph digest)`,
-//!   matching across invocations exactly like `canvas_seed`/the webgl seed.
+//! Re-read from the running binary (`bl-b128`, 2026-08-11, identity.md §3.11):
+//! Firefox 153.0esr and 140.12.0esr on Linux, Marionette, autoplay unblocked so
+//! the context actually reached `state: "running"` with a live output stream.
+//! **The two lines agree on every value below** — no Web Audio fact moved
+//! between them.
+//!
+//! * `max_channel_count` **2** — MEASURED, both lines: a stereo output device.
+//! * `base_latency_frames` **0** — MEASURED, both lines, four runs: Linux
+//!   Firefox reports `baseLatency === 0` even with audio flowing. The previous
+//!   `128` (one render quantum) was a plausible-looking guess that no Firefox
+//!   emits, so it went.
+//! * `sample_rate` **44100** — PINNED, not measured: the rate follows the output
+//!   *device* (this box's reports 48000 on both lines), so it is host entropy
+//!   exactly like `hardwareConcurrency` (identity.md §8) and determinism decides
+//!   it. There is no "Firefox default" to measure. 44.1 kHz is the common,
+//!   low-entropy choice; the fingerprint's coordinate system is coherent against
+//!   whatever this says.
+//! * `output_latency_frames` **1536** — PINNED, inside the measured band: device
+//!   buffering, and it moved run-to-run on one box (33.6–43.3 ms across four
+//!   runs). A varying number cannot be pinned honestly, so frot pins a constant
+//!   that a real client was actually seen to report — 1536/44100 = 34.8 ms.
+//! * `audio_seed` — frot's own opaque FIXED digest seed (never host entropy, and
+//!   nothing a browser exposes), so the rendered buffer is a deterministic
+//!   function of `(seed + graph digest)`, like `canvas_seed`.
 //!
 //! The rendered samples are a digest expansion in the plausible `[-1, 1]` audio
 //! range — waveform realism against a real Gecko DSP render is the declared §11
@@ -44,32 +58,37 @@ use serde_json::{json, Value};
 /// data; latencies are stored as frame counts so `sample_rate` is their SSOT.
 #[derive(Debug, Clone, Copy)]
 pub struct AudioProfile {
-    /// `BaseAudioContext.sampleRate` — Firefox's default output rate.
+    /// `BaseAudioContext.sampleRate` — PINNED, not measured: the real rate follows
+    /// the output device (see module docs).
     pub sample_rate: u32,
     /// Opaque FIXED seed for the rendered-buffer digest (never host entropy), so
     /// `startRendering()`'s float samples match across invocations.
     pub audio_seed: u32,
     /// `AudioContext.baseLatency` numerator, in frames: `baseLatency` is
-    /// `base_latency_frames / sample_rate` (one render quantum's worth).
+    /// `base_latency_frames / sample_rate`. Measured `0` on Linux, both ESR lines.
     pub base_latency_frames: u32,
-    /// `AudioContext.outputLatency` numerator, in frames (device buffering).
+    /// `AudioContext.outputLatency` numerator, in frames (device buffering) —
+    /// PINNED inside the measured band, since the real value moves per run.
     pub output_latency_frames: u32,
     /// A realtime `AudioDestinationNode.maxChannelCount` — a stereo device.
+    /// Measured `2` on both ESR lines.
     pub max_channel_count: u32,
 }
 
-/// The audio persona, **measured on Firefox 140 ESR** (Linux x86_64, 44.1 kHz
-/// stereo) and NOT re-measured for the 153esr re-pin (`bl-3595`, identity.md
-/// §3.10) — an audio-DSP capture is its own rig. `bl-b128` owns that; until it
-/// lands this names the line it was actually read from, which is not the pin.
+/// The audio persona. Read from Firefox 153.0esr on 2026-08-11 (`bl-b128`,
+/// identity.md §3.11), cross-checked against 140.12.0esr on the same box: the
+/// two lines agree. Each field's doc says whether it is MEASURED or PINNED —
+/// the device-dependent ones cannot honestly be either measured or invented, so
+/// they are pinned and labelled.
 pub const FIREFOX_AUDIO: AudioProfile = AudioProfile {
     sample_rate: 44_100,
     // Opaque fixed seed; mixed with the graph digest, never surfaced raw.
     audio_seed: 0x_a0d1_05ee,
-    // 128 frames — Web Audio's render-quantum size; a coherent baseLatency floor.
-    base_latency_frames: 128,
-    // 512 frames — a plausible device output buffer at 44.1 kHz (~11.6 ms).
-    output_latency_frames: 512,
+    // Measured 0 on Linux (both ESR lines, four runs, live output stream).
+    base_latency_frames: 0,
+    // 1536 frames — 34.8 ms at 44.1 kHz, inside the 33.6–43.3 ms band measured
+    // on this box. Pinned because the real value varies per run.
+    output_latency_frames: 1536,
     max_channel_count: 2,
 };
 

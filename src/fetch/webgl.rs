@@ -6,15 +6,25 @@
 //! identity literal of its own (I1), exactly as `canvas.js` reads `canvas_seed`.
 //!
 //! Every value here is a COHERENT, DETERMINISTIC function of the pinned persona
-//! (Firefox 140 ESR, **Linux x86_64**, software rendering). `VENDOR`/`RENDERER`
-//! are Firefox's masked `"Mozilla"`; the real GPU strings surface only through
-//! the `WEBGL_debug_renderer_info` extension and name **Mesa llvmpipe** — a
-//! software rasteriser that is common for headless Linux Firefox and NEVER
-//! over-claims specific hardware (the safest coherent choice under Mark's ruling:
-//! an NVIDIA/Intel string on a software persona would be a louder tell than
-//! absence). The `LLVM 19.1.7` build, the anisotropy support, and the extension
-//! set all track ONE real Mesa 24.2 generation (Ubuntu 24.04.x) so nothing here
-//! can contradict anything else here.
+//! (Firefox 153 ESR, **Linux x86_64**, software rendering), and every one of them
+//! was **read from the running binary** (`bl-b128`, 2026-08-11, identity.md
+//! §3.11) — Firefox 153.0esr and 140.12.0esr driven over Marionette on one box
+//! with Mesa forced to llvmpipe, two runs each.
+//!
+//! ## Firefox generalizes the renderer; it does not mask it to `"Mozilla"`
+//!
+//! Measured, on **both** ESR lines: `getParameter(VENDOR)` is `"Mozilla"`, but
+//! `getParameter(RENDERER)` and `WEBGL_debug_renderer_info`'s
+//! `UNMASKED_RENDERER_WEBGL` are the SAME **generalized** string — `"llvmpipe, or
+//! similar"` under software rendering, `"<GPU class>, or similar"` on hardware.
+//! Gecko buckets the driver string into a class and appends `, or similar`; the
+//! driver/LLVM version detail never reaches content at all. So the renderer is
+//! **one fact with one home** here, not a masked/unmasked pair, and no Mesa or
+//! LLVM version is written down — there is none to write.
+//!
+//! Software rendering stays the persona choice (it never over-claims hardware,
+//! and it is common for headless Linux Firefox); what changed is that the choice
+//! now costs no version coupling.
 //!
 //! [`FIREFOX_153_ESR`]: super::FIREFOX_153_ESR
 
@@ -35,13 +45,15 @@ pub enum Param {
 /// the strings are Firefox's, the limits are one real llvmpipe build's.
 #[derive(Debug, Clone, Copy)]
 pub struct WebglProfile {
-    /// `getParameter(VENDOR)` / `getParameter(RENDERER)` — Firefox masks BOTH to
-    /// this literal regardless of the real GPU (the anti-fingerprint default).
-    pub masked: &'static str,
+    /// `getParameter(VENDOR)` — Firefox masks the vendor to this literal
+    /// regardless of the real GPU. Measured `"Mozilla"` on both ESR lines.
+    pub masked_vendor: &'static str,
     /// `WEBGL_debug_renderer_info`'s `UNMASKED_VENDOR_WEBGL` — the real GL vendor.
     pub unmasked_vendor: &'static str,
-    /// `UNMASKED_RENDERER_WEBGL` — the real GL renderer (Mesa llvmpipe, software).
-    pub unmasked_renderer: &'static str,
+    /// `getParameter(RENDERER)` **and** `UNMASKED_RENDERER_WEBGL`: Gecko reports
+    /// one generalized string in both slots (see module docs), so this is one
+    /// field rather than the masked/unmasked pair it used to be stored as.
+    pub renderer: &'static str,
     /// `getParameter(VERSION)` for WebGL1 / WebGL2 (`"WebGL 1.0"` / `"WebGL 2.0"`).
     pub version: (&'static str, &'static str),
     /// `getParameter(SHADING_LANGUAGE_VERSION)` for WebGL1 / WebGL2.
@@ -56,15 +68,16 @@ pub struct WebglProfile {
     pub extensions2: &'static [&'static str],
 }
 
-/// The WebGL persona, **measured on Firefox 140 ESR** (Linux x86_64, Mesa 24.2
-/// llvmpipe, LLVM 19.1.7) against browserleaks/webgl behaviour + Mesa docs. Not
-/// re-measured for the 153esr re-pin (`bl-3595`, identity.md §3.10): these are
-/// Mesa strings more than Gecko ones, but "probably unchanged" is not a
-/// measurement — `bl-b128` re-reads them.
+/// The WebGL persona: **measured from Firefox 153.0esr** (Linux x86_64, Mesa
+/// llvmpipe via `LIBGL_ALWAYS_SOFTWARE`) on 2026-08-11, `bl-b128`. Every string,
+/// limit and extension below was read from the running binary; the same probe on
+/// 140.12.0esr agrees on all of it but `ALIASED_LINE_WIDTH_RANGE` (identity.md
+/// §3.11), which is the one WebGL fact that moved between the two lines.
 pub const FIREFOX_WEBGL: WebglProfile = WebglProfile {
-    masked: "Mozilla",
+    masked_vendor: "Mozilla",
     unmasked_vendor: "Mesa",
-    unmasked_renderer: "llvmpipe (LLVM 19.1.7, 256 bits)",
+    // Gecko's generalized renderer class — no Mesa/LLVM version, by design.
+    renderer: "llvmpipe, or similar",
     version: ("WebGL 1.0", "WebGL 2.0"),
     glsl: ("WebGL GLSL ES 1.0", "WebGL GLSL ES 3.00"),
     params1: &[
@@ -76,39 +89,44 @@ pub const FIREFOX_WEBGL: WebglProfile = WebglProfile {
         ("MAX_VERTEX_UNIFORM_VECTORS", Param::N(4096)),
         ("MAX_FRAGMENT_UNIFORM_VECTORS", Param::N(4096)),
         ("MAX_VARYING_VECTORS", Param::N(32)),
-        ("MAX_VERTEX_TEXTURE_IMAGE_UNITS", Param::N(16)),
-        ("MAX_TEXTURE_IMAGE_UNITS", Param::N(16)),
-        ("MAX_COMBINED_TEXTURE_IMAGE_UNITS", Param::N(48)),
-        ("ALIASED_LINE_WIDTH_RANGE", Param::Pair(1, 255)),
-        ("ALIASED_POINT_SIZE_RANGE", Param::Pair(1, 255)),
+        ("MAX_VERTEX_TEXTURE_IMAGE_UNITS", Param::N(32)),
+        ("MAX_TEXTURE_IMAGE_UNITS", Param::N(32)),
+        ("MAX_COMBINED_TEXTURE_IMAGE_UNITS", Param::N(160)),
+        // 153esr clamps line width to 1; 140esr reported `1..=255` on the same
+        // box and driver — the one measured 140→153 WebGL difference.
+        ("ALIASED_LINE_WIDTH_RANGE", Param::Pair(1, 1)),
+        ("ALIASED_POINT_SIZE_RANGE", Param::Pair(1, 256)),
         ("MAX_TEXTURE_MAX_ANISOTROPY_EXT", Param::N(16)),
         ("RED_BITS", Param::N(8)),
         ("GREEN_BITS", Param::N(8)),
         ("BLUE_BITS", Param::N(8)),
         ("ALPHA_BITS", Param::N(8)),
         ("DEPTH_BITS", Param::N(24)),
-        ("STENCIL_BITS", Param::N(8)),
-        ("MAX_SAMPLES", Param::N(4)),
+        // Measured 0: the default llvmpipe framebuffer carries no stencil.
+        ("STENCIL_BITS", Param::N(0)),
     ],
     params2: &[
+        // WebGL1 exposes no `MAX_SAMPLES` at all (it is core in WebGL2 only), so
+        // it lives here — the previous table offered it to WebGL1 callers.
+        ("MAX_SAMPLES", Param::N(8)),
         ("MAX_3D_TEXTURE_SIZE", Param::N(2048)),
         ("MAX_ARRAY_TEXTURE_LAYERS", Param::N(2048)),
         ("MAX_DRAW_BUFFERS", Param::N(8)),
         ("MAX_COLOR_ATTACHMENTS", Param::N(8)),
-        ("MAX_VERTEX_UNIFORM_BLOCKS", Param::N(14)),
-        ("MAX_FRAGMENT_UNIFORM_BLOCKS", Param::N(14)),
-        ("MAX_UNIFORM_BUFFER_BINDINGS", Param::N(84)),
+        ("MAX_VERTEX_UNIFORM_BLOCKS", Param::N(15)),
+        ("MAX_FRAGMENT_UNIFORM_BLOCKS", Param::N(15)),
+        ("MAX_UNIFORM_BUFFER_BINDINGS", Param::N(120)),
         ("MAX_TEXTURE_LOD_BIAS", Param::N(16)),
     ],
     extensions1: &[
         "ANGLE_instanced_arrays",
         "EXT_blend_minmax",
         "EXT_color_buffer_half_float",
-        "EXT_disjoint_timer_query",
+        "EXT_depth_clamp",
         "EXT_float_blend",
         "EXT_frag_depth",
-        "EXT_sRGB",
         "EXT_shader_texture_lod",
+        "EXT_sRGB",
         "EXT_texture_compression_bptc",
         "EXT_texture_compression_rgtc",
         "EXT_texture_filter_anisotropic",
@@ -121,8 +139,8 @@ pub const FIREFOX_WEBGL: WebglProfile = WebglProfile {
         "OES_texture_half_float_linear",
         "OES_vertex_array_object",
         "WEBGL_color_buffer_float",
+        "WEBGL_compressed_texture_astc",
         "WEBGL_compressed_texture_etc",
-        "WEBGL_compressed_texture_etc1",
         "WEBGL_compressed_texture_s3tc",
         "WEBGL_compressed_texture_s3tc_srgb",
         "WEBGL_debug_renderer_info",
@@ -130,31 +148,24 @@ pub const FIREFOX_WEBGL: WebglProfile = WebglProfile {
         "WEBGL_depth_texture",
         "WEBGL_draw_buffers",
         "WEBGL_lose_context",
-        "WEBGL_provoking_vertex",
     ],
     extensions2: &[
         "EXT_color_buffer_float",
-        "EXT_color_buffer_half_float",
-        "EXT_disjoint_timer_query_webgl2",
+        "EXT_depth_clamp",
         "EXT_float_blend",
         "EXT_texture_compression_bptc",
         "EXT_texture_compression_rgtc",
         "EXT_texture_filter_anisotropic",
-        "EXT_texture_norm16",
         "OES_draw_buffers_indexed",
         "OES_texture_float_linear",
-        "OES_texture_half_float_linear",
         "OVR_multiview2",
-        "WEBGL_clip_cull_distance",
+        "WEBGL_compressed_texture_astc",
         "WEBGL_compressed_texture_etc",
-        "WEBGL_compressed_texture_etc1",
         "WEBGL_compressed_texture_s3tc",
         "WEBGL_compressed_texture_s3tc_srgb",
         "WEBGL_debug_renderer_info",
         "WEBGL_debug_shaders",
         "WEBGL_lose_context",
-        "WEBGL_multi_draw",
-        "WEBGL_provoking_vertex",
     ],
 };
 
@@ -178,10 +189,10 @@ fn params(table: &[(&str, Param)]) -> Value {
 pub fn facts() -> Value {
     let p = &FIREFOX_WEBGL;
     json!({
-        "maskedVendor": p.masked,
-        "maskedRenderer": p.masked,
+        "maskedVendor": p.masked_vendor,
+        "maskedRenderer": p.renderer,
         "unmaskedVendor": p.unmasked_vendor,
-        "unmaskedRenderer": p.unmasked_renderer,
+        "unmaskedRenderer": p.renderer,
         "version1": p.version.0,
         "version2": p.version.1,
         "glsl1": p.glsl.0,

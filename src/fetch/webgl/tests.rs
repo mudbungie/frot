@@ -5,20 +5,21 @@
 use super::{facts, FIREFOX_WEBGL};
 
 #[test]
-fn masked_strings_never_leak_the_real_gpu() {
-    // Firefox masks VENDOR and RENDERER to "Mozilla"; the real Mesa strings live
-    // ONLY behind the debug-renderer extension — that separation is the whole
-    // point (a masked slot naming a GPU would be the tell).
+fn the_renderer_is_one_generalized_string_in_both_slots() {
+    // Measured on both ESR lines (`bl-b128`, identity.md §3.11): Firefox masks
+    // the VENDOR to "Mozilla" but reports the SAME generalized renderer class in
+    // `RENDERER` and in the debug extension's `UNMASKED_RENDERER_WEBGL`. Pinning
+    // them from one field is what makes the two impossible to disagree (I1).
     let v = facts();
     assert_eq!(v["maskedVendor"], "Mozilla");
-    assert_eq!(v["maskedRenderer"], "Mozilla");
     assert_eq!(v["unmaskedVendor"], "Mesa");
-    assert_eq!(v["unmaskedRenderer"], "llvmpipe (LLVM 19.1.7, 256 bits)");
-    // Linux-coherent, software: the unmasked renderer is llvmpipe, never hardware.
-    assert!(v["unmaskedRenderer"]
-        .as_str()
-        .unwrap()
-        .starts_with("llvmpipe"));
+    assert_eq!(v["maskedRenderer"], v["unmaskedRenderer"]);
+    assert_eq!(v["maskedRenderer"], "llvmpipe, or similar");
+    // Linux-coherent, software: the renderer is llvmpipe, never hardware, and it
+    // carries no driver/LLVM version — Gecko generalizes that away.
+    let r = v["unmaskedRenderer"].as_str().unwrap();
+    assert!(r.starts_with("llvmpipe") && r.ends_with(", or similar"));
+    assert!(!r.contains("LLVM"));
 }
 
 #[test]
@@ -42,13 +43,18 @@ fn params_serialize_scalars_and_pairs() {
         v["params1"]["MAX_VIEWPORT_DIMS"],
         serde_json::json!([16384, 16384])
     );
+    // 153esr clamps the line-width range to 1 where 140esr reported 1..=255 —
+    // the one WebGL fact that moved between the lines, so it is pinned.
     assert_eq!(
         v["params1"]["ALIASED_LINE_WIDTH_RANGE"],
-        serde_json::json!([1, 255])
+        serde_json::json!([1, 1])
     );
-    // A WebGL2-only limit rides the separate table.
+    // A WebGL2-only limit rides the separate table, and `MAX_SAMPLES` is one of
+    // them: a real WebGL1 context exposes no such parameter at all.
     assert_eq!(v["params2"]["MAX_3D_TEXTURE_SIZE"], 2048);
     assert_eq!(v["params2"]["MAX_DRAW_BUFFERS"], 8);
+    assert_eq!(v["params2"]["MAX_SAMPLES"], 8);
+    assert!(v["params1"]["MAX_SAMPLES"].is_null());
 }
 
 #[test]
@@ -63,10 +69,12 @@ fn extension_lists_are_coherent_with_software_llvmpipe() {
     // MAX_TEXTURE_MAX_ANISOTROPY_EXT limit.
     assert!(e1.contains(&"EXT_texture_filter_anisotropic".to_string()));
     assert_eq!(v["params1"]["MAX_TEXTURE_MAX_ANISOTROPY_EXT"], 16);
-    // ASTC is a mobile-GPU signal llvmpipe does NOT support — its absence is part
-    // of the coherence (present it and we'd contradict the software persona).
-    assert!(!e1.iter().any(|x| x.contains("astc")));
-    assert!(!e2.iter().any(|x| x.contains("astc")));
+    // ASTC was assumed absent here ("a mobile-GPU signal llvmpipe does not
+    // support") until `bl-b128` measured it: this Mesa's llvmpipe advertises
+    // `WEBGL_compressed_texture_astc` on both contexts. The measurement wins
+    // over the belief — that is the whole point of re-reading it.
+    assert!(e1.contains(&"WEBGL_compressed_texture_astc".to_string()));
+    assert!(e2.contains(&"WEBGL_compressed_texture_astc".to_string()));
     // WebGL2 promotes many WebGL1 extensions to core, so they drop from its list.
     assert!(!e2.contains(&"ANGLE_instanced_arrays".to_string()));
     assert!(!e2.contains(&"OES_vertex_array_object".to_string()));
@@ -75,8 +83,8 @@ fn extension_lists_are_coherent_with_software_llvmpipe() {
 #[test]
 fn const_is_the_single_source() {
     // The struct fields the serializer reads are the const — one home for the fact.
-    assert_eq!(FIREFOX_WEBGL.masked, "Mozilla");
+    assert_eq!(FIREFOX_WEBGL.masked_vendor, "Mozilla");
     assert_eq!(FIREFOX_WEBGL.version.0, "WebGL 1.0");
-    assert_eq!(FIREFOX_WEBGL.params1.len(), 21);
-    assert_eq!(FIREFOX_WEBGL.params2.len(), 8);
+    assert_eq!(FIREFOX_WEBGL.params1.len(), 20);
+    assert_eq!(FIREFOX_WEBGL.params2.len(), 9);
 }

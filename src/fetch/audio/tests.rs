@@ -5,9 +5,11 @@
 use super::{facts, FIREFOX_AUDIO};
 
 #[test]
-fn sample_rate_is_firefox_default() {
-    // 44.1 kHz is Firefox's default AudioContext.sampleRate; the fingerprint's
-    // whole coordinate system (length, latency) is coherent only against it.
+fn sample_rate_is_the_pinned_low_entropy_rate() {
+    // 44.1 kHz is PINNED, not measured: the real rate follows the output device
+    // (measured 48000 on the capture box, both ESR lines — `bl-b128`), so it is
+    // host entropy and determinism decides it. The fingerprint's whole
+    // coordinate system (length, latency) is coherent against whatever it says.
     let v = facts();
     assert_eq!(v["sampleRate"], 44_100);
     assert_eq!(FIREFOX_AUDIO.sample_rate, 44_100);
@@ -27,11 +29,17 @@ fn latencies_are_derived_from_the_sample_rate() {
         v["outputLatency"],
         f64::from(FIREFOX_AUDIO.output_latency_frames) / rate
     );
-    // Both are small positive values (a realtime context's shape), never negative
-    // or absurd: a plausible sub-20-ms audio latency.
-    assert!(v["baseLatency"].as_f64().unwrap() > 0.0);
-    assert!(v["baseLatency"].as_f64().unwrap() < 0.02);
-    assert!(v["outputLatency"].as_f64().unwrap() > v["baseLatency"].as_f64().unwrap());
+    // `baseLatency` is 0 because a real Linux Firefox reports 0 — measured on
+    // both ESR lines with audio actually flowing, not assumed (`bl-b128`).
+    assert_eq!(v["baseLatency"].as_f64().unwrap(), 0.0);
+    // `outputLatency` is the device buffer: positive, and inside the 33.6–43.3 ms
+    // band the same probe measured, so the pinned constant stays one a real
+    // client was seen to report.
+    let out = v["outputLatency"].as_f64().unwrap();
+    assert!(
+        out > 0.033 && out < 0.044,
+        "outputLatency {out} left the band"
+    );
 }
 
 #[test]
@@ -55,6 +63,6 @@ fn destination_is_a_low_entropy_stereo_default() {
 #[test]
 fn const_is_the_single_source() {
     // The struct fields the serializer reads are the const — one home per fact.
-    assert_eq!(FIREFOX_AUDIO.base_latency_frames, 128);
-    assert_eq!(FIREFOX_AUDIO.output_latency_frames, 512);
+    assert_eq!(FIREFOX_AUDIO.base_latency_frames, 0);
+    assert_eq!(FIREFOX_AUDIO.output_latency_frames, 1536);
 }
