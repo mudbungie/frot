@@ -172,6 +172,48 @@ fn a_failed_external_src_is_skipped_and_counted() {
 }
 
 #[test]
+fn data_url_script_sources_run_in_document_order_beside_inline_ones() {
+    // bl-91bf: a `data:` src carries the script's own bytes, so it is decoded
+    // locally — base64 and percent-encoded alike — and executed in its queue
+    // position, not sent through the network validator and counted as a failed
+    // subfetch. Each script appends its digit to one attribute, so the value
+    // reads back as the execution order.
+    const B64: &str = "ZG9jdW1lbnQuYm9keS5zZXRBdHRyaWJ1dGUoJ2RhdGEtbycsIGRvY3VtZW50\
+                       LmJvZHkuZ2V0QXR0cmlidXRlKCdkYXRhLW8nKSArICcyJyk7";
+    let (doc, report) = drive(&format!(
+        "<body><script>document.body.setAttribute('data-o', '1');</script>\
+         <script src='data:application/x-javascript;base64,{B64}'></script>\
+         <script src='data:text/javascript;charset=utf-8,\
+         document.body.setAttribute(\"data-o\", document.body.getAttribute(\"data-o\") + \"3\")\
+         '></script></body>"
+    ));
+    let body = doc.find_by_tag("body")[0];
+    let crate::dom::NodeKind::Element(el) = &doc.node(body).kind else {
+        unreachable!("body is an element")
+    };
+    assert_eq!(el.attr("data-o"), Some("123"));
+    // Three scripts ran and none failed: no subfetch error, no skip.
+    assert_eq!(
+        (report.scripts, report.errors, report.settled()),
+        (3, 0, true)
+    );
+}
+
+#[test]
+fn a_malformed_data_url_script_is_counted_with_a_bounded_message() {
+    // The honest failure: an undecodable payload is one counted error whose
+    // `--js-errors` detail names the failure without copying the payload into
+    // the report (§10 — the count is unbounded, each message is not).
+    let junk = "*".repeat(4000);
+    let (_doc, report) = drive(&format!(
+        "<body><script src='data:text/javascript;base64,{junk}'></script></body>"
+    ));
+    assert_eq!((report.scripts, report.errors), (0, 1));
+    assert_eq!(report.messages.len(), 1);
+    assert!(report.messages[0].text.len() < 400, "{:?}", report.messages);
+}
+
+#[test]
 fn non_js_type_and_nomodule_scripts_are_skipped_uncounted() {
     // If either ran it would throw (bad JSON / undefined `should`); errors == 0
     // proves neither executed.

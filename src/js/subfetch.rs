@@ -15,6 +15,8 @@
 //! *recorded* ([`Subfetch::refused`]) as the fact the run driver reads to name
 //! §10 `stopped: "network"` — and
 //! *memory* — a pooled [`SUBFETCH_BYTES`] response-body budget across the call.
+//! A `data:` URL skips the network half of that: it carries its own bytes
+//! ([`data`]), so it is decoded locally and charged only to the byte pool.
 //! There is deliberately no request-count cap: a count measures no resource and
 //! starved code-split apps while time and memory stood idle. No live network
 //! after a URL first resolves; nothing persists past the call (the cache dies
@@ -30,6 +32,8 @@ use url::Url;
 use crate::fetch::{fetch_many, FetchResult, FetchSession, Intent, TIMEOUT_SECS};
 
 use super::engine::Deadline;
+
+mod data;
 
 /// §6 pooled response-byte budget per call. The frozen cache is the network-side
 /// analogue of the engine heap and takes the same allowance as
@@ -146,7 +150,8 @@ impl Subfetch {
     }
 
     /// Fetch `spec` (resolved against the page URL) once, frozen (§6). A cache
-    /// hit re-serves the frozen response without touching the network; a miss
+    /// hit re-serves the frozen response without touching the network; a
+    /// `data:` URL is decoded from its own bytes ([`Subfetch::local`]); a miss
     /// dispatches through the shared session only while the §5 network deadline stands
     /// and the byte pool has room — past either, every new URL is refused
     /// (counted by the caller). Overshoot is bounded to one in-flight response.
@@ -161,6 +166,9 @@ impl Subfetch {
         if let Some(frozen) = self.cache.get(&url) {
             return Outcome::Got(frozen.clone());
         }
+        if let Some(payload) = data::payload(&url) {
+            return self.local(&url, payload);
+        }
         if self.deadline.expired() {
             // The recorded fact behind §10 `stopped: "network"`: the run's wall
             // deadline passed with work outstanding and this seam turned it away.
@@ -168,10 +176,7 @@ impl Subfetch {
             return Outcome::Failed("subfetch refused: run budget exhausted".to_string());
         }
         if self.spent >= self.budget {
-            return Outcome::Failed(format!(
-                "subfetch byte budget exhausted ({} bytes)",
-                self.budget
-            ));
+            return Outcome::Failed(self.exhausted());
         }
         let timeout = Duration::from_secs(TIMEOUT_SECS);
         // Bracket the real network dispatch with the run's one clock so the
@@ -194,6 +199,31 @@ impl Subfetch {
         }
     }
 
+    /// Serve a `data:` URL from its own bytes (js.md §4.1). The payload is the
+    /// response, so nothing is dispatched: the §5 network deadline — a bound on
+    /// *network* time — does not apply, and a page's inline scripts run in
+    /// document order however late the wall clock is. Memory still bounds it: the
+    /// decoded body charges the pooled byte budget exactly as a fetched body
+    /// does. Deliberately not cached — the cache key would be the payload itself,
+    /// so freezing would store the bytes twice to make a pure decode repeatable.
+    fn local(&mut self, url: &str, payload: &str) -> Outcome {
+        if self.spent >= self.budget {
+            return Outcome::Failed(self.exhausted());
+        }
+        match data::decode(url, payload) {
+            Ok(frozen) => {
+                self.spent += frozen.body.len();
+                Outcome::Got(frozen)
+            }
+            Err(reason) => Outcome::Failed(reason),
+        }
+    }
+
+    /// The one message for a spent byte pool, shared by both paths.
+    fn exhausted(&self) -> String {
+        format!("subfetch byte budget exhausted ({} bytes)", self.budget)
+    }
+
     /// Warm the cache concurrently with `specs` — the initial external scripts
     /// discovered after parse (bl-08f6) — so the source-ordered queue that runs
     /// next finds each already frozen. Each spec is resolved and the not-yet-cached
@@ -209,7 +239,12 @@ impl Subfetch {
         let mut reqs = Vec::new();
         for (spec, intent) in specs {
             if let Ok(url) = self.resolve(spec) {
-                if !self.cache.contains_key(&url) && seen.insert(url.clone()) {
+                // A `data:` URL has no round trip to hide, so there is nothing to
+                // warm: it decodes when the queue reaches it.
+                if data::payload(&url).is_none()
+                    && !self.cache.contains_key(&url)
+                    && seen.insert(url.clone())
+                {
                     reqs.push((url, *intent));
                 }
             }

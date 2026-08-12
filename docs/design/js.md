@@ -514,6 +514,22 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   `-H` never leak cross-origin; the caller `-H` is the final same-origin
   override. The exact ordered wire set is pinned for all five intents on both h1
   and h2 by `fetch::request::recorder`.
+- **`data:` URLs are decoded, not fetched (landed, `bl-91bf`).** A `data:` URL
+  *is* its own response, so it never reaches the transport: `src/js/subfetch/
+  data.rs` decodes it (percent-decode, then forgiving-base64 when the media type
+  ends `;base64`, then the shared `decode_body` charset path — a `;charset=`
+  parameter means exactly what a `Content-Type` header means) and returns a
+  frozen 200 whose `Content-Type` is the declared media type. Every §6 consumer
+  gets it from the one seam: an external `<script src="data:…">` runs in its
+  queue position, and `fetch`/XHR/`import` read the same bytes. **The network
+  deadline does not apply** — there is no dispatch to bound, and a decode is not
+  a refusal, so an inline script never makes a run `stopped: "network"` and never
+  appears in resource timings. **The byte pool does** — the decoded body charges
+  `SUBFETCH_BYTES` exactly as a fetched body would, so a page cannot inline its
+  way past the bound. It is deliberately *not* cached: the cache key would be the
+  payload itself, so freezing would store the bytes twice to make a pure decode
+  repeatable, and `warm` skips data URLs because they have no round trip to hide.
+  An undecodable payload is one counted §10 error, as a failed fetch is.
 - Absent-by-design channels: `WebSocket`/`EventSource` are undefined (feature
   detection falls through); `navigator.sendBeacon` returns `false` — where the
   platform spec offers a legal denial, prefer it over an exception.
@@ -855,7 +871,12 @@ Two moves against today's `run.rs`:
   The flag **requires `--js`** — bare, it is a usage error (exit 2, no envelope),
   mirroring the `-H`/`file://` gating. Capture is unconditional but bounded to
   `MESSAGES_MAX` (**32**, a constant, not a flag — like `SUBFETCH_BYTES`): a noisier
-  page keeps climbing `errors` while the detail array stops at the first 32. Three
+  page keeps climbing `errors` while the detail array stops at the first 32. Each
+  message's *text* is bounded too, at `TEXT_MAX` (**200** characters, ellipsis
+  marking the cut, `bl-91bf`): a diagnostic names a failure, and a message whose
+  text is itself a payload — a `data:` script source, a thrown megastring — must
+  not copy the page into the report. Two bounds, one per dimension: how many, and
+  how big each. Three
   `kind`s **carry a message** (message in hand at the seam, cheap):
   - `throw` — a script/module top-level exception (`EvalError::Exception`, `js.rs`
     `tally`), the message quickjs surfaced.

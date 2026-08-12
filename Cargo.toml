@@ -68,6 +68,12 @@ rustls = "0.23"
 webpki-roots = "0.26"
 rustls-pki-types = "1"
 encoding_rs = "0.8"
+# The `data:` URL body decoder (js.md §4.1/§6): a data URL's payload is
+# percent-encoded by the URL parser, so reading it back is percent-decoding.
+# Already in the tree transitively under `url`, so a direct dependency adds no
+# binary and no new transitive — the same standing as `libc` below; the one use
+# is `src/js/subfetch/data.rs`.
+percent-encoding = "2"
 # --js engine (Phase 4). Vendored quickjs-ng C compiled by `cc` with
 # pregenerated bindings — no bindgen, no cmake, no system dep. Kept behind
 # `src/js/engine.rs`; no rquickjs type leaks past that module.

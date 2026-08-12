@@ -11,6 +11,13 @@ use std::rc::Rc;
 /// keeps counting into `js.errors`; only the detail is bounded.
 pub const MESSAGES_MAX: usize = 32;
 
+/// Characters kept from one message's text. The count bounds *how many*
+/// diagnostics a run emits; this bounds how big each may be, so a message whose
+/// text is a payload — a `data:` script source, a thrown megastring — names the
+/// failure without copying the page into the report. Together they cap the
+/// `--js-errors` detail at a few KiB whatever the page does.
+pub const TEXT_MAX: usize = 200;
+
 /// One captured JS error (its class + text), in occurrence order. `kind` labels
 /// the class — `throw` (script/module exception), `report` (reportError /
 /// `window.onerror` / a dispatched window `'error'`), or `subfetch` (a failed
@@ -33,8 +40,17 @@ pub fn push(sink: &Messages, kind: &str, text: &str) {
     if v.len() < MESSAGES_MAX {
         v.push(Message {
             kind: kind.to_string(),
-            text: text.to_string(),
+            text: clamp(text),
         });
+    }
+}
+
+/// One message's text, clamped to [`TEXT_MAX`] characters with an ellipsis
+/// marking the cut — on a character boundary, so the result is still text.
+fn clamp(text: &str) -> String {
+    match text.char_indices().nth(TEXT_MAX) {
+        Some((i, _)) => format!("{}\u{2026}", &text[..i]),
+        None => text.to_string(),
     }
 }
 
@@ -60,5 +76,16 @@ mod tests {
         // The last accepted message is the MESSAGES_MAX-th (index MAX-1); the
         // overflow past the bound is dropped, not rotated.
         assert_eq!(v[MESSAGES_MAX - 1].text, format!("e{}", MESSAGES_MAX - 1));
+    }
+
+    #[test]
+    fn a_long_message_is_clamped_on_a_character_boundary() {
+        let sink: Messages = Rc::new(RefCell::new(Vec::new()));
+        // Multi-byte characters: a byte-wise cut would split one and panic.
+        push(&sink, "subfetch", &"é".repeat(TEXT_MAX * 3));
+        let v = sink.borrow();
+        assert_eq!(v[0].text.chars().count(), TEXT_MAX + 1);
+        assert!(v[0].text.ends_with('\u{2026}'));
+        assert!(v[0].text.starts_with("éé"));
     }
 }

@@ -246,6 +246,7 @@ dependencies = [
  "libc",
  "markup5ever_rcdom",
  "mockito",
+ "percent-encoding",
  "rquickjs",
  "rustls",
  "rustls-pki-types",
