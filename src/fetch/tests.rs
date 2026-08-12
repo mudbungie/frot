@@ -106,3 +106,47 @@ fn a_redirect_to_an_unparseable_location_is_a_redirect_error() {
     let e = redirect_target(307, &h, "http://a.example/").unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_REDIRECT);
 }
+
+#[test]
+fn the_validated_url_is_the_canonical_spelling_every_hop_uses() {
+    // bl-2832: `dispatch` starts `current` — and therefore `final`, the request
+    // target, and the cookie/referrer decisions — from this serialization, so
+    // these are the rules the envelope's `url.final` reports. They are the
+    // browser's: Chrome's `location.href` for each input below is the value on
+    // the right.
+    let canon = |u: &str| validate_url(u).expect("a valid URL").to_string();
+    // A host with no path *has* the root path.
+    assert_eq!(canon("https://example.com"), "https://example.com/");
+    // A default port is not part of the URL; a non-default one is.
+    assert_eq!(canon("https://example.com:443/x"), "https://example.com/x");
+    assert_eq!(canon("http://example.com:80/x"), "http://example.com/x");
+    assert_eq!(
+        canon("https://example.com:8443/x"),
+        "https://example.com:8443/x"
+    );
+    // Scheme and host case-fold; the path does not (it is server-significant).
+    assert_eq!(
+        canon("HTTPS://EXAMPLE.COM/Path"),
+        "https://example.com/Path"
+    );
+    // An IDNA host serializes as the punycode actually sent on the wire.
+    assert_eq!(
+        canon("https://bücher.example/"),
+        "https://xn--bcher-kva.example/"
+    );
+    // Escapes are preserved, never decoded (`%2F` is not `/`); an unescaped
+    // space is escaped rather than passed through.
+    assert_eq!(
+        canon("https://example.com/a%2Fb"),
+        "https://example.com/a%2Fb"
+    );
+    assert_eq!(
+        canon("https://example.com/a b"),
+        "https://example.com/a%20b"
+    );
+    // Query and fragment ride through — `location.href` keeps both.
+    assert_eq!(
+        canon("https://example.com?q=1#frag"),
+        "https://example.com/?q=1#frag"
+    );
+}

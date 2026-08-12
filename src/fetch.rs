@@ -135,7 +135,14 @@ pub(crate) fn dispatch(
     if parsed.scheme() == "file" {
         return fetch_file(&parsed);
     }
-    let mut current = url.to_string();
+    // The *parsed* URL's serialization, not the caller's spelling: `final`,
+    // every hop's request target, the cookie/referrer decisions, and anything
+    // resolved against the page all read `current`, so it must be the one
+    // canonical form. A redirect hop already serializes a `url::Url` (see
+    // [`redirect_target`]), so without this a landing reached directly and the
+    // same landing reached through a 302 would disagree about their own URL
+    // (bl-2832). The caller's byte-for-byte spelling stays in `url.requested`.
+    let mut current = parsed.to_string();
     // The referrer source: a user navigation starts with none (site `none`, no
     // referer); a subresource references its document across every hop. A
     // navigation redirect adopts the pre-redirect hop as the new source.

@@ -216,6 +216,9 @@ mod header_tests;
 mod cookie_tests;
 
 #[cfg(test)]
+mod url_tests;
+
+#[cfg(test)]
 mod http_tests;
 
 #[cfg(test)]
