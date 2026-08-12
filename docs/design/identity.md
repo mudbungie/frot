@@ -504,6 +504,17 @@ Today these facts are scattered across four files, which is the defect:
 | `js_build_id` | `20181001000000` — Gecko's *privacy-frozen* constant, not the real BuildID |
 | `js_hardware_concurrency` | `8` — a pinned low-entropy constant, see §8 |
 
+**Where this table lives (`bl-7523`, 2026-08-12): `src/fetch/profile/pin.rs`,
+and nothing else is in that file.** It was split out of `profile.rs` — which now
+holds only the shapes and the derivations — so the claim below that "a pin change
+is an edit to §4.1 and nothing else" is literally true of the tree: it is an edit
+to one file. The same ball moved four rows that were declared here but stored
+nowhere into the const, because a fact the oracle must read cannot live only in a
+document: `ciphers` and `extensions` (the full 17-entry ordered lists, which JA4
+hashes), `record_size_limit`, and `cert_compression`. `h2_initial_stream_id`
+moved in for the same reason. `cipher_count` was **deleted** in exchange — with
+the list stored, a count beside it was the same fact twice (I1/I6).
+
 ### 4.2 Derived — computed, never stored
 
 | derived fact | from |
@@ -512,7 +523,7 @@ Today these facts are scattered across four files, which is the defect:
 | `navigator.language` / `.languages` | `locale` — **the same source as the header**, which is why they can no longer disagree |
 | `navigator.userAgent` / `.appVersion` | `user_agent` (`appVersion` = UA minus the `Mozilla/` prefix) |
 | `navigator.platform` / `.oscpu` | the UA's platform segment |
-| every JA3/JA3N/JA4/JA4_r/JA4_ro/peetprint/akamai hash | **computed from the capture**, never hand-written (§12) |
+| every JA4/JA4_r/JA4_ro and the akamai-h2 fingerprint | **computed from the capture** by `ja4.rs` / `h2_wire.rs`, never hand-written (§12). JA3/JA3N/peetprint are **not** computed — §12's 2026-08-12 correction says why |
 | h1 header casing | the profile's canonical names — Title-Cased for h1, lowercased for h2, by the *one* serializer |
 | ALPN offer | intersected with what the transport can actually speak (I2) |
 
@@ -1331,10 +1342,10 @@ Permanently out of reach, by design or by constraint:
 | **`Intl` beyond `DateTimeFormat.resolvedOptions()`** | Residual. quickjs-ng ships without `Intl`; frot provides the low-entropy locale/timezone subset a page reads (`DateTimeFormat` + `resolvedOptions`, `timeZone` pinned UTC). `NumberFormat`/`Collator`/`RelativeTimeFormat`/real locale-aware formatting are unbuilt — a filed gap, not a permanent non-goal. |
 | **`__frot_*` syscall names enumerable on `globalThis`** | Residual. `Function.prototype.toString` no longer leaks their source or the name (`bl-3926` branding), but the syscall **names** are still enumerable globals (`Object.getOwnPropertyNames(window)`). Making them non-enumerable touches every `bind!` site and is tracked as a separate concern. |
 | **Three key shares** | Blocked by rustls (§6.4). |
-| **ClientHello extension order/set** | Stock rustls emits its own order and omits Firefox's `compress_certificate`/SCT/`record_size_limit`/ECH shaping. Declared residual under Option C (§6.1); would need a rustls fork, which §6.3 forbids on security grounds. |
+| **ClientHello extension order/set** | Stock rustls emits its own order and omits Firefox's `compress_certificate`/SCT/`record_size_limit`/ECH shaping. Declared residual under Option C (§6.1); would need a rustls fork, which §6.3 forbids on security grounds. **Asserted since `bl-7523` (2026-08-12)**, in the two halves that can be asserted honestly: the *set* is pinned (28 and 27 absent, the three load-bearing extensions present, no GREASE on either side) and reaches the JA4 extension hash; the *order* is deliberately left free, because pinning rustls internals would break the `cargo update` Option C exists to keep cheap — see §12's correction of the same date, which fixes a doc claim that the order **was** pinned. |
 | **Cipher *list* breadth (9 vs 17) → JA4 cipher component** | rustls advertises only its AEAD suites, not Firefox's legacy CBC/RSA. The cipher *order* matches; the *list* (and thus the JA4 cipher hash) does not. Declared residual (§6.1). |
 | **secp521r1 + FFDHE2048/3072 groups** | Not offered by aws-lc-rs; the other four persona groups match in order (§6.1). |
-| **`m,p,a,s` pseudo-order + HEADERS PRIORITY** | Deferred to stage C (§7); the `h2` crate hardcodes `m,s,a,p` and exposes no client PRIORITY. |
+| **`m,p,a,s` pseudo-order + HEADERS PRIORITY + first stream id** | Deferred to stage C (§7); the `h2` crate hardcodes `m,s,a,p`, exposes no client PRIORITY, and opens client streams at 1 where the persona's first request rides stream 3. **Asserted since `bl-7523` (2026-08-12)** in `src/fetch/transport/h2_request.rs`, off a real HEADERS frame: order `m,s,a,p` decoded from the HPACK block, `PRIORITY` flag clear (persona weight 42 named), stream 1 (persona `h2_initial_stream_id` 3 named). Before that ball, none of the three was asserted anywhere — §12 claimed all three, and the only mention of `pseudo_order`/`priority_weight` outside the const compared the const to its own literal. |
 | **h2 SETTINGS id 1 `HEADER_TABLE_SIZE` absent; id 6 `MAX_HEADER_LIST_SIZE` present** | Blocked by `hyper-util` (`bl-f312`, 2026-07-22). frot sends `2:0; 4:131072; 5:16384; 6:16384`; Firefox 140esr sends `1:65536; 2:0; 4:131072; 5:16384`. ids 4 and 5 are enforced from the profile and the connection WINDOW_UPDATE increment now matches Firefox exactly (12517377). The two that do not: `hyper`'s conn builder has `header_table_size`, but `hyper-util`'s **pooled** `Client` builder — the one giving frot h2 connection reuse (§3.5) — exposes no passthrough and keeps its `h2_builder` private, so id 1 cannot be sent; and hyper types `max_header_list_size` as `u32`, not `Option<u32>`, so id 6 cannot be omitted. Both are asserted, with the persona's 65536 kept as the reference, in `src/fetch/transport/h2_preface.rs`. **Cost corrected 2026-07-24 (`bl-fa12`, §6.5)** — the earlier wording "closing either means dropping the pool or forking hyper" conflated two different prices, verified against `hyper-1.9.0`/`h2-0.4.15`: **id 1** closes by dropping `hyper_util::Client` for a frot-owned pool over `hyper::client::conn` (whose `http2::Builder` *does* have `header_table_size`); **id 6** closes for nobody short of forking `h2` — hyper applies `max_header_list_size` unconditionally and `h2::client::Builder` can only set `Some`. §6.5 declines the pool: it would leave three of the four akamai components still mismatched, so the hash still differs. |
 | **h1 pool check-in is eventual, so a same-origin request can re-dial** | Declared 2026-07-24 (`bl-fa12`, §6.5; measured `bl-df88`). `hyper_util`'s `Client` checks an **HTTP/1.1** connection back in from a task it spawns, not inline, so a next same-origin request arriving before that task is scheduled dials a second socket: 16 of 200 sequential pairs on a saturated 16-core box, 0 of 200 with a 5 ms gap. **h2 is unaffected** (checked in inline via `drop(pooled)`), which is what the fingerprinting origins speak. Accepted rather than fixed because a second h1 socket is *inside* the persona's own behaviour — Firefox opens up to six per host, which is what `POOL_PER_HOST = 6` copies — and because the re-dial rides TLS session resumption (rustls's default `Resumption::in_memory_sessions(256)`, one `ClientConfig` per invocation), so it is an abbreviated handshake exactly as a browser's second connection is. No `hyper-util` knob makes check-in synchronous; owning the pool would, at the cost of rebuilding ALPN-h2 connect dedup, checkout liveness, the checkout/dial race, and canceled-request retry (§6.5). Invariant tests therefore assert reuse as **eventual**, never as a scheduler outcome. |
 | **UTC timezone** | Deliberate — determinism over realism (§9). |
@@ -1378,24 +1389,52 @@ environment-dependent; *not* identity):
 below was written against a *crafted* ClientHello. Under Option C (§6.1) frot
 ships stock rustls, so the fields it cannot shape are **asserted as declared
 residuals** — the oracle pins frot's *actual* emission (rustls's 9-suite cipher
-list, rustls's extension order, ≤2 key shares, `m,s,a,p`) with a pointer to
-§6.1/§11, exactly as §1 requires ("coherent… explicitly not byte-identical"). A
-field is either an exact Firefox match *or* a residual asserted against frot's
-own stable output; neither may drift silently. This is the honest bridge between
-this section's "match exactly" and §1's "not byte-identical": the residuals are
-the difference, and they are tested, not hidden.
+list, ≤2 key shares, `m,s,a,p`) with a pointer to §6.1/§11, exactly as §1
+requires ("coherent… explicitly not byte-identical"). A field is either an exact
+Firefox match *or* a residual asserted against frot's own stable output; neither
+may drift silently. This is the honest bridge between this section's "match
+exactly" and §1's "not byte-identical": the residuals are the difference, and
+they are tested, not hidden.
+
+> **Correction (2026-08-12, `bl-7523`): the extension *order* is not pinned, and
+> should not be.** This paragraph used to list "rustls's extension order" among
+> the things the oracle pins against frot's own emission. It never did, and
+> `src/fetch/transport/recorder.rs` says why in as many words: pinning the order
+> would couple the test to rustls **internals**, so an ordinary `cargo update`
+> would fail the build — and keeping `cargo update` cheap is the entire reason
+> Option C exists (§6.1/§6.3). The doc was wrong, not the test.
+>
+> What the oracle pins about the extension list instead is order-free and still
+> identity-bearing, so nothing is given up but the coupling: the three
+> fingerprint-load-bearing extensions (`supported_groups`, ALPN, `key_share`)
+> are **present**; the two Firefox-only ones are **absent, asserted as declared
+> residuals** with the persona's own values named in the failure message; and
+> **GREASE is absent on both sides** — a real match, since 140esr sends none and
+> rustls sends none, asserted by RFC 8701's `0x?a?a` *class* rather than by
+> listing values. The extension **set** still reaches the JA4 hash below, so a
+> set change is caught there even though the order is free to move.
 
 **Not normalized — an exact Firefox match where reachable, else a pinned
 residual.** Ordered capabilities are identity:
 
 - cipher list **and wire order** (17, `0xc009` at index 10)
-- extension list **and wire order** (17, ECH last)
+- extension list **as a set** (17, ECH last in the persona). The *order* is
+  deliberately unpinned — see the 2026-08-12 correction above.
 - `supported_groups` **and order** (`4588,29,23,24,25,256,257`)
 - `key_share` **groups and order** (4588, 29, 23)
 - `signature_algorithms` **and order** (11)
 - ALPN list and order; negotiated protocol
-- `record_size_limit` = 16385; `compress_certificate` = zlib, brotli, zstd
-- absence of GREASE
+- `record_size_limit` = 16385; `compress_certificate` = zlib, brotli, zstd.
+  **Built and dated (`bl-7523`, 2026-08-12):** both are now §4.1 fields of the
+  profile const (they were declared in the table but stored nowhere), and
+  `recorder.rs` asserts extension 28 and extension 27 are **absent from frot's
+  wire** — declared residuals, since rustls has no API for either — quoting the
+  persona's 16385 and zlib/brotli/zstd in the failure message so the gap stays
+  legible. A residual's assertion is that it still differs in the declared way.
+- absence of GREASE. **Built and dated (`bl-7523`, 2026-08-12):** asserted on
+  frot's wire *and* on the persona's declared lists, by RFC 8701's `0x?a?a`
+  class (`ja4::is_grease`, one definition site), so no GREASE value is written
+  down anywhere. This one is a genuine **match**, not a residual.
 - h2 SETTINGS: **the entry set, values and order**; WINDOW_UPDATE 12517377; first
   HEADERS on **stream 3**; `PRIORITY` flag with weight 42 / depends_on 0 /
   exclusive 0; pseudo-order. **Built and dated (`bl-f312`, 2026-07-22):
@@ -1408,6 +1447,23 @@ residual.** Ordered capabilities are identity:
   residuals are asserted **as residuals** — id 1's absence, id 6's presence at
   hyper's default. A fifth entry, a missing one, or a changed value fails the
   build; no h2 SETTINGS fact is outside the declared set.
+
+  **The request half was built later (`bl-7523`, 2026-08-12):
+  `src/fetch/transport/h2_request.rs`.** The preface oracle stopped at SETTINGS
+  and WINDOW_UPDATE and never captured a HEADERS frame, so the stream id, the
+  `PRIORITY` flag and the pseudo-order in the line above were asserted **nowhere
+  in the tree** — the only mention of `pseudo_order`/`priority_weight` outside
+  the const was a struct-equality check of the const against its own literal,
+  which is a drift guard on the *declaration*, not an observation of the wire.
+  It now captures the first HEADERS off an origin that replies with its own
+  SETTINGS (which the client waits for before opening a stream), and asserts all
+  three **as declared residuals**, each with a pointer to §7 stage C: the frame
+  rides **stream 1**, not the persona's 3 (`h2` opens client streams at 1, and
+  `h2_initial_stream_id` is now a profile field so the persona value has a
+  home); the `PRIORITY` flag is **clear**, with the persona's weight 42 named in
+  the message; and the pseudo-order decoded out of the real HPACK block is
+  `m,s,a,p`, not `m,p,a,s`. Frames are selected by kind, not index, because a
+  replying origin puts the client's SETTINGS ACK in the stream.
 - request header **names, order, and values**, per destination
 - h1 header **casing**, asserted on **both** schemes (I3 — this is the regression
   test for §3.4)
@@ -1424,10 +1480,32 @@ residual.** Ordered capabilities are identity:
   the allowlist's *contents* as a multiset and pins sequence only for a
   repeated name.
 
-**Hashes are assertions, not fixtures.** JA3/JA3N/JA4/JA4_r/JA4_ro/peetprint/
-akamai values are **computed from the capture and compared to the profile's
-derived values** — never stored as hand-written strings (I6). This is what makes
-a pin change a one-table edit (§4.2).
+**Hashes are assertions, not fixtures.** Fingerprint values are **computed from
+the capture and compared to the value the same function computes from the
+profile** — never stored as hand-written strings (I6). This is what makes a pin
+change a one-table edit (§4.2): there is no fingerprint string anywhere in the
+tree to regenerate.
+
+> **Built and corrected (2026-08-12, `bl-7523`).** This paragraph named seven
+> hash families and *nothing computed any of them* — `grep -ri "ja3\|ja4\|
+> peetprint\|akamai" src/` returned doc comments only. It was the load-bearing
+> claim under §4.2, so it is now built, but built for the families that can be
+> honestly computed, and the list is corrected to say which:
+>
+> | family | status |
+> |---|---|
+> | **JA4, JA4_r, JA4_ro** | **Computed** — `src/fetch/transport/ja4.rs` is the FoxIO function; `recorder.rs` runs it over the real ClientHello *and* over §4.1's lists. SHA-256 comes from the TLS 1.3 suite rustls already links, so no dependency was added. |
+> | **akamai-h2** | **Computed** — `h2_wire::akamai` builds `SETTINGS\|WINDOW_UPDATE\|PRIORITY\|PSEUDO` from the capture and from `FIREFOX_140_ESR.h2`; `h2_request.rs` compares them. |
+> | **JA3, JA3N** | **Not computed, and the claim is withdrawn.** They are MD5, which nothing in the tree provides, so they would cost a new dependency (an AGENTS.md escalation) — for a deprecated fingerprint whose *only* variable input under Option C is the cipher list, which is already a declared residual and already reaches JA4's cipher component. Zero information for a dependency. |
+> | **peetprint** | **Not computed, and the claim is withdrawn.** It is one service's format, defined only by `tls.peet.ws` and unversioned; pinning it in-repo pins a third party's undocumented output. §12 already puts peet in the opt-in live-check bucket below, which is where it belongs. |
+>
+> **What the JA4 comparison asserts, precisely.** §6.1 states plainly that "JA4
+> does not match the pin", so a test demanding equality would be a test demanding
+> a known failure. The oracle instead asserts the *shape* of the difference:
+> equal on what Option C reproduces (TCP, TLS 1.3, SNI present, `h2` first in
+> ALPN), different on both hashed halves and on both counts — the cipher-list and
+> extension-set residuals. Both sides are computed, so a re-pin moves both and a
+> silent drift in either moves only one.
 
 **Connection-level facts pinned here too (`bl-fa12`, 2026-07-24).** They are not
 handshake bytes, so they live in `src/fetch/session/tests.rs` rather than the
@@ -1448,7 +1526,16 @@ answering `Connection: close`, which hyper may not pool.
 **Declared residuals are asserted too.** Stage B's `m,s,a,p` is written into the
 oracle *as the expected value with a pointer to §7 stage C*, so it cannot drift
 silently and cannot be mistaken for a match. A residual that isn't in the oracle
-is a residual that will be forgotten.
+is a residual that will be forgotten. **True since `bl-7523` (2026-08-12), not
+before** — `m,s,a,p` appeared in no test at all until `h2_request.rs` decoded it
+off the wire.
+
+**A literal in the oracle is not a second copy of a persona fact.** I1 forbids a
+persona value having two definition sites; it does not forbid the oracle writing
+down *what frot's own dependencies emit*. `recorder.rs`'s nine-suite cipher list
+and `h2_request.rs`'s `m,s,a,p` are observations of rustls and `h2`, and pinning
+them is the whole point — a `cargo update` that changes either must fail the
+build. Every value that comes from the **persona** is read from the const.
 
 **Live checks are opt-in.** A network-gated test against `tls.peet.ws` /
 `tls.browserleaks.com` (the two services that cross-validated the 140esr capture)

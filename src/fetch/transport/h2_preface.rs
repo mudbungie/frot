@@ -6,132 +6,26 @@
 //! SETTINGS *set, order and values* — the akamai-h2 fingerprint's first two
 //! fields. Every entry is either a profile fact frot enforces or a declared
 //! residual named in the assertion, so neither can drift silently.
+//!
+//! The origin here stays **silent** (it sends no SETTINGS of its own), which is
+//! what keeps the frame indices below stable: the client's first two frames are
+//! its own. The request-side half of the fingerprint needs a replying origin and
+//! lives in `h2_request.rs`.
 
-use std::io::Read;
-use std::net::TcpListener;
-use std::sync::mpsc;
-use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 
-use rustls::{RootCertStore, ServerConfig, ServerConnection, StreamOwned};
-use rustls_pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
-
+use super::h2_wire::{frames, settings, spawn_origin, PREFACE};
 use super::Transport;
 use crate::fetch::profile::FIREFOX_140_ESR;
 use crate::fetch::MAX_BODY_BYTES;
 
-/// The client connection preface (RFC 9113 §3.4), sent before the first frame.
-const PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
-
-fn test_roots() -> RootCertStore {
-    let mut roots = RootCertStore::empty();
-    roots
-        .add(CertificateDer::from(
-            include_bytes!("../firefox_tls/testdata/ca.der").to_vec(),
-        ))
-        .unwrap();
-    roots
-}
-
-fn server_config() -> Arc<ServerConfig> {
-    let leaf = CertificateDer::from(include_bytes!("../firefox_tls/testdata/leaf.der").to_vec());
-    let key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(
-        include_bytes!("../firefox_tls/testdata/leaf.key.der").to_vec(),
-    ));
-    let mut cfg = ServerConfig::builder_with_provider(Arc::new(
-        rustls::crypto::aws_lc_rs::default_provider(),
-    ))
-    .with_safe_default_protocol_versions()
-    .unwrap()
-    .with_no_client_auth()
-    .with_single_cert(vec![leaf], key)
-    .unwrap();
-    cfg.alpn_protocols = vec![b"h2".to_vec()];
-    Arc::new(cfg)
-}
-
-/// One decoded h2 frame header plus its payload.
-struct Frame {
-    kind: u8,
-    stream: u32,
-    payload: Vec<u8>,
-}
-
-/// Split `buf` (the preface followed by whole frames) into frames, stopping at
-/// the first truncated one.
-fn frames(buf: &[u8]) -> Vec<Frame> {
-    let mut out = Vec::new();
-    let mut p = PREFACE.len();
-    while p + 9 <= buf.len() {
-        let len = u32::from_be_bytes([0, buf[p], buf[p + 1], buf[p + 2]]) as usize;
-        if p + 9 + len > buf.len() {
-            break;
-        }
-        out.push(Frame {
-            kind: buf[p + 3],
-            stream: u32::from_be_bytes([buf[p + 5], buf[p + 6], buf[p + 7], buf[p + 8]]),
-            payload: buf[p + 9..p + 9 + len].to_vec(),
-        });
-        p += 9 + len;
-    }
-    out
-}
-
-/// The `(identifier, value)` pairs of a SETTINGS payload, in wire order.
-fn settings(payload: &[u8]) -> Vec<(u16, u32)> {
-    payload
-        .chunks(6)
-        .map(|c| {
-            (
-                u16::from_be_bytes([c[0], c[1]]),
-                u32::from_be_bytes([c[2], c[3], c[4], c[5]]),
-            )
-        })
-        .collect()
-}
-
-/// A TLS origin that negotiates h2, reads the client preface and the frames that
-/// follow it, then drops the connection. Returns its port and the captured bytes.
-fn spawn_preface_recorder() -> (u16, mpsc::Receiver<Vec<u8>>) {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
-    let (tx, rx) = mpsc::channel();
-    thread::spawn(move || {
-        let (sock, _) = listener.accept().unwrap();
-        let conn = ServerConnection::new(server_config()).unwrap();
-        let mut tls = StreamOwned::new(conn, sock);
-        // The preface, SETTINGS and WINDOW_UPDATE are written back-to-back after
-        // the handshake; read until both frames are in hand (a short read only
-        // means more is coming, so keep reading until the parse is satisfied).
-        let mut buf = Vec::new();
-        let mut chunk = [0u8; 4096];
-        while frames(&buf).len() < 2 {
-            let n = tls.read(&mut chunk).unwrap();
-            buf.extend_from_slice(&chunk[..n]);
-        }
-        let _ = tx.send(buf);
-    });
-    (port, rx)
-}
-
-#[test]
-fn a_frame_split_across_reads_is_not_parsed_until_it_is_whole() {
-    // The recorder reads until the parse yields two frames; that only terminates
-    // because a partially-arrived frame is withheld rather than parsed short.
-    let mut buf = PREFACE.to_vec();
-    buf.extend_from_slice(&[0, 0, 6, 0x4, 0, 0, 0, 0, 0]); // SETTINGS, 6-byte body
-    assert!(frames(&buf).is_empty());
-    buf.extend_from_slice(&[0, 2, 0, 0, 0, 0]);
-    assert_eq!(settings(&frames(&buf)[0].payload), vec![(2, 0)]);
-}
-
 #[test]
 fn the_h2_preface_carries_the_pinned_settings_and_window_update() {
-    let (port, rx) = spawn_preface_recorder();
+    // Read until both of the client's own frames are in hand.
+    let (port, rx) = spawn_origin(b"", |f| f.len() >= 2);
     // The origin never answers the request, so the fetch fails; the preface it
     // sent first is the whole point, so the error is discarded.
-    let _ = Transport::new(test_roots()).request_once(
+    let _ = Transport::new(super::h2_wire::test_roots()).request_once(
         &format!("https://localhost:{port}/"),
         &[],
         MAX_BODY_BYTES,

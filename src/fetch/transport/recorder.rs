@@ -1,14 +1,25 @@
-//! ClientHello recorder — the §12 oracle for the TLS fingerprint layer, scoped
-//! to what `bl-abca` ships under Option C.
+//! ClientHello recorder — the §12 oracle for the TLS fingerprint layer under
+//! Option C.
 //!
 //! A raw TCP server captures the exact ClientHello frot puts on the wire (before
 //! any handshake completes) and parses its ordered fields. The assertions pin the
 //! facts frot *controls* from the profile — the cipher suite **wire order** and
 //! the key-exchange **group order** (X25519MLKEM768 first) — so a regression in
-//! either fails the build. It deliberately does **not** pin rustls's extension
-//! ordering: that is a declared residual (§6.1/§11), and pinning it would couple
-//! the test to rustls internals and break on the `cargo update` that Option C
-//! exists to keep cheap. The full four-layer golden is `bl-d66b`'s (§12).
+//! either fails the build.
+//!
+//! It deliberately does **not** pin rustls's extension ordering: that is a
+//! declared residual (§6.1/§11), and pinning it would couple the test to rustls
+//! internals and break on the `cargo update` that Option C exists to keep cheap.
+//! What it *does* pin about the extension list is order-free and identity-
+//! bearing: the three fingerprint-load-bearing extensions are present, the two
+//! Firefox-only ones (§4.1 `record_size_limit`, `compress_certificate`) are
+//! asserted **absent as declared residuals**, and the absence of GREASE — a real
+//! match with the persona, not a residual — is asserted on both sides.
+//! (`bl-7523` corrected §6.1/§12, which claimed the order was pinned.)
+//!
+//! The JA4 fingerprint is computed here from both the capture and the profile
+//! (`ja4.rs`), never stored, which is what §12's "hashes are assertions, not
+//! fixtures" and §4.2's "nothing to regenerate" actually require.
 
 use std::io::Read;
 use std::net::TcpListener;
@@ -16,20 +27,33 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+use super::ja4::{is_grease, Ja4Hello};
 use super::Transport;
 use crate::fetch::firefox_tls::webpki_roots;
+use crate::fetch::profile::FIREFOX_140_ESR;
 use crate::fetch::MAX_BODY_BYTES;
 
-/// Parsed ordered fields of a ClientHello: cipher suites, extension types (in
-/// wire order), and the `supported_groups` list.
+/// Parsed ordered fields of a ClientHello — everything JA4 reads plus the
+/// `supported_groups` list.
 struct ClientHello {
     ciphers: Vec<u16>,
     extensions: Vec<u16>,
     groups: Vec<u16>,
+    sig_algs: Vec<u16>,
+    versions: Vec<u16>,
+    alpn: String,
 }
 
 fn be16(b: &[u8], i: usize) -> u16 {
     u16::from_be_bytes([b[i], b[i + 1]])
+}
+
+/// The `u16` list of `len` bytes starting at `at`.
+fn u16s(b: &[u8], at: usize, len: usize) -> Vec<u16> {
+    b[at..at + len]
+        .chunks(2)
+        .map(|c| u16::from_be_bytes([c[0], c[1]]))
+        .collect()
 }
 
 /// Parse a ClientHello record. Input is always a well-formed handshake from
@@ -40,33 +64,41 @@ fn parse(buf: &[u8]) -> ClientHello {
     p += 1 + buf[p] as usize; // session_id
     let cs_len = be16(buf, p) as usize;
     p += 2;
-    let ciphers = buf[p..p + cs_len]
-        .chunks(2)
-        .map(|c| u16::from_be_bytes([c[0], c[1]]))
-        .collect();
+    let ciphers = u16s(buf, p, cs_len);
     p += cs_len;
     p += 1 + buf[p] as usize; // compression methods
     p += 2; // extensions length
-    let mut extensions = Vec::new();
-    let mut groups = Vec::new();
+    let mut hello = ClientHello {
+        ciphers,
+        extensions: Vec::new(),
+        groups: Vec::new(),
+        sig_algs: Vec::new(),
+        versions: Vec::new(),
+        alpn: String::new(),
+    };
     while p + 4 <= buf.len() {
         let ty = be16(buf, p);
         let len = be16(buf, p + 2) as usize;
-        extensions.push(ty);
+        hello.extensions.push(ty);
+        // Each body carries its own list-length prefix: two bytes for the u16
+        // lists, one for `supported_versions`, and ALPN's outer two then a
+        // one-byte length per protocol (only the first is JA4-relevant).
         if ty == 0x000a {
-            let list_len = be16(buf, p + 4) as usize;
-            groups = buf[p + 6..p + 6 + list_len]
-                .chunks(2)
-                .map(|c| u16::from_be_bytes([c[0], c[1]]))
-                .collect();
+            hello.groups = u16s(buf, p + 6, be16(buf, p + 4) as usize);
+        }
+        if ty == 0x000d {
+            hello.sig_algs = u16s(buf, p + 6, be16(buf, p + 4) as usize);
+        }
+        if ty == 0x002b {
+            hello.versions = u16s(buf, p + 5, buf[p + 4] as usize);
+        }
+        if ty == 0x0010 {
+            let first = buf[p + 6] as usize;
+            hello.alpn = String::from_utf8(buf[p + 7..p + 7 + first].to_vec()).unwrap();
         }
         p += 4 + len;
     }
-    ClientHello {
-        ciphers,
-        extensions,
-        groups,
-    }
+    hello
 }
 
 /// A raw TCP server that records the first ClientHello record and returns its
@@ -88,8 +120,8 @@ fn spawn_recorder() -> (u16, mpsc::Receiver<Vec<u8>>) {
     (port, rx)
 }
 
-#[test]
-fn the_client_hello_carries_the_pinned_cipher_and_group_order() {
+/// One real ClientHello, taken off the wire through the production path.
+fn capture() -> ClientHello {
     let (port, rx) = spawn_recorder();
     // The handshake will not complete (the recorder is not a TLS server); we only
     // need the ClientHello frot sends, so the request error is discarded.
@@ -99,8 +131,25 @@ fn the_client_hello_carries_the_pinned_cipher_and_group_order() {
         MAX_BODY_BYTES,
         Duration::from_secs(5),
     );
-    let hello = parse(&rx.recv().unwrap());
+    parse(&rx.recv().unwrap())
+}
 
+/// The persona's §4.1 lists as a JA4 input — a *declaration*, not an observation.
+fn persona_hello() -> Ja4Hello<'static> {
+    let tls = FIREFOX_140_ESR.tls;
+    Ja4Hello {
+        version: 0x0304,
+        sni: true,
+        ciphers: tls.ciphers,
+        extensions: tls.extensions,
+        sig_algs: tls.sig_algs,
+        alpn: FIREFOX_140_ESR.alpn[0],
+    }
+}
+
+#[test]
+fn the_client_hello_carries_the_pinned_cipher_and_group_order() {
+    let hello = capture();
     // Cipher suites, in the persona wire order (TLS 1.3 trio first) — the JA4
     // cipher *order* frot controls. The list is stock rustls's nine AEAD suites
     // plus the renegotiation-info SCSV (0x00ff) it always appends, not Firefox's
@@ -120,4 +169,76 @@ fn the_client_hello_carries_the_pinned_cipher_and_group_order() {
             "missing extension {ext:#06x}"
         );
     }
+}
+
+#[test]
+fn the_firefox_only_extensions_are_absent_and_neither_side_greases() {
+    let hello = capture();
+    let tls = FIREFOX_140_ESR.tls;
+    // Residuals, asserted *as* residuals (§11, §6.1): rustls has no API for
+    // either extension, so frot omits both although the persona declares them.
+    // The persona values are named in the message so the gap stays legible.
+    assert!(
+        !hello.extensions.contains(&28),
+        "record_size_limit absent; persona value {} is a declared residual",
+        tls.record_size_limit
+    );
+    assert!(
+        !hello.extensions.contains(&27),
+        "compress_certificate absent; persona algorithms {:?} are a declared residual",
+        tls.cert_compression
+    );
+    // Absence of GREASE is a real MATCH, not a residual: Firefox 140esr sends
+    // none and rustls sends none. Asserted on both the wire and the declaration
+    // by the *class* — `ja4::is_grease`, the one definition of RFC 8701's
+    // `0x?a?a` — so no GREASE literal is written down here at all.
+    let greased = |v: &u16| is_grease(*v);
+    assert!(!hello.extensions.iter().any(greased), "GREASE on the wire");
+    assert!(
+        !hello.ciphers.iter().any(greased),
+        "GREASE cipher on the wire"
+    );
+    assert!(
+        !tls.extensions.iter().any(greased) && !tls.ciphers.iter().any(greased),
+        "the persona declares no GREASE either"
+    );
+}
+
+#[test]
+fn ja4_is_computed_from_both_sides_and_differs_exactly_where_option_c_says() {
+    let captured = capture();
+    let wire = Ja4Hello {
+        version: *captured.versions.iter().max().unwrap(),
+        sni: captured.extensions.contains(&0x0000),
+        ciphers: &captured.ciphers,
+        extensions: &captured.extensions,
+        sig_algs: &captured.sig_algs,
+        alpn: &captured.alpn,
+    };
+    let persona = persona_hello();
+    // Neither string is stored: both are computed by the same function from a
+    // single source (the wire, and §4.1). §6.1 states plainly that "JA4 does not
+    // match the pin" — so the oracle asserts the mismatch rather than hiding it.
+    assert_ne!(wire.ja4(), persona.ja4(), "§6.1 declares JA4 as a residual");
+    // What Option C *does* reproduce is the JA4_a prefix's non-count half:
+    // TCP + TLS 1.3 + SNI present, and `h2` as the first ALPN.
+    let (w, p) = (wire.raw(true), persona.raw(true));
+    assert_eq!(&w[..4], &p[..4], "protocol, version and SNI presence match");
+    assert_eq!(&w[8..10], &p[8..10], "first ALPN is h2 on both sides");
+    // The residual halves: the cipher list (9 AEAD + SCSV vs 17) and the
+    // extension set both differ, so the two hashed components differ too.
+    assert_ne!(
+        &w[4..8],
+        &p[4..8],
+        "cipher/extension counts are the residual"
+    );
+    let (wf, pf) = (w.split('_'), p.split('_'));
+    assert!(
+        wf.zip(pf).skip(1).all(|(a, b)| a != b),
+        "both JA4_r halves are residuals: {w} vs {p}"
+    );
+    // JA4_ro is the same fingerprint unsorted; it must stay a distinct reading of
+    // the same capture, which is the only thing that makes the sorted form a
+    // fingerprint rather than a transcript.
+    assert_ne!(wire.raw(false), w);
 }

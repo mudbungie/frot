@@ -262,6 +262,12 @@ fn classify(io: Option<std::io::ErrorKind>, is_connect: bool, msg: &str) -> &'st
 #[cfg(test)]
 mod h2_preface;
 #[cfg(test)]
+mod h2_request;
+#[cfg(test)]
+mod h2_wire;
+#[cfg(test)]
+mod ja4;
+#[cfg(test)]
 mod multiplex_tests;
 #[cfg(test)]
 mod recorder;

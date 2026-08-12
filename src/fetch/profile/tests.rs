@@ -64,7 +64,16 @@ fn transport_targets_are_the_pinned_persona_facts() {
     assert_eq!(FIREFOX_140_ESR.tls.groups[0], 4588);
     assert_eq!(FIREFOX_140_ESR.tls.key_share_groups, &[4588, 29, 23]);
     assert_eq!(FIREFOX_140_ESR.tls.sig_algs.len(), 11);
-    assert_eq!(FIREFOX_140_ESR.tls.cipher_count, 17);
+    // The §4.1 ordered lists, whose *contents* the `recorder.rs`/`ja4.rs` oracle
+    // reads. §12 pins `0xc009` at index 10 of the cipher list and ECH last in
+    // the extension list; both are checked here rather than restated as a second
+    // copy of the whole table.
+    assert_eq!(FIREFOX_140_ESR.tls.ciphers.len(), 17);
+    assert_eq!(FIREFOX_140_ESR.tls.ciphers[10], 0xc009);
+    assert_eq!(FIREFOX_140_ESR.tls.extensions.len(), 17);
+    assert_eq!(FIREFOX_140_ESR.tls.extensions[16], 65037);
+    assert_eq!(FIREFOX_140_ESR.tls.record_size_limit, 16_385);
+    assert_eq!(FIREFOX_140_ESR.tls.cert_compression, &[1, 2, 3]);
     assert_eq!(
         FIREFOX_140_ESR.h2,
         H2Profile {
@@ -73,6 +82,7 @@ fn transport_targets_are_the_pinned_persona_facts() {
             initial_window_size: 131_072,
             max_frame_size: 16_384,
             connection_window_increment: 12_517_377,
+            initial_stream_id: 3,
             pseudo_order: "m,p,a,s",
             priority_weight: 42,
         }

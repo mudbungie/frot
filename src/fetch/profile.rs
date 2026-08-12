@@ -1,6 +1,10 @@
 //! The one browser persona — single source of truth (`docs/design/identity.md`
 //! §4). Every fact has one definition site here; tasks *derive*, storing nothing twice.
 //!
+//! This file holds the **shapes and the derivations**; the pinned values are the
+//! §4.1 table and live alone in `pin.rs` (`bl-7523`), so §4.2's "a pin change is
+//! an edit to §4.1 and nothing else" is one file's edit rather than a claim.
+//!
 //! This ball (`bl-abca`) landed the **transport subset** (version, EOL tripwire
 //! I8, ALPN order, TLS targets, h2 facts). The struct extends *additively* —
 //! `bl-20ec` request headers, `bl-3972` the JS `navigator` facts, `bl-e707` clock
@@ -39,6 +43,9 @@ pub struct H2Profile {
     /// Connection WINDOW_UPDATE increment sent right after the preface. Enforced
     /// (`transport.rs` turns it into hyper's *target* window size).
     pub connection_window_increment: u32,
+    /// Stream id the persona's first request HEADERS rides — **declared
+    /// residual**: the `h2` crate opens client streams at 1 (`h2_request.rs`).
+    pub initial_stream_id: u32,
     /// Persona pseudo-header order (oracle reference; stock `h2` sends `m,s,a,p`).
     pub pseudo_order: &'static str,
     /// Persona HEADERS PRIORITY weight (oracle reference; not emitted by `h2`).
@@ -61,10 +68,23 @@ pub struct TlsProfile {
     /// `signature_algorithms` target order (11 entries, identity.md §3.1). The
     /// two legacy SHA-1 schemes are a residual where the provider omits them.
     pub sig_algs: &'static [u16],
-    /// The persona's advertised cipher count (17, incl. legacy CBC/RSA). Stock
-    /// rustls advertises only its AEAD suites, so the cipher list — and thus the
-    /// JA4 cipher component — is a declared residual (Mark, 2026-07-21).
-    pub cipher_count: u8,
+    /// The persona's advertised cipher suites in wire order (17, incl. legacy
+    /// CBC/RSA). Stock rustls advertises only its AEAD suites, so the cipher list
+    /// — and thus the JA4 cipher component — is a declared residual (Mark,
+    /// 2026-07-21). Stored whole, not as a count, because `ja4.rs` hashes the
+    /// list: a count beside it would be the same fact twice (I1/I6).
+    pub ciphers: &'static [u16],
+    /// The persona's ClientHello extension types in wire order (17, ECH last).
+    /// **Declared residual in full** (§6.1): stock rustls emits its own set and
+    /// order, so this is the oracle's reference for what frot does *not* send,
+    /// and the JA4 extension-hash input.
+    pub extensions: &'static [u16],
+    /// `record_size_limit` (extension 28) value — **declared residual**: rustls
+    /// sends no such extension (`recorder.rs` asserts its absence).
+    pub record_size_limit: u16,
+    /// `compress_certificate` (extension 27) algorithms — zlib(1), brotli(2),
+    /// zstd(3) — **declared residual**: rustls sends no such extension.
+    pub cert_compression: &'static [u16],
 }
 
 /// One browser persona. A pure `const`; construct nothing at runtime.
@@ -246,55 +266,10 @@ impl BrowserProfile {
     }
 }
 
-/// The pinned persona: Mozilla Firefox 140.12.0esr, linux-x86_64 en-US
-/// (identity.md §2). Captured 2026-07-19 via Marionette from Gecko's own
-/// necko/NSS stack.
-pub const FIREFOX_140_ESR: BrowserProfile = BrowserProfile {
-    name: "Firefox",
-    version: "140.12.0esr",
-    major: 140,
-    product_sub: "20100101",
-    platform: "Linux x86_64",
-    language: "en-US",
-    build_id: "20181001000000",
-    hardware_concurrency: 8,
-    color_depth: 24,
-    canvas_seed: 0x_f00d_c0de, // opaque fixed seed; mixed with draws, never raw.
-    timer_precision_us: 1_000, // 1 ms — Firefox's reduceTimerPrecision default
-    // ESR 140 is the sole current ESR line (`FIREFOX_ESR_NEXT` empty, §2); when
-    // its successor lands this trips and forces a re-capture + re-pin.
-    eol: CivilDate {
-        year: 2027,
-        month: 6,
-        day: 1,
-    },
-    alpn: &["h2", "http/1.1"],
-    tls: TlsProfile {
-        // 4588=X25519MLKEM768, 29=x25519, 23=secp256r1, 24=secp384r1,
-        // 25=secp521r1, 256=ffdhe2048, 257=ffdhe3072.
-        groups: &[4588, 29, 23, 24, 25, 256, 257],
-        key_share_groups: &[4588, 29, 23],
-        // ecdsa_secp256r1_sha256, ecdsa_secp384r1_sha384, ecdsa_secp521r1_sha512,
-        // rsa_pss_rsae_sha256/384/512, rsa_pkcs1_sha256/384/512,
-        // ecdsa_sha1, rsa_pkcs1_sha1.
-        sig_algs: &[
-            0x0403, 0x0503, 0x0603, 0x0804, 0x0805, 0x0806, 0x0401, 0x0501, 0x0601, 0x0203, 0x0201,
-        ],
-        cipher_count: 17,
-    },
-    h2: H2Profile {
-        header_table_size: 65_536,
-        enable_push: false,
-        initial_window_size: 131_072,
-        max_frame_size: 16_384,
-        connection_window_increment: 12_517_377,
-        pseudo_order: "m,p,a,s",
-        priority_weight: 42,
-    },
-    accept_document: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    accept_style: "text/css,*/*;q=0.1",
-    accept_default: "*/*",
-};
+/// The one pinned persona (§4.1) — its own file, so a re-pin is one file's edit.
+mod pin;
+
+pub use pin::FIREFOX_140_ESR;
 
 #[cfg(test)]
 mod tests;
