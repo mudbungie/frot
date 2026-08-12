@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+  <head><title>DOM move</title></head>
+  <body>
+    <div id="p"><i id="a"></i><i id="b"></i><i id="c"></i></div>
+    <div id="q"><i id="d"></i></div>
+    <p id="out"></p>
+    <p id="mo"></p>
+    <script>
+      // Minimized from https://docs.astro.build/en/getting-started/ (bl-ae88).
+      // Its Preact-built search UI re-inserts nodes that are ALREADY where they
+      // belong — `parent.appendChild(node)` on the parent's own last child — a
+      // legal browser no-op that used to abort frot on a Vec insertion
+      // precondition. Every step below is a move whose destination overlaps the
+      // node's current home, plus the two references the DOM spec singles out.
+      // Cross-checked against Chrome: `out` is byte-identical there except for
+      // the last step (see below), and `mo` is identical throughout.
+      (function () {
+        var p = document.getElementById('p');
+        var q = document.getElementById('q');
+        var b = document.getElementById('b');
+        var log = [];
+        var seen = [];
+        function order(el) {
+          var out = '';
+          for (var i = 0; i < el.childNodes.length; i++) out += el.childNodes[i].id;
+          return out;
+        }
+        function step(label, fn) {
+          var tag = '';
+          try {
+            fn();
+          } catch (e) {
+            tag = '!' + e.name;
+          }
+          log.push(label + '=' + order(p) + '/' + order(q) + tag);
+        }
+        // The records are asserted alongside the orders: this mutation seam is
+        // also MutationObserver's only source of truth, and a move is a removal
+        // followed by an addition even when the node lands back where it was.
+        var mo = new MutationObserver(function (records) {
+          for (var i = 0; i < records.length; i++) {
+            var r = records[i];
+            seen.push(
+              r.target.id +
+                (r.addedNodes.length ? '+' + r.addedNodes[0].id : '') +
+                (r.removedNodes.length ? '-' + r.removedNodes[0].id : '')
+            );
+          }
+          document.getElementById('mo').textContent = seen.join(' ');
+        });
+        mo.observe(p, { childList: true });
+        mo.observe(q, { childList: true });
+
+        step('append-last', function () { p.appendChild(p.lastChild); });
+        step('move-back', function () { p.appendChild(p.firstChild); });
+        step('move-fwd', function () { p.insertBefore(p.lastChild, p.firstChild); });
+        step('self-mid', function () { p.insertBefore(b, b); });
+        step('self-last', function () { p.insertBefore(p.lastChild, p.lastChild); });
+        step('cross', function () { q.appendChild(b); });
+        // A reference node that is no longer a child of the target. A browser
+        // throws NotFoundError (so Chrome logs `stale-ref=ac/d!NotFoundError`);
+        // frot appends instead — an impression survives a misplaced node, where
+        // a thrown exception kills the script that was building one.
+        var stale = q.lastChild;
+        q.removeChild(stale);
+        step('stale-ref', function () { p.insertBefore(p.firstChild, stale); });
+        document.getElementById('out').textContent = log.join(' ');
+      })();
+    </script>
+  </body>
+</html>

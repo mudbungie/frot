@@ -122,17 +122,64 @@ fn attr_and_text_ops_are_total_no_ops_on_the_wrong_kind() {
 }
 
 #[test]
-fn insert_child_links_a_fresh_node_at_index() {
+fn insert_child_links_a_fresh_node_before_its_reference_sibling() {
     let mut doc = Document::default();
     let parent = doc.create_element("ul");
     let a = doc.create_element("li");
     let b = doc.create_element("li");
     let c = doc.create_element("li");
-    doc.insert_child(parent, a, 0);
-    doc.insert_child(parent, b, 1); // append at end
-    doc.insert_child(parent, c, 1); // splice into the middle
+    doc.insert_child(parent, a, None);
+    doc.insert_child(parent, b, None); // append at end
+    doc.insert_child(parent, c, Some(b)); // splice into the middle
     assert_eq!(doc.node(parent).children, vec![a, c, b]);
     assert_eq!(doc.node(a).parent, Some(parent));
+}
+
+/// The move class the reference sibling dissolves (bl-ae88): every destination
+/// below overlaps the node's current home, so an *index* computed before the
+/// move would address a slot the unlink has already shifted or removed — the
+/// panic the live Astro Docs page hit on `appendChild` of an existing last
+/// child. Orders are Chrome's (`tests/fixtures/js/dom-move.html`).
+#[test]
+fn insert_child_moves_within_one_parent_by_reference_sibling() {
+    let mut doc = Document::default();
+    let p = doc.create_element("div");
+    let (a, b, c) = (
+        doc.create_element("i"),
+        doc.create_element("i"),
+        doc.create_element("i"),
+    );
+    for k in [a, b, c] {
+        doc.insert_child(p, k, None);
+    }
+    doc.insert_child(p, c, None); // append the node already last: a no-op
+    assert_eq!(doc.node(p).children, vec![a, b, c]);
+    doc.insert_child(p, a, None); // move to the end
+    assert_eq!(doc.node(p).children, vec![b, c, a]);
+    doc.insert_child(p, a, Some(b)); // and back to the front
+    assert_eq!(doc.node(p).children, vec![a, b, c]);
+    doc.insert_child(p, b, Some(b)); // before itself: its next sibling, so a no-op
+    assert_eq!(doc.node(p).children, vec![a, b, c]);
+    doc.insert_child(p, c, Some(c)); // before itself with no next sibling: append
+    assert_eq!(doc.node(p).children, vec![a, b, c]);
+}
+
+/// A reference that is not a child of `parent` appends rather than throwing the
+/// browser's `NotFoundError` — including when it is `child` itself, whose
+/// next-sibling rule has nothing to read. See `insert_child`'s doc comment.
+#[test]
+fn insert_child_appends_when_the_reference_is_not_a_child() {
+    let mut doc = Document::default();
+    let p = doc.create_element("div");
+    let a = doc.create_element("i");
+    let b = doc.create_element("i");
+    let stale = doc.create_element("i");
+    doc.insert_child(p, a, None);
+    doc.insert_child(p, b, Some(stale)); // a stranger's node: append
+    assert_eq!(doc.node(p).children, vec![a, b]);
+    doc.detach(a);
+    doc.insert_child(p, a, Some(a)); // itself, but no longer a child: append
+    assert_eq!(doc.node(p).children, vec![b, a]);
 }
 
 #[test]
@@ -141,8 +188,8 @@ fn insert_child_moves_a_node_that_already_has_a_parent() {
     let p1 = doc.create_element("div");
     let p2 = doc.create_element("div");
     let kid = doc.create_element("span");
-    doc.insert_child(p1, kid, 0);
-    doc.insert_child(p2, kid, 0); // unlink from p1, relink under p2
+    doc.insert_child(p1, kid, None);
+    doc.insert_child(p2, kid, None); // unlink from p1, relink under p2
     assert!(doc.node(p1).children.is_empty());
     assert_eq!(doc.node(p2).children, vec![kid]);
     assert_eq!(doc.node(kid).parent, Some(p2));
@@ -153,7 +200,7 @@ fn detach_unlinks_a_child_but_keeps_the_arena_entry() {
     let mut doc = Document::default();
     let parent = doc.create_element("div");
     let kid = doc.create_element("span");
-    doc.insert_child(parent, kid, 0);
+    doc.insert_child(parent, kid, None);
     let len_before = doc.len();
     doc.detach(kid);
     assert!(doc.node(parent).children.is_empty());
@@ -203,7 +250,7 @@ fn absorbed_fragment_becomes_reachable_once_spliced_in() {
     let mut doc = Document::parse("<body></body>");
     let body = doc.find_by_tag("body")[0];
     let ids = doc.parse_fragment("<p>deep <b>text</b></p>");
-    doc.insert_child(body, ids[0], 0);
+    doc.insert_child(body, ids[0], None);
     assert_eq!(doc.find_by_tag("p").len(), 1);
     assert_eq!(doc.text_content(body), "deep text");
 }
@@ -226,7 +273,7 @@ fn every_mutation_bumps_the_generation_counter() {
     step(doc.generation());
     doc.set_text(t, "y");
     step(doc.generation());
-    doc.insert_child(a, t, 0);
+    doc.insert_child(a, t, None);
     step(doc.generation());
     doc.detach(t);
     step(doc.generation());

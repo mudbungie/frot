@@ -201,8 +201,8 @@
       enqueue(list[i].mo, r);
     }
   });
-  seam('__frot_insert_child', function (parent, child, index) {
-    if (active === 0) return raw.insert(parent, child, index);
+  seam('__frot_insert_child', function (parent, child, before) {
+    if (active === 0) return raw.insert(parent, child, before);
     // The arena auto-unlinks on insert (§2), so inserting an already-parented
     // node is honestly a MOVE: a removal record for the old parent (siblings
     // captured pre-unlink), then the addition — the spec's two records.
@@ -213,7 +213,7 @@
       rlist = interested(oldParent, 'childList', null);
       if (rlist.length) removal = childRecord(oldParent, child, false);
     }
-    raw.insert(parent, child, index);
+    raw.insert(parent, child, before);
     if (removal) for (var i = 0; i < rlist.length; i++) enqueue(rlist[i].mo, removal);
     var alist = interested(parent, 'childList', null);
     if (alist.length) {

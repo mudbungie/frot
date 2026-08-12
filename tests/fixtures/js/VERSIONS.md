@@ -51,6 +51,7 @@ esbuild react19-todo.src.js --bundle --minify --format=iife \
 | File | Purpose |
 | --- | --- |
 | `esm-greeter.mjs` | A tiny, framework-free ES module the golden suite's module page imports by relative URL — exercises the as-built ESM path (resolver + loader over the §6 subfetch cache, live module linking; `js.md` §4.1/§6, bl-1b98). Data, not a dependency; hand-authored, so it carries no upstream version. |
+| `dom-move.html` | The same-parent DOM moves that aborted frot on `https://docs.astro.build/en/getting-started/` (bl-ae88), minimized: its Preact-built search UI re-inserts nodes already in place, and `appendChild` of a parent's own last child used to violate a `Vec::insert` precondition. Hand-authored *because* it is minimized — seven steps, no bundle — so it pins the pattern rather than 124 KB of Preact whose own failures would mask it. Expected output is not invented: `out` and `mo` were cross-checked against Google Chrome 139.0.7258.138 headless, which agrees byte-for-byte but for the one documented `stale-ref` divergence. Driven by `tests/binary.rs` at the **process boundary**, since the bug it pins is an abort. |
 
 ## Field-trial fixtures (verbatim live pages)
 

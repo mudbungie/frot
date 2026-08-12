@@ -74,12 +74,36 @@ impl Document {
         self.generation += 1;
     }
 
-    /// Link `child` (unlinked from any prior parent first) under `parent` at
-    /// `index`. Append is `insert_child(parent, child, children.len())`.
-    pub fn insert_child(&mut self, parent: NodeId, child: NodeId, index: usize) {
+    /// Link `child` under `parent` immediately before the sibling `before`;
+    /// `None` appends. This is the DOM's own `insertBefore(child, ref)`, and the
+    /// position is a **node, never an index**: `child` is unlinked from its old
+    /// parent first, so an index computed against the pre-move sibling list
+    /// addresses the wrong slot the moment the move is within one parent — and
+    /// off the end of it for `appendChild` of a node already last (bl-ae88).
+    /// Naming the sibling instead makes that whole class arithmetic-free.
+    ///
+    /// Two degenerate references stay browser-shaped by falling out of the same
+    /// rule: `before == child` resolves to `child`'s next sibling (the spec's
+    /// own step), so self-insertion is a no-op; a `before` that is not a child
+    /// of `parent` appends, which is the one deliberate mercy — a browser throws
+    /// `NotFoundError`, but a misplaced node still yields an impression where a
+    /// thrown exception kills the script that was building one.
+    pub fn insert_child(&mut self, parent: NodeId, child: NodeId, before: Option<NodeId>) {
+        let kids = &self.nodes[parent as usize].children;
+        let before = match before {
+            Some(r) if r == child => kids
+                .iter()
+                .position(|&c| c == r)
+                .and_then(|at| kids.get(at + 1).copied()),
+            r => r,
+        };
         self.unlink(child);
         self.nodes[child as usize].parent = Some(parent);
-        self.nodes[parent as usize].children.insert(index, child);
+        let kids = &mut self.nodes[parent as usize].children;
+        let at = before
+            .and_then(|r| kids.iter().position(|&c| c == r))
+            .unwrap_or(kids.len());
+        kids.insert(at, child);
         self.generation += 1;
     }
 

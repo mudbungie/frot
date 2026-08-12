@@ -86,6 +86,7 @@ App code: **MIT** — © 2025 Innei
 | `js/react19-todo.bundle.js` | **DERIVED** — `react19-todo.src.js` bundled with esbuild 0.25.5 (recipe in `VERSIONS.md`) | app code as above; the react + react-dom 19.1.1 runtime it embeds is MIT, © Meta Platforms, Inc. and affiliates, `licenses/react-19.LICENSE` |
 | `js/esm-greeter.mjs` | Hand-authored here | frot's own `MIT OR Apache-2.0` |
 | `js/env-contract.html`, `js/persona-navigator.html` | Hand-authored here | frot's own `MIT OR Apache-2.0` |
+| `js/dom-move.html` | Hand-authored here — a minimized DOM-move reproduction; it models the *pattern* a live page hit, and reproduces none of its markup (`VERSIONS.md`) | frot's own `MIT OR Apache-2.0` |
 | `needs/*.html` | Hand-authored here (`needs/README.md`) | frot's own `MIT OR Apache-2.0` |
 
 ---

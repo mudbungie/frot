@@ -130,7 +130,7 @@
     }
     set textContent(value) {
       this._clear();
-      g.__frot_insert_child(this._id, g.__frot_create_text(String(value)), 0);
+      g.__frot_insert_child(this._id, g.__frot_create_text(String(value)), null);
     }
     get innerHTML() {
       var kids = this.childNodes;
@@ -145,7 +145,7 @@
       this._clear();
       var ids = g.__frot_fragment(String(html));
       for (var i = 0; i < ids.length; i++) {
-        g.__frot_insert_child(this._id, ids[i], i);
+        g.__frot_insert_child(this._id, ids[i], null);
       }
     }
     get outerHTML() {
@@ -176,13 +176,14 @@
       return this.getAttribute(name) !== null;
     }
     appendChild(child) {
-      g.__frot_insert_child(this._id, child._id, g.__frot_children(this._id).length);
+      g.__frot_insert_child(this._id, child._id, null);
       return child;
     }
     insertBefore(child, ref) {
-      var kids = g.__frot_children(this._id);
-      var at = ref ? kids.indexOf(ref._id) : kids.length;
-      g.__frot_insert_child(this._id, child._id, at < 0 ? kids.length : at);
+      // The reference sibling goes through as a node id: the arena resolves the
+      // slot after the move unlinks `child`, so a same-parent move (or a ref
+      // that is `child` itself) needs no index arithmetic here (bl-ae88).
+      g.__frot_insert_child(this._id, child._id, ref ? ref._id : null);
       return child;
     }
     removeChild(child) {

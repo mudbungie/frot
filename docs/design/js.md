@@ -91,7 +91,9 @@ say so." This section says so, with rules that keep the damage contained:
   drift; there is one representation.
 - **Mutation is append + relink.** `Document` gains mutation ops:
   `create_element`, `create_text`, `set_attr` / `remove_attr`, `set_text`,
-  `insert_child` (append is insert-at-end), `detach`. The arena `Vec` is
+  `insert_child` (positioned by a *reference sibling*, as `insertBefore` is —
+  never by an index, which the relink's own unlink would invalidate, bl-ae88;
+  `None` appends), `detach`. The arena `Vec` is
   append-only; `detach` unlinks a node from its parent, the entry stays in the
   arena. **`NodeId`s are stable forever**, so `NodeId`-keyed side tables stay
   parallel and detached subtrees are simply never reached by `walk`.

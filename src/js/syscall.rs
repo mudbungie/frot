@@ -171,8 +171,8 @@ fn mutations<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquick
     });
     bind!(ctx, g, "__frot_insert_child", {
         let d = doc.clone();
-        move |parent: u32, child: u32, index: u32| {
-            d.borrow_mut().insert_child(parent, child, index as usize)
+        move |parent: u32, child: u32, before: Option<u32>| {
+            d.borrow_mut().insert_child(parent, child, before)
         }
     });
     bind!(ctx, g, "__frot_detach", {

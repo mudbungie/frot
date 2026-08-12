@@ -86,13 +86,13 @@ fn mutations_build_relink_and_detach_nodes() {
     s.eval("globalThis.d = __frot_create_element('DIV')")
         .unwrap();
     s.eval("__frot_set_attr(d, 'ID', 'main')").unwrap();
-    s.eval("__frot_insert_child(body, d, 0)").unwrap();
+    s.eval("__frot_insert_child(body, d, null)").unwrap();
     assert_eq!(s.eval("__frot_tag(d)").unwrap(), "div");
     assert_eq!(s.eval("__frot_attr(d, 'id')").unwrap(), "main");
     // create_text + set_text, then splice under d.
     s.eval("globalThis.t = __frot_create_text('old')").unwrap();
     s.eval("__frot_set_text(t, 'new')").unwrap();
-    s.eval("__frot_insert_child(d, t, 0)").unwrap();
+    s.eval("__frot_insert_child(d, t, null)").unwrap();
     assert_eq!(s.eval("__frot_text(d)").unwrap(), "new");
     // remove_attr, then detach unlinks the text (subtree unreachable).
     s.eval("__frot_remove_attr(d, 'id')").unwrap();
@@ -103,7 +103,7 @@ fn mutations_build_relink_and_detach_nodes() {
     s.eval("globalThis.f = __frot_fragment('<span>a</span><span>b</span>')")
         .unwrap();
     assert_eq!(s.eval("f.length").unwrap(), "2");
-    s.eval("f.forEach((id, i) => __frot_insert_child(d, id, i))")
+    s.eval("f.forEach((id) => __frot_insert_child(d, id, null))")
         .unwrap();
     assert_eq!(s.eval("__frot_text(d)").unwrap(), "ab");
     // Mutations are visible on the one shared document.
