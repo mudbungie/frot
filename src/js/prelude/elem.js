@@ -117,7 +117,9 @@
       },
       set: function (t, p, v) {
         if (p === 'cssText') {
-          t.cssText = String(v);
+          // [LegacyNullToEmptyString]: `el.style = null` clears the declaration
+          // in a browser, it does not write the string "null" (Chrome 139).
+          t.cssText = v == null ? '' : String(v);
           return true;
         }
         if (typeof p !== 'string' || typeof t[p] === 'function') return true;
@@ -134,12 +136,45 @@
       },
     });
   }
-  Object.defineProperty(proto, 'style', {
+  // --- [PutForwards] is delegation, not reflection (bl-273b) -----------------
+  // WebIDL `[PutForwards=cssText] readonly attribute CSSStyleDeclaration style`
+  // does not make `style` a settable field: `el.style = 'color:red'` is DEFINED
+  // to run `el.style.cssText = 'color:red'`, and `el.classList = 'a b'` to run
+  // `el.classList.value = 'a b'` (Chrome 139: both land on the attribute, and
+  // the object the getter returns is unchanged). So this is NOT `reflectString`
+  // — nothing here reflects an attribute of its own name. The maker takes the
+  // getter and the one property the write forwards to, and the fact still has
+  // exactly one home: the attribute the forwarded-to object is a view over.
+  // Getter-only was the bug: since bl-0679 classic scripts are sloppy, so the
+  // assignment was a silent no-op (and a TypeError in a module) — jQuery's
+  // `.css()` fast path and hand-written `el.style = ...` both simply vanished.
+  function putForwards(get, prop) {
+    return {
+      configurable: true,
+      get: get,
+      set: function (v) {
+        var target = get.call(this);
+        // `relList` is honestly undefined off link/a/area/form (tokenlist.js):
+        // where a browser has no such accessor at all there is nothing to
+        // forward to, so the write lands nowhere in either.
+        if (target) target[prop] = v;
+      },
+    };
+  }
+  // Shared with tokenlist.js's classList/relList over the same non-enumerable
+  // seam as `__frot_reflect` — one rule for the whole [PutForwards] family.
+  Object.defineProperty(g, '__frot_forwards', {
+    value: g.__frot_brand(putForwards, '__frot_forwards'),
     configurable: true,
-    get: function () {
-      return styleFor(this);
-    },
+    writable: true,
   });
+  Object.defineProperty(
+    proto,
+    'style',
+    putForwards(function () {
+      return styleFor(this);
+    }, 'cssText')
+  );
 
   // --- text nodeValue: element textContent already sets/reads; a text node's
   // value is the same arena text (frameworks patch text via `node.nodeValue`).

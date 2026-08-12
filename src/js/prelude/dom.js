@@ -132,27 +132,6 @@
       this._clear();
       g.__frot_insert_child(this._id, g.__frot_create_text(String(value)), null);
     }
-    get innerHTML() {
-      var kids = this.childNodes;
-      var len = kids.length;
-      var out = '';
-      for (var i = 0; i < len; i++) {
-        out += kids[i].nodeType === 1 ? kids[i].outerHTML : kids[i].textContent;
-      }
-      return out;
-    }
-    set innerHTML(html) {
-      this._clear();
-      var ids = g.__frot_fragment(String(html));
-      for (var i = 0; i < ids.length; i++) {
-        g.__frot_insert_child(this._id, ids[i], null);
-      }
-    }
-    get outerHTML() {
-      var tag = g.__frot_tag(this._id);
-      if (!tag) return this.textContent;
-      return '<' + tag + '>' + this.innerHTML + '</' + tag + '>';
-    }
     getAttribute(name) {
       // The arena stores attribute names ASCII-lowercased (the parser and
       // set_attr both normalize), so reads normalize too — SVG's camelCase
@@ -184,6 +163,25 @@
       g.__frot_detach(child._id);
       return child;
     }
+    // Replacement is one operation, and the DOM already names it (§4.2.3): the
+    // reference is `child`'s NEXT sibling, taken *before* the removal. Naming a
+    // sibling instead of an index (bl-ae88) is what makes replacing a node with
+    // itself — which `document.body = document.body` is — the general path with
+    // its own successor as the reference, not a special case.
+    replaceChild(node, child) {
+      var kids = g.__frot_children(this._id);
+      var at = kids.indexOf(child._id);
+      if (at < 0) {
+        throw g.__frot_domerror(
+          'NotFoundError',
+          'Node.replaceChild: Child to be replaced is not a child of this node'
+        );
+      }
+      var ref = at + 1 < kids.length ? kids[at + 1] : null;
+      g.__frot_detach(child._id);
+      g.__frot_insert_child(this._id, node._id, ref);
+      return child;
+    }
     querySelector(sel) {
       var hits = g.__frot_query(this._id, sel);
       return hits.length ? wrap(hits[0]) : null;
@@ -208,8 +206,28 @@
       }
       return wrap(first);
     },
+    // "The body element" is the first body **or frameset** in the document
+    // (HTML §3.1.5) — the two the setter below accepts, so the pair is one rule
+    // read one way and written the other.
     get body() {
-      return this.querySelector('body');
+      return this.querySelector('body, frameset');
+    },
+    // Writable, as in a browser (HTML "the body element"): the assignment
+    // REPLACES the current body — it is `replaceChild` under a type rule, not a
+    // stored field, so the arena stays the one home for which element that is.
+    // A value that is not a body/frameset throws HierarchyRequestError; getter-
+    // only turned both the swap and the type error into silence (bl-273b).
+    set body(el) {
+      var tag = el && el.tagName;
+      if (tag !== 'BODY' && tag !== 'FRAMESET') {
+        throw g.__frot_domerror(
+          'HierarchyRequestError',
+          'Document.body: The new body must be either a body or frameset element'
+        );
+      }
+      var old = this.body;
+      if (old) old.parentNode.replaceChild(el, old);
+      else this.documentElement.appendChild(el);
     },
     get head() {
       return this.querySelector('head');

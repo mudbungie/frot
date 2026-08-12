@@ -55,6 +55,20 @@ fn text_nodes_carry_content() {
 }
 
 #[test]
+fn a_comment_asked_about_itself_is_its_own_data() {
+    // DOM §4.4: `textContent` of a Comment is its data — the same fact `data`
+    // and `nodeValue` expose, and the one the markup serializer needs to write
+    // `<!--x-->` back out (bl-273b). An element's textContent still skips the
+    // comments among its descendants.
+    let doc = Document::parse("<p>hi<!--anchor-->there</p>");
+    let p = first_element(&doc, "p");
+    let comment = doc.node(p).children[1];
+    assert!(matches!(doc.node(comment).kind, NodeKind::Comment(_)));
+    assert_eq!(doc.text_content(comment), "anchor");
+    assert_eq!(doc.text_content(p), "hithere");
+}
+
+#[test]
 fn parent_links_are_set() {
     let doc = Document::parse("<div><span>x</span></div>");
     let span = first_element(&doc, "span");

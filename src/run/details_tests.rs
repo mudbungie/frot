@@ -89,7 +89,10 @@ fn text_stops_at_the_summary_in_either_recipe() {
     let opened = DISCLOSURE.replace("<details>", "<details open>");
     for args in [vec!["--out", "text"], vec!["--css", "--out", "text"]] {
         let v = serve_and_run(&opened, &args);
-        assert_eq!(v["out"], "Options\nUse options to customise the appearance.\nraw tail");
+        assert_eq!(
+            v["out"],
+            "Options\nUse options to customise the appearance.\nraw tail"
+        );
     }
 }
 

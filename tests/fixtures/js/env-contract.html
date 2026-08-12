@@ -47,6 +47,38 @@
   eq('reflect:id', refl.getAttribute('id'), 'reflected');
   eq('reflect:className', refl.getAttribute('class'), 'a b');
 
+  // --- Writable where a browser writes (js.md 3, bl-273b) --------------------
+  // This script is CLASSIC, so it is sloppy (js.md 4.1): a write to a
+  // getter-only property is a SILENT no-op here, which is exactly why each of
+  // these is checked by reading the attribute back, not by catching a throw.
+  // outerHTML serializes the element the arena holds — attributes, escapes and
+  // void elements included (Chrome 139, byte for byte).
+  var ser = document.createElement('div');
+  ser.innerHTML = '<a href="/x" class="c">t&amp;<br></a>';
+  eq('markup:outerHTML', ser.innerHTML, '<a href="/x" class="c">t&amp;<br></a>');
+  // Writing it replaces the element in its parent, and the old one is out.
+  var host = document.createElement('div');
+  host.innerHTML = '<i>a</i><span id="swap">x</span><i>b</i>';
+  var swap = host.childNodes[1];
+  swap.outerHTML = '<p id="swapped">y</p>';
+  eq('markup:outerHTML.set', host.innerHTML, '<i>a</i><p id="swapped">y</p><i>b</i>');
+  check('markup:outerHTML.detached', swap.parentNode === null);
+  // [PutForwards]: `el.style = v` is `el.style.cssText = v`, `el.classList = v`
+  // is `el.classList.value = v` — both land on the attribute.
+  var fwd = document.createElement('div');
+  fwd.style = 'color:red';
+  fwd.classList = 'p q';
+  eq('forwards:style', fwd.getAttribute('style'), 'color:red');
+  eq('forwards:classList', fwd.getAttribute('class'), 'p q');
+  check('forwards:classList.live', fwd.classList.length === 2 && fwd.classList.contains('q'));
+  // document.body is replaced by assignment; anything but a body/frameset throws.
+  var bodyErr = '';
+  try { document.body = document.createElement('div'); } catch (e) { bodyErr = e.name; }
+  eq('doc:body.type', bodyErr, 'HierarchyRequestError');
+  document.body = document.body;
+  check('doc:body.identity', document.body.tagName === 'BODY'
+    && document.querySelectorAll('body').length === 1);
+
   // --- matchMedia: width queries vs the fixed 1280px viewport (§7) -----------
   // px and em/rem, the latter converting at 16px/unit (80em == 1280px).
   eq('mm:min1024px', matchMedia('(min-width: 1024px)').matches, true);

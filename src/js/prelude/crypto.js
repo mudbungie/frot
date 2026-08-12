@@ -11,11 +11,8 @@
 
   // A DOMException-shaped error: browsers reject with a named DOMException, which
   // quickjs lacks, so a plain error carrying the spec `name` is the closest tell.
-  function domError(name, message) {
-    var e = new Error(message);
-    e.name = name;
-    return e;
-  }
+  // One maker for the whole prelude, in brand.js (bl-273b).
+  var domError = g.__frot_domerror;
 
   function getRandomValues(array) {
     if (

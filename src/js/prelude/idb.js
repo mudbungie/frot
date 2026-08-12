@@ -19,12 +19,8 @@
   var iface = g.__frot_iface;
 
   // A DOMException-shaped error: a plain error carrying the spec `name` (quickjs
-  // lacks DOMException), matching crypto.js's tell.
-  function domError(name, message) {
-    var e = new Error(message);
-    e.name = name;
-    return e;
-  }
+  // lacks DOMException) — brand.js's one maker (bl-273b).
+  var domError = g.__frot_domerror;
 
   // An event-handler IDL accessor (onsuccess/onupgradeneeded/…): enumerable,
   // native, defaults null, settable — but never fires (silence is the residual).

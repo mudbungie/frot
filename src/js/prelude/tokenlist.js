@@ -143,23 +143,30 @@
     return new Proxy(t, handler);
   }
 
+  // Both lists are WebIDL `[PutForwards=value]`, so both descriptors come from
+  // elem.js's one maker (bl-273b): `el.classList = 'a b'` runs
+  // `el.classList.value = 'a b'` and lands on the class attribute, exactly as
+  // Chrome 139 does — the list object itself is never replaced.
+  //
   // classList on every element; the `class` attribute defines no supported
   // tokens, so its supports() throws (per spec, as Firefox does).
-  Object.defineProperty(proto, 'classList', {
-    configurable: true,
-    get: function () {
+  Object.defineProperty(
+    proto,
+    'classList',
+    g.__frot_forwards(function () {
       return makeList(this, 'class', null);
-    },
-  });
+    }, 'value')
+  );
   // relList only where Firefox has it — link, and a/area/form (which share one
   // Gecko table); elsewhere it stays undefined so feature detection is honest.
-  Object.defineProperty(proto, 'relList', {
-    configurable: true,
-    get: function () {
+  Object.defineProperty(
+    proto,
+    'relList',
+    g.__frot_forwards(function () {
       var t = this.tagName;
       if (t === 'LINK') return makeList(this, 'rel', LINK_REL);
       if (t === 'A' || t === 'AREA' || t === 'FORM') return makeList(this, 'rel', ANCHOR_REL);
       return undefined;
-    },
-  });
+    }, 'value')
+  );
 })(globalThis);

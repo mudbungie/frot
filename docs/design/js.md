@@ -155,9 +155,52 @@ Consequences of the repo's hard rules:
   serialization and the generation counter that invalidates the §8 style/layout
   cache all see the write at once. Nothing is indexed by id — `getElementById`
   is a selector query over the one arena — so duplicate ids resolve in document
-  order for free. The remaining getter-only-where-browsers-write surfaces
-  (`outerHTML`, the `[PutForwards]` pair `style`/`classList`, `document.body`)
-  are audited and filed as **bl-273b**, not folded in here.
+  order for free.
+- **`[PutForwards]` is delegation, not reflection** (bl-273b). `style` and
+  `classList` are the same *bug* as `id` — getter-only, so the write was a
+  silent no-op — but they are not the same *rule*: WebIDL
+  `[PutForwards=cssText]` / `[PutForwards=value]` define `el.style = 'color:red'`
+  as `el.style.cssText = 'color:red'` and `el.classList = 'a b'` as
+  `el.classList.value = 'a b'`, with the object the getter returns unchanged
+  (Chrome 139). So they come from a second maker beside `reflectString`, not
+  from it: `putForwards(get, prop)` in `elem.js`, shared with `tokenlist.js`'s
+  `classList`/`relList` over the `__frot_forwards` seam. The fact still has one
+  home — the attribute the forwarded-to object is a live view over — and
+  `relList`, honestly `undefined` off link/a/area/form, has nothing to forward
+  to there, exactly as a browser has no accessor there at all.
+- **`innerHTML`/`outerHTML` are two directions of one fact, over one
+  serializer** (`markup.js`, bl-273b). The old `outerHTML` getter was
+  `'<' + tag + '>' + inner + '</' + tag + '>'`: it serialized **no attributes**,
+  so `<div id=x class=y>` read back as `<div>` and the commonest shape there is
+  — `el.innerHTML = el.innerHTML + row` — silently deleted every attribute in
+  the subtree while the page still looked rendered (VISION principle 5). One
+  serializer now answers both, following WHATWG HTML §13.3 and verified against
+  Chrome 139 byte for byte: attributes in arena order, `&`/`<`/`>`/U+00A0
+  escaped (plus `"` inside a value), void elements with no end tag, raw-text
+  elements (`script`/`style`/…) unescaped, comments as themselves. It reads the
+  arena through the same syscalls everything else does and caches nothing.
+  Writing `outerHTML` replaces the element in its parent — each parsed node
+  inserted before it, a reference sibling and never an index (bl-ae88), then the
+  element detached, so the empty string is not a special case. A parentless
+  element throws `NoModificationAllowedError`: browsers reach the Document node
+  and swap the documentElement, and the arena has no document node (§2), so the
+  **one declared divergence** here is that `document.documentElement.outerHTML =
+  …` throws instead of replacing the root — loudly, not silently.
+- **`document.body` is writable, and replacement is one primitive** (bl-273b).
+  The setter is `replaceChild` under a type rule: a value that is not a `body`
+  or `frameset` throws `HierarchyRequestError` (getter-only had swallowed both
+  the swap and the type error), and the getter matches the same pair, since
+  "the body element" is the first body *or frameset* (HTML §3.1.5).
+  `Node.replaceChild` is that one primitive, taking the reference from the
+  replaced child's **next sibling before the removal** — the spec's own rule,
+  which makes `document.body = document.body` the general path rather than a
+  guarded special case. It throws `NotFoundError` rather than silently
+  relocating a node that was never a child.
+- **A comment's `textContent` is its own data** (DOM §4.4, bl-273b): the one
+  arm in `Document::text_content` that a comment asked about *itself* needs.
+  Without it every JS door onto a comment (`textContent`, `nodeValue`, `data`)
+  read `''` and the serializer wrote `<!---->`, deleting the one thing the node
+  is. An element's `textContent` still skips the comments among its descendants.
 - **DOM collections are the spec-named interfaces** (bl-e5c3, found live: a
   bundle ran `NodeList.prototype.forEach = Array.prototype.forEach` at init
   and died on an undefined `NodeList`). One invariant, one maker (`dom.js`):

@@ -14,7 +14,8 @@
 //! the `document`/`createDocumentFragment` breadth React/Vue/jQuery probe), the
 //! geometry facade, the §7 environment breadth, the §5 event loop, and the §6
 //! network layer: `Node`/`Element`/`Document`, `querySelector`,
-//! `innerHTML`/`textContent`, `console`, the
+//! the HTML-string direction pair `innerHTML`/`outerHTML` and its one
+//! serializer (`markup.js`), `textContent`, `console`, the
 //! geometry facade (`getBoundingClientRect`/`offset*`/`getComputedStyle`, js.md
 //! §8), the environment shims (`env.js`: storage, cookie, `navigator`/
 //! `location`/`matchMedia`, `self`/`window` aliasing, spec-legal denials), the
@@ -44,6 +45,10 @@ pub const SOURCE: &str = concat!(
     include_str!("prelude/console.js"),
     "\n",
     include_str!("prelude/dom.js"),
+    "\n",
+    // markup.js after dom.js: it owns the HTML-string <-> arena direction pair
+    // (`innerHTML`/`outerHTML`) over the Node prototype dom.js defines (bl-273b).
+    include_str!("prelude/markup.js"),
     "\n",
     include_str!("prelude/elem.js"),
     "\n",

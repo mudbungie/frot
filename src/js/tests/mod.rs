@@ -22,6 +22,7 @@ mod netbudget;
 mod persona_gold;
 mod reflect;
 mod scriptmode;
+mod writable;
 
 fn test_env() -> Env {
     Env {

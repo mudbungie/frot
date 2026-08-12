@@ -12,12 +12,9 @@
 (function (g) {
   'use strict';
 
-  // DOMException-shaped errors (quickjs lacks DOMException; the crypto.js tell).
-  function named(name, message) {
-    var e = new Error(message);
-    e.name = name;
-    return e;
-  }
+  // DOMException-shaped errors (quickjs lacks DOMException) — brand.js's one
+  // maker (bl-273b).
+  var named = g.__frot_domerror;
 
   function Signal() {
     g.EventTarget.call(this);

@@ -152,7 +152,16 @@ impl Document {
         out
     }
 
+    /// The DOM's `textContent` (DOM §4.4): for a **comment** its own data, for
+    /// anything else the concatenated text of its Text descendants — comments
+    /// among them contributing nothing, which is why a comment asked about
+    /// itself needs the first arm. Without it a comment reads as `''` through
+    /// every JS door onto it (`textContent`, `nodeValue`, `data`) and the
+    /// markup serializer emits `<!---->`, deleting the one thing the node is.
     pub fn text_content(&self, id: NodeId) -> String {
+        if let NodeKind::Comment(c) = &self.node(id).kind {
+            return c.clone();
+        }
         let mut s = String::new();
         self.walk(Some(id), &mut |ev, entry| {
             if let WalkEvent::Enter(_) = ev {

@@ -74,13 +74,25 @@
     return Ctor;
   }
 
-  // Expose both as NON-enumerable globals: the persona/capability modules reach
-  // them, but a page walking `Object.keys(window)`/`for..in` never sees them
-  // (the raw `__frot_*` syscalls' enumerability is a separate, documented
+  // A DOMException-shaped error: quickjs has no DOMException, so a plain Error
+  // carrying the spec `name` is the closest tell. One maker, because the name is
+  // the whole fact and five modules need it — crypto/idb/abort's rejections and
+  // the DOM's own hierarchy errors (bl-273b) — and five copies of a four-line
+  // constructor is five chances to drift.
+  function domError(name, message) {
+    var e = new Error(message);
+    e.name = name;
+    return e;
+  }
+
+  // Expose all three as NON-enumerable globals: the persona/capability modules
+  // reach them, but a page walking `Object.keys(window)`/`for..in` never sees
+  // them (the raw `__frot_*` syscalls' enumerability is a separate, documented
   // residual — js.md §7). Branded native so their own toString does not leak.
   [
     ['__frot_brand', brand],
     ['__frot_iface', iface],
+    ['__frot_domerror', domError],
   ].forEach(function (pair) {
     brand(pair[1], pair[0]);
     Object.defineProperty(g, pair[0], {
