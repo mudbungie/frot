@@ -8,10 +8,13 @@
 //! entries. Chrome's oracle: `details.open === false` on both, only the
 //! `<summary>` has client rects, no interaction involved.
 //!
-//! `bboxes` is the one view here that has a `Styles` table without `--css`
-//! (`compute_bare`, `layout.md` §3), so it drops the content either way; the
-//! content views need the cascade and so need `--css`, exactly as `[hidden]`
-//! does (`bl-eeb4`).
+//! Every view here drops the content in **both** recipes, and each for its own
+//! reason: `bboxes` has a `Styles` table without `--css` (`compute_bare`,
+//! `layout.md` §3), while `text` and `ax` descend through
+//! `Document::painted_children` / `Document::ax_children` and never see the
+//! node (`bl-0aaf`, `bl-d470`). `[hidden]` is the rule that really does need
+//! `--css` (`bl-eeb4`), because it is an author-overridable UA *declaration*;
+//! this one is structural and no author rule can reveal it.
 
 use super::*;
 
@@ -70,10 +73,41 @@ fn bbox_tags(v: &Value) -> Vec<String> {
 }
 
 #[test]
-fn text_under_css_stops_at_the_summary() {
-    let v = serve_and_run(DISCLOSURE, &["--css", "--out", "text"]);
-    assert_eq!(v["status"], "ok");
-    assert_eq!(v["out"], "Options");
+fn text_stops_at_the_summary_in_either_recipe() {
+    // `bl-d470`: this used to hold only under `--css`, because the text view
+    // read the *tag* half of the structural rule and left the closed-`<details>`
+    // half to the cascade. Chrome's `body.innerText` for this markup is
+    // "Options" with no CSS involved — the disclosure body is
+    // `content-visibility: hidden` while closed, not an author declaration —
+    // so the recipe decides how the fact is computed, never what it covers.
+    for args in [vec!["--out", "text"], vec!["--css", "--out", "text"]] {
+        let v = serve_and_run(DISCLOSURE, &args);
+        assert_eq!(v["status"], "ok", "{args:?}");
+        assert_eq!(v["out"], "Options", "{args:?}");
+    }
+    // Opened, the whole disclosure is content again — in either recipe too.
+    let opened = DISCLOSURE.replace("<details>", "<details open>");
+    for args in [vec!["--out", "text"], vec!["--css", "--out", "text"]] {
+        let v = serve_and_run(&opened, &args);
+        assert_eq!(v["out"], "Options\nUse options to customise the appearance.\nraw tail");
+    }
+}
+
+#[test]
+fn no_author_rule_can_reveal_the_disclosure_in_the_raw_recipe_either() {
+    // `bl-74a6`'s non-overridability, restated for the recipe that has no
+    // cascade to be outranked in. The box the UA skips is the `<details>`'s
+    // `::details-content`, not the child's, so `display`/`visibility` on the
+    // child has nothing to act on — with `--css` the cascade folds concealment
+    // in *after* the author origin, and without it `painted_children` never
+    // offers the node at all.
+    let page = "<html><head><style>details p{display:block!important;\
+         visibility:visible!important;content-visibility:visible!important}</style></head>\
+         <body><details><summary>Options</summary>\
+         <p style='display:block!important'>body</p></details></body></html>";
+    for args in [vec!["--out", "text"], vec!["--css", "--out", "text"]] {
+        assert_eq!(serve_and_run(page, &args)["out"], "Options", "{args:?}");
+    }
 }
 
 #[test]

@@ -4,23 +4,23 @@
 //! - Whitespace collapses per the HTML serializer (runs of whitespace fold
 //!   to a single space) **outside** `<pre>`.
 //! - `<pre>` content is preserved verbatim.
-//! - Subtrees under [`SKIP_TAGS`] are skipped, as is fallback content — the
-//!   children a UA that implements the element paints nowhere
-//!   ([`crate::tags::renders_children`]: `<video>`, `<audio>`, `<iframe>`,
-//!   `<canvas>`). That is a content-model fact, so it holds with or without
-//!   `--css`.
+//! - Subtrees under [`SKIP_TAGS`] are skipped.
+//! - The walk descends through [`crate::dom::Document::painted_children`], so
+//!   what the *parent's* box swallows never reaches it: a `<video>`'s or
+//!   `<canvas>`'s fallback content, and a closed `<details>`'s disclosure body.
+//!   Neither is an author declaration, so neither waits for a cascade — they
+//!   hold with or without `--css` (`bl-0f83`, `bl-d470`).
 //! - Block-level boundaries become newlines; `<br>` becomes a newline.
-//! - With `--css` (a [`Styles`] table is passed): `display:none` nodes are
-//!   dropped with their subtrees — text nodes included, which is how a closed
-//!   `<details>`'s raw disclosure text goes with its elements
-//!   ([`crate::dom::Document::concealed`]) — an element's own text is
+//! - With `--css` (a [`Styles`] table is passed): `display:none` subtrees are
+//!   dropped — which is how the author-overridable `[hidden]` rule reaches this
+//!   view, and why *that* one does need the recipe — an element's own text is
 //!   suppressed when its computed `visibility` is hidden (a
 //!   `visibility:visible` descendant reappears), and `::before`/`::after`
 //!   generated content is emitted as inline text.
 
 use crate::css::{Styles, Visibility};
 use crate::dom::{Document, NodeId, NodeKind};
-use crate::tags::{is_block, renders_children};
+use crate::tags::is_block;
 
 /// Elements whose text a browser never paints, whatever it is for: source and
 /// data (`<script>`, `<style>`, `<template>`, `<noscript>`) and the descriptive
@@ -48,16 +48,6 @@ const SKIP_TAGS: &[&str] = &[
     "annotation",
     "annotation-xml",
 ];
-
-/// Whether this element contributes no text at all. Two sources, both
-/// recipe-independent: this view's own skip set above, and the shared
-/// fallback-content fact ([`renders_children`] — a `<video>`'s or `<canvas>`'s
-/// contents are markup for a UA that cannot paint the box, and its own text is
-/// nothing). `<iframe>` lives in the shared fact rather than the local set, so
-/// geometry and the AX tree cut it at the same place this view does.
-fn is_skip(name: &str) -> bool {
-    SKIP_TAGS.contains(&name) || !renders_children(name)
-}
 
 struct State {
     out: String,
@@ -156,7 +146,7 @@ fn emit(
     let entry = doc.node(id);
     match &entry.kind {
         NodeKind::Element(el) => {
-            if is_skip(&el.name) {
+            if SKIP_TAGS.contains(&el.name.as_str()) {
                 return;
             }
             if styles.is_some_and(|s| s.display_none(id)) {
@@ -180,7 +170,7 @@ fn emit(
                     state.push_text(b);
                 }
             }
-            for &c in &entry.children {
+            for c in doc.painted_children(id) {
                 emit(doc, c, state, styles, vis);
             }
             if vis {
@@ -195,8 +185,11 @@ fn emit(
                 state.block_break();
             }
         }
+        // A text node needs no gate of its own: an element the cascade hides
+        // returns above before the recursion reaches its children, and a node
+        // the *parent's* box swallows never comes out of `painted_children`.
         NodeKind::Text(t) => {
-            if parent_visible && !styles.is_some_and(|s| s.display_none(id)) {
+            if parent_visible {
                 state.push_text(t);
             }
         }

@@ -226,13 +226,20 @@ fn closed_details_emits_only_its_summary_under_css() {
 }
 
 #[test]
-fn raw_text_without_css_keeps_its_source_order_dump() {
-    // No `--css` means no cascade to consult: `text` stays the documented
-    // source-order dump, exactly as it does for `[hidden]` (`bl-eeb4`).
-    assert_eq!(
-        t("<details><summary>Options</summary><p>body</p></details>"),
-        "Options\nbody"
-    );
+fn a_closed_details_body_is_not_source_order_text_in_either_recipe() {
+    // This assertion used to read "Options\nbody" without `--css`, on the
+    // reasoning that no cascade means nothing to consult. That was the wrong
+    // half of the rule (`bl-d470`). `[hidden]` genuinely needs the cascade — it
+    // is a UA *stylesheet* declaration an author can override — but a closed
+    // `<details>` conceals its body structurally, and no author rule can reveal
+    // it, so there is nothing for a cascade to decide. Chrome 139 agrees:
+    // `body.innerText` for a closed `<details><summary>SUMM</summary><p>SECRET`
+    // is "SUMM" alone. The walk now descends through
+    // `Document::painted_children`, so the recipe changes how the fact was
+    // computed, never which content it covers.
+    let html = "<details><summary>Options</summary><p>body</p></details>";
+    assert_eq!(t(html), "Options");
+    assert_eq!(t_css(html), "Options");
 }
 
 #[test]

@@ -42,19 +42,35 @@
 //! it from AX, in Chrome and here alike, because that arrives through the
 //! cascade rather than through these rules.
 //!
-//! ## One accessor, not two walks (`bl-0aaf`)
+//! ## Accessors, not remembered checks (`bl-0aaf`, `bl-d470`)
 //!
-//! `concealed` used to be *asked* by the AX tree builder and *not* asked by the
-//! accname §2F recursion, so a `<video>`'s fallback was cut from the tree while
-//! its text still named the tree's `<a>` — but only without `--css`, since with
-//! a cascade the same fact arrived a second time as `display:none`. Two
-//! traversals over one arena, each with its own idea of what was excluded.
+//! The same defect surfaced three times in one day, once per traversal that
+//! walked `node.children` directly and re-derived its own idea of what was
+//! excluded: the AX tree walk asked `concealed` and the accname §2F recursion
+//! did not (`bl-0aaf`), and `views::text` asked only the *tag* half and not the
+//! closed-`<details>` half (`bl-d470`). Every one of them was invisible under
+//! `--css`, because the cascade spelled the same fact a second time as
+//! `display: none` and the walks did check that.
 //!
-//! So `concealed` is no longer a predicate anyone remembers to ask.
-//! [`Document::ax_children`] is the single accessor both AX walks descend
-//! through, and it applies `concealed` itself. The agreement is structural: a
-//! node absent from the tree is unreachable by the name walk *because there is
-//! no other way in*, in every recipe, with or without a cascade.
+//! So the predicates above are no longer what a traversal asks. Each has an
+//! **accessor** built from the same `keeps`, and a walk descends through it:
+//!
+//! | traversal | accessor |
+//! |---|---|
+//! | `views::text` | [`Document::painted_children`] |
+//! | `ax::tree`, `ax::name::contents` | [`Document::ax_children`] |
+//!
+//! The agreement is then structural rather than remembered: a node the page
+//! does not paint is unreachable by the text walk, and a node absent from the
+//! AX tree is unreachable by the name walk, *because there is no other way in*
+//! — in every recipe, with or without a cascade. The recipe decides how the
+//! fact was computed, never which content it covers.
+//!
+//! The predicates stay for the callers that are **not** child traversals but
+//! compound gates gluing this fact to a cascade fact: `layout::renders`
+//! (`unpainted` + `display:none`), `needs::not_rendered` (`unpainted` +
+//! `display:none` or the `hidden` attribute), and `css::cascade::conceal`
+//! (`concealed`, which is how the fact reaches `--css` consumers at all).
 
 use super::{Document, NodeId, NodeKind};
 use crate::tags;
@@ -87,18 +103,35 @@ impl Document {
             || (self.closed_details(parent) && self.first_summary(parent) != Some(id))
     }
 
-    /// `id`'s children as the accessibility tree sees them: every child that is
-    /// not [`Document::concealed`]. This is the *only* way into a node's
-    /// children from `ax` (module docs, "One accessor, not two walks"), so the
-    /// tree walk and the name walk cannot disagree about what is there.
-    /// `<source>`/`<track>` need no mention: they are children of a
-    /// fallback-content element like any other, and go with the rest.
+    /// `id`'s children as the page paints them — the accessor form of
+    /// [`Document::unpainted`], and the only way into a node's children from
+    /// `views::text` (module docs, "Accessors, not remembered checks").
+    pub fn painted_children(&self, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        self.kept_children(id, tags::renders_children)
+    }
+
+    /// `id`'s children as the accessibility tree sees them — the accessor form
+    /// of [`Document::concealed`], and the only way into a node's children from
+    /// `ax::tree` and `ax::name::contents`. `<source>`/`<track>` need no
+    /// mention: they are children of a fallback-content element like any other,
+    /// and go with the rest.
     pub fn ax_children(&self, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        self.kept_children(id, tags::exposes_children)
+    }
+
+    /// The children `keeps` does not swallow — one shape for both accessors,
+    /// taking the same `keeps` that separates [`Document::unpainted`] from
+    /// [`Document::concealed`], so the pair can never answer a *third* question.
+    fn kept_children(
+        &self,
+        id: NodeId,
+        keeps: fn(&str) -> bool,
+    ) -> impl Iterator<Item = NodeId> + '_ {
         self.node(id)
             .children
             .iter()
             .copied()
-            .filter(move |&c| !self.concealed(c))
+            .filter(move |&c| !self.swallowed(c, keeps))
     }
 
     /// Whether `id` is a `<details>` element carrying no `open` attribute.

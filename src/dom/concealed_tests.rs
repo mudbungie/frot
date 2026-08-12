@@ -230,6 +230,33 @@ fn ax_child_tags(doc: &Document, id: NodeId) -> Vec<String> {
         .collect()
 }
 
+/// The tags of `id`'s painted children — what `views::text` can see.
+fn painted_child_tags(doc: &Document, id: NodeId) -> Vec<String> {
+    doc.painted_children(id)
+        .map(|c| match &doc.node(c).kind {
+            NodeKind::Element(el) => el.name.clone(),
+            kind => format!("{kind:?}"),
+        })
+        .collect()
+}
+
+#[test]
+fn the_two_accessors_split_exactly_where_their_predicates_do() {
+    // `<canvas>` is the whole reason there are two of each (`bl-e79a`): the
+    // page loses its fallback and the AX tree keeps it. A closed `<details>`
+    // and a `<video>` are withheld from both.
+    let doc = Document::parse(
+        "<canvas><b>c</b></canvas><video><b>v</b></video>\
+         <details><summary>s</summary><p>d</p></details>",
+    );
+    for tag in ["canvas", "video", "details"] {
+        let id = first_element(&doc, tag);
+        let want: &[&str] = if tag == "details" { &["summary"] } else { &[] };
+        assert_eq!(painted_child_tags(&doc, id), want, "painted {tag}");
+    }
+    assert_eq!(ax_child_tags(&doc, first_element(&doc, "canvas")), ["b"]);
+}
+
 #[test]
 fn only_the_replaced_subtree_elements_hide_their_children_from_ax() {
     let doc = Document::parse(
