@@ -171,15 +171,9 @@
       this.setAttribute('value', String(v));
     },
   });
-  Object.defineProperty(proto, 'type', {
-    configurable: true,
-    get: function () {
-      return this.getAttribute('type') || '';
-    },
-    set: function (v) {
-      this.setAttribute('type', String(v));
-    },
-  });
+  // `type` is a plain reflected string, so it comes from elem.js's one maker
+  // (bl-d313) rather than a fourth hand-written descriptor.
+  Object.defineProperty(proto, 'type', g.__frot_reflect('type'));
   // The form-control interface prototypes carry the same reflection
   // descriptors (bl-3a36): Radix-style libraries read
   // `Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set`

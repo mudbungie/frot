@@ -39,6 +39,14 @@
   // in js::tests::currentscript; here it is only presence.
   eq('present:document.currentScript', document.currentScript.tagName, 'SCRIPT');
 
+  // --- Reflected attributes are accessors, not read-only fields (js.md 3) ----
+  // Assigning one must reach the attribute; getter-only was a live bug (bl-d313).
+  var refl = document.createElement('div');
+  refl.id = 'reflected';
+  refl.className = 'a b';
+  eq('reflect:id', refl.getAttribute('id'), 'reflected');
+  eq('reflect:className', refl.getAttribute('class'), 'a b');
+
   // --- matchMedia: width queries vs the fixed 1280px viewport (§7) -----------
   // px and em/rem, the latter converting at 16px/unit (80em == 1280px).
   eq('mm:min1024px', matchMedia('(min-width: 1024px)').matches, true);

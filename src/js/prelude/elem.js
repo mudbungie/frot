@@ -170,34 +170,47 @@
     },
   });
 
-  // className is writable (frameworks assign it directly, not only setAttribute).
-  Object.defineProperty(proto, 'className', {
+  // --- Reflected attributes ARE accessors (bl-d313) -------------------------
+  // A reflected DOM-string property is not a field over the attribute, it IS
+  // the attribute: the getter reads it ('' when absent, as WebIDL requires),
+  // the setter writes it through the very syscall `setAttribute` uses. So
+  // `el.id = x` and `el.setAttribute('id', x)` are indistinguishable —
+  // `getElementById`, selectors, the views' serialization, and the generation
+  // counter that invalidates the §8 style/layout cache all see it at once,
+  // because there is still exactly one place the fact lives (the arena).
+  // Getter-only was the bug: ES modules are strict, so an ordinary
+  // `divWrapper.id = 'myCanvas'` *threw* and every MDN module example died
+  // before rendering (bl-d313, found live on
+  // mdn.github.io/js-examples/module-examples/).
+  function reflectString(attr) {
+    return {
+      configurable: true,
+      get: function () {
+        return this.getAttribute(attr) || '';
+      },
+      set: function (v) {
+        this.setAttribute(attr, String(v));
+      },
+    };
+  }
+  // The maker, shared with elem2.js's `type` over the same non-enumerable-global
+  // seam brand.js uses — one rule for the whole family, not a descriptor per
+  // attribute.
+  Object.defineProperty(g, '__frot_reflect', {
+    value: g.__frot_brand(reflectString, '__frot_reflect'),
     configurable: true,
-    get: function () {
-      return this.getAttribute('class') || '';
-    },
-    set: function (v) {
-      this.setAttribute('class', String(v));
-    },
+    writable: true,
   });
+  // `id` and `className`: assigned directly by every framework and by ordinary
+  // page code, not only through setAttribute. `rel` (bl-07ab) is read off
+  // MutationObserver records by the Vite modulepreload polyfill; routers read
+  // `a.href` the same way.
+  Object.defineProperty(proto, 'id', reflectString('id'));
+  Object.defineProperty(proto, 'className', reflectString('class'));
+  Object.defineProperty(proto, 'rel', reflectString('rel'));
 
   // classList lives in tokenlist.js: every token list the DOM exposes is a
   // spec-named DOMTokenList built by that one maker (bl-3a36).
-
-  // rel/href reflection (bl-07ab): MutationObserver's flagship field consumer —
-  // the Vite modulepreload polyfill — reads `link.rel`/`link.href` off observed
-  // records; routers read `a.href` the same way. `rel` reflects the attribute;
-  // `href` reflects it RESOLVED against the document URL (Firefox's href getter
-  // is absolute), falling back to the raw value when it will not parse.
-  Object.defineProperty(proto, 'rel', {
-    configurable: true,
-    get: function () {
-      return this.getAttribute('rel') || '';
-    },
-    set: function (v) {
-      this.setAttribute('rel', String(v));
-    },
-  });
   // `href` and `src` reflect RESOLVED against the document URL (both getters are
   // absolute in Firefox), falling back to the raw value when it will not parse.
   // One descriptor maker, because they are one rule: `src` earned its place when

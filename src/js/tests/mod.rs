@@ -20,6 +20,7 @@ mod iterator;
 mod net;
 mod netbudget;
 mod persona_gold;
+mod reflect;
 mod scriptmode;
 
 fn test_env() -> Env {

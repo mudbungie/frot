@@ -147,3 +147,65 @@ fn a_turbopack_chunk_registers_itself_from_current_script() {
         serde_json::json!({"scripts": 2, "errors": 0, "settled": true})
     );
 }
+
+// The MDN basic-modules example (bl-d313), minimized and hand-written in its
+// shape: an entry module importing two relative modules, one of which does the
+// plainest DOM thing there is — create a div, give it an `id`, look it up again.
+// `Element.id` was getter-only, and modules are strict, so that assignment threw
+// and every one of these examples rendered an empty mount
+// (mdn.github.io/js-examples/module-examples/basic-modules/, which Chrome
+// renders as "square area is 2500px squared").
+const MDN_PAGE: &str = "<html><body><div id='mount'></div>\
+    <script type='module' src='/main.mjs'></script></body></html>";
+const MDN_MAIN: &str = "import {create, createReportList} from './canvas.mjs';\
+    import {reportArea} from './square.mjs';\
+    const myCanvas = create('myCanvas', document.getElementById('mount'));\
+    const reportList = createReportList(myCanvas.id);\
+    reportArea(50, reportList);";
+const MDN_CANVAS: &str = "export function create(id, parent) {\
+      const divWrapper = document.createElement('div');\
+      const canvasElem = document.createElement('canvas');\
+      parent.appendChild(divWrapper);\
+      divWrapper.appendChild(canvasElem);\
+      divWrapper.id = id;\
+      return {ctx: canvasElem.getContext('2d'), id};\
+    }\
+    export function createReportList(wrapperId) {\
+      const list = document.createElement('ul');\
+      list.id = wrapperId + '-reporter';\
+      document.getElementById(wrapperId).appendChild(list);\
+      return list.id;\
+    }";
+const MDN_SQUARE: &str = "export function reportArea(length, listId) {\
+      const item = document.createElement('li');\
+      item.textContent = `square area is ${length * length}px squared`;\
+      document.getElementById(listId).appendChild(item);\
+    }";
+
+#[test]
+fn the_mdn_module_example_names_its_wrapper_and_renders() {
+    let (_s, url) = serve(
+        MDN_PAGE,
+        &[
+            ("/main.mjs", MDN_MAIN),
+            ("/canvas.mjs", MDN_CANVAS),
+            ("/square.mjs", MDN_SQUARE),
+        ],
+    );
+    let (code, out) = run_capture(&[&url, "--js", "--out", "text"]);
+    assert_eq!(code, 0);
+    let v = env(&out);
+    assert_eq!(v["status"], "ok");
+    assert!(
+        v["out"]
+            .as_str()
+            .unwrap()
+            .contains("square area is 2500px squared"),
+        "{}",
+        v["out"]
+    );
+    assert_eq!(
+        v["js"],
+        serde_json::json!({"scripts": 1, "errors": 0, "settled": true})
+    );
+}

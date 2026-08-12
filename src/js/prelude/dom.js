@@ -153,12 +153,6 @@
       if (!tag) return this.textContent;
       return '<' + tag + '>' + this.innerHTML + '</' + tag + '>';
     }
-    get id() {
-      return this.getAttribute('id') || '';
-    }
-    get className() {
-      return this.getAttribute('class') || '';
-    }
     getAttribute(name) {
       // The arena stores attribute names ASCII-lowercased (the parser and
       // set_attr both normalize), so reads normalize too — SVG's camelCase

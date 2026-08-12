@@ -138,6 +138,26 @@ Consequences of the repo's hard rules:
 - `querySelector` accepts exactly the selector grammar `css::selparse`
   supports; an unsupported selector **throws** (a counted error, §10) rather
   than silently matching nothing.
+- **A reflected attribute IS an accessor over the attribute** (bl-d313, found
+  live on `mdn.github.io/js-examples/module-examples/`: `divWrapper.id =
+  'myCanvas'`, the plainest line in the basic-modules example, threw). Getter-
+  only reflections are not a smaller shim, they are a *wrong* one: ES modules
+  are strict, so the assignment is a TypeError that kills the module before it
+  renders, and since bl-0679 a classic script instead loses the write in
+  silence. So the whole DOM-string family — `id`, `className`, `rel`, `type` —
+  comes from **one maker** (`reflectString` in `elem.js`, shared with `elem2.js`
+  as the non-enumerable `__frot_reflect`, the seam `__frot_brand`/`__frot_iface`
+  already use), and `href`/`src` from its resolving sibling `reflectUrl`. The
+  getter reads the attribute (`''` when absent, as WebIDL requires); the setter
+  writes it through the very syscall `setAttribute` uses, so `el.id = x` and
+  `el.setAttribute('id', x)` are indistinguishable and there is still exactly
+  one home for the fact: `getElementById`, the selector engine, the views'
+  serialization and the generation counter that invalidates the §8 style/layout
+  cache all see the write at once. Nothing is indexed by id — `getElementById`
+  is a selector query over the one arena — so duplicate ids resolve in document
+  order for free. The remaining getter-only-where-browsers-write surfaces
+  (`outerHTML`, the `[PutForwards]` pair `style`/`classList`, `document.body`)
+  are audited and filed as **bl-273b**, not folded in here.
 - **DOM collections are the spec-named interfaces** (bl-e5c3, found live: a
   bundle ran `NodeList.prototype.forEach = Array.prototype.forEach` at init
   and died on an undefined `NodeList`). One invariant, one maker (`dom.js`):
