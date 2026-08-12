@@ -9,6 +9,7 @@ One process, one pass, one envelope:
 ```
 argv ──cli::parse──► Args { url, css, js, out }
 url ──fetch::fetch──► FetchResult { final_url, status, headers, body, charset }
+(headers) ──fetch::non_document──► refuse                — a declared non-text media type never reaches the parser
 body ──dom::Document::parse──► Document (arena)
 (doc) ──js::run──► Document', JsInfo             — --js ONLY: mutates in place, then the rest reads Document'
 (view, doc) ──needs::detect──► [NeedsKind]     — non-empty short-circuits to a `needs` envelope
@@ -50,6 +51,7 @@ Orchestration lives in `src/run.rs` (~100 lines); everything below it is a pure 
 | `src/fetch/profile.rs` (+`profile/`) | the one `FIREFOX_140_ESR` `BrowserProfile` const — SSOT for TLS/ALPN/h2/header/`navigator`/clock/seed facts (identity.md §4); everything derives, nothing is stored twice |
 | `src/fetch/firefox_tls.rs` | builds frot's HTTPS `rustls 0.23` ClientConfig (stock rustls + `aws-lc-rs`, ALPN/kx/cipher order from the profile) — the browser-identity TLS seam; no rustls handshake type escapes it |
 | `src/fetch/transport.rs`, `session.rs`, `request.rs` | the hyper h2/h1 connector, the per-invocation `FetchSession` (connection pool + resource cache + `-H` overrides), and the one ordered request serializer (scheme-independent header casing) |
+| `src/fetch/media.rs` | media-type disposition: is the declared `Content-Type` a document frot's one parser can read? |
 | `src/dom.rs` | html5ever → arena facade |
 | `src/dom/mutate.rs` | `--js` DOM mutation ops (append-plus-relink) + generation counter |
 | `src/needs.rs` | capability-gap detection (post-JS under `--js`) |
@@ -67,7 +69,8 @@ Orchestration lives in `src/run.rs` (~100 lines); everything below it is a pure 
 | `src/js/subfetch.rs` | once-then-frozen GET-only network cache behind `__frot_subfetch` (`fetch`/XHR + external `<script src>` + ES-module loader) |
 | `src/js/geometry.rs` | per-generation `Styles`/`Layout` cache for `getBoundingClientRect`/`offset*`/`getComputedStyle` |
 | `src/envelope.rs` | output contract |
-| `src/run.rs` | glue: pipeline + exit codes |
+| `src/run.rs` | glue: the pipeline (fetch → disposition → parse → JS → needs → styles → layout → view → envelope) |
+| `src/run/deliver.rs` | the delivery seam: one product on stdout, the exit status that reports what happened to it, SIGPIPE |
 
 Every module has a colocated `tests.rs`; `tests/binary.rs` drives the compiled binary end-to-end against a mockito server. Gates: 100% line coverage, ≤300 lines per source file, clippy `-D warnings` (pre-commit).
 
@@ -89,6 +92,14 @@ Connection behaviour, also fixed: **the per-invocation `FetchSession` pools conn
 Scope: fingerprint *coherence* is in, and **capability masquerade is in** (canvas/WebGL/audio fingerprint simulation — coherent, deterministic, profile-derived — landed as `bl-05e6`/`bl-f624`/`bl-8733`; identity.md §10). What stays refused is a different axis: CAPTCHA / JS-challenge solving, proof-of-work, and evasion loops (UA rotation, retry-until-allowed).
 
 Under `--css`, external `<link rel=stylesheet>` hrefs are resolved against the final URL and fetched best-effort — a failed sheet is skipped, never fatal (CSS is an enhancement to the impression, not a precondition).
+
+**Media-type disposition — a body the one parser cannot read is not an impression (`src/fetch/media.rs`, bl-0c3e).** frot owns exactly one parser, html5ever; handing it a PNG fabricates elements out of chunk headers and reporting that as `ok` is the false-`ok` direction VISION principle 5 refuses. So `run.rs` decides the top-level disposition from the declared `Content-Type` **before** the parse — beside the `>= 400` flip and the challenge flip, pre-parse and view-independent — and a non-document response is `status:"error"`, `error.kind:"parse"` (the reserved taxonomy slot, now inhabited), message `response media type <essence> is not a document`, exit 1, `http` block intact, no `out`. Three rules:
+
+1. **The declaration is the sole authority.** frot never sniffs body bytes and never reads the URL extension — it behaves as if every response carried `X-Content-Type-Options: nosniff`. PNG magic under `image/png` is refused; the same bytes under `text/html` are parsed; a page at a `.png` path served as `text/html` is a page. That is the deliberate sniffing ceiling.
+2. **A document is text**: `text/*`, any `+xml`/`+json` structured suffix (so `application/xhtml+xml` *and* `image/svg+xml` are markup — the subtype's shape decides, not the top-level family), and `xml`/`json`/`javascript`/`ecmascript`. Everything else declared — images, audio, video, fonts, `application/pdf`, `application/octet-stream` — is refused, so a media type nobody enumerated is refused by default rather than by an allowlist entry.
+3. **A declaration frot cannot read declares nothing.** No `Content-Type` (every `file://` read, a header-less response) or one with no `type/subtype` shape leaves the body a document: a malformed header must never turn a real page into an error.
+
+The residual, stated rather than hidden: a *textual* non-HTML body (plain text, JSON, XML, SVG) is read by the HTML parser, so markup characters inside it become elements — the same text a browser shows, structured more eagerly than a browser would. Diagnostics are bounded to the media-type essence (ASCII-graphic, ≤ 64 chars), so no body byte can ride out in an error message.
 
 `file://` URLs take the read path instead: `std::fs` read, same size cap, charset from the `<meta>` sniff (there is no Content-Type), `status: None`, empty headers. Read failures map to the additive error kind `fetch.file`.
 

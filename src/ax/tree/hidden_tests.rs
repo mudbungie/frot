@@ -139,7 +139,10 @@ fn text_and_dom_views_are_unaffected_by_ax_exclusion() {
     let html = "<div aria-hidden='true'><p>Alpha</p></div><div inert><p>Beta</p></div>";
     let doc = Document::parse(html);
     let out = text(&doc, None);
-    assert!(out.contains("Alpha"), "text lost aria-hidden content: {out}");
+    assert!(
+        out.contains("Alpha"),
+        "text lost aria-hidden content: {out}"
+    );
     assert!(out.contains("Beta"), "text lost inert content: {out}");
     assert!(dom_json(&doc).to_string().contains("aria-hidden"));
 }

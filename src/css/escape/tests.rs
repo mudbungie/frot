@@ -70,10 +70,7 @@ fn unterminated_literal_decodes_to_end_of_token() {
 #[test]
 fn quoting_tracks_literals_through_escaped_delimiters() {
     let mut q = Quoting::default();
-    let inside: String = r#"a"b\"c"d"#
-        .chars()
-        .map(|c| if q.feed(c) { 'I' } else { 'O' })
-        .collect();
+    let inside: String = r#"a"b\"c"d"#.chars().map(|c| if q.feed(c) { 'I' } else { 'O' }).collect();
     assert_eq!(inside, "OIIIIIIO");
     // A backslash outside a literal is structural, not an escape.
     let mut q = Quoting::default();

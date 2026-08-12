@@ -1,24 +1,13 @@
-//! End-to-end glue: CLI → fetch → parse → view → envelope → stdout.
+//! End-to-end glue: CLI → fetch → parse → view → envelope.
 //!
-//! Exit codes (derived from the authoritative table, `docs/design/posix.md`
-//! §4.4; gated by `scripts/posix-suite.sh`):
-//! - `0` — help/version, or `ok`/`needs` envelope emitted.
-//! - `1` — `error` envelope emitted (fetch failure or unsupported view).
-//! - `2` — usage error (no envelope emitted; message on stderr).
-//! - `3` — the product could not be written to stdout (envelope lost;
-//!   best-effort diagnostic on stderr).
-//!
-//! A broken pipe is not status `3`: frot restores SIGPIPE's default
-//! disposition at the stdout seam and re-raises, dying with the true 141
-//! status pipelines expect (posix.md §5.2).
-
-use std::io::Write;
+//! The stdout/exit-status half of that sentence — one product on stdout and
+//! the status that reports what happened to it — lives in [`deliver`].
 
 use crate::ax;
 use crate::cli;
 use crate::dom::Document;
 use crate::envelope::{
-    Envelope, ErrorInfo, HttpInfo, JsInfo, JsMessage, NeedsKind, StatusKind, UrlBlock, View,
+    kinds, Envelope, ErrorInfo, HttpInfo, JsInfo, JsMessage, NeedsKind, UrlBlock, View,
 };
 use crate::fetch::{self, FetchResult};
 use crate::js::{Env, StyleSource};
@@ -27,67 +16,13 @@ use crate::run::gather::external_css;
 use crate::views;
 use serde_json::Value;
 
-pub fn run(argv: &[String]) -> u8 {
-    run_io(argv, &mut std::io::stdout(), &mut std::io::stderr())
-}
+mod deliver;
 
-pub(crate) fn run_io(argv: &[String], out: &mut dyn Write, err: &mut dyn Write) -> u8 {
-    run_with(argv, out, err, libc::SIG_DFL)
-}
-
-/// The pipeline with the broken-pipe SIGPIPE disposition taken through the
-/// call signature: production (`run_io`) passes `SIG_DFL`, so a broken-pipe
-/// delivery dies with the true 141 status; tests pass `SIG_IGN` to walk the
-/// same path and survive.
-fn run_with(
-    argv: &[String],
-    out: &mut dyn Write,
-    err: &mut dyn Write,
-    pipe_disposition: libc::sighandler_t,
-) -> u8 {
-    let (product, exit) = match cli::parse(argv) {
-        Ok(args) => {
-            let env = build_envelope(&args);
-            let exit = match env.status {
-                StatusKind::Ok | StatusKind::Needs => 0,
-                StatusKind::Error => 1,
-            };
-            (env.to_json_string(), exit)
-        }
-        Err(e) if e.is_help_or_version() => (e.to_string(), 0),
-        Err(e) => {
-            let _ = writeln!(err, "{}", e);
-            return 2;
-        }
-    };
-    // The one seam where the product is delivered (posix.md §4.2: stdout
-    // carries exactly one product). A failed write here means the product is
-    // lost, and the exit status must say so (§4.4).
-    match writeln!(out, "{product}") {
-        Ok(()) => exit,
-        // Reader gone (EPIPE). Rust ignores SIGPIPE process-wide so socket
-        // writes surface EPIPE as ordinary fetch errors; only here, at the
-        // stdout seam, the pipeline convention applies: restore the default
-        // disposition and re-raise so the shell observes 141 (§5.2).
-        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => {
-            unsafe {
-                libc::signal(libc::SIGPIPE, pipe_disposition);
-                libc::raise(libc::SIGPIPE);
-            }
-            // Under SIG_DFL the raise terminated above; reached only when the
-            // injected disposition keeps SIGPIPE ignored. The product is
-            // still lost, so the lost-product status holds.
-            3
-        }
-        // Any other write failure (ENOSPC, EBADF, …): the product is lost.
-        // The diagnostic is best-effort — stderr may be gone too, and a
-        // failed diagnostic must not recurse or panic.
-        Err(e) => {
-            let _ = writeln!(err, "frot: stdout write failed: {e}");
-            3
-        }
-    }
-}
+pub use deliver::run;
+// The `dyn Write` entry point every end-to-end test drives; production reaches
+// the pipeline through `run` above.
+#[cfg(test)]
+pub(crate) use deliver::run_io;
 
 fn build_envelope(args: &cli::Args) -> Envelope {
     let initial_url = UrlBlock::requested(&args.url);
@@ -122,6 +57,17 @@ fn build_envelope(args: &cli::Args) -> Envelope {
                 return Envelope::needs(url, args.out, vec![NeedsKind::Human], None)
                     .with_http(http);
             }
+            // A body the one parser cannot read is not an impression either
+            // (`src/fetch/media.rs`): handing html5ever a PNG fabricates
+            // elements out of chunk headers, so a declared non-text media type
+            // is refused here — pre-parse, every view, `http` block kept.
+            if let Some(media) = declared_non_document(&fetched) {
+                let error = ErrorInfo::new(
+                    kinds::PARSE,
+                    format!("response media type {media} is not a document"),
+                );
+                return Envelope::error(url, args.out, error).with_http(http);
+            }
             let doc = Document::parse(&fetched.body);
             // §9: JS runs before needs/CSS/layout/views, so everything downstream
             // consumes the post-JS document exactly as it consumes a static one.
@@ -154,6 +100,13 @@ fn build_envelope(args: &cli::Args) -> Envelope {
                 .with_js(js)
         }
     }
+}
+
+/// The response's declared media type when it is not a document frot parses
+/// (`src/fetch/media.rs`), bounded for quoting. Reads the *same* `content-type`
+/// the `http` block surfaces, so the refusal and its evidence agree.
+fn declared_non_document(fetched: &FetchResult) -> Option<String> {
+    fetch::non_document(fetch::header_value(&fetched.headers, "content-type").as_deref())
 }
 
 /// Run page scripts before the rest of the pipeline when `--js` is on (js.md
@@ -254,9 +207,6 @@ mod gather;
 mod tests;
 
 #[cfg(test)]
-mod deliver_tests;
-
-#[cfg(test)]
 mod file_tests;
 
 #[cfg(test)]
@@ -267,6 +217,9 @@ mod cookie_tests;
 
 #[cfg(test)]
 mod http_tests;
+
+#[cfg(test)]
+mod media_tests;
 
 #[cfg(test)]
 mod challenge_tests;
