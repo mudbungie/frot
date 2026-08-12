@@ -404,7 +404,18 @@ saved and read as the same bytes by both sides.
    separately as `bl-4093`, since `innerText` carries neither attribute and the
    text channel already agreed. Fixed there: the `label` content attribute is a
    name-from-author source on both tags, two rows in `ax::name`'s existing
-   native-name table (`layout.md` §2.4). No `text` output changed.
+   native-name table (`layout.md` §2.4). No `text` output changed. Measuring
+   *that* exposed a sixth fact one layer down and again only on the AX channel:
+   `aria-labelledby` pointing straight at an element read its contents and never
+   its own alternative, so a reference to an `<optgroup label>` named the
+   referrer after the option inside it and a reference to an `<img alt>` named
+   it nothing. Filed as `bl-0482` and fixed there — the cycle guard was seeded
+   with the target and so doubled as "do not read this node's own alternative",
+   two rules on one mechanism; splitting them leaves three doors on one
+   recursion (`layout.md` §2.4). 46 reference/label/legend cases were measured
+   for it and frot now matches Chrome on 40; the six that remain are all one
+   fact — `title` as a name source inside those traversals — filed as `bl-d8ff`
+   rather than folded in.
 4. **Geometry**: 13-element fixture (headings, wrap, flex `order`, float,
    `position:absolute`, sized broken `<img>`): all 13 frot rects differ from
    Chrome's on every axis (body margin 8, real font metrics 37px vs 20px

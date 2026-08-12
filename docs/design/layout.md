@@ -275,9 +275,19 @@ other options might have belonged with `<video>`'s prose. Measured in Chrome
   label, not its text (`<button>Choose <select><option label=X>y</option>
   </select></button>` is named "Choose X"). Measuring it also turned up a
   *fifth* fact, again in its own home and again filed rather than smuggled in:
-  `aria-labelledby` pointing straight at such an element reads its contents and
-  never its own alternative, so it descends past the group into the option
-  (`bl-0482`) — accname §2B applied to the one node rule 2F is exempt from.
+  `aria-labelledby` pointing straight at such an element read its contents and
+  never its own alternative, so it descended past the group into the option —
+  accname §2B applied to the one node rule 2F was exempt from. Fixed in
+  `bl-0482`, and it was one mechanism doing two jobs, not a missing case: the
+  cycle guard was seeded with the target, which also happened to spell "do not
+  read this node's own alternative". Separating them leaves `name/contents.rs`
+  with **three doors and one recursion** — contents (children only, for a
+  name-from-contents role), element (the node itself, for a `<label>` or a
+  `<legend>`), reference (the same, minus the two steps §2A/§2B exempt a
+  *directly referenced* node from: it is read even when hidden, and its own
+  `aria-labelledby` is not followed). All three doors and both exemptions are
+  measured against Chrome 139; the one measured divergence left is the `title`
+  attribute as a name source inside these traversals, filed as `bl-d8ff`.
 
 ## 3. "On-demand" — the exact trigger
 

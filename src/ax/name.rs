@@ -2,7 +2,8 @@
 //!
 //! Priority order:
 //! 1. `aria-label` (if non-empty)
-//! 2. `aria-labelledby` — join referenced elements' text content with a space
+//! 2. `aria-labelledby` — join the referenced elements' *text alternatives*
+//!    ([`contents::referenced_name`]) with a space
 //! 3. Native labelling:
 //!    - `<img>` and `<area>` — `alt`
 //!    - `<input type=button|submit|reset>` — `value`
@@ -26,10 +27,10 @@ mod contents;
 use crate::css::Styles;
 use crate::dom::{Document, NodeId, NodeKind, WalkEvent};
 
-/// The text alternative of a subtree — the one traversal every name source
-/// uses ([`contents`]), so a label, a `aria-labelledby` target and a
-/// name-from-contents role all read an `<img alt>` the same way.
-fn alternative_text(doc: &Document, id: NodeId, styles: Option<&Styles>) -> String {
+/// The name a role that names from its contents takes from its subtree — the
+/// §2F recursion over descendants only ([`contents`]), never the element's own
+/// alternative, which the steps above `native_name` have already had.
+fn contents_text(doc: &Document, id: NodeId, styles: Option<&Styles>) -> String {
     contents::contents_name(doc, id, styles, &[])
 }
 
@@ -73,7 +74,7 @@ fn labelledby_text(
     let parts: Vec<String> = raw
         .split_whitespace()
         .filter_map(|target| find_by_id(doc, target))
-        .map(|id| collapse_whitespace(&alternative_text(doc, id, styles)))
+        .map(|id| collapse_whitespace(&contents::referenced_name(doc, id, styles)))
         .filter(|s| !s.is_empty())
         .collect();
     if parts.is_empty() {
@@ -95,8 +96,8 @@ fn native_name(
         "textarea" | "select" => control_label_text(doc, id, el, styles),
         "fieldset" => fieldset_legend_text(doc, id, styles),
         "optgroup" => label_attr(el),
-        "option" => label_attr(el).or_else(|| Some(alternative_text(doc, id, styles))),
-        _ if names_from_contents(doc, id) => Some(alternative_text(doc, id, styles)),
+        "option" => label_attr(el).or_else(|| Some(contents_text(doc, id, styles))),
+        _ if names_from_contents(doc, id) => Some(contents_text(doc, id, styles)),
         _ => None,
     }
 }
@@ -215,7 +216,7 @@ fn control_label_text(
     });
     for_match
         .or(wrapping_label)
-        .map(|id| contents::contents_name(doc, id, styles, &[control_id]))
+        .map(|id| contents::element_name(doc, id, styles, &[control_id]))
 }
 
 fn fieldset_legend_text(
@@ -234,7 +235,7 @@ fn fieldset_legend_text(
             }
         }
     });
-    found.map(|id| alternative_text(doc, id, styles))
+    found.map(|id| contents::element_name(doc, id, styles, &[]))
 }
 
 fn find_by_id(doc: &Document, target: &str) -> Option<NodeId> {
@@ -264,3 +265,6 @@ mod contents_tests;
 
 #[cfg(test)]
 mod option_tests;
+
+#[cfg(test)]
+mod reference_tests;

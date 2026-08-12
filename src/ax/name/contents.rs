@@ -28,20 +28,82 @@
 //! remembering to ask the same question.
 //!
 //! Each node contributes **at most once**: the visited set is the spec's cycle
-//! guard, so `aria-labelledby` pointing back into the subtree (or at itself)
-//! terminates instead of looping.
+//! guard, so a reference pointing back into the subtree terminates instead of
+//! looping. It is *not* the rule that stops the walk at an element with its own
+//! alternative — that is rule 2F above, and conflating the two is what made an
+//! `aria-labelledby` target the one node exempt from 2F (`bl-0482`).
+//!
+//! Three doors lead in, one recursion behind them ([`contents_name`],
+//! [`element_name`], [`referenced_name`]); which one a name source knocks on is
+//! the whole of what distinguishes the sources.
 //!
 //! Spacing: raw text is concatenated verbatim (`<button>Hello<span>world</span>`
 //! is "Helloworld" in browsers too), while an alternative is a *word* standing
 //! in for an element and is fenced with spaces. The caller collapses runs, so
 //! the fences never double up.
 
+mod native;
+
 use crate::ax;
 use crate::css::Styles;
-use crate::dom::{Document, Element, NodeId, NodeKind, WalkEvent};
+use crate::dom::{Document, Element, NodeId, NodeKind};
+use native::native_alternative;
 
-/// The name `id`'s descendants compute for it. `spent` names nodes that must
-/// not contribute — the accname rule that a `<label>` does not read back the
+/// One traversal's fixed context: the tree, the cascade, and how the traversal
+/// reached the node it is reading.
+struct Walk<'a> {
+    doc: &'a Document,
+    styles: Option<&'a Styles>,
+    via: Via,
+}
+
+/// How a node was reached — the two accname rules that single out an
+/// `aria-labelledby` target, and nothing else.
+enum Via {
+    /// Ordinary descent: a name-from-contents subtree, a `<label>`, a
+    /// `<legend>`. Every rule applies as written.
+    Contents,
+    /// The node a reference names *directly*: exempt from the hidden check
+    /// (§2A excludes hidden nodes "unless directly referenced" — measured,
+    /// Chrome 139 names a button after a `display:none`, `visibility:hidden`
+    /// or `aria-hidden` target), and its own `aria-labelledby` is not followed
+    /// (§2B does not recurse: a target with `aria-labelledby` of its own names
+    /// from its contents).
+    Target,
+    /// Below such a node: hidden excludes again (an `aria-hidden` child of a
+    /// target is still dropped), while the no-recursion rule holds for the
+    /// whole traversal — one reference hop is all there is.
+    UnderTarget,
+}
+
+impl<'a> Walk<'a> {
+    /// The same traversal one step further in. A target's exemption is spent on
+    /// the target itself; its refusal to follow references is not.
+    fn below(&self) -> Walk<'a> {
+        let via = match self.via {
+            Via::Contents => Via::Contents,
+            _ => Via::UnderTarget,
+        };
+        Walk {
+            doc: self.doc,
+            styles: self.styles,
+            via,
+        }
+    }
+
+    /// The traversal that reads a reference's target.
+    fn target(&self) -> Walk<'a> {
+        Walk {
+            doc: self.doc,
+            styles: self.styles,
+            via: Via::Target,
+        }
+    }
+}
+
+/// The name `id`'s **descendants** compute for it: rule 2F over its children,
+/// for a role that names from its contents. `spent` names nodes that must not
+/// contribute — the accname rule that a `<label>` does not read back the
 /// control it labels, which would otherwise name the control after itself.
 pub fn contents_name(
     doc: &Document,
@@ -49,66 +111,89 @@ pub fn contents_name(
     styles: Option<&Styles>,
     spent: &[NodeId],
 ) -> String {
+    let w = Walk {
+        doc,
+        styles,
+        via: Via::Contents,
+    };
     let mut visited = vec![id];
     visited.extend_from_slice(spent);
     let mut out = String::new();
-    children_text(doc, id, styles, &mut visited, &mut out);
+    children_text(&w, id, &mut visited, &mut out);
+    out
+}
+
+/// The text alternative of the element **itself** — rule 2F applied *to* `id`,
+/// so an element that supplies its own alternative contributes that and is not
+/// descended into. The door a `<label>` and a `<legend>` enter by: measured,
+/// Chrome 139 names a fieldset "LA" for `<legend aria-label=LA>LT</legend>`
+/// and a control "LB" for `<label for aria-label=LB>LT</label>`, and names
+/// neither when the label or legend is `display:none`.
+pub fn element_name(
+    doc: &Document,
+    id: NodeId,
+    styles: Option<&Styles>,
+    spent: &[NodeId],
+) -> String {
+    let w = Walk {
+        doc,
+        styles,
+        via: Via::Contents,
+    };
+    let mut out = String::new();
+    node_text(&w, id, &mut spent.to_vec(), &mut out);
+    out
+}
+
+/// The text alternative of an `aria-labelledby` target: [`element_name`] under
+/// [`Via::Target`], which is the whole difference a reference makes.
+pub fn referenced_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> String {
+    let w = Walk {
+        doc,
+        styles,
+        via: Via::Target,
+    };
+    let mut out = String::new();
+    node_text(&w, id, &mut Vec::new(), &mut out);
     out
 }
 
 /// `::before` + every child's contribution + `::after`.
-fn children_text(
-    doc: &Document,
-    id: NodeId,
-    styles: Option<&Styles>,
-    visited: &mut Vec<NodeId>,
-    out: &mut String,
-) {
-    out.push_str(styles.and_then(|s| s.before(id)).unwrap_or(""));
-    for c in doc.ax_children(id) {
-        node_text(doc, c, styles, visited, out);
+fn children_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) {
+    out.push_str(w.styles.and_then(|s| s.before(id)).unwrap_or(""));
+    for c in w.doc.ax_children(id) {
+        node_text(w, c, visited, out);
     }
-    out.push_str(styles.and_then(|s| s.after(id)).unwrap_or(""));
+    out.push_str(w.styles.and_then(|s| s.after(id)).unwrap_or(""));
 }
 
-fn node_text(
-    doc: &Document,
-    id: NodeId,
-    styles: Option<&Styles>,
-    visited: &mut Vec<NodeId>,
-    out: &mut String,
-) {
-    match &doc.node(id).kind {
+fn node_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) {
+    match &w.doc.node(id).kind {
         // A text node needs no check of its own: the only ways it can be
         // outside the name are its parent element being hidden (caught below,
         // before the recursion reaches here) and structural concealment
         // (caught by [`Document::ax_children`], which is the only way in).
         NodeKind::Text(t) => out.push_str(t),
-        NodeKind::Element(el) => element_text(doc, id, el, styles, visited, out),
+        NodeKind::Element(el) => element_text(w, id, el, visited, out),
         NodeKind::Comment(_) | NodeKind::Doctype => {}
     }
 }
 
-fn element_text(
-    doc: &Document,
-    id: NodeId,
-    el: &Element,
-    styles: Option<&Styles>,
-    visited: &mut Vec<NodeId>,
-    out: &mut String,
-) {
-    if hidden(id, el, styles) || visited.contains(&id) {
+fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, out: &mut String) {
+    let concealed = !matches!(w.via, Via::Target) && hidden(id, el, w.styles);
+    if concealed || visited.contains(&id) {
         return;
     }
     // Not popped: once counted, a node is spent for this whole computation.
     visited.push(id);
-    match alternative(doc, id, el, styles, visited) {
+    let w = &w.below();
+    match alternative(w, id, el, visited) {
         Some(text) => {
             out.push(' ');
             out.push_str(&text);
             out.push(' ');
         }
-        None => children_text(doc, id, styles, visited, out),
+        None => children_text(w, id, visited, out),
     }
 }
 
@@ -123,92 +208,29 @@ fn hidden(id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
 }
 
 /// What an element contributes *instead of* its contents, if anything.
-fn alternative(
-    doc: &Document,
-    id: NodeId,
-    el: &Element,
-    styles: Option<&Styles>,
-    visited: &mut Vec<NodeId>,
-) -> Option<String> {
+fn alternative(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>) -> Option<String> {
     super::trimmed_attr(el, "aria-label")
-        .or_else(|| labelledby(doc, el, styles, visited))
-        .or_else(|| native_alternative(doc, id, el))
+        .or_else(|| labelledby(w, el, visited))
+        .or_else(|| native_alternative(w.doc, id, el))
 }
 
-/// `aria-labelledby` on a *descendant*, resolved through the same recursion so
-/// the visited set guards it. A reference that resolves to nothing is no
-/// alternative, and the element falls through to its own contents.
-fn labelledby(
-    doc: &Document,
-    el: &Element,
-    styles: Option<&Styles>,
-    visited: &mut Vec<NodeId>,
-) -> Option<String> {
+/// `aria-labelledby`, resolved through the same recursion so the visited set
+/// guards it — but only from outside a reference: one hop is the whole of §2B,
+/// so neither a target nor anything under it follows a further reference.
+/// A reference that resolves to nothing is no alternative, and the element
+/// falls through to its own contents.
+fn labelledby(w: &Walk, el: &Element, visited: &mut Vec<NodeId>) -> Option<String> {
+    if !matches!(w.via, Via::Contents) {
+        return None;
+    }
     let raw = el.attr("aria-labelledby")?;
+    let w = &w.target();
     let mut out = String::new();
     for target in raw
         .split_whitespace()
-        .filter_map(|t| super::find_by_id(doc, t))
+        .filter_map(|t| super::find_by_id(w.doc, t))
     {
-        node_text(doc, target, styles, visited, &mut out);
+        node_text(w, target, visited, &mut out);
     }
     Some(out).filter(|s| !s.trim().is_empty())
-}
-
-/// The replaced-element and embedded-control alternatives. `alt=""` is an
-/// alternative — the empty one — which is exactly how a decorative image
-/// contributes nothing without its `src` leaking in.
-fn native_alternative(doc: &Document, id: NodeId, el: &Element) -> Option<String> {
-    match el.name.as_str() {
-        "img" | "area" => el.attr("alt").map(str::to_string),
-        "input" => Some(input_alternative(el)),
-        "textarea" => Some(doc.text_content(id)),
-        "select" => Some(selected_option_text(doc, id)),
-        "option" | "optgroup" => super::label_attr(el),
-        "svg" => svg_title_text(doc, id),
-        _ => None,
-    }
-}
-
-/// An `<input>` is a leaf: `type=image` speaks through `alt`, everything else
-/// (button labels and embedded controls alike) through its `value`.
-fn input_alternative(el: &Element) -> String {
-    let attr = match el.attr("type").unwrap_or("").to_ascii_lowercase().as_str() {
-        "image" => "alt",
-        _ => "value",
-    };
-    el.attr(attr).unwrap_or("").to_string()
-}
-
-/// An embedded `<select>` speaks its selected option — the first one when the
-/// author marked none, since that is the one the UA selects. What the option
-/// says is its own label, so `<option label=X>y</option>` speaks "X" (measured:
-/// Chrome names `<button>Choose <select>…</select></button>` "Choose X").
-fn selected_option_text(doc: &Document, id: NodeId) -> String {
-    let (mut first, mut selected) = (None, None);
-    doc.walk(Some(id), &mut |ev, e| {
-        if let (WalkEvent::Enter(n), NodeKind::Element(el)) = (ev, &e.kind) {
-            if el.name == "option" {
-                let says = super::label_attr(el).unwrap_or_else(|| doc.text_content(n));
-                if selected.is_none() && el.attr("selected").is_some() {
-                    selected = Some(says.clone());
-                }
-                first.get_or_insert(says);
-            }
-        }
-    });
-    selected.or(first).unwrap_or_default()
-}
-
-/// SVG-AAM: an `<svg>` is named by its `<title>` child.
-fn svg_title_text(doc: &Document, id: NodeId) -> Option<String> {
-    let mut found = None;
-    doc.walk(Some(id), &mut |ev, e| {
-        if let (WalkEvent::Enter(n), NodeKind::Element(el)) = (ev, &e.kind) {
-            if found.is_none() && el.name == "title" {
-                found = Some(n);
-            }
-        }
-    });
-    found.map(|t| doc.text_content(t))
 }
