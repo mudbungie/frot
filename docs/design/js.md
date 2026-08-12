@@ -148,6 +148,30 @@ Consequences of the repo's hard rules:
   prototype accessor, the iteration methods ARE the `Array.prototype` ones),
   and instances are snapshots of wrapped nodes: like every wrapper, they cache
   no arena state. The env-contract fixture pins the whole surface.
+- **Two ES iterator helpers are frot's, not the engine's** (bl-5249, found
+  live on astro.build: `qsa('.integration-tab').values().find(…)`).
+  quickjs-ng's C `Iterator.prototype.find` and `.filter` never release a value
+  their predicate *rejects*, so every skipped object stays referenced and
+  engine teardown aborts the whole process — `JS_FreeRuntime: Assertion
+  list_empty(&rt->gc_obj_list) failed`, SIGABRT, no envelope, in violation of
+  the one-envelope contract. A leaked reference cannot be freed from outside
+  the engine and the assertion is not ours to silence (turning it off only
+  trades the abort for a panic reclaiming the arena, `session.rs`). Upstream
+  fixed `find` in quickjs-ng 0.16.0, but rquickjs ships 0.15.1 and a git pin
+  does not survive `cargo publish` (the registry substitutes the released
+  crate, restoring the crash in the *published* frot), so
+  `prelude/iterator.js` composes those two out of the sibling helpers that are
+  free of these leaks: `find` is a `some` that keeps the value it stopped on,
+  `filter` a `flatMap` yielding one value or none. Laziness, `next` caching,
+  iterator closing (including at suspended start and on a non-callable
+  predicate, ES2026 §27.1.3.3.4–.5), and the `Iterator Helper` shape stay the
+  engine's; the two are captured *before* the swap and applied reflectively, so
+  a page overriding `some`/`flatMap` redirects only its own calls, and they are
+  concise methods — non-constructible like the built-ins — branded native like
+  the rest of the prelude. Every other helper is untouched, and the file goes
+  away when rquickjs ships a quickjs-ng with the `filter` free too. The pin is
+  a **process-boundary** test (`tests/binary.rs`), because in-process the run
+  completes and only teardown fails.
 - **Token lists are spec-named DOMTokenList instances** (bl-3a36, found live:
   the `vite:build-import-analysis` modulepreload polyfill that every Vite
   production build inlines at module top level runs

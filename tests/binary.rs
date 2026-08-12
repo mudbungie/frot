@@ -101,6 +101,69 @@ fn same_parent_dom_moves_survive_the_process_boundary() {
     );
 }
 
+/// A page that walks a query result through the ES iterator helpers gets ONE
+/// envelope and a documented exit status — never a native abort (`bl-5249`).
+///
+/// A process boundary again, for the sibling reason: quickjs-ng's C
+/// `Iterator.prototype.find`/`.filter` leak every value their predicate
+/// rejects, so the run *finished* and then engine teardown hit `JS_FreeRuntime:
+/// Assertion list_empty(&rt->gc_obj_list) failed` — exit 134, empty stdout, no
+/// envelope. Only a spawned frot tells "died on a signal" from "reported an
+/// error".
+///
+/// The shape is astro.build's (field trial 2026-08-11): a tab strip whose
+/// script finds one span inside the panel by its text. The bytes are frot's
+/// own — the defect is in the engine's helpers, not in anyone's markup.
+#[test]
+fn iterator_helpers_over_a_query_deliver_one_envelope_and_no_abort() {
+    let mut server = mockito::Server::new();
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_header("content-type", "text/html; charset=utf-8")
+        .with_body(
+            "<body><button class='tab'>vue</button><button class='tab'>svelte</button>\
+             <div role='tabpanel'><span>'../components/BuyButton.jsx'</span></div>\
+             <script type='module'>\
+             const tabs = document.querySelectorAll('.tab');\
+             const panel = document.querySelector('[role=\"tabpanel\"]');\
+             const label = panel.querySelectorAll('span').values()\
+               .find(s => s.textContent === \"'../components/BuyButton.jsx'\");\
+             const other = tabs.values().filter(t => t.textContent !== 'vue').toArray();\
+             label.textContent = other.length + ' ' + tabs.values().find(t => false);\
+             </script></body>",
+        )
+        .create();
+    let out = bin()
+        .args([&server.url(), "--js", "--js-errors", "--out", "text"])
+        .output()
+        .expect("spawn frot");
+    // `code()` is `None` when a signal killed the child: this is the assertion
+    // the abort failed, and it fails loudly rather than parsing empty stdout.
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "frot did not exit normally: {} / stderr: {}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(stdout.lines().count(), 1, "exactly one envelope: {stdout}");
+    let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("envelope JSON");
+    assert_eq!(v["status"], "ok");
+    assert_eq!(v["js"]["errors"], 0, "{}", v["js"]);
+    // The helpers ran and produced values, not just an intact process: one
+    // non-'vue' tab, and a `find` that matched nothing.
+    assert!(
+        v["out"]
+            .as_str()
+            .expect("text view")
+            .contains("1 undefined"),
+        "{}",
+        v["out"]
+    );
+}
+
 #[test]
 fn readme_tagline_is_the_crate_description_verbatim() {
     // Cargo.toml `description` is the tagline's single authoritative home

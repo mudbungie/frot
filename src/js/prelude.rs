@@ -37,6 +37,10 @@ pub const SOURCE: &str = concat!(
     // later module (and the six later capability balls) registers through (§8).
     include_str!("prelude/brand.js"),
     "\n",
+    // iterator.js next: replaces the engine's two process-aborting iterator
+    // helpers (bl-5249). Needs only brand.js, and must precede any page script.
+    include_str!("prelude/iterator.js"),
+    "\n",
     include_str!("prelude/console.js"),
     "\n",
     include_str!("prelude/dom.js"),

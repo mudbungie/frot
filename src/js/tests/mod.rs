@@ -15,6 +15,7 @@ mod clock;
 mod envgold;
 mod evloop;
 mod facade;
+mod iterator;
 mod net;
 mod persona_gold;
 
