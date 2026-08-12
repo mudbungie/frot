@@ -212,3 +212,6 @@ mod tests;
 
 #[cfg(test)]
 mod foreign_tests;
+
+#[cfg(test)]
+mod select_tests;

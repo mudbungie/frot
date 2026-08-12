@@ -74,7 +74,10 @@ enum Display { None, Block, Inline, InlineBlock, ListItem, Flex, InlineFlex }
 ```
 
 **Implicit (UA) display by tag** seeds the value when no rule sets `display`.
-The UA sheet also carries two attribute rules, applied at the same step and
+One tag in that map computes `none`: `datalist { display: none }` (HTML
+Rendering §15.5.1) — an ordinary UA declaration an author rule beats, measured
+in both directions (`bl-66ed`, §2.3). The UA sheet also carries two attribute
+rules, applied at the same step and
 overridden by any author or inline declaration: `[hidden] { display: none }`
 (HTML §15.3.1 — `hidden` is a boolean attribute, so presence is the fact and
 `until-found` hides too, `bl-eeb4`) and, once `--js` ran, `noscript` (js.md §4).
@@ -142,7 +145,12 @@ block breaks (`BLOCK_TAGS`) — extract it to one place so the two never drift
 not an HTML-only set: SVG `<text>`/`<foreignObject>` and the MathML elements
 that carry text are in it too, on the computed `display` Chrome reports for them
 (`block` and `block math`), which is the same fact both consumers want
-(`bl-c0a4`, needs.md §4.2).
+(`bl-c0a4`, needs.md §4.2). `<option>` and `<optgroup>` joined it the same way
+(`bl-66ed`): Chrome computes `block` for both in a collapsed `size=1` select, an
+open `size=4` listbox, a `multiple` one, and outside any select at all, so it is
+the tag's own display and not a fact about its parent — which is what stops
+`<option>a</option><option>b</option>` extracting as the invented token `ab`.
+`<select>` itself is not in the set; it computes `inline-block`.
 
 **Computed by Phase 3 layout:**
 
@@ -214,11 +222,12 @@ Three consequences follow, all of them subtractions:
 
 ### 2.3 Which recipes each rule holds in
 
-The claim that needed correcting twice, stated once, for all four rules:
+The claim that needed correcting twice, stated once, for all five rules:
 
 | rule | kind | holds without `--css`? |
 |---|---|---|
 | `[hidden]` attribute | UA *stylesheet* declaration, author-overridable | **no** — it is a cascade rule, and `--css` is what "apply CSS" means. `needs` is the exception: it reads the attribute directly, because a starved-page verdict must not turn on the recipe |
+| `<datalist>` | UA *stylesheet* declaration, author-overridable | **no** — same reason, and measured to be a declaration rather than a structure (`bl-66ed`): `datalist { display: block }` makes Chrome paint the suggestions, put them in `innerText`, and stop ignoring them in the AX tree. So without `--css` frot's `text`/`ax` carry the suggestion list |
 | closed `<details>` | document **state**, structural | yes, everywhere |
 | media/`<iframe>` fallback | **content model**, structural | yes, everywhere |
 | `<canvas>` fallback | content model, structural, **paint only** | yes, everywhere — dropped from `text`/`bboxes`/`needs`, kept in `ax`, in either recipe (§2.1) |
@@ -226,6 +235,34 @@ The claim that needed correcting twice, stated once, for all four rules:
 The rule of thumb the accessors enforce: a *declaration* needs the cascade; a
 *structure* does not. The recipe decides how a fact was computed, never which
 content it covers.
+
+### 2.4 The `<select>` subtree is not concealment (`bl-66ed`)
+
+`<option>` fusing into one token looked like a missing separator and could have
+been a missing *concealment* — a collapsed select paints one option, so the
+other options might have belonged with `<video>`'s prose. Measured in Chrome
+139, they do not, and the subtree splits into three separate facts:
+
+- **A block break, not a rule about the parent.** `<option>`/`<optgroup>`
+  compute `display: block` everywhere, including in a plain `<div>`. That is
+  the whole text-channel defect, and it lives in `BLOCK_TAGS` (§2).
+- **`<datalist>` is a declaration**, so it is a cascade rule and a §2.3 row —
+  not a structure, on the measured author override.
+- **The collapsed select's missing option boxes are a declared residual, not a
+  third structural query.** Chrome gives a `size=1` select's options zero
+  client rects while `innerText` still lists all of them and the AX tree still
+  exposes every one; an open `size=4` or `multiple` select gives them real
+  boxes. So the fact is "no box, still in text, still in AX" — a *third* answer
+  that `unpainted`/`concealed` cannot spell, and inventing a third query to
+  spell it would be the fourth-place mistake §2.2 exists to prevent. frot has
+  no UA widget rendering to model the popup with, and VISION holds the
+  not-a-browser line; it lays the options out in flow in both modes, which is
+  right for the listbox and an over-report of paint for the collapsed one.
+  Recorded in `fidelity.md` §3.3, where the text half was already a residual.
+- The **`<optgroup label>` / `<option label>` accessible name** is a fourth
+  fact, in a fourth home (`ax::name`), and is not this section's: Chrome names
+  the `group`/`option` from the attribute and frot does not — filed as
+  `bl-4093`, since `innerText` carries neither and the text channel agrees.
 
 ## 3. "On-demand" — the exact trigger
 

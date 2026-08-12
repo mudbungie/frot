@@ -49,6 +49,18 @@ pub const BLOCK_TAGS: &[&str] = &[
     "td",
     "th",
     "ul",
+    // The `<select>` subtree (`bl-66ed`). Chrome 139 computes `display: block`
+    // for `<option>` and `<optgroup>` in every arrangement measured — a
+    // collapsed `size=1` select, an open `size=4` listbox, a `multiple` one,
+    // and an `<option>` sitting in a plain `<div>` with no select at all — so
+    // this is the tag's own UA display, not a fact about its parent. It is
+    // what separates adjacent options: `<option>a</option><option>b</option>`
+    // is `a\nb` in `innerText`, never the invented token `ab`, while inline
+    // markup *inside* one option stays on its line (`<option>a<b>B</b>c` is
+    // one line `aBc`), which is why this is per-element and not per-text-node.
+    // `<select>` itself is deliberately absent: it computes `inline-block`.
+    "option",
+    "optgroup",
     // Foreign content (`bl-c0a4`). Not an analogy from HTML: these are the
     // computed `display` values Chrome 139 reports for them, from the SVG and
     // MathML-core UA stylesheets. SVG `<text>` and `<foreignObject>` are
@@ -154,6 +166,17 @@ mod tests {
         assert!(is_block("div"));
         assert!(is_block("li"));
         assert!(!is_block("span"));
+    }
+
+    /// The select subtree splits on the tag, not on the parent (`bl-66ed`):
+    /// Chrome computes `block` for the two children in every select mode and
+    /// in no select at all, and `inline-block` for `<select>` itself.
+    #[test]
+    fn the_select_subtree_is_block_below_the_select_and_not_at_it() {
+        assert!(is_block("option"));
+        assert!(is_block("optgroup"));
+        assert!(!is_block("select"));
+        assert!(!is_block("datalist"));
     }
 
     #[test]

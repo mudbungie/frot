@@ -84,16 +84,26 @@ fn display(applied: &[Applied], el: &Element, js: bool) -> Display {
     }
 }
 
-/// UA-implicit `display` when no rule sets it: `li` → list-item, any other
-/// block-level tag ([`is_block`]) → block, everything else → inline. Never
-/// yields `none`.
+/// UA-implicit `display` when no rule sets it: `datalist` → none, `li` →
+/// list-item, any other block-level tag ([`is_block`]) → block, everything else
+/// → inline.
+///
+/// `datalist` is the one tag the UA sheet hides outright
+/// (`datalist { display: none }`, HTML Rendering §15.5.1). It lives here rather
+/// than beside `[hidden]` above because it is keyed on the *tag*, like every
+/// other entry in this map — and it is an ordinary UA declaration, so an author
+/// rule beats it and the `Some` arm above never reaches this function.
+/// Measured, Chrome 139 (`bl-66ed`): a bare `<datalist>`'s options compute
+/// `display: block`, get zero client rects, contribute nothing to `innerText`,
+/// and are `ignored` in the AX tree; add `datalist { display: block }` and all
+/// four reverse. Being a declaration, it needs the cascade — without `--css`
+/// the suggestions stay in `text` and `ax` (`layout.md` §2.3).
 fn implicit_display(name: &str) -> Display {
-    if name == "li" {
-        Display::ListItem
-    } else if is_block(name) {
-        Display::Block
-    } else {
-        Display::Inline
+    match name {
+        "datalist" => Display::None,
+        "li" => Display::ListItem,
+        n if is_block(n) => Display::Block,
+        _ => Display::Inline,
     }
 }
 

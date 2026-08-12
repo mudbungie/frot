@@ -52,6 +52,33 @@ fn hidden_input_is_ua_display_none_and_not_author_overridable() {
 }
 
 #[test]
+fn datalist_is_ua_display_none_and_author_overridable() {
+    // The one tag in the UA-implicit display map that computes `none`
+    // (`datalist { display: none }`, `bl-66ed`). Measured as a *declaration*
+    // rather than a structure: the author rule below makes Chrome paint the
+    // suggestions, list them in `innerText`, and stop ignoring them in AX.
+    let (doc, s) = styles("<datalist id=dl><option value=alpha>Alpha</option></datalist>");
+    assert!(s.display_none(first_tag(&doc, "datalist")));
+    // Its options are ordinary block boxes; only the parent's `none` hides them.
+    assert_eq!(s.display(first_tag(&doc, "option")), Display::Block);
+    let (doc, s) = styles("<style>datalist{display:block}</style><datalist id=dl>x</datalist>");
+    assert!(!s.display_none(first_tag(&doc, "datalist")));
+    let (doc, s) = styles("<datalist id=dl style='display:block'>x</datalist>");
+    assert!(!s.display_none(first_tag(&doc, "datalist")));
+}
+
+#[test]
+fn select_subtree_ua_display_matches_chrome() {
+    // `<option>`/`<optgroup>` compute `block`, `<select>` `inline-block` —
+    // which frot has no variant for, so it is the inline-level default
+    // (`layout.md` §2.4; `bl-66ed`).
+    let (doc, s) = styles("<select><optgroup label=G><option>a</option></optgroup></select>");
+    assert_eq!(s.display(first_tag(&doc, "option")), Display::Block);
+    assert_eq!(s.display(first_tag(&doc, "optgroup")), Display::Block);
+    assert_eq!(s.display(first_tag(&doc, "select")), Display::Inline);
+}
+
+#[test]
 fn non_matching_rule_is_inert() {
     let (doc, s) = styles("<style>div{display:none}</style><p>x</p>");
     assert!(!s.display_none(first_tag(&doc, "p")));

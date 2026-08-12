@@ -182,7 +182,8 @@ The founding entries, all measured (§12):
 | residual | reason |
 |---|---|
 | frot `text` includes string `::before`/`::after` content; `innerText` never does | The pseudo-content **is painted** (Chrome computes the content and generates the box) — the *channel* under-reports paint; frot's inclusion is the `--css` contract (`VISION.md`, `css.md`). frot is right; innerText is the blind ruler. |
-| `<select>` options: painted UI shows the selected option; `innerText` shows all options; frot shows all options | Both rulers differ from paint; comparing them to each other is stable. The *fusion* of option texts is a defect, not a residual (§12.3). |
+| `<select>` options: painted UI shows the selected option; `innerText` shows all options; frot shows all options | Both rulers differ from paint; comparing them to each other is stable. The *fusion* of option texts was a defect, not a residual (§12.3), and is fixed — `<option>`/`<optgroup>` are `BLOCK_TAGS` on their measured `display:block` (`bl-66ed`, `layout.md` §2.4). |
+| `bboxes`: a **collapsed** (`size=1`) select's options get a frot box; Chrome gives them zero client rects | Chrome renders the closed popup as a UA shadow widget, so the options' boxes exist only when the list is open (`size=4`/`multiple`, where Chrome and frot both box them). frot has no UA widget rendering and does not model select modes; it lays the options out in flow either way. An over-report of paint, in the direction that keeps the document's own copy — the same choice as `<object>` fallback (`tags.rs`). |
 | canvas bare-text fallback appears in no frot view; Chrome AX has `StaticText` under `Canvas` | frot's `ax` model has no text nodes, so bare text under `<canvas>` surfaces nowhere — a model consequence, uniform with `<p>` prose. Note: `layout.md` §2.1's "kept in ax" is thereby overstated for *bare text* — what survives is element fallback (measured: a link inside canvas appears; its sibling bare text does not). Fix the wording there when this lands. |
 | `open-quote`/`close-quote` and PUA icon glyphs | frot emits the raw `` codepoint and no quote marks; innerText emits neither. Sub-token noise the token projection mostly absorbs; declared for the icon-font case. |
 
@@ -394,8 +395,13 @@ saved and read as the same bytes by both sides.
    <option selected>second</option></select>` → frot text `firstsecond` —
    two words fused into a token no browser produces (Chrome: `first`,
    `second`). Surfaced by the token projection on the first fixture that
-   contained a select. *Awaiting triage as a bug ball on sign-off — not filed
-   from inside this design ball.*
+   contained a select. Filed as `bl-66ed` and fixed there: `<option>` and
+   `<optgroup>` compute `display: block` in Chrome in every select mode and
+   outside a select entirely, so they joined `BLOCK_TAGS`. The same session
+   measured two more facts in that subtree — `<datalist>` is a UA declaration
+   (`layout.md` §2.3) and the collapsed select's absent option boxes are a
+   residual (§3.3) — and left the `<optgroup label>` accessible name filed
+   separately.
 4. **Geometry**: 13-element fixture (headings, wrap, flex `order`, float,
    `position:absolute`, sized broken `<img>`): all 13 frot rects differ from
    Chrome's on every axis (body margin 8, real font metrics 37px vs 20px
