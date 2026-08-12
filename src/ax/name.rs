@@ -9,24 +9,26 @@
 //!    - `<input type=image>` — `alt`
 //!    - other form controls (`<input>`, `<textarea>`, `<select>`) — the matching
 //!      `<label for=…>` or the wrapping `<label>` text content
-//!    - everything else — the element's own text content, but *only* when the
-//!      element's role is name-from-contents (see [`NAME_FROM_CONTENTS`]);
-//!      containers (table, row, list, paragraph, nav, …) yield no native name
+//!    - everything else — the element's descendant text *alternatives* (the
+//!      §2F recursion, [`contents`]), but *only* when the element's role is
+//!      name-from-contents (see [`NAME_FROM_CONTENTS`]); containers (table,
+//!      row, list, paragraph, nav, …) yield no native name
 //! 4. `title`
 //!
 //! Returns the trimmed result, or `None` if nothing produced text. With
 //! `Some(styles)` (`--css`), the text-content sources drop `display:none`
 //! subtrees and include `::before`/`::after` generated content.
 
-use crate::css::{rendered_subtree_text, Styles};
+mod contents;
+
+use crate::css::Styles;
 use crate::dom::{Document, NodeId, NodeKind, WalkEvent};
 
-/// Text content of `id`'s subtree, CSS-aware when a [`Styles`] table is given.
-fn name_text(doc: &Document, id: NodeId, styles: Option<&Styles>) -> String {
-    match styles {
-        Some(s) => rendered_subtree_text(doc, id, s),
-        None => doc.text_content(id),
-    }
+/// The text alternative of a subtree — the one traversal every name source
+/// uses ([`contents`]), so a label, a `aria-labelledby` target and a
+/// name-from-contents role all read an `<img alt>` the same way.
+fn alternative_text(doc: &Document, id: NodeId, styles: Option<&Styles>) -> String {
+    contents::contents_name(doc, id, styles, &[])
 }
 
 pub fn accessible_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Option<String> {
@@ -69,7 +71,7 @@ fn labelledby_text(
     let parts: Vec<String> = raw
         .split_whitespace()
         .filter_map(|target| find_by_id(doc, target))
-        .map(|id| collapse_whitespace(&name_text(doc, id, styles)))
+        .map(|id| collapse_whitespace(&alternative_text(doc, id, styles)))
         .filter(|s| !s.is_empty())
         .collect();
     if parts.is_empty() {
@@ -90,7 +92,7 @@ fn native_name(
         "input" => input_name(doc, id, el, styles),
         "textarea" | "select" => control_label_text(doc, id, el, styles),
         "fieldset" => fieldset_legend_text(doc, id, styles),
-        _ if names_from_contents(doc, id) => Some(name_text(doc, id, styles)),
+        _ if names_from_contents(doc, id) => Some(alternative_text(doc, id, styles)),
         _ => None,
     }
 }
@@ -193,7 +195,7 @@ fn control_label_text(
     });
     for_match
         .or(wrapping_label)
-        .map(|id| name_text(doc, id, styles))
+        .map(|id| contents::contents_name(doc, id, styles, &[control_id]))
 }
 
 fn fieldset_legend_text(
@@ -212,7 +214,7 @@ fn fieldset_legend_text(
             }
         }
     });
-    found.map(|id| name_text(doc, id, styles))
+    found.map(|id| alternative_text(doc, id, styles))
 }
 
 fn find_by_id(doc: &Document, target: &str) -> Option<NodeId> {
@@ -236,3 +238,6 @@ fn collapse_whitespace(s: &str) -> String {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod contents_tests;
