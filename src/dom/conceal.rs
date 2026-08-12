@@ -15,7 +15,7 @@
 //!   document (`bl-74a6`).
 //! - A **fallback-content element** paints *none* of its children
 //!   ([`crate::tags`], which owns that fact and is also read by the
-//!   recipe-independent subtree skips in `views::text` and `ax::tree`).
+//!   recipe-independent subtree skip in `views::text`).
 //!
 //! Neither is author-overridable: the skipped box is not the child's, and frot
 //! has no anonymous boxes to give it one.

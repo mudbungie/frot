@@ -138,7 +138,11 @@ the recipe-independent skip it already keeps for `<script>`.
 
 Its block-level tag set is *the same list* `views::text.rs` already uses for
 block breaks (`BLOCK_TAGS`) — extract it to one place so the two never drift
-(single source of truth). `li` → `ListItem`; everything else → `Inline`.
+(single source of truth). `li` → `ListItem`; everything else → `Inline`. It is
+not an HTML-only set: SVG `<text>`/`<foreignObject>` and the MathML elements
+that carry text are in it too, on the computed `display` Chrome reports for them
+(`block` and `block math`), which is the same fact both consumers want
+(`bl-c0a4`, needs.md §4.2).
 
 **Computed by Phase 3 layout:**
 

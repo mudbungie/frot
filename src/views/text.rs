@@ -4,9 +4,8 @@
 //! - Whitespace collapses per the HTML serializer (runs of whitespace fold
 //!   to a single space) **outside** `<pre>`.
 //! - `<pre>` content is preserved verbatim.
-//! - Subtrees under `<script>`, `<style>`, `<template>`, `<noscript>`, `<svg>`
-//!   and `<math>` are skipped, as is fallback content — the children a UA that
-//!   implements the element paints nowhere
+//! - Subtrees under [`SKIP_TAGS`] are skipped, as is fallback content — the
+//!   children a UA that implements the element paints nowhere
 //!   ([`crate::tags::renders_children`]: `<video>`, `<audio>`, `<iframe>`,
 //!   `<canvas>`). That is a content-model fact, so it holds with or without
 //!   `--css`.
@@ -23,7 +22,32 @@ use crate::css::{Styles, Visibility};
 use crate::dom::{Document, NodeId, NodeKind};
 use crate::tags::{is_block, renders_children};
 
-const SKIP_TAGS: &[&str] = &["script", "style", "template", "noscript", "svg", "math"];
+/// Elements whose text a browser never paints, whatever it is for: source and
+/// data (`<script>`, `<style>`, `<template>`, `<noscript>`) and the descriptive
+/// metadata SVG and MathML hang off rendered markup (`<title>` — the HTML one
+/// in `<head>` and the SVG tooltip alike — `<desc>`, `<metadata>`,
+/// `<annotation>`, `<annotation-xml>`).
+///
+/// `<svg>` and `<math>` were in this set until `bl-c0a4`, which is what made
+/// `text` the one frot view that disagreed with the other two *and* with the
+/// oracle. Chrome 139 headless at 1280×720 (measured 2026-08-12) puts
+/// `SVG_LINK_TEXT` and `MATH_MI` in `body.innerText`, gives each a real
+/// `Range.getClientRects()` entry, and exposes `link "SVG_LINK_TEXT"` in
+/// `Accessibility.getFullAXTree` — and gives every element listed above zero
+/// rects and no `innerText`, which is why the list grew as the blanket skip
+/// went. `<foreignObject>` needed nothing: its content is ordinary HTML and
+/// reads as such once the blanket skip is gone.
+const SKIP_TAGS: &[&str] = &[
+    "script",
+    "style",
+    "template",
+    "noscript",
+    "title",
+    "desc",
+    "metadata",
+    "annotation",
+    "annotation-xml",
+];
 
 /// Whether this element contributes no text at all. Two sources, both
 /// recipe-independent: this view's own skip set above, and the shared
@@ -192,3 +216,6 @@ pub fn text(doc: &Document, styles: Option<&Styles>) -> String {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod foreign_tests;

@@ -1,10 +1,15 @@
-//! Shared HTML tag classifications.
+//! Shared tag classifications.
 //!
 //! Single source of truth for the set of block-level element names. Both the
 //! `text` view's block-break logic (`views::text`) and the CSS cascade's
 //! UA-implicit `display` step (`css::cascade`) read this set, so the two can
 //! never drift. Do not change its membership without accounting for both
 //! consumers: it drives `text` view line breaks *and* implicit `display`.
+//!
+//! It is not an *HTML* set: SVG and MathML elements carry a UA-implicit
+//! `display` like any other, and the `text` view stopped skipping their
+//! subtrees in `bl-c0a4`, so the block-level ones belong here beside the HTML
+//! ones rather than in a second list that would drift from this one.
 
 /// Block-level HTML tag names — the authoritative shared set (see module docs).
 pub const BLOCK_TAGS: &[&str] = &[
@@ -44,6 +49,23 @@ pub const BLOCK_TAGS: &[&str] = &[
     "td",
     "th",
     "ul",
+    // Foreign content (`bl-c0a4`). Not an analogy from HTML: these are the
+    // computed `display` values Chrome 139 reports for them, from the SVG and
+    // MathML-core UA stylesheets. SVG `<text>` and `<foreignObject>` are
+    // `block`; every MathML element that can carry text is `block math`. Their
+    // inline counterparts are deliberately absent — `<svg>` itself, `<math>`
+    // itself, SVG `<a>` and `<tspan>` all compute inline, and `<tspan>` is why
+    // this is per-element rather than per-text-node: `<text>A<tspan>B</tspan>C`
+    // is one line "ABC" in `innerText`, while two sibling `<text>`s are two.
+    "text",
+    "foreignobject",
+    "mi",
+    "mn",
+    "mo",
+    "ms",
+    "mspace",
+    "mtext",
+    "mrow",
 ];
 
 /// Whether `name` is a block-level tag per [`BLOCK_TAGS`].

@@ -92,10 +92,15 @@ fn same_parent_dom_moves_survive_the_process_boundary() {
     // delivered — both verbatim from Chrome on this fixture, except the final
     // `stale-ref` step (Chrome throws NotFoundError there; the fixture's comment
     // records why frot appends) and the two records that step then adds.
+    //
+    // The fixture's `<head><title>DOM move</title>` used to open this string.
+    // It never belonged: Chrome gives a `<title>` zero client rects and keeps it
+    // out of `innerText`, `documentElement`'s included. `bl-c0a4` put `title` in
+    // the `text` view's skip set — the same entry that keeps an SVG `<title>`
+    // tooltip out — so the assertion now matches the oracle on its first line too.
     assert_eq!(
         v["out"],
-        "DOM move\n\
-         append-last=abc/d move-back=bca/d move-fwd=abc/d self-mid=abc/d \
+        "append-last=abc/d move-back=bca/d move-fwd=abc/d self-mid=abc/d \
          self-last=abc/d cross=ac/db stale-ref=ca/d\n\
          p-c p+c p-a p+a p-a p+a p-b p+b p-c p+c p-b q+b q-b p-a p+a"
     );

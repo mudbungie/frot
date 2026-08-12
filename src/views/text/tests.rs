@@ -1,10 +1,10 @@
 use super::*;
 
-fn t(html: &str) -> String {
+pub(super) fn t(html: &str) -> String {
     text(&Document::parse(html), None)
 }
 
-fn t_css(html: &str) -> String {
+pub(super) fn t_css(html: &str) -> String {
     let doc = Document::parse(html);
     let s = crate::css::compute(&doc);
     text(&doc, Some(&s))

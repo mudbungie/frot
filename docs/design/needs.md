@@ -358,13 +358,40 @@ canvas counterpart is the same accessor letting content *through*:
 `<a><canvas>CANVAS_FALLBACK</canvas></a>` is named "CANVAS_FALLBACK" in Chrome
 and in frot, in both recipes.
 
-**Still open, measured but out of scope.** `views::text` skips `<svg>` and
-`<math>` outright, but Chrome paints and exposes their text: `<svg><a
-href=/x><text>SVG_LINK_TEXT</text></a></svg>` yields a real client rect, an
-`innerText` line, and `link "SVG_LINK_TEXT"` in the AX tree — and frot's own
-`ax` and `bboxes` views agree, so only the `text` view omits it. That is a
-divergence in the *opposite* direction from this ball (omitting text a user
-sees) and needs its own task.
+**The same seam pointing the other way, now closed (`bl-c0a4`).**
+`views::text` skipped `<svg>` and `<math>` outright, but Chrome paints and
+exposes their text: `<svg><a href=/x><text>SVG_LINK_TEXT</text></a></svg>`
+yields a real client rect, an `innerText` line, and `link "SVG_LINK_TEXT"` in
+the AX tree — and frot's own `ax` and `bboxes` views already agreed, so `text`
+was the outlier among frot's own views. Omitting text a user *does* see is the
+same VISION-5 violation as emitting text nobody sees, and the strongest evidence
+for the fix was frot's own disagreement with itself.
+
+The fix was subtraction plus what the subtraction exposed. The two entries went;
+the elements Chrome measures at **zero rects and absent from `innerText`** got
+their own entries, since the blanket skip had been covering for them: SVG
+`<title>`/`<desc>`/`<metadata>` and MathML `<annotation>`/`<annotation-xml>`.
+The `<title>` entry is one rule covering two things — the SVG tooltip and the
+HTML `<head>` document title, which `--out text` had been emitting all along
+and Chrome keeps out of `innerText` at every root.
+
+Line structure came out of the same measurement rather than an assumption.
+Chrome computes `display: block` for SVG `<text>` and `<foreignObject>` and
+`display: block math` for every MathML element that carries text, while `<svg>`,
+`<math>`, SVG `<a>` and `<tspan>` compute `inline`. So `<text>Jan</text>
+<text>Feb</text>` is `"Jan\nFeb"` and `<text>A<tspan>B</tspan>C</text>` is
+`"ABC"`. Those names went into `tags::BLOCK_TAGS` beside the HTML ones —
+the same set the cascade reads for UA-implicit `display`, which is exactly what
+Chrome is reporting — rather than into a second list that would drift from it.
+`<foreignObject>` content needed nothing: it is ordinary HTML and reads as such
+once the blanket skip is gone.
+
+Two measured residuals, deliberately not modelled: SVG `<switch>` conditional
+processing (Chrome renders the first child whose `systemLanguage`/`requiredX`
+tests pass and gives the others zero rects; frot emits all of them), and
+Chrome's MathML italic transform (`<mi>p</mi>` paints `𝑝`, U+1D45D) — frot
+reports the source character, since inventing a glyph substitution is not
+reading the document.
 
 Accepted residuals:
 
