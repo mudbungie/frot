@@ -580,6 +580,8 @@ Today these facts are scattered across four files, which is the defect:
 | `version_major` | `153` |
 | `pinned` / `eol` | `2026-08-11` / `2027-01-26` — the last **published** 153.x release, never an estimate (§2) |
 | `user_agent` | `Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0` |
+| `platform` | `Linux x86_64` — the UA's second comment segment, and `navigator.platform`/`.oscpu` |
+| `window_system` | `X11` — the UA's *first* comment segment, and the whole of `navigator.appVersion` (`5.0 (X11)`). Not computable from `platform`: mapping an OS to its windowing token is a table, not a rule |
 | `locale` | `en-US`, fallback `en` |
 | `ciphers` (16, wire order) | `1301,1303,1302,c02b,c02f,cca9,cca8,c02c,c030,c00a,c013,c014,009c,009d,002f,0035` — 140esr's `c009` is gone (§2) |
 | `extensions` (17, wire order) | `0,23,65281,10,11,35,16,5,34,18,51,43,13,45,28,27,65037` |
@@ -618,11 +620,35 @@ the list stored, a count beside it was the same fact twice (I1/I6).
 |---|---|
 | `Accept-Language: en-US,en;q=0.9` | `locale` (the q-value is Gecko's rendering of `en-US, en`; 153esr raised it from the `q=0.5` 140esr sent) |
 | `navigator.language` / `.languages` | `locale` — **the same source as the header**, which is why they can no longer disagree |
-| `navigator.userAgent` / `.appVersion` | `user_agent` (`appVersion` = UA minus the `Mozilla/` prefix) |
-| `navigator.platform` / `.oscpu` | the UA's platform segment |
+| `user_agent` | `version_major` + `window_system` + `platform` + `product_sub` — the `Gecko/20100101` trail *is* `productSub`, so the UA cannot drift from the `navigator` fact |
+| `navigator.userAgent` | the **effective** UA — the same string the transport sent, which is why they can no longer disagree |
+| `navigator.appVersion` | `window_system` alone: **`5.0 (<window system>)`**, i.e. `5.0 (X11)`. Gecko freezes it at the platform token and it does *not* track the version or the UA |
+| `navigator.platform` / `.oscpu` | `platform` (§4.1), the same token the UA's second comment segment carries |
 | every JA4/JA4_r/JA4_ro and the akamai-h2 fingerprint | **computed from the capture** by `ja4.rs` / `h2_wire.rs`, never hand-written (§12). JA3/JA3N/peetprint are **not** computed — §12's 2026-08-12 correction says why |
 | h1 header casing | the profile's canonical names — Title-Cased for h1, lowercased for h2, by the *one* serializer |
 | ALPN offer | intersected with what the transport can actually speak (I2) |
+
+*Corrected 2026-08-12 (`bl-6491`).* The `appVersion` row read "`user_agent`
+(`appVersion` = UA minus the `Mozilla/` prefix)" — a rule that was **wrong the
+day it was written**, and §8's measured table said so on both ESR lines: Gecko
+returns `5.0 (X11)`, never the UA. The code followed the rule, so any page
+comparing `navigator.appVersion` with `navigator.userAgent` saw the two
+self-descriptions disagree in a way no Firefox produces — the exact
+self-contradiction §1 exists to refuse, and worse than a residual, because a
+residual is a declared difference from Firefox while this was frot differing
+from *itself*. Two consequences settled with it:
+
+- **`appVersion` is a derivation, and `window_system` is the fact it derives
+  from.** `5.0 (X11)` is not computable from anything §4.1 already held — the
+  OS→windowing-token map is a table, not a rule — so the token is stored (§4.1)
+  and `appVersion` falls out of it. A re-pin still edits one file and
+  regenerates nothing: 153esr→160esr moves `major`, and `appVersion` correctly
+  does not move.
+- **It derives from the *pin*, not from the effective UA — which is I5.** A `-H
+  "User-Agent: …"` override "replaces the UA string … and changes **nothing
+  else**". `navigator.userAgent` still echoes the override (the shim never lies
+  about who fetched); `appVersion` does not, because Gecko would not have
+  changed it either.
 
 Note what §4.2 buys: `firefox-esr140.md` lists "8 hash values that must be
 regenerated" if the pin changes. Under this design there is **nothing to
@@ -1175,9 +1201,11 @@ stays as documented in `js.md` §7.
 **LANDED (`bl-3972`, the Phase-5 framework task).** The whole supported subset
 above is built and gated. All facts flow through **one** channel —
 `__frot_env_profile()` returns a JSON payload the prelude parses once — so no
-identity literal lives in `env.js` (I1), and `userAgent`/`appVersion` +
-`language`/`languages` derive from the *effective* UA / `Accept-Language` (the
-same source as the HTTP headers, `bl-20ec`), closing the UA-coherence gap. The
+identity literal lives in `env.js` (I1), and `userAgent` + `language`/`languages`
+derive from the *effective* UA / `Accept-Language` (the same source as the HTTP
+headers, `bl-20ec`), closing the UA-coherence gap. `appVersion` deliberately does
+**not** ride the effective UA — it is `5.0 (<window system>)` off the pin, per
+§4.2's 2026-08-12 correction and I5. The
 surface is **Firefox-shaped, not just correct in value**: `navigator`/`screen`/
 `crypto` are branded interface instances (`[object Navigator]`, `instanceof`,
 `@@toStringTag`) with facts as enumerable accessors on the prototype, and every

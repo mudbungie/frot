@@ -49,6 +49,9 @@
   eq('doNotTrack', n.doNotTrack, 'unspecified');
   eq('maxTouchPoints', n.maxTouchPoints, 0);
   eq('buildID', n.buildID, '20181001000000');
+  // Gecko freezes appVersion at the Mozilla-compat version + the WINDOWING
+  // token, on every ESR line — it is not the UA minus `Mozilla/` (bl-6491).
+  eq('appVersion', n.appVersion, '5.0 (X11)');
   eq('pdfViewerEnabled', n.pdfViewerEnabled, true);
   // webdriver is defined and false — absence is itself an odd fingerprint (§8).
   eq('webdriver', n.webdriver, false);
@@ -58,7 +61,6 @@
   ok('ua:prefix', ua.indexOf('Mozilla/5.0 (X11; Linux x86_64; rv:') === 0);
   ok('ua:gecko', ua.indexOf('Gecko/20100101') !== -1);
   ok('ua:firefox', ua.indexOf('Firefox/') !== -1);
-  eq('appVersion', n.appVersion, ua.replace(/^Mozilla\//, ''));
 
   // --- plugins / mimeTypes: the Gecko PDF-viewer shim set (§8) -----------------
   eq('plugins.length', n.plugins.length, 5);

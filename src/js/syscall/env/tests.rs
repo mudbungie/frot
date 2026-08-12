@@ -24,10 +24,11 @@ fn sess(url: &str, ua: &str) -> Session {
 fn env_profile_feeds_navigator() {
     // The effective UA rides through to navigator.userAgent — the shim never lies
     // about who fetched (identity.md §8, I5): a caller `-H User-Agent` override is
-    // the value in JS too, and appVersion is it minus the `Mozilla/` prefix.
+    // the value in JS too, and it "changes nothing else" — so appVersion stays the
+    // profile's Gecko-frozen `5.0 (X11)` and never echoes the override (bl-6491).
     let s = sess("https://example.com/", "custom-ua/9");
     assert_eq!(s.eval("navigator.userAgent").unwrap(), "custom-ua/9");
-    assert_eq!(s.eval("navigator.appVersion").unwrap(), "custom-ua/9");
+    assert_eq!(s.eval("navigator.appVersion").unwrap(), "5.0 (X11)");
     assert_eq!(s.eval("navigator.sendBeacon('/x', 'y')").unwrap(), "false");
     assert_eq!(
         s.eval("typeof navigator.serviceWorker").unwrap(),
@@ -55,16 +56,16 @@ fn sess_lang(accept_language: &str) -> Session {
 #[test]
 fn persona_serializes_the_pinned_facts_from_the_profile() {
     // The pure builder is the single derivation site; asserting its JSON directly
-    // covers every field in Rust (no JS, no starvation edges). The UA/appVersion
-    // come from the effective UA — here the pinned Firefox 153esr persona.
+    // covers every field in Rust (no JS, no starvation edges). `userAgent` comes
+    // from the effective UA — the pinned 153esr persona here — while `appVersion`
+    // is the profile's own Gecko-frozen constant (bl-6491).
     let ua = crate::fetch::user_agent(&[]);
     let json = super::persona(&ua, "en-US,en;q=0.5");
     let v: serde_json::Value = serde_json::from_str(&json).expect("persona is valid JSON");
     assert_eq!(v["userAgent"], serde_json::Value::String(ua.clone()));
-    assert_eq!(
-        v["appVersion"],
-        serde_json::json!(ua.strip_prefix("Mozilla/").unwrap())
-    );
+    assert_eq!(v["appVersion"], "5.0 (X11)");
+    // ...and never the UA in disguise, the tell this ball closes.
+    assert_ne!(v["appVersion"], serde_json::json!(&ua["Mozilla/".len()..]));
     assert!(
         ua.contains("rv:153.0"),
         "the pinned persona UA drives JS too"

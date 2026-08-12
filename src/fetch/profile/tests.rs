@@ -91,6 +91,7 @@ fn transport_targets_are_the_pinned_persona_facts() {
     assert_eq!(FIREFOX_153_ESR.major, 153);
     assert_eq!(FIREFOX_153_ESR.product_sub, "20100101");
     assert_eq!(FIREFOX_153_ESR.platform, "Linux x86_64");
+    assert_eq!(FIREFOX_153_ESR.window_system, "X11");
     assert_eq!(FIREFOX_153_ESR.language, "en-US");
     assert_eq!(FIREFOX_153_ESR.name, "Firefox");
     assert_eq!(FIREFOX_153_ESR.version, "153.0esr");
@@ -101,12 +102,31 @@ fn transport_targets_are_the_pinned_persona_facts() {
 
 #[test]
 fn derived_headers_come_from_the_pinned_facts() {
-    // UA and Accept-Language are computed from `platform`/`major`/`language`, so a
-    // re-pin needs no second edit (§4.2). The region `en-US` rides at q=0.9.
+    // UA, appVersion and Accept-Language are computed from
+    // `window_system`/`platform`/`major`/`product_sub`/`language`, so a re-pin
+    // needs no second edit (§4.2). The region `en-US` rides at q=0.9.
     assert_eq!(
         FIREFOX_153_ESR.user_agent(),
         "Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0"
     );
+    // Gecko freezes appVersion at the Mozilla-compat version + the WINDOWING
+    // token — measured `5.0 (X11)` on 140esr and 153esr alike (identity.md §8 ★).
+    // It does not track the version and is not the UA minus `Mozilla/` (bl-6491).
+    assert_eq!(FIREFOX_153_ESR.app_version(), "5.0 (X11)");
+    assert_ne!(
+        FIREFOX_153_ESR.app_version(),
+        FIREFOX_153_ESR.user_agent()["Mozilla/".len()..]
+    );
+    // A re-pin moves the version and the UA; appVersion must not follow it.
+    let mut next = FIREFOX_153_ESR;
+    next.major = 160;
+    assert!(next.user_agent().contains("rv:160.0"));
+    assert_eq!(next.app_version(), "5.0 (X11)");
+    // A different windowing system moves both together, which is the point of the
+    // one stored token: `X11` never appears twice in the tree (I1).
+    next.window_system = "Windows";
+    assert_eq!(next.app_version(), "5.0 (Windows)");
+    assert!(next.user_agent().starts_with("Mozilla/5.0 (Windows; "));
     assert_eq!(FIREFOX_153_ESR.accept_language(), "en-US,en;q=0.9");
     // A region-less locale degrades to itself (the fallback arm).
     let mut bare = FIREFOX_153_ESR;

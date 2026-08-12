@@ -16,6 +16,7 @@ pub const FIREFOX_153_ESR: BrowserProfile = BrowserProfile {
     major: 153,
     product_sub: "20100101",
     platform: "Linux x86_64",
+    window_system: "X11",
     language: "en-US",
     build_id: "20181001000000",
     hardware_concurrency: 8,

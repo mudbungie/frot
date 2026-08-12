@@ -87,10 +87,17 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
 /// single serialize edge (infallible for this fixed shape — the [`envelope`]
 /// pattern), and stays a pure, directly-testable function.
 ///
-/// The pinned facts come from [`FIREFOX_153_ESR`]; `userAgent`/`appVersion` and
-/// the `language(s)` come from the *effective* `ua`/`accept_language` (a `-H`
+/// The pinned facts come from [`FIREFOX_153_ESR`]; `userAgent` and the
+/// `language(s)` come from the *effective* `ua`/`accept_language` (a `-H`
 /// override touches only those, I5), guaranteeing HTTP↔JS coherence. Screen
 /// geometry is *not* here — it stays the layout viewport constant (§8).
+///
+/// `appVersion` is **not** among them (`bl-6491`): Gecko freezes it at `5.0
+/// (<window system>)` on every ESR line, so it rides the profile's
+/// [`app_version`] and not the UA. It once read "the UA minus its `Mozilla/`
+/// prefix" — a self-contradiction any page could see by comparing the two.
+///
+/// [`app_version`]: crate::fetch::BrowserProfile::app_version
 ///
 /// [`envelope`]: crate::envelope
 fn persona(ua: &str, accept_language: &str) -> String {
@@ -98,7 +105,7 @@ fn persona(ua: &str, accept_language: &str) -> String {
     let langs = languages(accept_language);
     let facts = serde_json::json!({
         "userAgent": ua,
-        "appVersion": ua.strip_prefix("Mozilla/").unwrap_or(ua),
+        "appVersion": p.app_version(),
         "appName": "Netscape",
         "appCodeName": "Mozilla",
         "product": "Gecko",

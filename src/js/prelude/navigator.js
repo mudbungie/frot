@@ -1,8 +1,10 @@
-// navigator — the Firefox 140esr identity surface, every fact derived from the
-// one __frot_env_profile() channel (identity.md §4/§8, bl-3972). No literal here
-// duplicates an HTTP fact: userAgent/appVersion and language(s) ride the same
+// navigator — the pinned Firefox ESR identity surface, every fact derived from
+// the one __frot_env_profile() channel (identity.md §4/§8, bl-3972). No literal
+// here duplicates an HTTP fact: userAgent and language(s) ride the same
 // effective UA / Accept-Language the transport sent, so wire and JS cannot
-// disagree (the UA-coherence fix). Firefox-shaped: a real Navigator constructor,
+// disagree (the UA-coherence fix). appVersion does NOT: Gecko freezes it at
+// `5.0 (X11)` whatever the UA says, so it rides the profile (bl-6491).
+// Firefox-shaped: a real Navigator constructor,
 // @@toStringTag, and every property an enumerable accessor on Navigator.prototype
 // (not an own data prop) — brand/prototype/descriptor probes pass, not just
 // values. Runs after brand.js (needs __frot_iface) and dom.js (extends document).

@@ -24,6 +24,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::Intent;
 
+/// The Mozilla-compatibility version, the `5.0` opening both the `User-Agent`
+/// and `navigator.appVersion`. Frozen web-wide since 1998, so it is a fact of the
+/// *derivations*, not of the pin — but it has one definition site all the same (I1).
+const MOZILLA_COMPAT: &str = "5.0";
+
 /// The h2 wire facts of the persona (identity.md §3.1 akamai text, §12). Each
 /// field's doc says whether frot **enforces** it on the wire, whether only the
 /// `h2_preface.rs` oracle pins it, or whether it is a **declared residual** kept as
@@ -100,6 +105,12 @@ pub struct BrowserProfile {
     pub product_sub: &'static str,
     /// `navigator.platform` / oscpu token.
     pub platform: &'static str,
+    /// The windowing-system token Gecko puts in the UA's first comment slot
+    /// (`X11` on Linux) and **freezes `navigator.appVersion` at** — measured
+    /// `5.0 (X11)` on 140esr and 153esr alike, so it tracks the platform, not
+    /// the version (identity.md §8 ★). Stored, not derived: `Linux x86_64` does
+    /// not yield `X11` without a per-OS map; it is read off the binary.
+    pub window_system: &'static str,
     /// UI language (BCP-47), the sole `Accept-Language` / `navigator.language`.
     pub language: &'static str,
     /// JS `navigator.buildID` — Gecko's *privacy-frozen* constant, not the real
@@ -198,13 +209,25 @@ impl BrowserProfile {
 
     /// The HTTP `User-Agent` this persona sends, and the sole source
     /// `navigator.userAgent` derives from (identity.md §4.2). Built from the
-    /// pinned `major` and `platform` so a re-pin (§4.1) has exactly one edit and
-    /// nothing to regenerate — an ESR UA reports `rv:<major>.0` / `Firefox/<major>.0`.
+    /// pinned `major`, `window_system`, `platform` and `product_sub` so a re-pin
+    /// (§4.1) has one edit and nothing to regenerate — an ESR UA reports
+    /// `rv:<major>.0` / `Firefox/<major>.0`, and its `Gecko/` trail *is*
+    /// `productSub`, which is why the two cannot drift apart (I1).
     pub fn user_agent(&self) -> String {
         format!(
-            "Mozilla/5.0 (X11; {}; rv:{}.0) Gecko/20100101 Firefox/{}.0",
-            self.platform, self.major, self.major
+            "Mozilla/{MOZILLA_COMPAT} ({}; {}; rv:{}.0) Gecko/{} {}/{}.0",
+            self.window_system, self.platform, self.major, self.product_sub, self.name, self.major
         )
+    }
+
+    /// `navigator.appVersion` (identity.md §4.2). Gecko freezes it at the
+    /// Mozilla-compatibility version plus the *windowing-system* token — `5.0
+    /// (X11)` — **not** the UA minus its `Mozilla/` prefix, which is what this
+    /// used to compute and what §8's measured table always denied. It derives
+    /// from the pin, not the effective UA, per I5: a `-H "User-Agent: …"`
+    /// override replaces the UA and "changes nothing else".
+    pub fn app_version(&self) -> String {
+        format!("{MOZILLA_COMPAT} ({})", self.window_system)
     }
 
     /// The `Accept-Language` header, derived from `language` (identity.md §4.2:

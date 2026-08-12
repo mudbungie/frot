@@ -771,9 +771,11 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   `plugins`/`mimeTypes` PDF-viewer arrays — flows through **one** syscall,
   `__frot_env_profile()`, which returns a JSON payload the prelude parses once
   (`src/js/prelude/navigator.js`). No identity literal lives in the prelude (I1).
-  `userAgent`/`appVersion` and `language`/`languages` come from the *effective*
+  `userAgent` and `language`/`languages` come from the *effective*
   UA and `Accept-Language` (the `-H`-overridable strings on `Env`), the **same
-  source** as the HTTP headers, so wire and JS cannot disagree — closing the
+  source** as the HTTP headers, so wire and JS cannot disagree. `appVersion` does
+  not: Gecko freezes it at `5.0 (<window system>)` regardless of the UA, so it
+  comes off the pinned profile (`bl-6491`, identity.md §4.2). This closes the
   measured incoherences (`languages: ['en-US']` vs Firefox's `['en-US','en']`,
   `doNotTrack: null` vs `'unspecified'`, the old UA/JS-UA gap, missing
   `oscpu`/`vendorSub`/`buildID`/`pdfViewerEnabled`). `webdriver: false` stays —
