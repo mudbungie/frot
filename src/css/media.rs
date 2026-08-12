@@ -2,9 +2,11 @@
 //! `VIEWPORT_WIDTH`/`VIEWPORT_HEIGHT`).
 //!
 //! The single authority for media-query semantics: `@media` preludes in the
-//! cascade ([`super::parse`]) and JS `matchMedia` (via the
-//! `__frot_media_matches` syscall) both evaluate here, so CSS and JS can
-//! never disagree.
+//! cascade ([`super::parse`]), a `<link rel=stylesheet media=…>`'s
+//! applicability in the gather phase (`run::gather`), and JS `matchMedia` (via
+//! the `__frot_media_matches` syscall) all evaluate here, so no two of them can
+//! disagree. The `media` attribute is the same media-query-list grammar as an
+//! `@media` prelude, so it is the same call.
 //!
 //! Supported: media types `all`/`screen` (match) and `print` (does not);
 //! `min-`/`max-`/bare `width` and `height` features with `px`/`em`/`rem`

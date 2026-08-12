@@ -17,6 +17,11 @@
 //!   out — the count of sheets prices no resource (the argument that retired
 //!   `SUBFETCH_MAX`, js.md §6).
 //!
+//! *Which* sheets are gathered is a cascade question, not a fetch one: a
+//! `<link>`'s `media` attribute decides whether its sheet participates, and it
+//! is evaluated by the one media authority (`src/css/media.rs`, via
+//! [`media_applies`]) — so a print-only sheet never reaches the screen cascade.
+//!
 //! Tripping the budget is not a run failure. CSS is best-effort here as it
 //! always has been: whatever arrived applies, in source order, and the
 //! cascade proceeds.
@@ -77,13 +82,14 @@ pub(crate) fn gather_within(
     got.into_iter().map(|(_, r)| r.body).collect()
 }
 
-/// Absolute URLs of `<link rel="stylesheet">` hrefs, resolved against the
-/// document base URL ([`crate::base`]) — the same authority the views resolve
-/// through, so a `<base href>` moves the sheets a browser would fetch and the
-/// ones frot fetches together. Non-stylesheet links, empty hrefs, and hrefs that
-/// fail to resolve are dropped. A `file:` sheet is kept only when the *page*
-/// is `file:` — remote content must never cause local reads, and a `<base>` the
-/// page controls cannot unlock them.
+/// Absolute URLs of the `<link rel="stylesheet">` sheets that participate in the
+/// screen cascade, resolved against the document base URL ([`crate::base`]) — the
+/// same authority the views resolve through, so a `<base href>` moves the sheets
+/// a browser would fetch and the ones frot fetches together. Non-stylesheet
+/// links, sheets whose `media` does not apply ([`media_applies`]), empty hrefs,
+/// and hrefs that fail to resolve are dropped. A `file:` sheet is kept only when
+/// the *page* is `file:` — remote content must never cause local reads, and a
+/// `<base>` the page controls cannot unlock them.
 pub(crate) fn external_hrefs(doc: &Document, page_url: &str) -> Vec<String> {
     let base_url = crate::base::base_url(doc, page_url);
     let page_is_file = Url::parse(page_url).is_ok_and(|p| p.scheme() == "file");
@@ -96,7 +102,7 @@ pub(crate) fn external_hrefs(doc: &Document, page_url: &str) -> Vec<String> {
                         r.split_whitespace()
                             .any(|t| t.eq_ignore_ascii_case("stylesheet"))
                     });
-                if is_sheet {
+                if is_sheet && media_applies(el) {
                     if let Some(h) = el.attr("href").filter(|s| !s.is_empty()) {
                         if let Some(u) = base_url.as_ref().and_then(|b| b.join(h).ok()) {
                             if u.scheme() != "file" || page_is_file {
@@ -109,6 +115,21 @@ pub(crate) fn external_hrefs(doc: &Document, page_url: &str) -> Vec<String> {
         }
     });
     out
+}
+
+/// Whether a `<link>`'s `media` attribute admits its sheet to the screen
+/// cascade. The attribute *is* a media-query list — the same grammar as an
+/// `@media` prelude — so it is evaluated by the same single authority
+/// ([`crate::css::media`], which JS `matchMedia` also delegates to): no second
+/// evaluator, no way for `<link media=print>` and `@media print` to disagree.
+/// An absent attribute is `all`, and a malformed list is `not all` (media.rs's
+/// conservative rule), so it never participates.
+///
+/// A non-matching sheet is dropped here, before the fetch: the contract is
+/// cascade behaviour, and a sheet that cannot affect styles has no reason to
+/// cost a request. Browser fetch priority is not modelled.
+fn media_applies(el: &crate::dom::Element) -> bool {
+    el.attr("media").is_none_or(crate::css::media::matches)
 }
 
 #[cfg(test)]

@@ -228,6 +228,9 @@ mod challenge_tests;
 mod bboxes_tests;
 
 #[cfg(test)]
+mod css_media_tests;
+
+#[cfg(test)]
 mod details_tests;
 
 #[cfg(test)]

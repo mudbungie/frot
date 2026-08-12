@@ -269,3 +269,41 @@ pre-interaction chrome (dropdowns, language switchers, mega-menus) is expected
 to be absent from `--out text`/`--out ax` under `--css` — not a gap, a
 permanent consequence of "no synthetic interaction" — so future field trials
 don't re-open this exact question on a fresh site.
+
+## Finding 3 — `<link media>` was ignored, so print CSS applied on screen
+
+Filed as **bl-4f0a**, observed 2026-08-11 on w3.org and the Apache HTTP Server
+docs. `run/gather::external_hrefs` selected every `<link rel=stylesheet>` by
+`href` alone and discarded `media` before fetching, so a sheet the browser
+loads but never applies at a screen viewport cascaded anyway. On w3.org the
+print sheet's `#global-nav ul { display:none!important }` deleted the whole
+site navigation from `--out text` (raw 5102 chars → CSS 2903); Chrome at
+1280×720 keeps that list visible at 953×49.
+
+### Fixed — bl-4f0a (`src/run/gather.rs`)
+
+A `<link>`'s `media` attribute now decides whether its sheet participates,
+evaluated by **`src/css/media.rs`** — the same single authority that evaluates
+`@media` preludes and that JS `matchMedia` delegates to. The attribute *is* a
+media-query list, the same grammar, so it is the same call
+(`gather::media_applies`); there is deliberately no second evaluator, and
+`<link media=print>` and `@media print` cannot disagree. Consequences all fall
+out of that one delegation, none of them separately coded:
+
+- Absent or empty `media` is `all` (participates); comma lists are OR;
+  `only`/`not`, and width/height conditions resolve against the fixed
+  1280×720 viewport.
+- A malformed or unknown list is `not all` and never participates —
+  media.rs's documented conservative rule. Unlike the fail-closed rule for
+  *selectors* (`selector.rs`: never hide or reveal content), dropping a sheet
+  can only cause **under**-application, which leaves content visible; it can
+  never hide something a browser shows.
+- Nested `@media` inside a sheet that *did* qualify is still evaluated on its
+  own by `parse.rs`, one level down, through the same authority.
+
+The non-matching sheet is dropped *before* the fetch: the contract is cascade
+behaviour, and a sheet that cannot affect styles has no reason to cost a
+request or a slot in the gather budget. Browser fetch-priority behaviour (real
+engines do download print sheets, at low priority) is not modelled — it is
+unobservable in every frot output. Source order is otherwise untouched, so
+cascade order among the surviving sheets is unchanged.

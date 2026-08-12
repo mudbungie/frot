@@ -220,3 +220,79 @@ fn external_hrefs_empty_when_base_unparseable() {
     let doc = crate::dom::Document::parse("<link rel='stylesheet' href='/a.css'>");
     assert!(external_hrefs(&doc, "not a url").is_empty());
 }
+
+/// Absolute hrefs of the sheets a document with these `<link media=…>` values
+/// contributes to the screen cascade.
+fn media_hrefs(links: &str) -> Vec<String> {
+    external_hrefs(
+        &crate::dom::Document::parse(links),
+        "http://example.com/page",
+    )
+}
+
+/// The `media` attribute governs participation, evaluated by the one media
+/// authority at the fixed 1280×720 viewport: `screen`/`all`/absent/empty apply,
+/// `print` does not, and a comma list is OR.
+#[test]
+fn link_media_decides_which_sheets_join_the_screen_cascade() {
+    assert_eq!(
+        media_hrefs(
+            "<link rel=stylesheet href='/a.css' media='screen'>\
+             <link rel=stylesheet href='/b.css' media='print'>\
+             <link rel=stylesheet href='/c.css' media='all'>\
+             <link rel=stylesheet href='/d.css'>\
+             <link rel=stylesheet href='/e.css' media=''>\
+             <link rel=stylesheet href='/f.css' media='print, screen'>\
+             <link rel=stylesheet href='/g.css' media='print, tv'>"
+        ),
+        [
+            "http://example.com/a.css",
+            "http://example.com/c.css",
+            "http://example.com/d.css",
+            "http://example.com/e.css",
+            "http://example.com/f.css",
+        ]
+    );
+}
+
+/// `only`/`not`, width conditions against the 1280px viewport, and the
+/// malformed-is-`not all` rule — all of it decided by `css::media`, not by a
+/// second evaluator here.
+#[test]
+fn link_media_honours_only_not_width_conditions_and_malformed_lists() {
+    assert_eq!(
+        media_hrefs(
+            "<link rel=stylesheet href='/a.css' media='only screen'>\
+             <link rel=stylesheet href='/b.css' media='not screen'>\
+             <link rel=stylesheet href='/c.css' media='not print'>\
+             <link rel=stylesheet href='/d.css' media='screen and (min-width: 1280px)'>\
+             <link rel=stylesheet href='/e.css' media='screen and (max-width: 1279px)'>\
+             <link rel=stylesheet href='/f.css' media='(min-width: 80em)'>\
+             <link rel=stylesheet href='/g.css' media='wat'>\
+             <link rel=stylesheet href='/h.css' media='screen and ('>"
+        ),
+        [
+            "http://example.com/a.css",
+            "http://example.com/c.css",
+            "http://example.com/d.css",
+            "http://example.com/f.css",
+        ]
+    );
+}
+
+/// Dropping a non-matching sheet does not disturb the source order of the rest
+/// — source order is cascade order.
+#[test]
+fn source_order_survives_a_dropped_sheet() {
+    assert_eq!(
+        media_hrefs(
+            "<link rel=stylesheet href='/first.css'>\
+             <link rel=stylesheet href='/skipped.css' media='print'>\
+             <link rel=stylesheet href='/last.css'>"
+        ),
+        [
+            "http://example.com/first.css",
+            "http://example.com/last.css",
+        ]
+    );
+}
