@@ -102,11 +102,13 @@
   // dispatchEvent behaves as a real EventTarget's does.
   var IDBRequest = iface('IDBRequest', {});
   Object.setPrototypeOf(IDBRequest.prototype, g.EventTarget.prototype);
-  constGetter(IDBRequest.prototype, 'readyState', 'pending');
-  constGetter(IDBRequest.prototype, 'source', null);
-  constGetter(IDBRequest.prototype, 'transaction', null);
+  // Attribute order is Gecko's own, measured (identity.md §3.15): result, error,
+  // source, transaction, readyState — not the order the spec text lists them in.
   pendingThrows(IDBRequest.prototype, 'result');
   pendingThrows(IDBRequest.prototype, 'error');
+  constGetter(IDBRequest.prototype, 'source', null);
+  constGetter(IDBRequest.prototype, 'transaction', null);
+  constGetter(IDBRequest.prototype, 'readyState', 'pending');
   onEvent(IDBRequest.prototype, 'onsuccess');
   onEvent(IDBRequest.prototype, 'onerror');
 
@@ -223,8 +225,15 @@
   }, 'upperBound');
   IDBKeyRange.bound = brand(function (lower, upper) {
     requireArgs('IDBKeyRange.bound', arguments, 2);
+    var lowerOpen = !!arguments[2];
+    var upperOpen = !!arguments[3];
+    // Two DataError cases, both READ off Firefox 153.0esr (`bl-706b`, §3.15):
+    // a reversed range, and equal bounds with BOTH ends open — which describes
+    // an empty range and Gecko rejects. Equal bounds with either end closed is
+    // fine (`bound(1, 1)` returns a range), so the check is not `>=`.
     if (cmpKeys(lower, upper) > 0) throw dataError();
-    return makeRange(lower, upper, !!arguments[2], !!arguments[3]);
+    if (cmpKeys(lower, upper) === 0 && lowerOpen && upperOpen) throw dataError();
+    return makeRange(lower, upper, lowerOpen, upperOpen);
   }, 'bound');
 
   // --- The rest of the zoo: pure presence, non-constructable (Firefox throws

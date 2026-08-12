@@ -32,10 +32,13 @@
   // context type, so a request for a different family than one already taken
   // returns null. 'moz-webgl'/'webkit-3d'/'webgl2-compute'/'bitmaprenderer' are a
   // spec-legal null (Firefox returns none). A non-canvas element gets undefined.
-  Node.prototype.getContext = brand(function (type) {
+  Node.prototype.getContext = brand(function (type, options) {
     if (this.tagName !== 'CANVAS') return undefined;
     var t = String(type == null ? '' : type).toLowerCase();
-    if (t === '2d') return this._ctxgl ? null : g.__frot_canvas_ctx(this);
+    // The 2D options bag reaches the context: Gecko echoes `alpha` and
+    // `willReadFrequently` back through `getContextAttributes()` (measured,
+    // `bl-706b`), so they have to be remembered at creation.
+    if (t === '2d') return this._ctxgl ? null : g.__frot_canvas_ctx(this, options);
     if (t === 'webgl' || t === 'experimental-webgl') {
       return this._ctx2d ? null : g.__frot_webgl_ctx(this, 1);
     }

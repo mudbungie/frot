@@ -134,7 +134,13 @@
   // event (the residual) — exactly what a real page with permission 'default'
   // sees (Firefox shows nothing until the user grants). The one synchronous check
   // is the required title argument; missing it throws TypeError, like Firefox.
-  var STR = { dir: 'auto', lang: '', body: '', tag: '', icon: '', badge: '' };
+  // Defaults and membership both MEASURED on Firefox 153.0esr (`bl-706b`,
+  // identity.md §3.15) by constructing a real Notification: `badge`, `renotify`
+  // and `timestamp` are NOT exposed at all (frot published all three), `actions`
+  // is a frozen empty array (frot had none), and `silent` defaults to `false`,
+  // not `null`. `timestamp` was also the one non-deterministic value in the
+  // persona — it was `Date.now()`, so two runs of the same page disagreed.
+  var STR = { dir: 'auto', lang: '', body: '', tag: '', icon: '' };
   var Notification = ctor('Notification', function (inst, args) {
     if (args.length < 1) {
       throw new TypeError(
@@ -145,21 +151,22 @@
     Object.keys(STR).forEach(function (k) {
       setSlot(inst, k, k in o ? String(o[k]) : STR[k]);
     });
-    setSlot(inst, 'data', 'data' in o ? o.data : null);
-    setSlot(inst, 'silent', 'silent' in o ? !!o.silent : null);
     setSlot(inst, 'requireInteraction', !!o.requireInteraction);
-    setSlot(inst, 'renotify', !!o.renotify);
-    setSlot(inst, 'timestamp', Date.now());
+    setSlot(inst, 'silent', !!o.silent);
+    setSlot(inst, 'data', 'data' in o ? o.data : null);
+    setSlot(inst, 'actions', Object.freeze([]));
   });
-  ['title', 'dir', 'lang', 'body', 'tag', 'icon', 'badge', 'data', 'silent',
-    'requireInteraction', 'renotify', 'timestamp'].forEach(function (k) {
-    slotGetter(Notification.prototype, k);
-  });
+  // Member order is Gecko's, measured: the operation, then the event handlers,
+  // then the attributes — not the order the spec lists them in.
   inheritEventTarget(Notification);
+  Notification.prototype.close = noop('close');
   ['onclick', 'onshow', 'onerror', 'onclose'].forEach(function (k) {
     onEvent(Notification.prototype, k);
   });
-  Notification.prototype.close = noop('close');
+  ['title', 'dir', 'lang', 'body', 'tag', 'icon', 'requireInteraction', 'silent',
+    'data', 'actions'].forEach(function (k) {
+    slotGetter(Notification.prototype, k);
+  });
 
   // Static surface: `permission` stays 'default' (frot prompts nothing), a native
   // accessor like Firefox's; `maxActions` is Firefox's fixed 2; requestPermission

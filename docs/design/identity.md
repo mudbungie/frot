@@ -783,6 +783,84 @@ per-instance method stamp are gone — against a §5 guard of 500 ms.
 
 ---
 
+### 3.15 Interface prototypes and IDBKeyRange, read off the binary (`bl-706b`, 2026-08-11)
+
+§3.14 reordered `Worker.prototype` — the one prototype anyone had measured — and
+deliberately left the other interfaces alone rather than generalize from a sample
+of one. This reads them. Same rig: SHA-256-verified `153.0esr` tarball, profile
+under `$HOME`, Marionette, Mesa forced to llvmpipe.
+
+**`constructor` is last on all 41 interface prototypes read.** Not 40 of 41 —
+all of them, across DOM, indexedDB, Web Audio, WebGL, workers, permissions and
+events. A JS function's `prototype` is born owning `constructor` FIRST, so every
+frot interface advertised its implementation language. The order Gecko's WebIDL
+codegen produces is **operations, then attributes, then `constructor`**, and it
+is not the order any spec text lists members in — `Worker`'s `terminate` precedes
+`postMessage`, `IDBRequest` leads with `result`/`error` and ends its attributes
+with `readyState`, `DOMTokenList` puts `replace` before `toggle` and `toString`
+after `forEach`.
+
+**The fix is one registry, not eighteen call sites.** `iface()` records every
+interface it builds; a single `__frot_iface_seal()` in the final sweep re-places
+`constructor` last on all of them once every prototype is complete. Sealing
+inside `iface` alone does not work — anything a module defines afterwards lands
+past the constructor — and asking each call site to re-seal is exactly the
+call-site discipline the registry exists to remove. `iface` also gained a split
+half, `__frot_ifaceattrs`, so a module can define its methods and *then* its
+attributes and land in Gecko's order instead of being forced to declare every
+attribute first.
+
+*(A near-miss worth recording: the split was first published as `__frot_attrs`,
+which is already the name of the Rust syscall `markup.js` uses to read an
+element's attributes. The suite caught it immediately. The `__frot_*` namespace
+is shared between syscalls and prelude helpers, and nothing enforces the split.)*
+
+**`IDBKeyRange`, previously implemented from the spec algorithm, now read.**
+`bl-6438` derived it correctly in most respects, and the measurement confirms:
+`lowerBound(5).upperOpen` is `true`, `upperBound(5).lowerOpen` is `true`,
+`only(5)` collapses to `lower === upper === 5`, the arities are 1/1/2/1 (optional
+arguments do not count), and the per-method arity message really does follow the
+`IDBKeyRange.only: At least 1 argument required, but only 0 passed` template that
+had been extrapolated from `IDBFactory.open`. One thing it got wrong:
+**`bound(1, 1, true, true)` throws `DataError`** — equal bounds with both ends
+open describe an empty range and Gecko rejects it — while `bound(1, 1)` is fine.
+frot accepted both.
+
+**`getContext('2d', options)` echoes exactly two of the four attributes.** §3.13
+left this unmeasured and refused to guess. Measured: `alpha` and
+`willReadFrequently` come back as requested; `desynchronized` stays `false` and
+`colorSpace` stays `'srgb'` even when `display-p3` is asked for. So it is not
+"echo the bag" and not "ignore the bag" — it is two echoed, two pinned, which is
+why guessing either way would have been wrong.
+
+**`Notification` published three properties Firefox does not have.** `badge`,
+`renotify` and `timestamp` are absent from a real 153esr notification — instance
+and prototype both — and `actions` (a frozen empty array) was missing. `silent`
+defaults to `false`, not `null`. `timestamp` was also the persona's one
+non-deterministic value: it was `Date.now()`, so two runs of the same page
+disagreed, against VISION principle 1.
+
+| surface | verdict | provenance |
+|---|---|---|
+| `constructor` position, 41 prototypes | **wrong everywhere but `Worker`** — now sealed by the registry | read |
+| member order: `IDBRequest`, `Screen`, `ScreenOrientation`, `Notification`, `NodeList`, `DOMTokenList` | **wrong**, now Gecko's | read |
+| member order: `Worker`, `SharedWorker`, `MessagePort`, `PermissionStatus`, `Permissions`, `IDBFactory`, `IDBOpenDBRequest`, `IDBKeyRange`, `TextMetrics`, `EventTarget` | **already right** | read |
+| `IDBKeyRange` ranges, arities, arity messages | right but for `bound(1,1,true,true)` | read |
+| `getContext` attribute echo | **wrong** (ignored the bag) | read |
+| `Notification` membership and defaults | **wrong** (3 extra, 1 missing, 1 default) | read |
+
+**Left undone, recorded rather than guessed:** frot's instances expose their
+`_`-prefixed backing slots to `Object.getOwnPropertyNames` where a real
+Firefox instance exposes **nothing** — 10 own properties on a `Notification`, and
+the same pattern behind audio, indexedDB, canvas and WebGL. Filed as `bl-3bdc`;
+the golden probe carries the measurement with the assertion deliberately not
+made, so nothing claims a shape frot does not have. `AbortSignal`'s `aborted`,
+`reason` and `onabort` are instance data properties where Gecko has prototype
+accessors — same class, same ball. `Crypto.prototype` is still missing `subtle`,
+which is `bl-b0f8`'s decision to make.
+
+---
+
 ## 4. The one profile
 
 `BrowserProfile` is a single `const` (proposed home: `src/fetch/profile.rs`).

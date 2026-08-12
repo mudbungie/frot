@@ -31,8 +31,11 @@
     while (hasOwn.call(this, n)) n++;
     return n;
   }
+  // Methods first, `length` after: that is the own-property order Gecko's
+  // `NodeList.prototype`/`HTMLCollection.prototype` enumerate in (measured,
+  // identity.md §3.15 — operations, then attributes, then `constructor`).
   function defineCollection(name, methods) {
-    var Ctor = g.__frot_iface(name, { length: collectionLength });
+    var Ctor = g.__frot_iface(name);
     Object.keys(methods).forEach(function (k) {
       Object.defineProperty(Ctor.prototype, k, {
         value: g.__frot_brand(methods[k], k),
@@ -41,6 +44,7 @@
         configurable: true,
       });
     });
+    g.__frot_ifaceattrs(Ctor.prototype, { length: collectionLength });
     Object.defineProperty(Ctor.prototype, Symbol.iterator, {
       value: A.values,
       writable: true,
@@ -50,9 +54,9 @@
   }
   var NodeList = defineCollection('NodeList', {
     item: item,
-    entries: A.entries,
     keys: A.keys,
     values: A.values,
+    entries: A.entries,
     forEach: A.forEach,
   });
   var HTMLCollection = defineCollection('HTMLCollection', {

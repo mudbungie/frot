@@ -69,6 +69,29 @@
   // and `window.Name` work, exactly as a browser exposes its interfaces).
   // Returns the constructor; the caller makes its singleton via
   // `Object.create(Ctor.prototype)`.
+  // Every interface the registry builds, so `sealInterfaces` can put
+  // `constructor` last on all of them AFTER the later modules have finished
+  // adding methods and event handlers to their prototypes. Doing it inside
+  // `iface` alone is not enough — anything defined after the call lands past the
+  // constructor — and asking each call site to re-seal is the call-site
+  // discipline this registry exists to remove.
+  var built = [];
+
+  // Define WebIDL attributes (enumerable native accessors) on a prototype. Split
+  // out of `iface` so a module can interleave in Gecko's own member order —
+  // operations first, then attributes (measured across 41 prototypes, §3.15) —
+  // instead of being forced to declare every attribute before every method.
+  function attrs(proto, accessors) {
+    Object.keys(accessors).forEach(function (key) {
+      Object.defineProperty(proto, key, {
+        get: brand(accessors[key], 'get ' + key),
+        enumerable: true,
+        configurable: true,
+      });
+    });
+    return proto;
+  }
+
   function iface(name, accessors) {
     var holder = {};
     holder[name] = function () {
@@ -78,20 +101,43 @@
     var Ctor = holder[name];
     brand(Ctor, name);
     var proto = Ctor.prototype;
+    // `constructor` LAST. A JS function's `prototype` is born owning it FIRST,
+    // but every one of the 41 Gecko interface prototypes read in `bl-706b`
+    // (identity.md §3.15) lists it last — operations, then attributes, then
+    // `constructor`. Deleting and redefining it moves it to the end of the
+    // insertion order while keeping the descriptor WebIDL gives it
+    // (writable, non-enumerable, configurable), so `Object.getOwnPropertyNames`
+    // reads like a real interface instead of like a JS class.
+    delete proto.constructor;
+    // `accessors` is optional: dom.js builds several presence-only interfaces
+    // (`new NodeList()` throws, and that is the whole contract).
+    attrs(proto, accessors || {});
+    // The tag is a symbol, so it sorts after every string key in own-property
+    // order regardless of insertion and can never displace a named member.
     Object.defineProperty(proto, Symbol.toStringTag, {
       value: name,
       configurable: true,
     });
-    Object.keys(accessors).forEach(function (key) {
-      var get = brand(accessors[key], 'get ' + key);
-      Object.defineProperty(proto, key, {
-        get: get,
-        enumerable: true,
-        configurable: true,
+    Object.defineProperty(g, name, { value: Ctor, configurable: true, writable: true });
+    built.push(Ctor);
+    return Ctor;
+  }
+
+  // Move `constructor` to the end of every registered interface prototype, and
+  // of any extra constructors handed in (the hand-rolled ones — EventTarget and
+  // Worker's constructable twin — which do not come through `iface`). Called
+  // once, from the final sweep, when every prototype is complete. Measured basis:
+  // all 41 Gecko interface prototypes read in `bl-706b` list `constructor` last
+  // (identity.md §3.15); a JS function's prototype is born owning it first.
+  function sealInterfaces(extra) {
+    built.concat(extra || []).forEach(function (Ctor) {
+      var proto = Ctor && Ctor.prototype;
+      if (!proto) return;
+      delete proto.constructor;
+      Object.defineProperty(proto, 'constructor', {
+        value: Ctor, writable: true, enumerable: false, configurable: true,
       });
     });
-    Object.defineProperty(g, name, { value: Ctor, configurable: true, writable: true });
-    return Ctor;
   }
 
   // A DOMException-shaped error: quickjs has no DOMException, so a plain Error
@@ -137,6 +183,8 @@
     ['__frot_iface', iface],
     ['__frot_domerror', domError],
     ['__frot_onevent', onEvent],
+    ['__frot_iface_seal', sealInterfaces],
+    ['__frot_ifaceattrs', attrs],
   ].forEach(function (pair) {
     brand(pair[1], pair[0]);
     Object.defineProperty(g, pair[0], {

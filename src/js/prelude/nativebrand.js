@@ -32,6 +32,15 @@
     }
   }
 
+  // `constructor` last on every interface prototype (identity.md §3.15). Here
+  // because here is where every prototype is finally complete: the registry
+  // records each interface as it is built, and this is the one place that runs
+  // after all of them. `EventTarget` and `Worker` are passed explicitly — they
+  // are hand-rolled constructors rather than `__frot_iface` products, so the
+  // registry never saw them.
+  g.__frot_iface_seal([g.EventTarget, g.Worker, g.SharedWorker, g.Notification,
+    g.AbortSignal, g.AbortController, g.Event, g.CustomEvent]);
+
   sweep(g); // window's own methods + the raw __frot_* syscalls (source hidden)
   var el = g.document && g.document.createElement('div');
   [g.document, el, g.navigator, g.screen, g.crypto, g.location, g.history].forEach(function (o) {

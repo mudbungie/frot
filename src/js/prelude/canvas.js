@@ -121,18 +121,18 @@
     defMethod(n, false);
   });
 
-  // The four keys, in this order, and these values, are what a bare
-  // `getContext('2d').getContextAttributes()` returns on Firefox 153.0esr
-  // (measured, `bl-d22f`). frot's `getContext` takes no options — a request for
-  // `{alpha: false}` is neither honoured nor echoed, because whether Gecko echoes a
-  // non-default attribute here was not measured and is not going to be guessed
-  // (§11). Absent, this threw a TypeError where every real browser answers.
+  // The four keys in this order, and how a request is answered, are both MEASURED
+  // on Firefox 153.0esr (`bl-d22f` for the bare defaults, `bl-706b` for the echo,
+  // identity.md §3.15). Gecko echoes exactly two of the four: `alpha` and
+  // `willReadFrequently` come back as asked, while `desynchronized` stays `false`
+  // and `colorSpace` stays `'srgb'` even when `'display-p3'` is requested — so
+  // this is not "echo the options", it is two echoed and two pinned.
   proto.getContextAttributes = brand(function () {
     return {
-      alpha: true,
+      alpha: this._alpha,
       colorSpace: 'srgb',
       desynchronized: false,
-      willReadFrequently: false,
+      willReadFrequently: this._wrf,
     };
   }, 'getContextAttributes');
 
@@ -228,10 +228,15 @@
   reflect('height', 150);
 
   // get-or-create the one 2D context for a canvas (the getContext('2d') body).
-  function context(canvas) {
+  function context(canvas, options) {
     if (!canvas._ctx2d) {
+      var o = options === null || typeof options !== 'object' ? {} : options;
       var ctx = Object.create(proto);
       def(ctx, '_canvas', canvas);
+      // Only the two Gecko echoes are remembered; an unknown key is ignored, as
+      // it is there. WebIDL booleanises, so `{alpha: 0}` reads back `false`.
+      def(ctx, '_alpha', !('alpha' in o) || !!o.alpha);
+      def(ctx, '_wrf', 'willReadFrequently' in o && !!o.willReadFrequently);
       Object.defineProperty(ctx, '_d', { value: BASE, configurable: true, writable: true });
       Object.defineProperty(ctx, '_drawn', { value: false, configurable: true, writable: true });
       def(canvas, '_ctx2d', ctx);

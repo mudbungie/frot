@@ -108,3 +108,16 @@ fn drive_bounded(html: &str, budget_ms: u64) -> (Document, Report) {
         },
     )
 }
+
+#[test]
+fn tmp_dump2() {
+    let s = sess("<html></html>");
+    let names = "Worker,SharedWorker,MessagePort,PermissionStatus,Permissions,Notification,\
+IDBRequest,IDBOpenDBRequest,IDBFactory,IDBKeyRange,Screen,ScreenOrientation,Crypto,\
+TextMetrics,AbortSignal,EventTarget";
+    let expr = format!(
+        "[{}].map(function(n){{var C=globalThis[n]; return n+' :: '+(C?Object.getOwnPropertyNames(C.prototype).join(','):'ABSENT');}}).join('\\n')",
+        names.split(',').map(|n| format!("'{n}'")).collect::<Vec<_>>().join(",")
+    );
+    println!("{}", s.eval(&expr).unwrap());
+}

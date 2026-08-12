@@ -35,23 +35,10 @@
     list._el.setAttribute(list._attr, toks.join(' '));
   }
 
-  var DOMTokenList = g.__frot_iface('DOMTokenList', {
-    length: function () {
-      return tokens(this).length;
-    },
-  });
-  // `value` reflects the whole attribute and, unlike the __frot_iface accessors,
-  // is writable — Firefox gives it a setter.
-  Object.defineProperty(DOMTokenList.prototype, 'value', {
-    get: g.__frot_brand(function () {
-      return this._el.getAttribute(this._attr) || '';
-    }, 'get value'),
-    set: g.__frot_brand(function (v) {
-      this._el.setAttribute(this._attr, String(v));
-    }, 'set value'),
-    enumerable: true,
-    configurable: true,
-  });
+  // The methods are defined first and `length`/`value` after, because that is the
+  // own-property order Gecko's `DOMTokenList.prototype` enumerates in — measured
+  // (identity.md §3.15): operations, then attributes, then `constructor`.
+  var DOMTokenList = g.__frot_iface('DOMTokenList');
   var methods = {
     item: function item(i) {
       var t = tokens(this);
@@ -74,13 +61,6 @@
       }
       put(this, list);
     },
-    toggle: function toggle(t, force) {
-      var has = tokens(this).indexOf(String(t)) >= 0;
-      var on = force === undefined ? !has : !!force;
-      if (on) this.add(t);
-      else this.remove(t);
-      return on;
-    },
     replace: function replace(oldT, newT) {
       var list = tokens(this);
       var i = list.indexOf(String(oldT));
@@ -89,6 +69,13 @@
       put(this, list);
       return true;
     },
+    toggle: function toggle(t, force) {
+      var has = tokens(this).indexOf(String(t)) >= 0;
+      var on = force === undefined ? !has : !!force;
+      if (on) this.add(t);
+      else this.remove(t);
+      return on;
+    },
     supports: function supports(t) {
       if (!this._sup)
         throw new TypeError(
@@ -96,13 +83,13 @@
         );
       return this._sup.indexOf(String(t).toLowerCase()) >= 0;
     },
+    keys: A.keys,
+    values: A.values,
+    entries: A.entries,
+    forEach: A.forEach,
     toString: function toString() {
       return this.value;
     },
-    forEach: A.forEach,
-    entries: A.entries,
-    keys: A.keys,
-    values: A.values,
   };
   Object.keys(methods).forEach(function (k) {
     Object.defineProperty(DOMTokenList.prototype, k, {
@@ -111,6 +98,21 @@
       enumerable: true,
       configurable: true,
     });
+  });
+  g.__frot_ifaceattrs(DOMTokenList.prototype, {
+    length: function () {
+      return tokens(this).length;
+    },
+  });
+  Object.defineProperty(DOMTokenList.prototype, 'value', {
+    get: g.__frot_brand(function () {
+      return this._el.getAttribute(this._attr) || '';
+    }, 'get value'),
+    set: g.__frot_brand(function (v) {
+      this._el.setAttribute(this._attr, String(v));
+    }, 'set value'),
+    enumerable: true,
+    configurable: true,
   });
   Object.defineProperty(DOMTokenList.prototype, Symbol.iterator, {
     value: A.values,

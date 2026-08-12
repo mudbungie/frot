@@ -16,10 +16,9 @@
   // Firefox 153.0esr (`bl-1ab7`, identity.md §3.12) — the prototype carries
   // `lock`, `unlock`, `type`, `angle`, `onchange`, in that order, and frot
   // published only two of them, so feature detection could see the difference.
-  var Orientation = g.__frot_iface('ScreenOrientation', {
-    type: function () { return 'landscape-primary'; },
-    angle: function () { return 0; },
-  });
+  // Member order is Gecko's own (measured, §3.15): operations first — `lock`,
+  // `unlock` — then the attributes, then `onchange`.
+  var Orientation = g.__frot_iface('ScreenOrientation', {});
   // `lock()` rejects: with a TypeError when the required argument is missing and
   // otherwise `SecurityError: The operation is insecure.` outside fullscreen —
   // both measured, and frot is never in fullscreen, so the rejection is honest
@@ -32,6 +31,10 @@
     return Promise.reject(g.__frot_domerror('SecurityError', 'The operation is insecure.'));
   }, 'lock');
   Orientation.prototype.unlock = g.__frot_brand(function unlock() {}, 'unlock');
+  g.__frot_ifaceattrs(Orientation.prototype, {
+    type: function () { return 'landscape-primary'; },
+    angle: function () { return 0; },
+  });
   onEvent(Orientation.prototype, 'onchange');
   var orientation = Object.create(Orientation.prototype);
 
@@ -40,7 +43,15 @@
   // `moz*` orientation pair. Gecko still exposes all six; a Screen without them
   // is a Screen no Firefox ships, and they are exactly what a feature-detecting
   // fingerprinter probes for.
-  var Screen = g.__frot_iface('Screen', {
+  var Screen = g.__frot_iface('Screen', {});
+  // `mozLockOrientation(type)` returns false (it never locks) and
+  // `mozUnlockOrientation()` returns undefined — both measured, both legacy
+  // no-ops in Gecko itself, so frot's inertness here is the real behaviour.
+  Screen.prototype.mozLockOrientation = g.__frot_brand(
+    function mozLockOrientation(o) { return false; }, 'mozLockOrientation');
+  Screen.prototype.mozUnlockOrientation = g.__frot_brand(
+    function mozUnlockOrientation() {}, 'mozUnlockOrientation');
+  g.__frot_ifaceattrs(Screen.prototype, {
     availWidth: function () { return W; },
     availHeight: function () { return H; },
     width: function () { return W; },
@@ -52,16 +63,9 @@
     availTop: function () { return 0; },
     availLeft: function () { return 0; },
     mozOrientation: function () { return 'landscape-primary'; },
-    orientation: function () { return orientation; },
   });
-  // `mozLockOrientation(type)` returns false (it never locks) and
-  // `mozUnlockOrientation()` returns undefined — both measured, both legacy
-  // no-ops in Gecko itself, so frot's inertness here is the real behaviour.
-  Screen.prototype.mozLockOrientation = g.__frot_brand(
-    function mozLockOrientation(o) { return false; }, 'mozLockOrientation');
-  Screen.prototype.mozUnlockOrientation = g.__frot_brand(
-    function mozUnlockOrientation() {}, 'mozUnlockOrientation');
   onEvent(Screen.prototype, 'onmozorientationchange');
+  g.__frot_ifaceattrs(Screen.prototype, { orientation: function () { return orientation; } });
   var screen = Object.create(Screen.prototype);
   Object.defineProperty(g, 'screen', {
     get: function () { return screen; },

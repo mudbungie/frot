@@ -650,6 +650,64 @@
     'IDBFactory.open: 0 (Zero) is not a valid database version.'); }
   try { indexedDB.open('d', -1); ok('idb:negative-throws', false); }
   catch (e) { ok('idb:negative-message', e.message.indexOf('out of range for unsigned long long') !== -1); }
+  // --- Interface prototype own-property lists, READ off Firefox 153.0esr
+  // (bl-706b, identity.md §3.15). `constructor` is LAST on all 41 prototypes
+  // measured — a JS function's prototype is born owning it FIRST — and the
+  // members before it are in Gecko's own order: operations, then attributes.
+  var PROTOS = {
+    Worker: 'terminate,postMessage,onmessage,onmessageerror,onerror,constructor',
+    SharedWorker: 'port,onerror,constructor',
+    MessagePort: 'postMessage,start,close,onmessage,onmessageerror,constructor',
+    PermissionStatus: 'name,state,onchange,constructor',
+    Permissions: 'query,constructor',
+    Notification: 'close,onclick,onshow,onerror,onclose,title,dir,lang,body,tag,icon,'
+      + 'requireInteraction,silent,data,actions,constructor',
+    IDBRequest: 'result,error,source,transaction,readyState,onsuccess,onerror,constructor',
+    IDBOpenDBRequest: 'onblocked,onupgradeneeded,constructor',
+    IDBFactory: 'open,deleteDatabase,databases,cmp,constructor',
+    IDBKeyRange: 'includes,lower,upper,lowerOpen,upperOpen,constructor',
+    ScreenOrientation: 'lock,unlock,type,angle,onchange,constructor',
+    EventTarget: 'addEventListener,removeEventListener,dispatchEvent,constructor',
+    NodeList: 'item,keys,values,entries,forEach,length,constructor',
+    DOMTokenList: 'item,contains,add,remove,replace,toggle,supports,keys,values,entries,'
+      + 'forEach,toString,length,value,constructor',
+    Screen: 'mozLockOrientation,mozUnlockOrientation,availWidth,availHeight,width,height,'
+      + 'colorDepth,pixelDepth,top,left,availTop,availLeft,mozOrientation,'
+      + 'onmozorientationchange,orientation,constructor',
+  };
+  Object.keys(PROTOS).forEach(function (n) {
+    eq('proto:' + n, Object.getOwnPropertyNames(window[n].prototype).join(','), PROTOS[n]);
+  });
+  // Notification instance facts, measured by constructing a real one: no own
+  // properties, a frozen empty `actions`, `silent` false (not null), and no
+  // `badge`/`renotify`/`timestamp` — Gecko exposes none of those three.
+  var note = new Notification('t');
+  // NOT asserted: `Object.getOwnPropertyNames(note).length`. Firefox's is 0 —
+  // every value lives behind a prototype accessor — where frot's instance carries
+  // its `_`-prefixed backing slots as own properties (10 of them here). That is a
+  // real divergence, measured, and it is filed rather than papered over, because
+  // the same slot pattern runs through audio, idb and the canvas contexts and the
+  // fix is one shared change (bl-3bdc).
+  ok('note:actions-frozen-empty', Array.isArray(note.actions) && note.actions.length === 0
+    && Object.isFrozen(note.actions));
+  eq('note:silent-false', note.silent, false);
+  ok('note:no-badge-renotify-timestamp',
+    !('badge' in note) && !('renotify' in note) && !('timestamp' in note));
+  // IDBKeyRange range semantics, read rather than derived from the spec algorithm.
+  eq('idb:lowerBound-upperOpen', IDBKeyRange.lowerBound(5).upperOpen, true);
+  eq('idb:upperBound-lowerOpen', IDBKeyRange.upperBound(5).lowerOpen, true);
+  eq('idb:only-collapses', IDBKeyRange.only(5).lower + ',' + IDBKeyRange.only(5).upper, '5,5');
+  eq('idb:bound-equal-closed-ok', IDBKeyRange.bound(1, 1).lower, 1);
+  eq('idb:bound-equal-open-throws', threw(function () { IDBKeyRange.bound(1, 1, true, true); }),
+     'DataError');
+  eq('idb:arity', [IDBKeyRange.only.length, IDBKeyRange.lowerBound.length,
+     IDBKeyRange.bound.length, IDBKeyRange.prototype.includes.length].join(','), '1,1,2,1');
+  // getContext echoes exactly two of the four attributes.
+  var echo = document.createElement('canvas')
+    .getContext('2d', { alpha: false, willReadFrequently: true, desynchronized: true });
+  eq('canvas:attrs-echo', JSON.stringify(echo.getContextAttributes()),
+     '{"alpha":false,"colorSpace":"srgb","desynchronized":false,"willReadFrequently":true}');
+
   ok('idb:fractional-version-ok', (function () {
     try { indexedDB.open('d', 1.5); return true; } catch (e) { return false; } })());
   ok('ac:resume-promise', ac.resume() instanceof Promise);
