@@ -205,7 +205,13 @@ fn reserved_ranges_cover_every_non_routable_block() {
 
 #[test]
 fn asn_scanner_reads_numbers_and_ignores_words() {
-    assert_eq!(asn_mentions("measured from [redacted-egress-asn] today"), vec![1]);
+    // The positive case is assembled, not spelled: `no_asn_reference_in_the_tree`
+    // reads every tracked file including this one, so a literal ASN here would
+    // trip the very gate it tests — the module doc's rule, applied to itself.
+    assert_eq!(
+        asn_mentions(concat!("measured from AS", "209 today")),
+        vec![1]
+    );
     for text in ["ASCII text", "the AS clause", "BASE12 identifier", "AS1"] {
         assert!(
             asn_mentions(text).is_empty(),
