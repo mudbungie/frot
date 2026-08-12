@@ -53,42 +53,45 @@ macro_rules! bind {
 /// prelude that builds the web-facing API on top of it. Closures capture clones
 /// of the handles in `host`; nothing global.
 pub fn install(engine: &Engine, host: Host) {
-    let probe = host.probe.clone();
+    // Install is host setup, not page script: every phase runs outside the page
+    // bounds (js.md §5, `Engine::setup`) — the budget so a dialed-down deadline
+    // can't trip mid-install (bl-5ac3), the heap cap so the prelude is never
+    // parsed under starvation (bl-c385).
     engine
-        .context()
-        .with(|ctx| -> rquickjs::Result<()> {
-            let g = ctx.globals();
-            for group in GROUPS {
-                group(&ctx, &g, &host)?;
-            }
-            // The measure instrument's probe syscall (bl-bd4e) rides the same
-            // table, but only when a `ProbeLog` was supplied; a shipping `--js`
-            // run binds nothing extra and evaluates no second prelude. Inlined
-            // (not a fallible helper) so it carries no separate `?` error edge —
-            // the `bind!` macro's own edges share the uniform failure path.
-            if let Some(log) = &probe {
-                let l = log.clone();
-                bind!(ctx, g, "__frot_probe", move |name: String| {
-                    *l.borrow_mut().entry(name).or_insert(0) += 1;
-                });
-            }
-            Ok(())
-        })
+        .setup(|| engine.context().with(|ctx| bind(&ctx, &host)))
         .expect("install frot syscall table");
-    // Prelude install is host setup, not page script: evaluate it exempt from
-    // the page budget (js.md §5) so a dialed-down budget can't trip mid-install
-    // (bl-5ac3). Page scripts arm their own deadline via `Session::begin`.
     engine
         .eval_setup(super::prelude::SOURCE)
         .expect("evaluate frot prelude");
     // The instrumentation prelude (bl-bd4e) wraps what the shipping prelude just
     // defined — `navigator`, `getContext`, the absent-global feature-detect
     // surface — so it evaluates last, and only under the measure instrument.
-    if probe.is_some() {
+    if host.probe.is_some() {
         engine
             .eval_setup(super::probe::INSTRUMENT)
             .expect("evaluate frot probe instrumentation");
     }
+}
+
+/// Bind the whole table on `ctx`'s globals — the one fallible fold [`install`]
+/// turns into its all-or-nothing panic. A named function, not an inline closure,
+/// so the starvation sweep can exercise every allocation edge in it directly
+/// (`starve_tests`) without evaluating the prelude on a starved heap.
+fn bind<'js>(ctx: &Ctx<'js>, host: &Host) -> rquickjs::Result<()> {
+    let g = ctx.globals();
+    for group in GROUPS {
+        group(ctx, &g, host)?;
+    }
+    // The measure instrument's probe syscall (bl-bd4e) rides the same table, but
+    // only when a `ProbeLog` was supplied; a shipping `--js` run binds nothing
+    // extra and evaluates no second prelude.
+    if let Some(log) = &host.probe {
+        let l = log.clone();
+        bind!(ctx, g, "__frot_probe", move |name: String| {
+            *l.borrow_mut().entry(name).or_insert(0) += 1;
+        });
+    }
+    Ok(())
 }
 
 /// Node-query syscalls: kind/tag/attr/text and the structural links.

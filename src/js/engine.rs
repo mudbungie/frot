@@ -46,6 +46,7 @@ pub struct Engine {
     ctx: Context,
     cpu: Deadline,
     net: Deadline,
+    mem_limit: usize,
     tripped: Arc<AtomicBool>,
     rejections: Rc<Cell<i64>>,
 }
@@ -90,6 +91,7 @@ impl Engine {
             ctx,
             cpu,
             net,
+            mem_limit,
             tripped,
             rejections,
         }
@@ -144,17 +146,31 @@ impl Engine {
         self.eval_armed(src)
     }
 
-    /// Evaluate host setup source (the syscall prelude) exempt from the page
-    /// budget (js.md §5: the bounds cover page scripts and the event loop, never
-    /// the one-time API install). Disarms both windows first, so however slow the
-    /// environment (llvm-cov, a loaded CI box) the interrupt cannot trip
-    /// mid-install and turn setup into a spurious budget failure. Page scripts
+    /// Run one-time host setup (`js::syscall::install`) outside *all three* page
+    /// bounds (js.md §5: they cover page scripts and the event loop, never the API
+    /// install). Both §5 windows are disarmed, so however slow the environment
+    /// (llvm-cov, a loaded CI box) the interrupt cannot trip mid-install and turn
+    /// setup into a spurious budget failure (bl-5ac3); and the heap cap is lifted
+    /// for the duration and restored after, so the prelude — frot's own
+    /// fixed-size program, not page input — is never *parsed* under starvation
+    /// (bl-c385: quickjs's `js_parse_block` ignores a failed `push_scope` and
+    /// `pop_scope` then reads a garbage scope index — a segfault, not an error).
+    /// Restoring from the constructed limit makes nesting safe. Page scripts
     /// re-arm via [`arm`](Self::arm)/[`eval_armed`](Self::eval_armed) first.
-    pub fn eval_setup(&self, src: &str) -> Result<String, EvalError> {
+    pub fn setup<T>(&self, f: impl FnOnce() -> T) -> T {
         self.tripped.store(false, Ordering::Relaxed);
         self.cpu.disarm();
         self.net.disarm();
-        self.eval_armed(src)
+        // 0 is quickjs's "unlimited" (`malloc_limit - 1` wraps to `SIZE_MAX`).
+        self.rt.set_memory_limit(0);
+        let out = f();
+        self.rt.set_memory_limit(self.mem_limit);
+        out
+    }
+
+    /// [`setup`](Self::setup) around one eval — host setup source (the prelude).
+    pub fn eval_setup(&self, src: &str) -> Result<String, EvalError> {
+        self.setup(|| self.eval_armed(src))
     }
 
     /// Evaluate inside the current budget window, drain the microtask queue,

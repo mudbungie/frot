@@ -353,6 +353,27 @@ design center. Two clocks, four limits:
   A refused dispatch reports `settled: false, stopped: "network"` (§10).
 - **Memory cap: `JS_MEM_LIMIT = 64 MiB`** engine heap, engine-enforced.
 
+All three bound *page scripts and the event loop*; the one-time API install is
+exempt from every one of them (`Engine::setup`: it disarms both windows and
+lifts the heap cap for the duration, restoring the constructed cap after — so a
+dialed-down budget cannot turn setup into a spurious failure, `bl-5ac3`, and the
+prelude is never *parsed* on a starved heap). **The heap half of that is not a
+convenience (`bl-c385`): quickjs's parser is not allocation-failure-safe.**
+`js_parse_block` ignores a failed `push_scope` and calls `pop_scope` anyway,
+which reads `fd->scopes[garbage]` — a **segfault**, not a catchable OOM —
+whenever a failing allocation lands on a function's *fifth* scope (the first one
+past the inline `def_scope_array[4]`, i.e. a nested block inside a function).
+The prelude is frot's own fixed-size program, not page input: starving it buys
+nothing and risks crashing the process with no envelope. Before the exemption
+the starve sweep passed only by the byte-layout luck of where the OOM fell, so
+any prelude edit could re-trip it. What is still starved, and must be, is the
+*binding* fold (`js::syscall::bind`, swept in `syscall::starve_tests`): it
+allocates but parses nothing, and its failure is a clean `Err` the install turns
+into one loud panic rather than a half-bound table. **Residual, upstream:** a
+*page* script that exhausts the 64 MiB cap mid-parse can still hit the same
+quickjs defect; the fix belongs in quickjs-ng, and nothing frot does from the
+host side can catch it.
+
 > **The unit was the bug, not the size (`bl-8dc0`, 2026-07-22).** One wall-clock
 > deadline meant a *correct* run on a busy host emitted a *different envelope*:
 > Adduce measured `vue_app_renders_and_clears_needs_js` and

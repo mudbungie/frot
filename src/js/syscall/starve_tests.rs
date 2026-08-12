@@ -1,139 +1,125 @@
-//! Installing the syscall table under a starved engine heap.
+//! Binding the syscall table under a starved engine heap.
 //!
-//! `install` binds seven groups of host functions and then evaluates the
-//! prelude, each of which allocates. Registering the table is *host setup*, not
-//! page script, so a failure is not a recoverable page error: `install`
-//! deliberately `.expect()`s. The guarantee under test is that every one of
-//! those allocation points is fatal in exactly that way — a loud panic — and
-//! never a silent half-installed table, which would leave page scripts running
-//! against a realm missing some syscalls.
+//! [`super::bind`] registers nine groups of host functions, each of which
+//! allocates. Registering the table is *host setup*, not page script, so a
+//! failure is not a recoverable page error: [`super::install`] turns any `Err`
+//! here into a loud `.expect` panic. The guarantee under test is that every one
+//! of those allocation points *reaches* that panic — an `Err`, never a silent
+//! half-installed table, which would leave page scripts running against a realm
+//! missing some syscalls.
+//!
+//! Starvation is applied to `bind` **directly**, never through `install`, which
+//! runs with the heap cap lifted (`Engine::setup`, js.md §5): the phase after
+//! binding *parses* the prelude, and quickjs's parser is not
+//! allocation-failure-safe (bl-c385 — `js_parse_block` ignores a failed
+//! `push_scope`, so `pop_scope` reads `fd->scopes[garbage]`: a segfault, not an
+//! error). Binding allocates but parses nothing, so it is starvable.
 
 use super::*;
 use crate::dom::Document;
 use crate::fetch::FetchSession;
-use crate::js::engine::{Deadline, Engine};
+use crate::js::engine::{Deadline, Engine, EvalError};
 use crate::js::geometry::{self, StyleSource};
+use crate::js::probe::ProbeLog;
 use crate::js::subfetch;
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
-fn env() -> Env {
-    Env {
-        url: "https://example.com/".into(),
-        user_agent: "frot-test/1".into(),
-        accept_language: "en-US,en;q=0.5".into(),
-    }
+fn engine(mem_limit: usize) -> Engine {
+    Engine::with_bounds(mem_limit, Deadline::compute(), Deadline::network())
 }
 
-/// Install the table on an engine capped at `mem_limit` bytes, reporting which
-/// phase failed. `Ok(())` is a complete install; `Err(msg)` is the panic the
-/// starved phase raised, caught here so the sweep can continue.
-fn install_capped(mem_limit: usize) -> Result<(), String> {
-    std::panic::catch_unwind(|| {
-        let engine = Engine::with_bounds(mem_limit, Deadline::compute(), Deadline::network());
-        let doc = Rc::new(RefCell::new(Document::parse("<html><body></body></html>")));
-        let geo = Rc::new(RefCell::new(geometry::Geometry::new(StyleSource::Bare)));
-        let counters = Counters {
+fn host(engine: &Engine, probe: Option<ProbeLog>) -> Host {
+    let session = FetchSession::new(Vec::new());
+    let cookie = session.cookie_jar();
+    Host {
+        doc: Rc::new(RefCell::new(Document::parse("<html><body></body></html>"))),
+        console: Rc::new(RefCell::new(Vec::new())),
+        geo: Rc::new(RefCell::new(geometry::Geometry::new(StyleSource::Bare))),
+        env: Env {
+            url: "https://example.com/".into(),
+            user_agent: "frot-test/1".into(),
+            accept_language: "en-US,en;q=0.5".into(),
+        },
+        counters: Counters {
             denials: Rc::new(RefCell::new(0)),
             reported: Rc::new(RefCell::new(0)),
             messages: Rc::new(RefCell::new(Vec::new())),
-        };
-        let session = FetchSession::new(Vec::new());
-        let cookie = session.cookie_jar();
-        let sf = Rc::new(RefCell::new(subfetch::Subfetch::new(
+        },
+        subfetch: Rc::new(RefCell::new(subfetch::Subfetch::new(
             session,
             "https://example.com/",
             engine.deadline(),
-        )));
-        install(
-            &engine,
-            Host {
-                doc,
-                console: Rc::new(RefCell::new(Vec::new())),
-                geo,
-                env: env(),
-                counters,
-                subfetch: sf,
-                cookie,
-                clock: engine.clock(),
-                probe: None,
-            },
-        );
-    })
-    .map_err(|p| {
-        p.downcast_ref::<String>()
-            .cloned()
-            .or_else(|| p.downcast_ref::<&str>().map(|s| s.to_string()))
-            .unwrap_or_default()
-    })
+        ))),
+        cookie,
+        clock: engine.clock(),
+        probe,
+    }
 }
 
-/// Sweeping the heap cap moves the first failing allocation through the binding
-/// phase and then through the prelude. Every cap must either install fully or
-/// panic. The sweep asserts all three outcomes appear: a table-binding failure,
-/// a prelude failure, and a clean install — so the starvation is proven to bite
-/// *inside* the binding phase and not only in the much larger prelude that
-/// follows it.
+/// Sweeping the heap cap moves the first failing allocation through the whole
+/// binding phase; the band is the measured one where the realm itself fits but
+/// the table may not. Every cap must bind fully or fail cleanly, and both
+/// outcomes must appear — so the starvation is proven to bite rather than the
+/// sweep having walked a band that is uniformly roomy.
 ///
 /// The groups are applied as one uniform sequence (`super::GROUPS`), so *which*
 /// group a given cap starves does not matter: they share a single failure path,
 /// and any cap landing in the binding phase exercises it. That is why a coarse
 /// walk suffices here — no hunt for the narrow band that starves one particular
-/// group.
-///
-/// The sweep raises ~2 300 *deliberate* panics, so it silences the panic hook to
-/// keep the test output readable. The hook is **process-global** and libtest runs
-/// tests concurrently, so a blanket `set_hook(|_| {})` silences every *other*
-/// test's panic message for the whole (multi-second) window — which is exactly why
-/// `bl-a0e7`'s `persona_gold` flake surfaced as a test name in the summary with an
-/// **empty** `failures:` block, no panic text even under `--nocapture` and
-/// `RUST_BACKTRACE=full`. So the silencer is scoped to the sweeping thread and
-/// every other thread's panic is forwarded to the hook we displaced; the probe
-/// below pins that forwarding, since a regression here is invisible by definition.
+/// group. The sweep runs twice, with and without the measure instrument's extra
+/// `__frot_probe` binding (bl-bd4e), because that one rides the same fold.
+fn sweep(probe: Option<ProbeLog>) {
+    let bound: Vec<bool> = (110_000..140_000)
+        .step_by(64)
+        .map(|cap| {
+            let e = engine(cap);
+            let h = host(&e, probe.clone());
+            e.context().with(|ctx| bind(&ctx, &h).is_ok())
+        })
+        .collect();
+    assert!(bound.contains(&false), "no cap starved the binding phase");
+    assert!(bound.contains(&true), "no cap in the band bound the table");
+}
+
 #[test]
-fn a_starved_install_panics_rather_than_half_installing() {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
+fn a_starved_binding_fails_rather_than_half_installing() {
+    sweep(None);
+}
 
-    let sweeper = std::thread::current().id();
-    // `Arc` so the displaced hook survives the silencer and can be reinstated: a
-    // `set_hook` closure owning it outright could never give it back.
-    let prior = Arc::new(std::panic::take_hook());
-    let forwarded = Arc::new(AtomicBool::new(false));
-    let (fwd, seen) = (Arc::clone(&prior), Arc::clone(&forwarded));
-    std::panic::set_hook(Box::new(move |info| {
-        // Silence *this* thread's deliberate starvation panics only; anyone else
-        // panicking during the window still gets their message printed.
-        if std::thread::current().id() != sweeper {
-            seen.store(true, Ordering::Relaxed);
-            fwd(info);
-        }
-    }));
-    let msgs: Vec<Result<(), String>> =
-        (110_000..260_000).step_by(64).map(install_capped).collect();
-    let roomy = install_capped(crate::js::engine::JS_MEM_LIMIT);
-    // Still inside the silenced window: a foreign thread's panic must reach the
-    // displaced hook. Its message printing to stderr is the assertion succeeding.
-    let probe = std::thread::spawn(|| panic!("bl-a0e7 probe: this message MUST be visible"));
-    assert!(probe.join().is_err(), "the probe thread did not panic");
-    std::panic::set_hook(Box::new(move |info| prior(info)));
-    assert!(
-        forwarded.load(Ordering::Relaxed),
-        "the sweep's silencer swallowed a concurrent thread's panic — \
-         every other test's failures would be invisible while it runs"
-    );
+#[test]
+fn a_starved_probe_binding_fails_the_same_way() {
+    sweep(Some(Rc::new(RefCell::new(BTreeMap::new()))));
+}
 
-    assert!(
-        msgs.iter().any(|m| m
-            .as_ref()
-            .err()
-            .is_some_and(|s| s.contains("syscall table"))),
-        "no cap starved the syscall-table binding phase"
+/// The bl-c385 fix: `install` is exempt from the heap cap, so a cap far below
+/// what evaluating the prelude *peaks* at (measured ~1.3 MiB, against the 256
+/// KiB here) still yields a complete API instead of a starved parse. Read back
+/// through the same exemption, because the cap is in force again for page
+/// scripts — which is the next test.
+#[test]
+fn install_is_exempt_from_the_heap_cap() {
+    let engine = engine(256 * 1024);
+    install(&engine, host(&engine, None));
+    assert_eq!(
+        engine.eval_setup("typeof document.querySelector").unwrap(),
+        "function"
     );
-    assert!(
-        msgs.iter()
-            .any(|m| m.as_ref().err().is_some_and(|s| s.contains("prelude"))),
-        "no cap starved the prelude phase"
+}
+
+/// The exemption is scoped to setup: page scripts still meet the cap the engine
+/// was built with, so lifting it is not a disabled limit.
+#[test]
+fn the_heap_cap_is_back_in_force_after_install() {
+    let engine = engine(8 * 1024 * 1024);
+    install(&engine, host(&engine, None));
+    assert_eq!(
+        engine.eval("typeof document.querySelector").unwrap(),
+        "function"
     );
-    assert!(roomy.is_ok(), "install failed on a full-size heap");
+    assert!(matches!(
+        engine.eval("new Uint8Array(32 * 1024 * 1024).length"),
+        Err(EvalError::Exception(_))
+    ));
 }
