@@ -8,9 +8,11 @@
 //! fresh address into a doc, the next golden ball drops a vendored bundle into
 //! `tests/fixtures/js/`.
 //!
-//! The same shape covers the checkout's own budgets ([`size`]): the 300-line
-//! source cap was enforced only over a commit's *staged* files, so a file that
-//! went over stayed over — unstaged and unseen — until CI swept the tree.
+//! The same shape covers the checkout's own budgets ([`size`]) and its
+//! formatting ([`fmt`]): both were gated off a commit's *staged* files, and
+//! `bl close` gates a worktree whose work is already committed, where nothing
+//! is staged — so a file went over the 300-line cap, or landed unformatted,
+//! and stayed that way until CI swept the tree.
 //!
 //! And it covers what the checkout goes stale *against* ([`persona`]): the
 //! pinned browser profile expires on the ESR calendar, so the gate is the wall
@@ -23,6 +25,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod fmt;
 mod identity;
 mod licensing;
 mod persona;

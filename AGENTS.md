@@ -17,7 +17,9 @@ A stateless, single-binary tool that takes structural impressions of web pages. 
 
 Task tracking is `bl` (see `bl --skill`). One agent takes a task all the way through — there is no separate review step or reviewer. All edits happen in `bl claim`-created worktrees; never edit `main` directly. Standard flow: `bl claim` (prints the worktree) → work in the worktree → `cd` to repo root → `bl close -m "<message>"`.
 
-`bl close` is the sole delivery and gate: it folds `main` in, runs the repo's `pre-commit` hook (100% coverage, ≤300-line files, clippy), then squashes the worktree diff to `main` and tears the worktree down — all in one move. A hook failure aborts the close and leaves the task claimed for the fix, so tests must pass in the worktree before closing.
+`bl close` is the sole delivery and gate. It never merges `main` for you: it refuses unless `main` is already in your work branch, so you merge and re-test in the worktree first. Then it runs the repo's `pre-commit` hook on that exact tree (fmt, ≤300-line files, clippy, POSIX suite, 100% coverage), squashes the worktree diff to `main`, and tears the worktree down. A hook failure aborts the close and leaves the task claimed for the fix, so tests must pass in the worktree before closing.
+
+The hook gates the **tree**, never the index. `bl close` runs it on a worktree whose work is already committed, so `git diff --cached` is empty there; a gate keyed on the staged set silently skips on every close, which is how unformatted code (bl-0066) and an over-cap file (bl-a68b) reached `main`. Every gate is keyed on `git ls-files '*.rs'` instead — the same sweep CI runs. The cost is that a docs-only commit pays for clippy, the POSIX suite and coverage too; correctness of the landed tree is worth more than that.
 
 ## Build
 
