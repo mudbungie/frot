@@ -234,3 +234,22 @@ fn raw_text_without_css_keeps_its_source_order_dump() {
         "Options\nbody"
     );
 }
+
+#[test]
+fn media_fallback_never_reaches_text() {
+    // `bl-0f83`: fallback is for a UA without `<video>`; frot has it. Both the
+    // element-wrapped and the bare-prose shapes go — and, unlike a CSS-hidden
+    // subtree, in *both* recipes: the content model says so with no cascade
+    // involved, so `--css` is not what makes it true.
+    let wrapped =
+        "<p>before</p><video><source src=a.mp4><p>Sorry, no embedded videos</p></video><p>after</p>";
+    assert_eq!(t_css(wrapped), "before\nafter");
+    assert_eq!(t(wrapped), "before\nafter");
+    for html in [
+        "<video>Sorry, your browser does not support embedded videos</video>",
+        "<audio>no audio</audio>",
+    ] {
+        assert_eq!(t_css(html), "", "{html}");
+        assert_eq!(t(html), "", "{html}");
+    }
+}

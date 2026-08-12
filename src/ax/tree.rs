@@ -50,7 +50,11 @@ pub fn ax_tree(doc: &Document, styles: Option<&Styles>, layout: Option<&Layout>)
     Value::Array(nodes)
 }
 
-/// The child `NodeId`s of `id` in AX emission order. Under a computed `Layout`,
+/// The child `NodeId`s of `id` in AX emission order — **none** for a media
+/// element, whose children are fallback content for a UA without it
+/// ([`Document::withholds_children`], `bl-0f83`); that is a content-model fact,
+/// so it holds with or without `--css`, and the element's own node and name are
+/// untouched. Under a computed `Layout`,
 /// a flex container (`Display::Flex`/`InlineFlex`) emits its children in flex
 /// reading order — [`Layout::child_order`], the single reorder primitive from
 /// subtask 3.5 (`layout.md` §5). Every other node, and *every* node when
@@ -63,6 +67,9 @@ fn ordered_children(
     styles: Option<&Styles>,
     layout: Option<&Layout>,
 ) -> Vec<NodeId> {
+    if doc.withholds_children(id) {
+        return Vec::new();
+    }
     match (layout, styles) {
         (Some(l), Some(s)) if matches!(s.display(id), Display::Flex | Display::InlineFlex) => {
             l.child_order(id)

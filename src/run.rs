@@ -240,6 +240,9 @@ mod css_media_tests;
 mod details_tests;
 
 #[cfg(test)]
+mod fallback_tests;
+
+#[cfg(test)]
 mod ax_tests;
 
 #[cfg(test)]

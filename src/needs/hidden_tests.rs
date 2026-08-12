@@ -137,3 +137,29 @@ fn a_concealed_label_is_no_label() {
     );
     assert_eq!(detect(View::Ax, &doc, None), vec![NeedsKind::Js]);
 }
+
+#[test]
+fn media_fallback_is_not_content() {
+    // `bl-0f83`: a shell whose only body copy is a `<video>`'s fallback shows
+    // the user a player and nothing else — the same false-`ok` direction.
+    let shell = "<html><body><div id=root></div>\
+         <video><source src=a.mp4><p>Sorry, your browser does not support embedded videos</p>\
+         <img alt='a poster'></video><script src=app.js></script></body></html>";
+    let doc = Document::parse(shell);
+    for view in [View::Text, View::Ax] {
+        assert_eq!(detect(view, &doc, None), vec![NeedsKind::Js], "{view:?}");
+        assert_eq!(
+            detect(view, &doc, Some(&styles_of(&doc))),
+            vec![NeedsKind::Js],
+            "{view:?} styles"
+        );
+    }
+    // A label on the media element itself is the element's own, not fallback:
+    // `ax` can express it, so that view is honestly not starved.
+    let doc = Document::parse(
+        "<html><body><div id=root></div><video aria-label='Product demo'></video>\
+         <script src=app.js></script></body></html>",
+    );
+    assert!(detect(View::Ax, &doc, None).is_empty());
+    assert_eq!(detect(View::Text, &doc, None), vec![NeedsKind::Js]);
+}

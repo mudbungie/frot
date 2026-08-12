@@ -84,16 +84,29 @@ so it is decided before the cascade is consulted (`bl-a189`). Its AX twin is a
 separate fact in a separate home: the HTML-AAM gives `type=hidden` no role at
 all, which is what keeps it out of `--out ax` when no styles are computed.
 
-A further UA rule is **structural** rather than a declaration, and so lands
-*after* the cascade rather than inside it (`css::cascade::conceal`,
-`dom::Document::concealed`, `bl-74a6`): a `<details>` without `open` renders
-only its first `<summary>` child, and every other child — element **or text
-node** — computes to `display: none`. It is not author-overridable, because
-the box the UA skips is the `<details>`'s own `::details-content` box, not the
+Two further UA rules are **structural** rather than declarations — the parent's
+box swallows the child — so they land *after* the cascade rather than inside it
+(`css::cascade::conceal`, `dom::Document::concealed`). Every child they hit —
+element **or text node** — computes to `display: none`:
+
+- a `<details>` without `open` renders only its first `<summary>` child
+  (`bl-74a6`);
+- a media element (`<video>`/`<audio>`) renders **none** of its children, which
+  HTML defines as fallback for a UA that does not implement the element
+  (`tags::renders_children`, `bl-0f83`).
+
+Neither is author-overridable, because the box the UA skips is the parent's —
+`<details>`'s `::details-content`, the media element's replaced box — not the
 child's, and frot has no anonymous boxes to give the child one. Text nodes
-carry it too: `Styles` is parallel to the whole arena, so `<details><summary>
-Q</summary>A</details>` drops the `A` with everything else. Consumers need no
-new query — they already prune a subtree at `display:none`.
+carry it too: `Styles` is parallel to the whole arena, so
+`<details><summary>Q</summary>A</details>` drops the `A` with everything else.
+Consumers need no new query — they already prune a subtree at `display:none`.
+
+The media half is a *content model* fact rather than a UA stylesheet one, so it
+also holds without `--css`: `views::text` and `ax::tree` read
+`tags::renders_children` in their own recipe-independent skips, the same way
+they already skip `<script>`/`<iframe>`/`<svg>`. The `<details>` half is state
+in the document and stays cascade-gated like `[hidden]`.
 
 Its block-level tag set is *the same list* `views::text.rs` already uses for
 block breaks (`BLOCK_TAGS`) — extract it to one place so the two never drift

@@ -5,7 +5,9 @@
 //!   to a single space) **outside** `<pre>`.
 //! - `<pre>` content is preserved verbatim.
 //! - Subtrees under `<script>`, `<style>`, `<template>`, `<noscript>`, `<iframe>`,
-//!   `<svg>`, and `<math>` are skipped.
+//!   `<svg>`, and `<math>` are skipped, as is a media element's fallback
+//!   content ([`crate::tags::renders_children`] — a content-model fact, so it
+//!   holds with or without `--css`).
 //! - Block-level boundaries become newlines; `<br>` becomes a newline.
 //! - With `--css` (a [`Styles`] table is passed): `display:none` nodes are
 //!   dropped with their subtrees — text nodes included, which is how a closed
@@ -17,14 +19,18 @@
 
 use crate::css::{Styles, Visibility};
 use crate::dom::{Document, NodeId, NodeKind};
-use crate::tags::is_block;
+use crate::tags::{is_block, renders_children};
 
 const SKIP_TAGS: &[&str] = &[
     "script", "style", "template", "noscript", "iframe", "svg", "math",
 ];
 
+/// Whether this element contributes no text at all. Two sources, both
+/// recipe-independent: this view's own skip set above, and the shared
+/// fallback-content fact ([`renders_children`] — a `<video>`'s contents are
+/// markup for a UA without `<video>`, and its own text is nothing).
 fn is_skip(name: &str) -> bool {
-    SKIP_TAGS.contains(&name)
+    SKIP_TAGS.contains(&name) || !renders_children(name)
 }
 
 struct State {

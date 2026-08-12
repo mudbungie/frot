@@ -154,3 +154,6 @@ mod tests;
 
 #[cfg(test)]
 mod details_tests;
+
+#[cfg(test)]
+mod media_tests;

@@ -158,15 +158,23 @@ impl Document {
     /// question). Answered for text nodes as much as elements: the box the UA
     /// skips is the parent's, so everything inside it goes, markup or not.
     ///
-    /// One rule today: a `<details>` without `open` renders only its first
-    /// `<summary>` element child — the disclosure control. Every other child is
-    /// disclosure content, which HTML Rendering ("The `details` and `summary`
-    /// elements") puts in a `::details-content` box that is
-    /// `content-visibility: hidden` while closed. So, unlike `[hidden]`, no
-    /// author declaration on the child reveals it: the skipped box is not the
-    /// child's, and frot has no anonymous boxes to give it one. A closed
-    /// `<details>` with no `<summary>` conceals every child — the UA supplies
-    /// its own disclosure control, which is not in the document.
+    /// Two rules, both of them "the parent's box swallows the child":
+    ///
+    /// - A **`<details>` without `open`** renders only its first `<summary>`
+    ///   element child — the disclosure control. Every other child is
+    ///   disclosure content, which HTML Rendering ("The `details` and `summary`
+    ///   elements") puts in a `::details-content` box that is
+    ///   `content-visibility: hidden` while closed. A closed `<details>` with
+    ///   no `<summary>` conceals every child — the UA supplies its own
+    ///   disclosure control, which is not in the document.
+    /// - A **media element** renders *none* of its children
+    ///   ([`crate::tags::renders_children`], which owns that fact and is also
+    ///   read by the recipe-independent subtree skips in `views::text` and
+    ///   `ax::tree`).
+    ///
+    /// So, unlike `[hidden]`, no author declaration on the child reveals it:
+    /// the skipped box is not the child's, and frot has no anonymous boxes to
+    /// give it one.
     ///
     /// Two consumers keep it honest, the same pair [`Element::hidden`] has: the
     /// cascade (`css::cascade`), which routes it on to `--css` text, the AX
@@ -176,7 +184,17 @@ impl Document {
         let Some(parent) = self.node(id).parent else {
             return false;
         };
-        self.closed_details(parent) && self.first_summary(parent) != Some(id)
+        self.withholds_children(parent)
+            || (self.closed_details(parent) && self.first_summary(parent) != Some(id))
+    }
+
+    /// Whether `id` is an element that renders none of its children —
+    /// [`crate::tags::renders_children`], the one home of the fallback-content
+    /// fact. `<source>`/`<track>` are covered by it like any other child: they
+    /// configure the box, they are never rendered beside it.
+    pub fn withholds_children(&self, id: NodeId) -> bool {
+        matches!(&self.node(id).kind,
+            NodeKind::Element(el) if !crate::tags::renders_children(&el.name))
     }
 
     /// Whether `id` is a `<details>` element carrying no `open` attribute.
@@ -254,3 +272,6 @@ mod mutate;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod concealed_tests;

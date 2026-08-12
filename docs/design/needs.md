@@ -266,6 +266,29 @@ the `<details>`), and it reaches **text nodes**, since `<details><summary>Q
 render check therefore sits above the element/text split rather than inside the
 element arm.
 
+**A second parent rule, and the one line that separates them (`bl-0f83`).**
+A `<video>`/`<audio>` renders *none* of its children: HTML defines its contents
+as **fallback** for a user agent that does not implement the element, not as
+copy shown when playback is idle or a source fails. Live repro 2026-08-11:
+`https://www.w3.org/` under `--css --out text` emitted "Sorry, your browser
+does not support embedded videos", and the AX tree exposed it too, while Chrome
+at 1280×720 paints a 500×281 replaced box and exposes neither — unchanged with
+JavaScript off. frot implements the element and presents a Firefox persona, so
+emitting its fallback describes a different page.
+
+It rides `dom::Document::concealed` beside the `<details>` rule, but the fact
+itself lives in `tags::renders_children`, and that placement is the difference:
+media fallback is a **content model** fact, not a UA *stylesheet* one, so no
+cascade is needed to see it and `--css` is not what makes it true. It therefore
+also holds in the raw views, which read it in the recipe-independent skips they
+already keep for `<script>`/`<iframe>`/`<svg>`. `[hidden]` and a closed
+`<details>` are document *state* and stay cascade-gated; this is what the
+markup means.
+
+`<object>`/`<canvas>` fallback is deliberately **not** in that set: the same
+argument looks like it should extend, but the ball asked for evidence rather
+than assumption, and none was measured here (`bl-e79a`).
+
 Accepted residuals:
 
 - A zero-text image gallery (labeled images, scripts present) flags
