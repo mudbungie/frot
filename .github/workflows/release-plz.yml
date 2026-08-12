@@ -207,7 +207,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -uo pipefail
-          open="$(gh pr list --state open --json headRefName -q '.[].headRefName')"
+          # The open-PR set is the sole authority for "keep", so a FAILED
+          # listing must never be read as "nothing is open" — that inverts the
+          # guard below and deletes every release-plz-* branch, the live
+          # release PR's included. An EMPTY listing is legitimate (nothing to
+          # release, only orphans left to prune); a non-zero `gh` is not.
+          # Checked explicitly rather than via `set -e`, so a `git push
+          # --delete` losing a race with an already-deleted branch still leaves
+          # the remaining branches to be pruned.
+          if ! open="$(gh pr list --state open --json headRefName -q '.[].headRefName')"; then
+            echo "::error::gh pr list failed — refusing to prune any branch" >&2
+            exit 1
+          fi
           git ls-remote --heads origin 'refs/heads/release-plz-*' |
             awk '{print $2}' | sed 's#refs/heads/##' |
             while read -r branch; do
