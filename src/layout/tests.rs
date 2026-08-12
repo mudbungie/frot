@@ -206,8 +206,9 @@ fn non_rendered_tags_and_their_subtrees_generate_no_box() {
 
 #[test]
 fn inline_child_of_a_block_container_keeps_a_zero_placeholder() {
-    // A rendered non-block child (span) gets Rect::ZERO and adds no height; the
-    // block sibling still lays out from y=0.
+    // A rendered non-block child (span) gets an empty placeholder box at its
+    // container's origin — (0,0) here — and adds no height; the block sibling
+    // still lays out from y=0. (Origin composition at depth: inline/origin_tests.)
     let (doc, styles) = styled("<div><span>hi</span><p>x</p></div>");
     let layout = compute(&doc, &styles, VIEWPORT_WIDTH);
     assert_eq!(layout.rect(id(&doc, "span")), Some(Rect::ZERO));
@@ -236,7 +237,8 @@ fn text_node_between_block_children_is_ignored_for_flow() {
 
 #[test]
 fn nested_inline_descendant_gets_a_zero_placeholder() {
-    // walk recurses into an inline element's children, giving each Rect::ZERO.
+    // walk recurses into an inline element's children, giving each the empty
+    // placeholder box at the container origin — (0,0) for this top-level div.
     let (doc, styles) = styled("<div><span><b>x</b></span><p>y</p></div>");
     let layout = compute(&doc, &styles, VIEWPORT_WIDTH);
     assert_eq!(layout.rect(id(&doc, "b")), Some(Rect::ZERO));

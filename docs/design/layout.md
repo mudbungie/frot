@@ -257,6 +257,28 @@ exactly like text. Consequences, all of them inherited rather than invented:
 - Widths stay estimates: the glyph advance is the same 8px, so an icon glyph is
   8px wide here where a browser's font gives it ~21px.
 
+**One coordinate space, composed on both axes** (bl-2161). Every rect in the
+table is in viewport coordinates; there is no local/absolute distinction to get
+wrong at a boundary, because a nested pass never *returns* local coordinates.
+Concretely: inline line-breaking works in block-local coordinates (`x = 0` means
+"line start", and the wrap test is against the content width), and the containing
+block's content origin is composed onto a fragment at the moment it becomes a
+`Rect` — on `x` exactly as on `y`. The consequences are invariants, not extra
+mechanism:
+
+- **A box never starts before its containing box's origin on either axis.**
+  Composition only translates right and down (no floats, no negative margins, no
+  RTL — all §6 non-goals), so `child.x >= container.x` and `child.y >=
+  container.y` hold for every descendant. Boxes may still extend *past* a
+  container's far edge: an over-long word overflows its block. It is an origin
+  invariant, not a containment one.
+- **An element that renders no word still has a position.** Its placeholder is
+  the empty box `{x, y, 0, 0}` at its containing block's content origin, not a
+  zero-size box at the viewport origin — an icon `<i>` whose content is all
+  border/background is honestly "here, with no measurable extent" rather than
+  falsely at `(0, 0)`. Widths are estimates (see the inline metrics above); the
+  origin is not.
+
 **The needs/error story (VISION principle 5).** frot must never "silently
 produce a degraded result that looks complete." For layout the honest posture is:
 

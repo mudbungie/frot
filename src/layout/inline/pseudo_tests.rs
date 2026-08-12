@@ -25,7 +25,7 @@ fn flow_p(html: &str, width_px: i32) -> (Document, Vec<Option<Rect>>, i32) {
     let (doc, styles) = styled(html);
     let block = id(&doc, "p");
     let mut boxes = vec![Some(Rect::ZERO); doc.len()];
-    let h = flow(&doc, &styles, block, 0, width_px, &mut boxes);
+    let h = flow(&doc, &styles, block, 0, 0, width_px, &mut boxes);
     (doc, boxes, h)
 }
 

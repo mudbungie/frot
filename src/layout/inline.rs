@@ -9,6 +9,12 @@
 //! (`line_count * LINE_HEIGHT`) and fills each inline element's box with the
 //! union of its word fragments.
 //!
+//! **One coordinate space** (`layout.md` §1/§6): line-breaking runs in
+//! block-local coordinates, and the containing block's content origin is composed
+//! onto each fragment as it is materialized — on `x` exactly as on `y`. A
+//! descendant of an indented or flex-placed block therefore keeps its ancestor's
+//! origin instead of restarting at `x = 0`.
+//!
 //! **`::before`/`::after` generated content is inline content** (`layout.md`
 //! §6): an element's computed generated strings are tokenized by the same
 //! [`tokenize`] as a text child, at the same position a browser puts them —
@@ -41,19 +47,21 @@ struct Word {
 
 /// Lay out `block_id`'s inline content against `width_px`, filling inline-element
 /// fragment-union rects into `boxes` and returning the block's content height
-/// (`line_count * LINE_HEIGHT`, `0` when no rendered word exists). `block_y` is
-/// the block's content-box top in viewport coords; fragments are placed at
-/// absolute y so their unions are viewport-relative like every other box.
+/// (`line_count * LINE_HEIGHT`, `0` when no rendered word exists). `(block_x,
+/// block_y)` is the block's content-box origin in viewport coords; both axes are
+/// composed onto every fragment, so the unions are viewport-relative like every
+/// other box and a descendant never loses its containing block's origin.
 pub(super) fn flow(
     doc: &Document,
     styles: &Styles,
     block_id: NodeId,
+    block_x: i32,
     block_y: i32,
     width_px: i32,
     boxes: &mut [Option<Rect>],
 ) -> i32 {
     let words = content_of(doc, styles, block_id);
-    let (rects, line_count) = break_lines(&words, block_y, width_px);
+    let (rects, line_count) = break_lines(&words, block_x, block_y, width_px);
     fill_unions(&words, &rects, boxes);
     line_count * LINE_HEIGHT
 }
@@ -143,7 +151,13 @@ fn tokenize(text: Option<&str>, ancestors: &[NodeId], words: &mut Vec<Word>) {
 /// wrapping to a new line when it would overflow `width_px` on a non-empty line
 /// (a lone word wider than `width_px` takes its own line and overflows). Returns
 /// each word's fragment rect (parallel to `words`) and the resulting line count.
-fn break_lines(words: &[Word], block_y: i32, width_px: i32) -> (Vec<Rect>, i32) {
+///
+/// The cursor is **line-local** — `x == 0` is "line start", and the wrap test is
+/// against the content width — and the containing block's origin `(block_x,
+/// block_y)` is composed on only when the fragment is materialized, symmetrically
+/// on both axes. Line-breaking therefore never sees viewport coordinates and
+/// every emitted rect is in the one coordinate space (`layout.md` §6).
+fn break_lines(words: &[Word], block_x: i32, block_y: i32, width_px: i32) -> (Vec<Rect>, i32) {
     let mut rects = Vec::with_capacity(words.len());
     let mut x = 0;
     let mut line = 0;
@@ -154,7 +168,7 @@ fn break_lines(words: &[Word], block_y: i32, width_px: i32) -> (Vec<Rect>, i32) 
             x = 0;
         }
         rects.push(Rect {
-            x,
+            x: block_x + x,
             y: block_y + line * LINE_HEIGHT,
             w,
             h: LINE_HEIGHT,
@@ -192,6 +206,8 @@ fn union(a: Rect, b: Rect) -> Rect {
     Rect { x, y, w, h }
 }
 
+#[cfg(test)]
+mod origin_tests;
 #[cfg(test)]
 mod pseudo_tests;
 #[cfg(test)]

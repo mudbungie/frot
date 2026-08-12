@@ -119,8 +119,8 @@ impl Layout {
 /// (width `viewport_w`, origin `(0, 0)`, design §4); [`Document::roots`] are its
 /// in-flow block children, stacked from `y = 0`. Every rendered block-level
 /// element gets real geometry ([`place`]/[`layout_block`]); every other
-/// rendered element keeps a placeholder [`Rect::ZERO`] (inline fragments are
-/// subtask 3.4, flex 3.5); non-rendered/`display:none`/non-element nodes get
+/// rendered element keeps an empty placeholder box at its containing block's
+/// content origin ([`walk`]); non-rendered/`display:none`/non-element nodes get
 /// `None`.
 pub fn compute(doc: &Document, styles: &Styles, viewport_w: i32) -> Layout {
     let mut boxes = vec![None; doc.len()];
@@ -140,7 +140,7 @@ pub fn compute(doc: &Document, styles: &Styles, viewport_w: i32) -> Layout {
 /// non-rendered, `display:none`, or an inline-level box (inline/inline-block/
 /// inline-flex; §1 anonymous-box promotion is "transient", out of scope here) —
 /// contributes `0`; a rendered inline-level element still gets its scaffold
-/// [`Rect::ZERO`] subtree via [`walk`].
+/// subtree via [`walk`], anchored at this container's origin `(x, y)`.
 fn place(
     doc: &Document,
     id: NodeId,
@@ -157,7 +157,7 @@ fn place(
         Display::Block | Display::ListItem => layout_block(doc, id, styles, x, y, w, boxes),
         Display::Flex => flex::place_container(doc, id, styles, x, y, w, boxes),
         _ => {
-            walk(doc, id, styles, boxes);
+            walk(doc, id, styles, x, y, boxes);
             0
         }
     }
@@ -168,9 +168,11 @@ fn place(
 /// them: each at `x`/`w` and the running cursor, height = the cursor advance
 /// (sum of child heights). A container establishing an **inline formatting
 /// context** (no block-level child box) takes its height from [`inline::flow`],
-/// which also fills its inline elements' fragment-union rects; inline elements
-/// with no rendered word, and text nodes, keep the [`Rect::ZERO`] seeded by
-/// [`walk`].
+/// which also fills its inline elements' fragment-union rects — placed from this
+/// block's content origin `(x, y)`, so a descendant of an indented or
+/// flex-placed block keeps that origin on both axes; inline elements with no
+/// rendered word keep the empty box [`walk`] seeded at `(x, y)`; text nodes get
+/// no box at all.
 fn layout_block(
     doc: &Document,
     id: NodeId,
@@ -190,9 +192,9 @@ fn layout_block(
         cursor - y
     } else {
         for &c in &entry.children {
-            walk(doc, c, styles, boxes);
+            walk(doc, c, styles, x, y, boxes);
         }
-        inline::flow(doc, styles, id, y, w, boxes)
+        inline::flow(doc, styles, id, x, y, w, boxes)
     };
     boxes[id as usize] = Some(Rect { x, y, w, h });
     h
@@ -218,16 +220,19 @@ fn is_rendered_element(doc: &Document, id: NodeId, styles: &Styles) -> bool {
     !styles.display_none(id) && !NON_RENDERED_TAGS.contains(&el.name.as_str())
 }
 
-/// Give rendered element `id` a placeholder [`Rect::ZERO`] and recurse. Used for
-/// non-block subtrees whose geometry is filled by 3.4/3.5; skipped elements'
-/// subtrees are not walked, so they stay `None`.
-fn walk(doc: &Document, id: NodeId, styles: &Styles, boxes: &mut [Option<Rect>]) {
+/// Give rendered element `id` an empty placeholder box at its containing block's
+/// content origin `(x, y)` and recurse. Used for non-block subtrees whose real
+/// geometry [`inline::flow`] fills in; an element that renders no word keeps this
+/// box, so it carries its ancestor's origin rather than snapping to the viewport
+/// origin (`layout.md` §6: one coordinate space). Skipped elements' subtrees are
+/// not walked, so they stay `None`.
+fn walk(doc: &Document, id: NodeId, styles: &Styles, x: i32, y: i32, boxes: &mut [Option<Rect>]) {
     if !is_rendered_element(doc, id, styles) {
         return;
     }
-    boxes[id as usize] = Some(Rect::ZERO);
+    boxes[id as usize] = Some(Rect { x, y, w: 0, h: 0 });
     for &c in &doc.node(id).children {
-        walk(doc, c, styles, boxes);
+        walk(doc, c, styles, x, y, boxes);
     }
 }
 
