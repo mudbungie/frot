@@ -35,7 +35,9 @@
 //!
 //! Three doors lead in, one recursion behind them ([`contents_name`],
 //! [`element_name`], [`referenced_name`]); which one a name source knocks on is
-//! the whole of what distinguishes the sources.
+//! the whole of what distinguishes the sources. What each door then permits is
+//! [`walk::Via`], which the recursion reads through predicates and never
+//! matches on.
 //!
 //! Spacing: raw text is concatenated verbatim (`<button>Hello<span>world</span>`
 //! is "Helloworld" in browsers too), while an alternative is a *word* standing
@@ -43,63 +45,13 @@
 //! the fences never double up.
 
 mod native;
+mod walk;
 
 use crate::ax;
 use crate::css::Styles;
 use crate::dom::{Document, Element, NodeId, NodeKind};
 use native::native_alternative;
-
-/// One traversal's fixed context: the tree, the cascade, and how the traversal
-/// reached the node it is reading.
-struct Walk<'a> {
-    doc: &'a Document,
-    styles: Option<&'a Styles>,
-    via: Via,
-}
-
-/// How a node was reached — the two accname rules that single out an
-/// `aria-labelledby` target, and nothing else.
-enum Via {
-    /// Ordinary descent: a name-from-contents subtree, a `<label>`, a
-    /// `<legend>`. Every rule applies as written.
-    Contents,
-    /// The node a reference names *directly*: exempt from the hidden check
-    /// (§2A excludes hidden nodes "unless directly referenced" — measured,
-    /// Chrome 139 names a button after a `display:none`, `visibility:hidden`
-    /// or `aria-hidden` target), and its own `aria-labelledby` is not followed
-    /// (§2B does not recurse: a target with `aria-labelledby` of its own names
-    /// from its contents).
-    Target,
-    /// Below such a node: hidden excludes again (an `aria-hidden` child of a
-    /// target is still dropped), while the no-recursion rule holds for the
-    /// whole traversal — one reference hop is all there is.
-    UnderTarget,
-}
-
-impl<'a> Walk<'a> {
-    /// The same traversal one step further in. A target's exemption is spent on
-    /// the target itself; its refusal to follow references is not.
-    fn below(&self) -> Walk<'a> {
-        let via = match self.via {
-            Via::Contents => Via::Contents,
-            _ => Via::UnderTarget,
-        };
-        Walk {
-            doc: self.doc,
-            styles: self.styles,
-            via,
-        }
-    }
-
-    /// The traversal that reads a reference's target.
-    fn target(&self) -> Walk<'a> {
-        Walk {
-            doc: self.doc,
-            styles: self.styles,
-            via: Via::Target,
-        }
-    }
-}
+use walk::Walk;
 
 /// The name `id`'s **descendants** compute for it: rule 2F over its children,
 /// for a role that names from its contents. `spent` names nodes that must not
@@ -111,11 +63,7 @@ pub fn contents_name(
     styles: Option<&Styles>,
     spent: &[NodeId],
 ) -> String {
-    let w = Walk {
-        doc,
-        styles,
-        via: Via::Contents,
-    };
+    let w = Walk::contents(doc, styles);
     let mut visited = vec![id];
     visited.extend_from_slice(spent);
     let mut out = String::new();
@@ -128,31 +76,24 @@ pub fn contents_name(
 /// descended into. The door a `<label>` and a `<legend>` enter by: measured,
 /// Chrome 139 names a fieldset "LA" for `<legend aria-label=LA>LT</legend>`
 /// and a control "LB" for `<label for aria-label=LB>LT</label>`, and names
-/// neither when the label or legend is `display:none`.
+/// neither when the label or legend is `display:none`. Being the node the
+/// computation is *about*, it also reads its own `title` (`bl-d8ff`).
 pub fn element_name(
     doc: &Document,
     id: NodeId,
     styles: Option<&Styles>,
     spent: &[NodeId],
 ) -> String {
-    let w = Walk {
-        doc,
-        styles,
-        via: Via::Contents,
-    };
+    let w = Walk::subject(doc, styles);
     let mut out = String::new();
     node_text(&w, id, &mut spent.to_vec(), &mut out);
     out
 }
 
 /// The text alternative of an `aria-labelledby` target: [`element_name`] under
-/// [`Via::Target`], which is the whole difference a reference makes.
+/// [`walk::Via::Target`], which is the whole difference a reference makes.
 pub fn referenced_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> String {
-    let w = Walk {
-        doc,
-        styles,
-        via: Via::Target,
-    };
+    let w = Walk::referenced(doc, styles);
     let mut out = String::new();
     node_text(&w, id, &mut Vec::new(), &mut out);
     out
@@ -180,21 +121,35 @@ fn node_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) 
 }
 
 fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, out: &mut String) {
-    let concealed = !matches!(w.via, Via::Target) && hidden(id, el, w.styles);
+    let concealed = !w.reads_hidden() && hidden(id, el, w.styles);
     if concealed || visited.contains(&id) {
         return;
     }
     // Not popped: once counted, a node is spent for this whole computation.
     visited.push(id);
-    let w = &w.below();
-    match alternative(w, id, el, visited) {
-        Some(text) => {
-            out.push(' ');
-            out.push_str(&text);
-            out.push(' ');
-        }
-        None => children_text(w, id, visited, out),
+    let inner = &w.below();
+    let mut said = String::new();
+    match alternative(inner, id, el, visited) {
+        Some(text) => fence(&mut said, &text),
+        None => children_text(inner, id, visited, &mut said),
     }
+    // §2I is last and conditional on saying nothing at all — which an
+    // alternative can do: `<img alt="" title=T>` is "T" in Chrome, so the test
+    // is the text, not whether a source matched.
+    if said.trim().is_empty() && w.reads_title() {
+        if let Some(t) = super::trimmed_attr(el, "title") {
+            fence(&mut said, &t);
+        }
+    }
+    out.push_str(&said);
+}
+
+/// An alternative is a *word* standing in for an element, so it is spaced off
+/// from the text either side of it.
+fn fence(out: &mut String, text: &str) {
+    out.push(' ');
+    out.push_str(text);
+    out.push(' ');
 }
 
 /// Whether the element is outside the accessible name: semantically excluded,
@@ -220,11 +175,11 @@ fn alternative(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>) ->
 /// A reference that resolves to nothing is no alternative, and the element
 /// falls through to its own contents.
 fn labelledby(w: &Walk, el: &Element, visited: &mut Vec<NodeId>) -> Option<String> {
-    if !matches!(w.via, Via::Contents) {
+    if !w.follows_references() {
         return None;
     }
     let raw = el.attr("aria-labelledby")?;
-    let w = &w.target();
+    let w = &Walk::referenced(w.doc, w.styles);
     let mut out = String::new();
     for target in raw
         .split_whitespace()

@@ -16,7 +16,10 @@
 //!      §2F recursion, [`contents`]), but *only* when the element's role is
 //!      name-from-contents (see [`NAME_FROM_CONTENTS`]); containers (table,
 //!      row, list, paragraph, nav, …) yield no native name
-//! 4. `title`
+//! 4. `title` — last, and only where the node's own name is at stake. `title`
+//!    is positional (`contents/walk.rs`): a `<label>`/`<legend>` and every node
+//!    inside an `aria-labelledby` reference read it too, a descendant read for
+//!    its contribution does not.
 //!
 //! Returns the trimmed result, or `None` if nothing produced text. With
 //! `Some(styles)` (`--css`), the text-content sources drop `display:none`
@@ -268,3 +271,6 @@ mod option_tests;
 
 #[cfg(test)]
 mod reference_tests;
+
+#[cfg(test)]
+mod title_tests;

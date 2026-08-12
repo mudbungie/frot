@@ -286,8 +286,33 @@ other options might have belonged with `<video>`'s prose. Measured in Chrome
   `<legend>`), reference (the same, minus the two steps §2A/§2B exempt a
   *directly referenced* node from: it is read even when hidden, and its own
   `aria-labelledby` is not followed). All three doors and both exemptions are
-  measured against Chrome 139; the one measured divergence left is the `title`
-  attribute as a name source inside these traversals, filed as `bl-d8ff`.
+  measured against Chrome 139.
+- The **`title` attribute** was the last divergence there and is a *sixth*
+  fact, fixed in `bl-d8ff`. It is not a row in the alternative table but a
+  third rule on the same axis, and the axis is what 33 more measured cases
+  settle: `title` is read at the node a name computation is *about* — the
+  element itself, and equally a `<label>` or a `<legend>`, which stand in that
+  place for their control — and at every node inside an `aria-labelledby`
+  reference, but never at a descendant read only for its contribution.
+  `<div role=button>A<span title=T></span>B</div>` is "AB", not "A T B", while
+  `<span id=t><span title=T></span></span>` names its referrer "T". Since no
+  two of the three positional rules agree on every position, the axis takes
+  four states, not three, and is one documented table in
+  `name/contents/walk.rs`:
+
+  | reached | reads `title` §2I | reads a hidden node §2A | follows `aria-labelledby` §2B |
+  |---|---|---|---|
+  | subject — the node being named (`<label>`, `<legend>`) | yes | no | yes |
+  | contents — a descendant, in the §2F recursion | no | no | yes |
+  | target — the node a reference names directly | yes | yes | no |
+  | under a target | yes | no | no |
+
+  Two details earn their line. `title` is the *last* step wherever it applies,
+  so it never disturbs `bl-4093`'s ordering (re-measured: `aria-label` >
+  `label` attribute > `title`, and an unlabelled `<optgroup title>` is named by
+  it). And "said nothing" is a test of the text, not of whether a source
+  matched: `<img alt="" title=T>` is "T", because the empty alternative is
+  still nothing said.
 
 ## 3. "On-demand" — the exact trigger
 

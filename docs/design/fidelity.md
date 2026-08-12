@@ -413,9 +413,17 @@ saved and read as the same bytes by both sides.
    with the target and so doubled as "do not read this node's own alternative",
    two rules on one mechanism; splitting them leaves three doors on one
    recursion (`layout.md` §2.4). 46 reference/label/legend cases were measured
-   for it and frot now matches Chrome on 40; the six that remain are all one
-   fact — `title` as a name source inside those traversals — filed as `bl-d8ff`
-   rather than folded in.
+   for it and frot then matched Chrome on 40; the six that remained were all
+   one fact — `title` as a name source inside those traversals — filed as
+   `bl-d8ff` rather than folded in, and fixed there against 33 further cases.
+   That seventh fact is the one the spec reads wrong: accname puts §2I at every
+   node, and Chrome does not. `title` is read where the node's *own* name is at
+   stake (the element being named, and a `<label>`/`<legend>` standing in that
+   place) and everywhere inside a reference, never at a descendant read only
+   for its contribution — so `<div role=button>A<span title=T></span>B</div>`
+   is "AB". Three positional rules, no two agreeing, now share one four-state
+   axis (`layout.md` §2.4). All 79 cases match; the AX channel has no measured
+   name divergence left.
 4. **Geometry**: 13-element fixture (headings, wrap, flex `order`, float,
    `position:absolute`, sized broken `<img>`): all 13 frot rects differ from
    Chrome's on every axis (body margin 8, real font metrics 37px vs 20px
