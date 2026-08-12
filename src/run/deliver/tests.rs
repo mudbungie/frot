@@ -71,6 +71,7 @@ fn broken_pipe_raises_sigpipe_through_the_injected_disposition() {
         &mut FailWrite(libc::EPIPE),
         &mut err,
         libc::SIG_IGN,
+        Bounds::shipping(),
     );
     assert_eq!(code, 3);
     // The pipe path is silent: the reader is gone and death is the message.

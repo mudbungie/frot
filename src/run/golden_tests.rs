@@ -13,7 +13,9 @@
 //! shares this module's harness.
 
 use super::*;
-use crate::js::engine::{Clock, EXEC_CPU_MS};
+use crate::js::engine::{Clock, Deadline, EXEC_CPU_MS, NET_BUDGET_MS};
+use crate::js::Bounds;
+use std::time::Duration;
 
 // Pinned bundles (tests/fixtures/js/VERSIONS.md) — data, not dependencies.
 const REACT: &str = include_str!("../../tests/fixtures/js/react.production.min.js");
@@ -35,11 +37,37 @@ const REACT19_TODO: &str = include_str!("../../tests/fixtures/js/react19-todo.bu
 /// prelude bloat, an accidental O(n²) syscall, a bundle that starts spinning.
 const CPU_GUARD_MS: u64 = EXEC_CPU_MS / 2;
 
+/// The §5 bounds every golden runs under (`bl-c81a`).
+///
+/// Compute stays on the real [`Clock::cpu`] — host-independent, and the very
+/// thing [`run_guarded`] meters. The network window keeps its shipping budget
+/// but spends it on a *frozen* [`Clock::manual`] the test never advances,
+/// because these fixtures are served from an in-process `mockito` server:
+/// there is no real network wait to be honest about, and the wall window —
+/// armed once per run and spanning the whole run — was instead being spent by
+/// the *compute* of the heaviest bundle under parallel build load, reporting
+/// `stopped: "network"` on a correct run. That is the same host-load dependence
+/// `bl-8dc0` removed from the compute side, arriving through the other clock.
+/// The bound is not mocked away, only handed to the test: `golden_bounds_tests`
+/// drives it to expiry and still gets `stopped: "network"`.
+pub(super) fn golden_bounds() -> Bounds {
+    Bounds {
+        cpu: Deadline::compute(),
+        net: Deadline::on(Clock::manual(), Duration::from_millis(NET_BUDGET_MS)),
+    }
+}
+
 pub(super) fn run_capture(args: &[&str]) -> (u8, String) {
+    capture_bounded(args, golden_bounds())
+}
+
+/// [`run_capture`] with the run's §5 bounds supplied — the seam the goldens'
+/// frozen network window and the negative controls both go through.
+pub(super) fn capture_bounded(args: &[&str], bounds: Bounds) -> (u8, String) {
     let mut out = Vec::new();
     let mut err = Vec::new();
     let argv: Vec<String> = args.iter().map(|s| s.to_string()).collect();
-    let code = run_io(&argv, &mut out, &mut err);
+    let code = run_bounded(&argv, &mut out, &mut err, bounds);
     (code, String::from_utf8(out).unwrap())
 }
 

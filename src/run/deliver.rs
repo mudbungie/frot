@@ -18,13 +18,28 @@ use std::io::Write;
 use super::build_envelope;
 use crate::cli;
 use crate::envelope::StatusKind;
+use crate::js::Bounds;
 
 pub fn run(argv: &[String]) -> u8 {
     run_io(argv, &mut std::io::stdout(), &mut std::io::stderr())
 }
 
 pub(crate) fn run_io(argv: &[String], out: &mut dyn Write, err: &mut dyn Write) -> u8 {
-    run_with(argv, out, err, libc::SIG_DFL)
+    run_bounded(argv, out, err, Bounds::shipping())
+}
+
+/// [`run_io`] with the run's two §5 JS budgets taken through the call
+/// signature, exactly as `pipe_disposition` is below: production supplies the
+/// host clocks ([`Bounds::shipping`]), and the golden fixture suite — which
+/// serves every byte from an in-process mock and so has no real network wait
+/// to meter — supplies a frozen network window it advances itself (bl-c81a).
+pub(crate) fn run_bounded(
+    argv: &[String],
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+    bounds: Bounds,
+) -> u8 {
+    run_with(argv, out, err, libc::SIG_DFL, bounds)
 }
 
 /// The pipeline with the broken-pipe SIGPIPE disposition taken through the
@@ -36,10 +51,11 @@ fn run_with(
     out: &mut dyn Write,
     err: &mut dyn Write,
     pipe_disposition: libc::sighandler_t,
+    bounds: Bounds,
 ) -> u8 {
     let (product, exit) = match cli::parse(argv) {
         Ok(args) => {
-            let env = build_envelope(&args);
+            let env = build_envelope(&args, bounds);
             let exit = match env.status {
                 StatusKind::Ok | StatusKind::Needs => 0,
                 StatusKind::Error => 1,

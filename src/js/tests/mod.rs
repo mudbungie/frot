@@ -7,7 +7,7 @@
 use std::time::Duration;
 
 use super::engine::{Clock, Deadline, EXEC_CPU_MS, NET_BUDGET_MS};
-use super::{run_with, Env, Report, Session, StyleSource};
+use super::{run, Bounds, Env, Report, Session, StyleSource};
 use crate::dom::Document;
 use crate::fetch::FetchSession;
 
@@ -31,22 +31,22 @@ fn test_env() -> Env {
 /// nothing the test never advances can expire, so neither §5 window can be spent
 /// by a loaded host. Two separate clocks, because the two windows are two
 /// resources and a test may drive them apart.
-fn frozen_bounds() -> (Deadline, Deadline) {
-    (
-        Deadline::on(Clock::manual(), Duration::from_millis(EXEC_CPU_MS)),
-        Deadline::on(Clock::manual(), Duration::from_millis(NET_BUDGET_MS)),
-    )
+fn frozen_bounds() -> Bounds {
+    Bounds {
+        cpu: Deadline::on(Clock::manual(), Duration::from_millis(EXEC_CPU_MS)),
+        net: Deadline::on(Clock::manual(), Duration::from_millis(NET_BUDGET_MS)),
+    }
 }
 
 fn sess(html: &str) -> Session {
-    let (cpu, net) = frozen_bounds();
+    let bounds = frozen_bounds();
     Session::with_bounds(
         Document::parse(html),
         StyleSource::Bare,
         test_env(),
         &FetchSession::new(Vec::new()),
-        cpu,
-        net,
+        bounds.cpu,
+        bounds.net,
     )
 }
 
@@ -78,14 +78,12 @@ fn drive_at(html: &str, url: &str) -> (Document, Report) {
 /// [`drive`] with a caller-supplied [`Env`] — the golden persona gate drives the
 /// real wire UA through here rather than the test stub.
 fn drive_env(html: &str, env: Env) -> (Document, Report) {
-    let (cpu, net) = frozen_bounds();
-    run_with(
+    run(
         Document::parse(html),
         StyleSource::Bare,
         env,
         &FetchSession::new(Vec::new()),
-        cpu,
-        net,
+        frozen_bounds(),
     )
 }
 
@@ -93,12 +91,14 @@ fn drive_env(html: &str, env: Env) -> (Document, Report) {
 /// deterministically (the 4.1 spike's short-budget pattern): a spinning script
 /// burns CPU, so the real production clock trips it without any host dependence.
 fn drive_bounded(html: &str, budget_ms: u64) -> (Document, Report) {
-    run_with(
+    run(
         Document::parse(html),
         StyleSource::Bare,
         test_env(),
         &FetchSession::new(Vec::new()),
-        Deadline::on(Clock::cpu(), Duration::from_millis(budget_ms)),
-        Deadline::network(),
+        Bounds {
+            cpu: Deadline::on(Clock::cpu(), Duration::from_millis(budget_ms)),
+            net: Deadline::network(),
+        },
     )
 }

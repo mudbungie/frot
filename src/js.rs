@@ -68,48 +68,51 @@ impl Report {
     }
 }
 
+/// The two §5 bounds one run is spent against, carried as one value because
+/// they are one policy: [`EXEC_CPU_MS`](engine::EXEC_CPU_MS) of *CPU* time for
+/// frot's own compute, and [`NET_BUDGET_MS`](engine::NET_BUDGET_MS) of *wall*
+/// time for §6 network.
+///
+/// It is a parameter rather than a constant read inside, so a caller that
+/// cannot afford a host clock can supply one it controls: the golden fixture
+/// suite serves from an in-process mock and takes the network window on a
+/// frozen [`Clock::manual`](engine::Clock::manual) (bl-c81a). Explicit through
+/// the call signature is the opposite of hidden test-only state — the same
+/// posture `run::deliver` already takes with the SIGPIPE disposition.
+pub struct Bounds {
+    /// Compute, spent on a CPU clock.
+    pub cpu: Deadline,
+    /// Network, spent on the clock the page also observes as `Date.now`.
+    pub net: Deadline,
+}
+
+impl Bounds {
+    /// What every shipping invocation runs under: the two host clocks.
+    pub fn shipping() -> Self {
+        Bounds {
+            cpu: Deadline::compute(),
+            net: Deadline::network(),
+        }
+    }
+}
+
 /// Run a page's JS against `doc` under the bounded virtual-clock event loop
 /// (`docs/design/js.md` §4–§5), returning the post-JS document and the [`Report`].
 /// `styles`/`env` seed the geometry cache (§8) and environment shims (§7).
 ///
-/// Two bounds span the whole run — the script queue *and* the settle loop — armed
-/// once ([`Session::begin`]): [`EXEC_CPU_MS`](engine::EXEC_CPU_MS) of *CPU* time
-/// for frot's own compute, and [`NET_BUDGET_MS`](engine::NET_BUDGET_MS) of *wall*
-/// time for §6 network. The phases run in order (§4.4): the script queue drains,
-/// then `DOMContentLoaded`, then `load`, then the virtual-clock settle loop. A
-/// budget trip anywhere stops the run and marks it unsettled (§5); a
-/// script/callback throw is counted and the run continues.
+/// `bounds` spans the whole run — the script queue *and* the settle loop —
+/// armed once ([`Session::begin`]). The phases run in order (§4.4): the script
+/// queue drains, then `DOMContentLoaded`, then `load`, then the virtual-clock
+/// settle loop. A budget trip anywhere stops the run and marks it unsettled
+/// (§5); a script/callback throw is counted and the run continues.
 pub fn run(
     doc: Document,
     styles: StyleSource,
     env: Env,
     fetch: &FetchSession,
+    bounds: Bounds,
 ) -> (Document, Report) {
-    run_with(
-        doc,
-        styles,
-        env,
-        fetch,
-        Deadline::compute(),
-        Deadline::network(),
-    )
-}
-
-/// [`run`] with the two §5 bounds given explicitly. The budget-trip tests dial
-/// `cpu` down against a real CPU clock so those paths stay deterministic and
-/// fast (the 4.1 spike's pattern); every other test drives frozen
-/// [`Clock::manual`](engine::Clock::manual) windows, whose readings only the test
-/// moves — so a run whose subject is *not* timing cannot be failed by a loaded
-/// host.
-fn run_with(
-    doc: Document,
-    styles: StyleSource,
-    env: Env,
-    fetch: &FetchSession,
-    cpu: Deadline,
-    net: Deadline,
-) -> (Document, Report) {
-    let session = Session::with_bounds(doc, styles, env, fetch, cpu, net);
+    let session = Session::with_bounds(doc, styles, env, fetch, bounds.cpu, bounds.net);
     session.begin();
     let report = run_session(&session);
     (session.into_document(), report)

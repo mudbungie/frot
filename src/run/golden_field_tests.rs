@@ -88,7 +88,9 @@ fn vite_react_tailwind_full_app_renders_its_one_router() {
     // oversubscription, over CPU_GUARD_MS = 500). Budget sensitivity is kept by
     // `settled: true` below — asserted at the real EXEC_CPU_MS boundary — and a
     // spinning regression still fails there; the cheap fixtures keep metering
-    // the prelude-bloat margin.
+    // the prelude-bloat margin. The *network* window is frozen for every golden
+    // (`golden_tests::golden_bounds`, bl-c81a): this page's own compute, not any
+    // network wait, was spending that wall budget under load.
     let (code, out) = run_capture(&[&url, "--js", "--out", "text"]);
     assert_eq!(code, 0);
     let v = env(&out);

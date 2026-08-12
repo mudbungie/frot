@@ -430,19 +430,35 @@ it fixes the case the proxy got wrong — a run that drained every task and mere
 happened to cross the deadline on its way out reported `settled: false` while
 being genuinely quiescent.
 
-**Testability falls out; no new seam is owed.** The unit-level fix (`bl-1e54`)
-was to inject `Clock::manual` through `run_with`, which the golden suite cannot
-reach — it drives the whole CLI through `run_io`, and threading a test clock
-through the CLI would be exactly the hidden test-only state `~/AGENTS.md` and
-`AGENTS.md` forbid. With the compute budget in CPU time that seam is not needed:
-a golden test asserting `settled: true` now asserts only that the fixture's
-**~20 ms of CPU** fits in 1000 ms of CPU, which no amount of host *load* changes
-(measured above: 1.0–2.7× inflation, and 12× margin under `llvm-cov` at 4×
-oversubscription). The suite's residual coupling to elapsed time is the
-`NET_BUDGET_MS` deadline over its `mockito` server — in-process, no real
-network — and that is a bound the suite *should* be honest about rather than
-mock away. `Clock::manual` stays exactly where it earns its keep: unit tests
-whose subject is the observable clock or the virtual timer queue.
+**Testability is half-inherited; the network half needed the seam after all
+(`bl-c81a`, superseding this section's earlier "no new seam is owed").** With
+the compute budget in CPU time, a golden asserting `settled: true` asserts that
+the fixture's **~20 ms of CPU** fits in 1000 ms of CPU, which no amount of host
+*load* changes (measured above: 1.0–2.7× inflation, and 12× margin under
+`llvm-cov` at 4× oversubscription). This section originally called the residual
+`NET_BUDGET_MS` coupling "a bound the suite *should* be honest about rather
+than mock away", and predicted that a mock server made it harmless. **That was
+wrong, and four independent agents hit it:** the wall window is armed once and
+spans the *whole* run, so on the heaviest golden (`vite-react-tailwind`, 578 KB
+of StrictMode React 19 + router + framer) it is the fixture's own **compute**,
+stretched by parallel build load, that spends the *network* budget — the run
+reports `stopped: "network"` with no network involved. Over an in-process
+`mockito` server there is no real wait to be honest about; the only thing the
+wall clock was metering was the machine's business, which is exactly the input
+`bl-8dc0` removed from the compute side.
+
+So the two §5 budgets are now one `js::Bounds` value taken **through the call
+signature** from `run::deliver::run_bounded` down to `js::run`. That is not the
+hidden test-only state `AGENTS.md` forbids — it is the opposite, and the same
+posture `run::deliver` already takes with the SIGPIPE disposition (`SIG_DFL` in
+production, `SIG_IGN` from the test). Production passes `Bounds::shipping()`
+(both host clocks) at one call site; the golden suite passes the shipping
+*compute* window on a real `Clock::cpu` and the shipping *network* window on a
+frozen `Clock::manual`. The bound is handed to the test, not disabled:
+`run/golden_bounds_tests.rs` drives that same window to expiry and still gets
+`settled: false, stopped: "network"`, and a spinning script under a dialled-down
+CPU window still gets `stopped: "budget"` — the negative controls that make
+every golden's `settled: true` mean something.
 
 That "~20 ms fits in 1000 ms" is no longer taken on trust (`bl-18df`): each of
 the four golden bundles runs through `run_guarded`, which measures the run on a

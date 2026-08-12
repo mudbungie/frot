@@ -10,7 +10,7 @@ use crate::envelope::{
     kinds, Envelope, ErrorInfo, HttpInfo, JsInfo, JsMessage, NeedsKind, UrlBlock, View,
 };
 use crate::fetch::{self, FetchResult};
-use crate::js::{Env, StyleSource};
+use crate::js::{Bounds, Env, StyleSource};
 use crate::needs;
 use crate::run::gather::external_css;
 use crate::views;
@@ -22,9 +22,9 @@ pub use deliver::run;
 // The `dyn Write` entry point every end-to-end test drives; production reaches
 // the pipeline through `run` above.
 #[cfg(test)]
-pub(crate) use deliver::run_io;
+pub(crate) use deliver::{run_bounded, run_io};
 
-fn build_envelope(args: &cli::Args) -> Envelope {
+fn build_envelope(args: &cli::Args, bounds: Bounds) -> Envelope {
     let initial_url = UrlBlock::requested(&args.url);
     // One fetch session per invocation: the document GET, every CSS/JS
     // subfetch, and every redirect ride its shared pool and cache (bl-5191).
@@ -71,7 +71,7 @@ fn build_envelope(args: &cli::Args) -> Envelope {
             let doc = Document::parse(&fetched.body);
             // §9: JS runs before needs/CSS/layout/views, so everything downstream
             // consumes the post-JS document exactly as it consumes a static one.
-            let (doc, js) = run_scripts(args, doc, &fetched, &session);
+            let (doc, js) = run_scripts(args, doc, &fetched, &session, bounds);
             // Styles come before needs: a subtree the recipe does not render
             // carries no content, so the starvation detector consults the same
             // cascade the views will (`needs.md` §4 — a CSS-hidden fallback
@@ -115,11 +115,14 @@ fn declared_non_document(fetched: &FetchResult) -> Option<String> {
 /// The geometry cache's [`StyleSource`] mirrors the `--css` policy (§8), and the
 /// [`Env`] carries the final URL and the User-Agent frot sent (§7). Under
 /// `--js-errors` the block also carries the bounded `js.messages` detail (§10).
+/// `bounds` are the run's two §5 budgets, taken through the call signature so
+/// the golden suite can meter its mock-served fixtures on a clock it owns.
 fn run_scripts(
     args: &cli::Args,
     doc: Document,
     fetched: &FetchResult,
     session: &fetch::FetchSession,
+    bounds: Bounds,
 ) -> (Document, Option<JsInfo>) {
     if !args.js {
         return (doc, None);
@@ -134,7 +137,7 @@ fn run_scripts(
         user_agent: fetch::user_agent(&args.headers),
         accept_language: fetch::accept_language(&args.headers),
     };
-    let (doc, r) = crate::js::run(doc, styles, env, session);
+    let (doc, r) = crate::js::run(doc, styles, env, session, bounds);
     let mut info = JsInfo::new(r.scripts, r.errors, r.stopped);
     if args.js_errors {
         info = info.with_messages(
@@ -259,6 +262,9 @@ mod golden_shim_tests;
 
 #[cfg(test)]
 mod golden_field_tests;
+
+#[cfg(test)]
+mod golden_bounds_tests;
 
 #[cfg(test)]
 mod persona_tests;
