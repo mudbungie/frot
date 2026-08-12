@@ -6,7 +6,7 @@
 
 use std::time::Duration;
 
-use super::engine::{Clock, Deadline, EXEC_CPU_MS, NET_BUDGET_MS};
+use super::engine::{Clock, Deadline, NetBudget, EXEC_CPU_MS, NET_BUDGET_MS};
 use super::{run, Bounds, Env, Report, Session, StyleSource};
 use crate::dom::Document;
 use crate::fetch::FetchSession;
@@ -18,6 +18,7 @@ mod evloop;
 mod facade;
 mod iterator;
 mod net;
+mod netbudget;
 mod persona_gold;
 mod scriptmode;
 
@@ -30,13 +31,14 @@ fn test_env() -> Env {
 }
 
 /// The shipping bounds measured on *frozen* manual clocks (bl-1e54/bl-8dc0):
-/// nothing the test never advances can expire, so neither §5 window can be spent
-/// by a loaded host. Two separate clocks, because the two windows are two
-/// resources and a test may drive them apart.
+/// nothing the test never advances can expire, and a dispatch measured on a
+/// frozen clock costs nothing, so neither §5 bound can be spent by a loaded
+/// host. Two separate clocks, because the two bounds are two resources and a
+/// test may drive them apart.
 fn frozen_bounds() -> Bounds {
     Bounds {
         cpu: Deadline::on(Clock::manual(), Duration::from_millis(EXEC_CPU_MS)),
-        net: Deadline::on(Clock::manual(), Duration::from_millis(NET_BUDGET_MS)),
+        net: NetBudget::on(Clock::manual(), Duration::from_millis(NET_BUDGET_MS)),
     }
 }
 
@@ -100,7 +102,7 @@ fn drive_bounded(html: &str, budget_ms: u64) -> (Document, Report) {
         &FetchSession::new(Vec::new()),
         Bounds {
             cpu: Deadline::on(Clock::cpu(), Duration::from_millis(budget_ms)),
-            net: Deadline::network(),
+            net: NetBudget::network(),
         },
     )
 }

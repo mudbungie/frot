@@ -107,16 +107,15 @@ mod through_the_cache {
     use std::time::Duration;
 
     use crate::fetch::{FetchSession, Intent};
-    use crate::js::engine::{Clock, Deadline};
+    use crate::js::engine::{Clock, NetBudget};
     use crate::js::subfetch::{Outcome, Subfetch};
 
     const HI: &str = "data:text/javascript,globalThis.x%20=%201";
 
-    /// A cache whose *network* window is already spent and armed — the state
-    /// in which every real dispatch is refused (js.md §6).
-    fn past_deadline(budget: usize) -> Subfetch {
-        let net = Deadline::on(Clock::wall(), Duration::ZERO);
-        net.arm();
+    /// A cache whose *network* budget is already spent — the state in which
+    /// every real dispatch is refused (js.md §6).
+    fn spent_budget(budget: usize) -> Subfetch {
+        let net = NetBudget::on(Clock::wall(), Duration::ZERO);
         Subfetch::with_budget(
             FetchSession::new(Vec::new()),
             "https://example.com/",
@@ -130,11 +129,11 @@ mod through_the_cache {
     }
 
     #[test]
-    fn a_data_url_is_served_past_the_network_deadline() {
-        // Nothing is dispatched, so the wall deadline that refuses network
-        // has nothing to refuse — and the run is not marked `stopped:
-        // network` on account of an inline script.
-        let mut sf = past_deadline(64);
+    fn a_data_url_is_served_past_the_network_budget() {
+        // Nothing is dispatched, so the spent budget that refuses network has
+        // nothing to refuse — and the run is not marked `stopped: network` on
+        // account of an inline script.
+        let mut sf = spent_budget(64);
         match get(&mut sf, HI) {
             Outcome::Got(f) => assert_eq!(f.body, "globalThis.x = 1"),
             Outcome::Failed(m) => panic!("data URL refused: {m}"),
@@ -151,7 +150,7 @@ mod through_the_cache {
         // The one bound that still applies: a pool of 16 bytes takes the
         // 16-byte body, and the next data URL is refused by the same message
         // a fetched body would earn.
-        let mut sf = past_deadline(16);
+        let mut sf = spent_budget(16);
         assert!(matches!(get(&mut sf, HI), Outcome::Got(_)));
         match get(&mut sf, "data:,more") {
             Outcome::Failed(m) => assert!(m.contains("byte budget exhausted"), "{m}"),
@@ -163,7 +162,7 @@ mod through_the_cache {
     fn warm_leaves_data_urls_alone() {
         // The preload scanner hides latency; a data URL has none, so it is
         // not warmed — and is still served when the queue reaches it.
-        let mut sf = past_deadline(64);
+        let mut sf = spent_budget(64);
         sf.warm(&[(HI.to_string(), Intent::ClassicScript)]);
         assert!(!sf.refused());
         assert!(matches!(get(&mut sf, HI), Outcome::Got(_)));

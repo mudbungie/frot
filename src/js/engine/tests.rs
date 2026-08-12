@@ -10,7 +10,7 @@ fn short_budget(ms: u64) -> Engine {
     Engine::with_bounds(
         JS_MEM_LIMIT,
         Deadline::on(Clock::cpu(), Duration::from_millis(ms)),
-        Deadline::network(),
+        NetBudget::network(),
     )
 }
 
@@ -58,23 +58,31 @@ fn the_cpu_clock_charges_work_and_not_waiting() {
 }
 
 #[test]
-fn the_compute_budget_is_cpu_and_the_network_deadline_is_wall() {
-    // Two windows, two clocks, driven apart: spending all the *wall* time expires
-    // the §6 dispatch window while execution continues untouched, and spending
-    // all the *CPU* time stops execution — neither bound can be tripped by the
-    // other's unit, which is exactly what made a busy host change the envelope.
+fn the_compute_budget_is_cpu_and_the_network_budget_is_wire_time() {
+    // Two bounds, two clocks, driven apart. The compute budget is CPU: spending
+    // all of it stops execution. The network budget is *wire* time, not a window
+    // on the wall clock (bl-79dc): a whole budget's worth of wall time passing
+    // with no dispatch leaves it untouched — otherwise a page heavy enough to
+    // spend it computing has its next subfetch refused and the run blames a
+    // network that was never involved. Only a charged dispatch spends it.
     let (cpu, wall) = (Clock::manual(), Clock::manual());
     let engine = Engine::with_bounds(
         JS_MEM_LIMIT,
         Deadline::on(cpu.clone(), Duration::from_millis(EXEC_CPU_MS)),
-        Deadline::on(wall.clone(), Duration::from_millis(NET_BUDGET_MS)),
+        NetBudget::on(wall.clone(), Duration::from_millis(NET_BUDGET_MS)),
     );
     engine.arm();
     wall.advance(Duration::from_millis(NET_BUDGET_MS));
     assert!(
-        engine.deadline().expired(),
-        "the wall window is the §6 handle"
+        !engine.net().spent_out(),
+        "wall time is not network time (bl-79dc)"
     );
+    // The same elapsed, this time *inside* a dispatch, is the charge that spends
+    // it — the §6 seam's one meter.
+    engine
+        .net()
+        .charge(|| wall.advance(Duration::from_millis(NET_BUDGET_MS)));
+    assert!(engine.net().spent_out(), "a dispatch spends the §6 budget");
     assert_eq!(engine.eval_armed("1 + 1").unwrap(), "2");
     cpu.advance(Duration::from_millis(EXEC_CPU_MS));
     assert_eq!(
@@ -157,7 +165,7 @@ fn memory_cap_stops_a_giant_allocation() {
     let engine = Engine::with_bounds(
         8 * 1024 * 1024,
         Deadline::on(Clock::cpu(), Duration::from_secs(5)),
-        Deadline::network(),
+        NetBudget::network(),
     );
     assert!(matches!(
         engine

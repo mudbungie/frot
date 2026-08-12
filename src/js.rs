@@ -22,7 +22,7 @@ mod syscall;
 use crate::dom::{Document, NodeId};
 use crate::envelope::JsStop;
 use crate::fetch::FetchSession;
-use engine::Deadline;
+use engine::{Deadline, NetBudget};
 use script::{next_script, Script};
 
 pub use engine::EvalError;
@@ -70,7 +70,7 @@ impl Report {
 
 /// The two §5 bounds one run is spent against, carried as one value because
 /// they are one policy: [`EXEC_CPU_MS`](engine::EXEC_CPU_MS) of *CPU* time for
-/// frot's own compute, and [`NET_BUDGET_MS`](engine::NET_BUDGET_MS) of *wall*
+/// frot's own compute, and [`NET_BUDGET_MS`](engine::NET_BUDGET_MS) of *wire*
 /// time for §6 network.
 ///
 /// It is a parameter rather than a constant read inside, so a caller that
@@ -82,8 +82,9 @@ impl Report {
 pub struct Bounds {
     /// Compute, spent on a CPU clock.
     pub cpu: Deadline,
-    /// Network, spent on the clock the page also observes as `Date.now`.
-    pub net: Deadline,
+    /// Network, metered on the clock the page also observes as `Date.now` and
+    /// spendable only by real dispatch (`bl-79dc`).
+    pub net: NetBudget,
 }
 
 impl Bounds {
@@ -91,7 +92,7 @@ impl Bounds {
     pub fn shipping() -> Self {
         Bounds {
             cpu: Deadline::compute(),
-            net: Deadline::network(),
+            net: NetBudget::network(),
         }
     }
 }
@@ -100,8 +101,9 @@ impl Bounds {
 /// (`docs/design/js.md` §4–§5), returning the post-JS document and the [`Report`].
 /// `styles`/`env` seed the geometry cache (§8) and environment shims (§7).
 ///
-/// `bounds` spans the whole run — the script queue *and* the settle loop —
-/// armed once ([`Session::begin`]). The phases run in order (§4.4): the script
+/// `bounds` spans the whole run — the script queue *and* the settle loop — the
+/// compute window armed once ([`Session::begin`]) and the network budget spent
+/// only by real §6 dispatch. The phases run in order (§4.4): the script
 /// queue drains, then `DOMContentLoaded`, then `load`, then the virtual-clock
 /// settle loop. A budget trip anywhere stops the run and marks it unsettled
 /// (§5); a script/callback throw is counted and the run continues.
@@ -140,12 +142,12 @@ pub(crate) fn run_session(session: &Session) -> Report {
         run_event_loop(session, &mut report);
     }
     // Quiescence within bounds is `settled`'s one meaning (§5): the loop can
-    // conclude *because* the §6 seam refused network dispatch past the run's wall
-    // deadline, while the engine interrupt — firing only between JS instructions,
-    // and spending CPU a blocked socket never burns — never tripped. That refusal
-    // is a recorded fact, so the driver asks for it rather than re-reading the
-    // clock at conclusion: a run that drained every task and merely crossed the
-    // deadline on its way out is genuinely quiescent and stays settled.
+    // conclude *because* the §6 seam refused dispatch once the run had spent its
+    // whole network budget on the wire, while the engine interrupt — firing only
+    // between JS instructions, and spending CPU a blocked socket never burns —
+    // never tripped. That refusal is a recorded fact, so the driver asks for it
+    // rather than measuring at conclusion; and since only real dispatch can spend
+    // that budget, `Network` here always names network (bl-79dc).
     report.stopped = report
         .stopped
         .or_else(|| session.refused_network().then_some(JsStop::Network));

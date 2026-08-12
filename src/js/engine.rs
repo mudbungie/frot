@@ -18,7 +18,7 @@ use rquickjs::{CatchResultExt, Coerced, Context, Ctx, FromJs, Runtime, Value};
 
 mod clock;
 mod module;
-pub use clock::{Clock, Deadline, EXEC_CPU_MS, NET_BUDGET_MS};
+pub use clock::{Clock, Deadline, NetBudget, EXEC_CPU_MS, NET_BUDGET_MS};
 
 /// Engine heap cap. `set_memory_limit` is only honoured on the default C
 /// allocator, so `js::engine` never enables rquickjs's `allocator` feature.
@@ -34,20 +34,20 @@ pub enum EvalError {
 }
 
 /// An embedded engine with one realm. `new` installs the interrupt hook and
-/// memory cap once. [`Engine::arm`] opens the run's two §5 windows — the
-/// `cpu` compute budget the interrupt handler spends, and the `net` wall
-/// deadline the §6 subfetch seam dispatches inside; the three evals run inside
-/// them (the event loop drives every script, lifecycle dispatch, and timer
-/// callback of one JS run under one arming, js.md §5), one per kind of source:
+/// memory cap once. [`Engine::arm`] opens the run's §5 compute window — the
+/// `cpu` budget the interrupt handler spends; the three evals run inside it (the
+/// event loop drives every script, lifecycle dispatch, and timer callback of one
+/// JS run under one arming, js.md §5), one per kind of source:
 /// [`Engine::eval_armed`] for frot's own strict JS, [`Engine::eval_script`] for a
 /// sloppy page classic script, and `eval_module` (`engine::module`) for an ES
 /// module. [`Engine::eval`] is `arm` + `eval_script` for a standalone one-shot.
-/// Each eval drains the microtask queue before returning.
+/// Each eval drains the microtask queue before returning. The `net` bound needs
+/// no arming: it is a meter only the §6 seam's real dispatch spends (`bl-79dc`).
 pub struct Engine {
     rt: Runtime,
     ctx: Context,
     cpu: Deadline,
-    net: Deadline,
+    net: NetBudget,
     mem_limit: usize,
     tripped: Arc<AtomicBool>,
     rejections: Rc<Cell<i64>>,
@@ -56,15 +56,15 @@ pub struct Engine {
 impl Engine {
     /// Engine with the shipping bounds and memory cap.
     pub fn new() -> Self {
-        Self::with_bounds(JS_MEM_LIMIT, Deadline::compute(), Deadline::network())
+        Self::with_bounds(JS_MEM_LIMIT, Deadline::compute(), NetBudget::network())
     }
 
-    /// Engine with explicit limits: a heap cap plus the two §5 windows. Shipping
-    /// passes [`Deadline::compute`] (CPU) and [`Deadline::network`] (wall); a
-    /// test substitutes a [`Clock::manual`] window through [`Deadline::on`] and
-    /// moves the two apart, so neither the budget interrupt, the §6 dispatch
-    /// seam, nor the observable `__frot_now` reading depends on the host.
-    pub fn with_bounds(mem_limit: usize, cpu: Deadline, net: Deadline) -> Self {
+    /// Engine with explicit limits: a heap cap plus the two §5 bounds. Shipping
+    /// passes [`Deadline::compute`] (CPU) and [`NetBudget::network`] (wire time);
+    /// a test substitutes a [`Clock::manual`] through `on` and moves the two
+    /// apart, so neither the budget interrupt, the §6 dispatch seam, nor the
+    /// observable `__frot_now` reading depends on the host.
+    pub fn with_bounds(mem_limit: usize, cpu: Deadline, net: NetBudget) -> Self {
         let rt = Runtime::new().expect("quickjs runtime");
         rt.set_memory_limit(mem_limit);
         let tripped = Arc::new(AtomicBool::new(false));
@@ -99,16 +99,16 @@ impl Engine {
         }
     }
 
-    /// The engine's armed *network* window, shared with the §6 subfetch cache so
-    /// dispatch obeys the run's one wall deadline. Compute is not this bound: a
-    /// blocked socket burns no CPU, so the two resources are priced apart (§5).
-    pub fn deadline(&self) -> Deadline {
+    /// The run's *network* meter, shared with the §6 subfetch cache so dispatch
+    /// obeys the one bound. Compute is not this bound and cannot spend it: a
+    /// blocked socket burns no CPU, and frot's own work moves no wire (§5).
+    pub fn net(&self) -> NetBudget {
         self.net.clone()
     }
 
     /// The engine's observable [`Clock`] — the wall clock the browser clock reads
     /// through the `__frot_now` syscall (`bl-e707`), the same one
-    /// [`deadline`](Self::deadline) bounds network with.
+    /// [`net`](Self::net) meters dispatch on.
     pub fn clock(&self) -> Clock {
         self.net.clock()
     }
@@ -131,14 +131,14 @@ impl Engine {
         self.rt.set_loader(resolver, loader);
     }
 
-    /// Open both §5 windows (`EXEC_CPU_MS` of CPU, `NET_BUDGET_MS` of wall, each
-    /// from now) and clear the trip flag. The event loop arms once per JS run so
-    /// the bounds span the whole run — scripts *and* the settle loop — not each
-    /// script (js.md §5).
+    /// Open the §5 compute window (`EXEC_CPU_MS` of CPU from now) and clear the
+    /// trip flag. The event loop arms once per JS run so the bound spans the whole
+    /// run — scripts *and* the settle loop — not each script (js.md §5). The
+    /// network bound is a meter, not a window: it starts each run unspent and is
+    /// drawn down only by real dispatch, so there is nothing to open.
     pub fn arm(&self) {
         self.tripped.store(false, Ordering::Relaxed);
         self.cpu.arm();
-        self.net.arm();
     }
 
     /// `arm` then [`eval_script`](Self::eval_script) — one page classic script
@@ -151,7 +151,7 @@ impl Engine {
 
     /// Run one-time host setup (`js::syscall::install`) outside *all three* page
     /// bounds (js.md §5: they cover page scripts and the event loop, never the API
-    /// install). Both §5 windows are disarmed, so however slow the environment
+    /// install). The compute window is disarmed, so however slow the environment
     /// (llvm-cov, a loaded CI box) the interrupt cannot trip mid-install and turn
     /// setup into a spurious budget failure (bl-5ac3); and the heap cap is lifted
     /// for the duration and restored after, so the prelude — frot's own
@@ -163,7 +163,6 @@ impl Engine {
     pub fn setup<T>(&self, f: impl FnOnce() -> T) -> T {
         self.tripped.store(false, Ordering::Relaxed);
         self.cpu.disarm();
-        self.net.disarm();
         // 0 is quickjs's "unlimited" (`malloc_limit - 1` wraps to `SIZE_MAX`).
         self.rt.set_memory_limit(0);
         let out = f();

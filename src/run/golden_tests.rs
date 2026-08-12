@@ -13,7 +13,7 @@
 //! shares this module's harness.
 
 use super::*;
-use crate::js::engine::{Clock, Deadline, EXEC_CPU_MS, NET_BUDGET_MS};
+use crate::js::engine::{Clock, Deadline, NetBudget, EXEC_CPU_MS, NET_BUDGET_MS};
 use crate::js::Bounds;
 use std::time::Duration;
 
@@ -40,20 +40,20 @@ const CPU_GUARD_MS: u64 = EXEC_CPU_MS / 2;
 /// The §5 bounds every golden runs under (`bl-c81a`).
 ///
 /// Compute stays on the real [`Clock::cpu`] — host-independent, and the very
-/// thing [`run_guarded`] meters. The network window keeps its shipping budget
-/// but spends it on a *frozen* [`Clock::manual`] the test never advances,
-/// because these fixtures are served from an in-process `mockito` server:
-/// there is no real network wait to be honest about, and the wall window —
-/// armed once per run and spanning the whole run — was instead being spent by
-/// the *compute* of the heaviest bundle under parallel build load, reporting
-/// `stopped: "network"` on a correct run. That is the same host-load dependence
-/// `bl-8dc0` removed from the compute side, arriving through the other clock.
-/// The bound is not mocked away, only handed to the test: `golden_bounds_tests`
-/// drives it to expiry and still gets `stopped: "network"`.
+/// thing [`run_guarded`] meters. The network budget keeps its shipping size but
+/// is metered on a *frozen* [`Clock::manual`] the test never advances, so a
+/// dispatch over the in-process `mockito` server costs it exactly nothing —
+/// which is the truth about a fixture served from the same process. (`bl-79dc`
+/// since made the bound itself immune to the failure this was introduced for: a
+/// budget only real dispatch can spend cannot be spent by the heaviest bundle's
+/// *compute* under parallel build load. The frozen clock stays because it is
+/// also what lets `golden_bounds_tests` drive the bound by hand.) The bound is
+/// not mocked away, only handed to the test: `golden_bounds_tests` spends it and
+/// still gets `stopped: "network"`.
 pub(super) fn golden_bounds() -> Bounds {
     Bounds {
         cpu: Deadline::compute(),
-        net: Deadline::on(Clock::manual(), Duration::from_millis(NET_BUDGET_MS)),
+        net: NetBudget::on(Clock::manual(), Duration::from_millis(NET_BUDGET_MS)),
     }
 }
 

@@ -2,7 +2,7 @@
 //! (js.md §4.1/§6, RFC 2397 / the WHATWG "data: URL processor").
 //!
 //! A `data:` URL *is* its own response: the bytes are already in hand, so
-//! nothing is dispatched, nothing is timed out, and the §5 network deadline has
+//! nothing is dispatched, nothing is timed out, and the §5 network budget has
 //! no purchase on it. What still applies is memory — the decoded body charges
 //! the same pooled [`super::SUBFETCH_BYTES`] budget a fetched body does, so a
 //! page cannot inline its way past the bound.

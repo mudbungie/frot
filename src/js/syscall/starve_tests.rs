@@ -18,7 +18,7 @@
 use super::*;
 use crate::dom::Document;
 use crate::fetch::FetchSession;
-use crate::js::engine::{Deadline, Engine, EvalError};
+use crate::js::engine::{Deadline, Engine, EvalError, NetBudget};
 use crate::js::geometry::{self, StyleSource};
 use crate::js::probe::ProbeLog;
 use crate::js::subfetch;
@@ -27,7 +27,7 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 fn engine(mem_limit: usize) -> Engine {
-    Engine::with_bounds(mem_limit, Deadline::compute(), Deadline::network())
+    Engine::with_bounds(mem_limit, Deadline::compute(), NetBudget::network())
 }
 
 fn host(engine: &Engine, probe: Option<ProbeLog>) -> Host {
@@ -50,7 +50,7 @@ fn host(engine: &Engine, probe: Option<ProbeLog>) -> Host {
         subfetch: Rc::new(RefCell::new(subfetch::Subfetch::new(
             session,
             "https://example.com/",
-            engine.deadline(),
+            engine.net(),
         ))),
         cookie,
         clock: engine.clock(),

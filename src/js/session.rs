@@ -11,7 +11,7 @@ use std::rc::Rc;
 use crate::dom::{Document, NodeId};
 use crate::fetch::FetchSession;
 
-use super::engine::{self, Deadline, Engine};
+use super::engine::{self, Deadline, Engine, NetBudget};
 use super::probe::ProbeLog;
 use super::{geometry, script, subfetch, syscall};
 use super::{Env, EvalError, Log, StyleSource};
@@ -52,16 +52,16 @@ impl Session {
             env,
             fetch,
             Deadline::compute(),
-            Deadline::network(),
+            NetBudget::network(),
         )
     }
 
     /// [`Session::new`] with the run's two §5 bounds given explicitly (`bl-8dc0`):
-    /// `cpu` is the compute budget the engine interrupt spends, `net` the wall
-    /// deadline the §6 seam dispatches inside — and the latter's clock is also
-    /// the observable `performance.now`/`Date.now`. Shipping passes
-    /// [`Deadline::compute`]/[`Deadline::network`]; a test injects
-    /// [`Clock::manual`](super::engine::Clock::manual) windows and drives them
+    /// `cpu` is the compute budget the engine interrupt spends, `net` the wire
+    /// time the §6 seam may spend — and the latter's clock is also the observable
+    /// `performance.now`/`Date.now`. Shipping passes
+    /// [`Deadline::compute`]/[`NetBudget::network`]; a test injects
+    /// [`Clock::manual`](super::engine::Clock::manual) bounds and drives them
     /// apart, so no verdict depends on host load or real sleeping.
     pub fn with_bounds(
         doc: Document,
@@ -69,7 +69,7 @@ impl Session {
         env: Env,
         fetch: &FetchSession,
         cpu: Deadline,
-        net: Deadline,
+        net: NetBudget,
     ) -> Self {
         Self::build(doc, styles, env, fetch, cpu, net, None)
     }
@@ -92,7 +92,7 @@ impl Session {
             env,
             fetch,
             Deadline::compute(),
-            Deadline::network(),
+            NetBudget::network(),
             Some(log),
         )
     }
@@ -107,7 +107,7 @@ impl Session {
         env: Env,
         fetch: &FetchSession,
         cpu: Deadline,
-        net: Deadline,
+        net: NetBudget,
         probe: Option<ProbeLog>,
     ) -> Self {
         let engine = Engine::with_bounds(engine::JS_MEM_LIMIT, cpu, net);
@@ -122,12 +122,12 @@ impl Session {
         // The §6 cache is anchored at the page URL and dispatches through the
         // invocation's shared `fetch` session (its pool + `-H` scoping); build it
         // before install moves `env` into the environment shims. It shares the
-        // engine's armed *network* window, so dispatch obeys the run's wall
-        // deadline while compute is spent in CPU time elsewhere (§5/§6).
+        // engine's *network* meter, so dispatch obeys the run's one wire-time
+        // budget while compute is spent in CPU time elsewhere (§5/§6).
         let subfetch = Rc::new(RefCell::new(subfetch::Subfetch::new(
             fetch.clone(),
             &env.url,
-            engine.deadline(),
+            engine.net(),
         )));
         // The shared cookie jar (bl-6dad): the same jar the transport writes
         // `Set-Cookie` into, so `document.cookie` at `env.url` reads it and a JS
@@ -164,9 +164,9 @@ impl Session {
         }
     }
 
-    /// Arm the run's two §5 windows — the CPU compute budget and the wall network
-    /// deadline: both span every script, lifecycle dispatch, and timer callback
-    /// that follows, not each one.
+    /// Arm the run's §5 compute window: it spans every script, lifecycle
+    /// dispatch, and timer callback that follows, not each one. The network
+    /// budget needs no arming — only real dispatch spends it (`bl-79dc`).
     pub fn begin(&self) {
         self.engine.arm();
     }
@@ -208,12 +208,12 @@ impl Session {
         &self.page_url
     }
 
-    /// Whether the §6 seam actually *refused* a network dispatch past the run's
-    /// armed wall deadline — read once after the settle loop (js.md §5/§6). A loop
-    /// that concluded only because the remaining work was refused reached
-    /// quiescence, but not within its bounds: it is `stopped: "network"`, not
-    /// settled. The refusal is the fact; the deadline is merely its cause, which
-    /// is why nothing re-reads the clock here.
+    /// Whether the §6 seam actually *refused* a network dispatch because the run
+    /// had spent its whole §5 network budget on the wire — read once after the
+    /// settle loop (js.md §5/§6). A loop that concluded only because the
+    /// remaining work was refused reached quiescence, but not within its bounds:
+    /// it is `stopped: "network"`, not settled. The refusal is the fact; the
+    /// spent budget is merely its cause, which is why nothing re-measures here.
     pub(super) fn refused_network(&self) -> bool {
         self.subfetch.borrow().refused()
     }
@@ -289,8 +289,8 @@ impl Session {
     /// a preload-scanner pass over the parsed document so the source-ordered
     /// script queue finds each external `src` already frozen instead of blocking
     /// on it one round trip at a time. Discovery releases the document borrow
-    /// before the cache's parallel dispatch, which rides the run's `NET_BUDGET_MS`
-    /// wall deadline and byte pool.
+    /// before the cache's parallel dispatch, which rides — and is charged to —
+    /// the run's `NET_BUDGET_MS` network budget, and its byte pool.
     pub(super) fn warm_initial_scripts(&self) {
         let reqs = script::initial_externals(&self.doc.borrow(), &self.page_url);
         self.subfetch.borrow_mut().warm(&reqs);

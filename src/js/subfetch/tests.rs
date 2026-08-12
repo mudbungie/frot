@@ -11,22 +11,21 @@ use std::time::Duration;
 use mockito::Matcher;
 
 use crate::fetch::{FetchSession, Intent};
-use crate::js::engine::{Clock, Deadline};
+use crate::js::engine::{Clock, NetBudget};
 
 use super::{Outcome, Subfetch};
 
 /// The shipping cache outside a run: no armed window, shipping byte pool. The
 /// `-H` headers live on the session the subfetch dispatches through.
 fn open(base: &str, headers: Vec<(String, String)>) -> Subfetch {
-    Subfetch::new(FetchSession::new(headers), base, Deadline::never())
+    Subfetch::new(FetchSession::new(headers), base, NetBudget::never())
 }
 
-/// A cache over a run's *network* window that is already spent — a zero wall
-/// budget, armed. The §6 seam's bound is elapsed time, so no compute budget can
-/// rescue a dispatch past it (js.md §5/§6).
-fn past_deadline() -> Subfetch {
-    let net = Deadline::on(Clock::wall(), Duration::ZERO);
-    net.arm();
+/// A cache over a run's *network* budget that is already spent — a zero
+/// allowance. The §6 seam's bound is wire time, so no compute budget can rescue
+/// a dispatch past it (js.md §5/§6).
+fn spent_budget() -> Subfetch {
+    let net = NetBudget::on(Clock::wall(), Duration::ZERO);
     Subfetch::new(FetchSession::new(Vec::new()), "https://example.com/", net)
 }
 
@@ -122,7 +121,7 @@ fn past_the_byte_pool_a_new_url_is_refused() {
     let mut sf = Subfetch::with_budget(
         FetchSession::new(Vec::new()),
         &server.url(),
-        Deadline::never(),
+        NetBudget::never(),
         1,
     );
     assert_eq!(got(get(&mut sf, "/a")).body, "a");
@@ -137,7 +136,7 @@ fn a_cache_hit_is_served_even_after_the_pool_is_spent() {
     let mut sf = Subfetch::with_budget(
         FetchSession::new(Vec::new()),
         &server.url(),
-        Deadline::never(),
+        NetBudget::never(),
         1,
     );
     assert_eq!(got(get(&mut sf, "/a")).body, "aa");
@@ -145,11 +144,11 @@ fn a_cache_hit_is_served_even_after_the_pool_is_spent() {
 }
 
 #[test]
-fn past_the_deadline_dispatch_is_refused() {
-    // The seam consults the run's armed network window (js.md §6), so past it
+fn a_spent_network_budget_refuses_dispatch() {
+    // The seam consults the run's network budget (js.md §6), so once it is spent
     // no network is ever dispatched.
-    let mut sf = past_deadline();
-    assert!(failed(get(&mut sf, "/late.js")).contains("run budget exhausted"));
+    let mut sf = spent_budget();
+    assert!(failed(get(&mut sf, "/late.js")).contains("network budget exhausted"));
 }
 
 #[test]
@@ -204,7 +203,7 @@ fn warm_stops_at_the_byte_pool() {
     let mut sf = Subfetch::with_budget(
         FetchSession::new(Vec::new()),
         &server.url(),
-        Deadline::never(),
+        NetBudget::never(),
         1,
     );
     let specs: Vec<_> = (0..8)
@@ -218,12 +217,12 @@ fn warm_stops_at_the_byte_pool() {
 }
 
 #[test]
-fn warm_past_the_deadline_fetches_nothing() {
-    // An already-expired armed window: warm's remaining budget is zero, so the
-    // concurrent dispatch does no work — the network deadline governs warm too.
-    let mut sf = past_deadline();
+fn warm_on_a_spent_network_budget_fetches_nothing() {
+    // A budget already spent: warm's remaining allowance is zero, so the
+    // concurrent dispatch does no work — the network bound governs warm too.
+    let mut sf = spent_budget();
     sf.warm(&[("/late.js".into(), Intent::ClassicScript)]);
-    assert!(failed(get(&mut sf, "/late.js")).contains("run budget exhausted"));
+    assert!(failed(get(&mut sf, "/late.js")).contains("network budget exhausted"));
 }
 
 #[test]

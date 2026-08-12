@@ -9,7 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use super::super::engine::{Clock, Deadline, EXEC_CPU_MS, NET_BUDGET_MS};
+use super::super::engine::{Clock, Deadline, NetBudget, EXEC_CPU_MS, NET_BUDGET_MS};
 use super::super::{run, Bounds, Env, Report, StyleSource};
 use crate::dom::Document;
 use crate::envelope::JsStop;
@@ -53,7 +53,7 @@ fn drive_at(html: &str, url: &str) -> (Document, Report) {
         &FetchSession::new(Vec::new()),
         Bounds {
             cpu: Deadline::on(Clock::manual(), Duration::from_millis(EXEC_CPU_MS)),
-            net: Deadline::on(Clock::manual(), Duration::from_millis(NET_BUDGET_MS)),
+            net: NetBudget::on(Clock::manual(), Duration::from_millis(NET_BUDGET_MS)),
         },
     )
 }
@@ -233,7 +233,7 @@ fn an_endless_module_trips_the_budget_and_is_unsettled() {
         &FetchSession::new(Vec::new()),
         Bounds {
             cpu: Deadline::on(Clock::cpu(), Duration::from_millis(20)),
-            net: Deadline::network(),
+            net: NetBudget::network(),
         },
     );
     assert_eq!((r.scripts, r.errors, r.settled()), (1, 1, false));
@@ -258,7 +258,7 @@ fn a_dead_deadline_refuses_module_loads_and_the_run_stops_on_the_network_bound()
         &FetchSession::new(Vec::new()),
         Bounds {
             cpu: Deadline::compute(),
-            net: Deadline::on(Clock::wall(), Duration::ZERO),
+            net: NetBudget::on(Clock::wall(), Duration::ZERO),
         },
     );
     assert_eq!((r.scripts, r.errors, r.settled()), (1, 1, false));

@@ -378,17 +378,26 @@ design center. Two clocks, four limits:
   Exhausting it stops the loop and reports `settled: false, stopped: "budget"`
   (§10): *the page wants more compute than frot gives*, and that is the same
   verdict on an idle laptop and on a saturated CI box.
-- **Network deadline: `NET_BUDGET_MS = 1_000` of *wall* time**, armed once per
-  run on the observable clock and enforced at the §6 seam, which refuses
-  dispatch past it. Network wait is elapsed time and is *not* frot's work:
-  charging it to CPU would make it free (a blocked socket burns no cycles),
-  and charging compute to wall time is the defect this section exists to fix.
-  A refused dispatch reports `settled: false, stopped: "network"` (§10).
+- **Network budget: `NET_BUDGET_MS = 1_000` of *wire* time** (`bl-79dc`,
+  superseding the wall *deadline* armed once per run), metered at the §6 seam:
+  every dispatch is bracketed on the observable clock and its elapsed charged to
+  the budget, and the seam refuses the next dispatch once the budget is spent.
+  Network wait is elapsed time and is *not* frot's work: charging it to CPU would
+  make it free (a blocked socket burns no cycles). But a wall *window* over the
+  whole run charged the reverse mistake back again — it was spent by frot's own
+  compute and by the host's scheduling, so a page heavy enough to burn a second
+  of compute had its next subfetch refused and reported `stopped: "network"` with
+  no network having been slow at all. A budget only real dispatch can spend
+  cannot be spent by anything else, so the §10 name is true whenever it is
+  emitted, and `VISION.md`'s arithmetic is literal: **~1 s of CPU plus ~1 s of
+  network wall, not one shared second**. A refused dispatch reports
+  `settled: false, stopped: "network"` (§10).
 - **Memory cap: `JS_MEM_LIMIT = 64 MiB`** engine heap, engine-enforced.
 
 All three bound *page scripts and the event loop*; the one-time API install is
-exempt from every one of them (`Engine::setup`: it disarms both windows and
-lifts the heap cap for the duration, restoring the constructed cap after — so a
+exempt from every one of them (`Engine::setup`: it disarms the compute window —
+the network budget needs no exemption, since install dispatches nothing to charge
+it — and lifts the heap cap for the duration, restoring the constructed cap after — so a
 dialed-down budget cannot turn setup into a spurious failure, `bl-5ac3`, and the
 prelude is never *parsed* on a starved heap). **The heap half of that is not a
 convenience (`bl-c385`): quickjs's parser is not allocation-failure-safe.**
@@ -488,10 +497,26 @@ production, `SIG_IGN` from the test). Production passes `Bounds::shipping()`
 (both host clocks) at one call site; the golden suite passes the shipping
 *compute* window on a real `Clock::cpu` and the shipping *network* window on a
 frozen `Clock::manual`. The bound is handed to the test, not disabled:
-`run/golden_bounds_tests.rs` drives that same window to expiry and still gets
+`run/golden_bounds_tests.rs` spends that same budget and still gets
 `settled: false, stopped: "network"`, and a spinning script under a dialled-down
 CPU window still gets `stopped: "budget"` — the negative controls that make
 every golden's `settled: true` mean something.
+
+**And the root cause was the bound, not the fixture (`bl-79dc`).** The paragraph
+above diagnosed it correctly and then fixed only the symptom: if the *only* thing
+the wall clock was metering was the machine's business, then a wall window is the
+wrong instrument for a network bound in production too, not merely in the golden
+suite. A page heavy enough to spend that window computing had its next subfetch
+refused and reported `stopped: "network"` on an origin that was never slow — the
+same misdescription, one layer up, with no test watching it once the goldens
+froze their clock. `NET_BUDGET_MS` is therefore metered on **dispatch elapsed**
+alone (above, and §6): compute cannot spend it, host load cannot spend it, and
+`stopped: "network"` means the wire really did take a second. The injected
+`Bounds` seam stays, because it is still what lets the golden suite meter its
+in-process fixtures on a clock it owns and what lets `golden_bounds_tests` and
+`js/tests/netbudget.rs` drive both bounds by hand — including a "slow origin"
+that is a `mockito` handler advancing the run's own clock, so the proof of a
+timing bug neither sleeps nor spins.
 
 That "~20 ms fits in 1000 ms" is no longer taken on trust (`bl-18df`): each of
 the four golden bundles runs through `run_guarded`, which measures the run on a
@@ -533,14 +558,19 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   followed, 16 MiB cap, remote→local blocked (`file:` targets from an http(s)
   page are refused). `file://` pages may fetch remote resources, as with CSS.
 - **Bounds — one per resource, none per request count (bl-c7e9; unit corrected
-  `bl-8dc0`).** Network is bounded by *elapsed* time: subfetch network time
-  spends the §5 `NET_BUDGET_MS` wall deadline, which is now this seam's **own**
-  bound rather than a share of the compute budget (§5: a blocked socket burns no
-  CPU, so the two resources cannot be priced in one unit). It is enforced **at
-  this seam**: the cache consults the run's armed wall window before dispatching
-  any network request, and refuses once it has passed — and that refusal, as a
-  recorded fact, is what clears `settled` and sets `stopped: "network"` (§5/§10),
-  replacing the old re-read of the deadline at conclusion. The seam check exists
+  `bl-8dc0`, scope corrected `bl-79dc`).** Network is bounded by *elapsed* time,
+  and by elapsed time **on the wire only**: each dispatch — a serial `get`, and
+  the concurrent warm wave alike, served or failed, since a timeout is the
+  slowest origin there is — is bracketed on the observable clock and charged to
+  the §5 `NET_BUDGET_MS` budget, which is this seam's **own** bound rather than a
+  share of the compute budget (§5: a blocked socket burns no CPU, so the two
+  resources cannot be priced in one unit). It is enforced **at this seam**: the
+  cache consults what is left of the budget before dispatching, and refuses once
+  it is spent — and that refusal, as a recorded fact, is what clears `settled`
+  and sets `stopped: "network"` (§5/§10), replacing the old re-read of a deadline
+  at conclusion. Metering the wire rather than the run is what makes that name
+  honest: the earlier armed-once wall window spanned frot's compute too, so a
+  heavy page's own execution spent the *network* budget. The seam check exists
   because the interrupt can only fire between JS instructions: a module graph
   loading through the §4.1 loader is a chain of blocking host fetches with no
   JS in between, which would otherwise outrun the budget unchecked. Overshoot
@@ -563,7 +593,7 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   quiescence. With the cap gone, `settled` has exactly one meaning (§5
   quiescence within the run's bounds) and each resource has exactly one bound
   **in its own unit** (`bl-8dc0` split the first): compute — `EXEC_CPU_MS`
-  (CPU time); network — `NET_BUDGET_MS` (wall time); engine heap —
+  (CPU time); network — `NET_BUDGET_MS` (wire time); engine heap —
   `JS_MEM_LIMIT`; fetched bytes — `SUBFETCH_BYTES`. A page that genuinely needs
   more than a budget allows now dies honestly of the resource it actually
   exhausted (`settled: false`, plus the `stopped` name, §10), not of an
@@ -943,9 +973,11 @@ Two moves against today's `run.rs`:
     heavier than frot underwrites.** Host-independent: a retry on a quieter box
     returns the same verdict, so the actionable answer is a real browser, not a
     retry.
-  - `"network"` — the `NET_BUDGET_MS` wall deadline passed with work outstanding
-    and the §6 seam refused a dispatch. **The transport was slow, not the page.**
-    A retry may legitimately differ.
+  - `"network"` — the run spent its whole `NET_BUDGET_MS` of wire time and the §6
+    seam refused a further dispatch. **The transport was slow, not the page.**
+    A retry may legitimately differ. True by construction since `bl-79dc`: only
+    real dispatch can spend that budget, so this name can no longer be reached by
+    a page that merely computed for a second.
 
   This is the answer to "a page that needs JS frot cannot run is not the same
   fact as a page frot ran out of time on." `status: "needs"` stays outcome-based

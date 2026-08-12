@@ -1,7 +1,7 @@
 //! Injected-clock proofs (bl-e707): the observable *wall* clock feeds
 //! `performance`/`Date` coherently from a single origin, reduces to the profile
 //! precision, advances with real host/network elapsed, jumps to a virtual
-//! timer's due time, and is the *same* clock the §5/§6 network deadline is spent
+//! timer's due time, and is the *same* clock the §5/§6 network budget is metered
 //! on. A `manual()` clock the test advances stands in for elapsed time, so every
 //! assertion is exact — no real sleeping, no flake.
 
@@ -9,23 +9,23 @@ use std::time::Duration;
 
 use crate::dom::Document;
 use crate::fetch::FetchSession;
-use crate::js::engine::{Clock, Deadline};
+use crate::js::engine::{Clock, Deadline, NetBudget};
 
 use super::{test_env, Session, StyleSource};
 
-/// A session whose observable/network window reads the injected `clock` — the
-/// test keeps its own clone (a manual clock shares state), so advancing it moves
-/// the run's wall clock. The compute budget rides a separate frozen clock, so a
-/// wall advance never touches it (§5: two resources, two units).
+/// A session whose observable clock and network meter read the injected `clock`
+/// — the test keeps its own clone (a manual clock shares state), so advancing it
+/// moves the run's wall clock. The compute budget rides a separate frozen clock,
+/// so a wall advance never touches it (§5: two resources, two units).
 fn sess_clock(clock: Clock) -> Session {
-    sess_net(Deadline::on(clock, Duration::from_secs(1)))
+    sess_net(NetBudget::on(clock, Duration::from_secs(1)))
 }
 
-/// A session bound to a caller-held network window, so a test can read that very
-/// [`Deadline`] rather than asking the session about its clock (the session has
+/// A session bound to a caller-held network budget, so a test can read that very
+/// [`NetBudget`] rather than asking the session about its clock (the session has
 /// no such question to answer: what ends a run on the network bound is the §6
 /// seam's *refusal*, js.md §5/§6, not a reading).
-fn sess_net(net: Deadline) -> Session {
+fn sess_net(net: NetBudget) -> Session {
     Session::with_bounds(
         Document::parse("<html><body></body></html>"),
         StyleSource::Bare,
@@ -91,24 +91,25 @@ fn a_virtual_timer_jump_fires_promptly_but_observes_its_due_time() {
 }
 
 #[test]
-fn the_wall_clock_bounds_the_network_deadline_and_feeds_observable_time_together() {
-    // One authority for elapsed time: the same injected wall clock spends the
-    // §5/§6 *network* deadline AND is the observable elapsed. Advancing it (as a
-    // blocking subfetch's wall time would) moves both — proving fetch duration is
-    // captured where the network deadline is read, while the compute budget on
-    // its own frozen clock is untouched by any of it.
+fn the_wall_clock_meters_the_network_budget_and_feeds_observable_time_together() {
+    // One authority for elapsed time: the same injected wall clock is what the
+    // §5/§6 *network* budget is metered on AND what the page observes. A
+    // dispatch's elapsed is therefore at once its charge and its resource-timing
+    // duration — one reading, two consumers, no second measurement to drift.
     let clock = Clock::manual();
-    let net = Deadline::on(clock.clone(), Duration::from_secs(1));
-    let s = sess_net(net.clone()); // 1 s network window, armed below
+    let net = NetBudget::on(clock.clone(), Duration::from_secs(1));
+    let s = sess_net(net.clone()); // 1 s of wire time
     s.begin();
+    // 250 ms of the page's own compute: observable, and *not* a network charge
+    // (bl-79dc — the run's wall time is not the wire's).
     clock.advance(Duration::from_millis(250));
     assert_eq!(s.run_task("performance.now()").unwrap(), "250");
-    assert!(!net.expired());
-    // Past the 1 s window: it is spent by the very same elapsed the observable
-    // clock reports (read via `eval`, which re-arms, only afterwards). Execution
-    // itself is unaffected — the task below runs, because compute is CPU-bound.
-    clock.advance(Duration::from_millis(800));
-    assert!(net.expired());
+    assert!(!net.spent_out());
+    // The same clock advanced *inside* a dispatch (as a blocking subfetch does)
+    // spends the budget, and the page sees that elapsed too. Execution itself is
+    // unaffected — the task below runs, because compute is CPU-bound.
+    net.charge(|| clock.advance(Duration::from_secs(1)));
+    assert!(net.spent_out());
     assert_eq!(s.run_task("String(1 + 1)").unwrap(), "2");
-    assert_eq!(s.eval("performance.now()").unwrap(), "1050");
+    assert_eq!(s.eval("performance.now()").unwrap(), "1250");
 }
