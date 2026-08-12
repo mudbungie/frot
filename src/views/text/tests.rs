@@ -209,3 +209,28 @@ fn css_with_no_rules_matches_raw_extraction() {
     let html = "<div><p>a</p><p>b</p></div>";
     assert_eq!(t_css(html), t(html));
 }
+
+#[test]
+fn closed_details_emits_only_its_summary_under_css() {
+    // `bl-74a6`: the disclosure body is not painted until someone clicks, and
+    // frot never clicks. Raw text goes with the elements — it is concealed by
+    // the same box.
+    let html =
+        "<details><summary>Options</summary><p>Use options to customise…</p>and raw</details>";
+    assert_eq!(t_css(html), "Options");
+    // Opened, the whole disclosure is content again.
+    assert_eq!(
+        t_css("<details open><summary>Options</summary><p>Use options…</p></details>"),
+        "Options\nUse options…"
+    );
+}
+
+#[test]
+fn raw_text_without_css_keeps_its_source_order_dump() {
+    // No `--css` means no cascade to consult: `text` stays the documented
+    // source-order dump, exactly as it does for `[hidden]` (`bl-eeb4`).
+    assert_eq!(
+        t("<details><summary>Options</summary><p>body</p></details>"),
+        "Options\nbody"
+    );
+}

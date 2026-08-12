@@ -26,9 +26,11 @@ pub use cascade::{compute, compute_bare, compute_with};
 pub use query::{query_all, UnsupportedSelector};
 
 /// Concatenated text of `id`'s subtree as the accessible-name algorithm sees
-/// it under `--css`: `display:none` subtrees are dropped and `::before` /
-/// `::after` generated content is included. With no rule affecting the
-/// subtree this is exactly [`Document::text_content`].
+/// it under `--css`: `display:none` nodes are dropped with their subtrees —
+/// text nodes included, so a closed `<details>`'s raw disclosure text goes
+/// with its elements ([`Document::concealed`]) — and `::before` / `::after`
+/// generated content is included. With no rule affecting the subtree this is
+/// exactly [`Document::text_content`].
 pub fn rendered_subtree_text(doc: &Document, id: NodeId, styles: &Styles) -> String {
     let mut out = String::new();
     collect_text(doc, id, styles, &mut out);
@@ -52,7 +54,11 @@ fn collect_text(doc: &Document, id: NodeId, styles: &Styles, out: &mut String) {
                 out.push_str(a);
             }
         }
-        NodeKind::Text(t) => out.push_str(t),
+        NodeKind::Text(t) => {
+            if !styles.display_none(id) {
+                out.push_str(t);
+            }
+        }
         NodeKind::Comment(_) | NodeKind::Doctype => {}
     }
 }

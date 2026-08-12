@@ -78,6 +78,18 @@ The UA sheet also carries two attribute rules, applied at the same step and
 overridden by any author or inline declaration: `[hidden] { display: none }`
 (HTML §15.3.1 — `hidden` is a boolean attribute, so presence is the fact and
 `until-found` hides too, `bl-eeb4`) and, once `--js` ran, `noscript` (js.md §4).
+
+A third UA rule is **structural** rather than a declaration, and so lands
+*after* the cascade rather than inside it (`css::cascade::conceal`,
+`dom::Document::concealed`, `bl-74a6`): a `<details>` without `open` renders
+only its first `<summary>` child, and every other child — element **or text
+node** — computes to `display: none`. It is not author-overridable, because
+the box the UA skips is the `<details>`'s own `::details-content` box, not the
+child's, and frot has no anonymous boxes to give the child one. Text nodes
+carry it too: `Styles` is parallel to the whole arena, so `<details><summary>
+Q</summary>A</details>` drops the `A` with everything else. Consumers need no
+new query — they already prune a subtree at `display:none`.
+
 Its block-level tag set is *the same list* `views::text.rs` already uses for
 block breaks (`BLOCK_TAGS`) — extract it to one place so the two never drift
 (single source of truth). `li` → `ListItem`; everything else → `Inline`.

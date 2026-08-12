@@ -94,3 +94,46 @@ fn page_level_header_and_footer_are_still_chrome() {
     );
     assert_eq!(detect(View::Text, &doc, None), vec![NeedsKind::Js]);
 }
+
+#[test]
+fn a_closed_disclosure_is_not_content_either() {
+    // `bl-74a6`: same class of fact, same oracle. A shell whose only body copy
+    // sits inside a closed `<details>` shows the user an empty mount and a
+    // disclosure control — nothing rendered, whichever recipe asks.
+    let shell = "<html><body><div id=root></div>\
+         <details><summary></summary><p>Read the troubleshooting guide</p>raw</details>\
+         <script src=app.js></script></body></html>";
+    let doc = Document::parse(shell);
+    assert_eq!(detect(View::Text, &doc, None), vec![NeedsKind::Js]);
+    assert_eq!(
+        detect(View::Text, &doc, Some(&styles_of(&doc))),
+        vec![NeedsKind::Js]
+    );
+    // The summary itself is painted, so its text is content — and an `open`
+    // disclosure is content throughout.
+    for open in [
+        "<details><summary>Read the guide</summary></details>",
+        "<details open><summary></summary><p>Read the guide</p></details>",
+    ] {
+        let doc = Document::parse(&format!(
+            "<html><body><div id=root></div>{open}<script src=app.js></script></body></html>"
+        ));
+        assert!(detect(View::Text, &doc, None).is_empty(), "{open}");
+        assert!(
+            detect(View::Text, &doc, Some(&styles_of(&doc))).is_empty(),
+            "{open}"
+        );
+    }
+}
+
+#[test]
+fn a_concealed_label_is_no_label() {
+    // The `label` signal rides the same skip: an `alt` inside a closed
+    // disclosure is as unpainted as the text beside it.
+    let doc = Document::parse(
+        "<html><body><div id=root></div>\
+         <details><summary></summary><img alt='a chart'></details>\
+         <script src=app.js></script></body></html>",
+    );
+    assert_eq!(detect(View::Ax, &doc, None), vec![NeedsKind::Js]);
+}

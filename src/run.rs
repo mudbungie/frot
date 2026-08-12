@@ -228,6 +228,9 @@ mod challenge_tests;
 mod bboxes_tests;
 
 #[cfg(test)]
+mod details_tests;
+
+#[cfg(test)]
 mod ax_tests;
 
 #[cfg(test)]

@@ -243,6 +243,29 @@ at page scope only, while `nav`/`aside` (landmarks wherever they sit) are
 chrome unconditionally. The canvas-shell fixture — a body-level `<header>`
 masthead over an empty `#root` — still flags, unchanged.
 
+### 4.2 Concealed by a parent, not by itself (`bl-74a6`, 2026-08-11)
+
+§4.1's oracle answers "is this node rendered", and `[hidden]` was only the
+half of that question a node answers about *itself*. The other half is
+structural: a `<details>` without `open` renders its first `<summary>` and
+nothing else, so its disclosure body is copy no browser paints until someone
+clicks — and frot never clicks (`js.md` §11, non-goals). Live repro
+2026-08-11: the GOV.UK Design System's `/components/details/` page emitted
+both closed disclosure bodies under `--css --out text`, and `--out bboxes`
+emitted their paragraphs as zero-sized entries. A zero-sized entry is not an
+omission: `bboxes` is defined as one entry per *rendered* element.
+
+Same shape as §4.1, so the same two seams and no third: the fact has one home
+(`dom::Document::concealed`), the cascade folds it into `display`
+(`layout.md` §2) and every `--css` consumer inherits it, and this walk asks the
+same question of whichever oracle the recipe has. Two differences from
+`[hidden]` are load-bearing and both are properties of *where the skipped box
+is*, not of this detector: it is **not author-overridable** (the box belongs to
+the `<details>`), and it reaches **text nodes**, since `<details><summary>Q
+</summary>A</details>` gives the `A` no element to hang the rule on. The walk's
+render check therefore sits above the element/text split rather than inside the
+element arm.
+
 Accepted residuals:
 
 - A zero-text image gallery (labeled images, scripts present) flags

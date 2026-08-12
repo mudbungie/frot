@@ -7,10 +7,13 @@
 //! - Subtrees under `<script>`, `<style>`, `<template>`, `<noscript>`, `<iframe>`,
 //!   `<svg>`, and `<math>` are skipped.
 //! - Block-level boundaries become newlines; `<br>` becomes a newline.
-//! - With `--css` (a [`Styles`] table is passed): `display:none` subtrees are
-//!   dropped, an element's own text is suppressed when its computed
-//!   `visibility` is hidden (a `visibility:visible` descendant reappears),
-//!   and `::before`/`::after` generated content is emitted as inline text.
+//! - With `--css` (a [`Styles`] table is passed): `display:none` nodes are
+//!   dropped with their subtrees — text nodes included, which is how a closed
+//!   `<details>`'s raw disclosure text goes with its elements
+//!   ([`crate::dom::Document::concealed`]) — an element's own text is
+//!   suppressed when its computed `visibility` is hidden (a
+//!   `visibility:visible` descendant reappears), and `::before`/`::after`
+//!   generated content is emitted as inline text.
 
 use crate::css::{Styles, Visibility};
 use crate::dom::{Document, NodeId, NodeKind};
@@ -161,7 +164,7 @@ fn emit(
             }
         }
         NodeKind::Text(t) => {
-            if parent_visible {
+            if parent_visible && !styles.is_some_and(|s| s.display_none(id)) {
                 state.push_text(t);
             }
         }

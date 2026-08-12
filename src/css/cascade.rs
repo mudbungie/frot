@@ -10,7 +10,7 @@ use super::computed::{reduce, Applied};
 use super::index::Index;
 use super::parse::{parse_decls, Stylesheet};
 use super::selector::Specificity;
-use super::{ComputedStyle, Styles, Visibility};
+use super::{ComputedStyle, Display, Styles, Visibility};
 use crate::dom::{Document, Element, NodeId, NodeKind};
 
 pub fn compute(doc: &Document) -> Styles {
@@ -73,10 +73,12 @@ fn walk<'a>(
     nodes: &mut [ComputedStyle],
 ) {
     let entry = doc.node(id);
+    let concealed = doc.concealed(id);
     let NodeKind::Element(el) = &entry.kind else {
+        nodes[id as usize] = conceal(ComputedStyle::default(), concealed);
         return;
     };
-    let cs = resolve(el, ancestors, index, parent_vis, js);
+    let cs = conceal(resolve(el, ancestors, index, parent_vis, js), concealed);
     let vis = cs.visibility;
     nodes[id as usize] = cs;
     ancestors.push(el);
@@ -84,6 +86,20 @@ fn walk<'a>(
         walk(doc, c, ancestors, index, vis, js, nodes);
     }
     ancestors.pop();
+}
+
+/// Fold the UA's **structural** concealment ([`Document::concealed`]) into a
+/// computed style. It lands here rather than inside [`reduce`]'s UA-implicit
+/// `display` step because, unlike `[hidden]` and `<noscript>`, it is not
+/// author-overridable: the box the UA skips belongs to the parent, so no
+/// declaration on this node can put it back. Non-element nodes get it too —
+/// the raw text of a closed `<details>` is concealed exactly as its elements
+/// are.
+fn conceal(mut cs: ComputedStyle, concealed: bool) -> ComputedStyle {
+    if concealed {
+        cs.display = Display::None;
+    }
+    cs
 }
 
 /// Collect the declarations that reach `el` and reduce them to a
@@ -135,3 +151,6 @@ fn resolve(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod details_tests;

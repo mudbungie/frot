@@ -48,11 +48,17 @@
 //! panel. Counting that text as body content is the false-`ok` direction this
 //! design rejects, so [`not_rendered`] drops those subtrees: with author CSS
 //! in the recipe the cascade is the visibility oracle (it carries the UA
-//! `[hidden] { display: none }` rule); without it the document's own `hidden`
-//! attribute is the only visibility fact there is.
+//! `[hidden] { display: none }` rule and the structural concealment below);
+//! without it the document's own `hidden` attribute is the only visibility
+//! fact there is.
+//!
+//! Concealment by a *parent* is the same class of fact and rides the same
+//! oracle ([`crate::dom::Document::concealed`], `bl-74a6`): a closed
+//! `<details>`'s disclosure body is copy no browser paints until someone
+//! clicks, and frot never clicks.
 
 use crate::css::Styles;
-use crate::dom::{Document, Element, NodeId, NodeKind};
+use crate::dom::{Document, NodeId, NodeKind};
 use crate::envelope::{NeedsKind, View};
 use crate::fetch::header_value;
 
@@ -145,10 +151,13 @@ fn content_signals(doc: &Document, body: NodeId, styles: Option<&Styles>) -> Con
 /// (`article`/`aside`/`main`/`nav`/`section`) scopes this node, which is what
 /// decides a `<header>`/`<footer>` (see [`is_chrome`]).
 fn collect(doc: &Document, id: NodeId, styles: Option<&Styles>, sectioned: bool, c: &mut Content) {
+    if not_rendered(doc, id, styles) {
+        return;
+    }
     let entry = doc.node(id);
     match &entry.kind {
         NodeKind::Element(el) => {
-            if is_non_content(el, id, sectioned, styles) {
+            if is_non_content(&el.name, sectioned) {
                 return;
             }
             c.label |= has_label(el);
@@ -169,17 +178,14 @@ fn has_label(el: &crate::dom::Element) -> bool {
         .any(|a| el.attr(a).is_some_and(|v| !v.trim().is_empty()))
 }
 
-/// Chrome frames content without being content ([`is_chrome`]);
-/// `script`/`style` and friends never render; and a subtree this recipe does
-/// not render is not content either ([`not_rendered`]). Neither their elements
-/// nor their text count toward the body's rendered substance, so their whole
-/// subtree is skipped.
-fn is_non_content(el: &Element, id: NodeId, sectioned: bool, styles: Option<&Styles>) -> bool {
-    matches!(
-        el.name.as_str(),
-        "script" | "style" | "noscript" | "template"
-    ) || is_chrome(&el.name, sectioned)
-        || not_rendered(el, id, styles)
+/// Chrome frames content without being content ([`is_chrome`]), and
+/// `script`/`style` and friends never render. Neither their elements nor their
+/// text count toward the body's rendered substance, so their whole subtree is
+/// skipped. (The third skip — a node this recipe does not render at all — is
+/// [`not_rendered`], hoisted above the element/text split because it answers
+/// for both.)
+fn is_non_content(name: &str, sectioned: bool) -> bool {
+    matches!(name, "script" | "style" | "noscript" | "template") || is_chrome(name, sectioned)
 }
 
 /// Whether this element frames the page rather than carrying its content.
@@ -203,15 +209,20 @@ fn is_sectioning(name: &str) -> bool {
     matches!(name, "article" | "aside" | "main" | "nav" | "section")
 }
 
-/// Whether the recipe renders this element at all. Under `--css` the cascade
-/// answers — it already folds the UA `[hidden] { display: none }` rule
-/// ([`crate::dom::Element::hidden`]), author rules and inline `style=` into one
-/// `display`. Without it there is no cascade, and the `hidden` attribute is the
-/// document's only visibility fact.
-fn not_rendered(el: &Element, id: NodeId, styles: Option<&Styles>) -> bool {
+/// Whether the recipe renders this node at all — asked of text nodes as much
+/// as elements, since a concealed box takes its raw text with it. Under `--css`
+/// the cascade answers: it already folds the UA `[hidden] { display: none }`
+/// rule ([`crate::dom::Element::hidden`]), the UA's structural concealment
+/// ([`Document::concealed`]), author rules and inline `style=` into one
+/// `display`. Without it there is no cascade, and the document's own two
+/// visibility facts — the `hidden` attribute and a closed `<details>` —
+/// are all there is.
+fn not_rendered(doc: &Document, id: NodeId, styles: Option<&Styles>) -> bool {
     match styles {
         Some(s) => s.display_none(id),
-        None => el.hidden(),
+        None => {
+            doc.concealed(id) || matches!(&doc.node(id).kind, NodeKind::Element(el) if el.hidden())
+        }
     }
 }
 
