@@ -246,6 +246,9 @@ mod details_tests;
 mod fallback_tests;
 
 #[cfg(test)]
+mod canvas_tests;
+
+#[cfg(test)]
 mod ax_tests;
 
 #[cfg(test)]

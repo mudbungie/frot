@@ -211,13 +211,24 @@ fn is_block_box(doc: &Document, id: NodeId, styles: &Styles) -> bool {
         )
 }
 
-/// Whether `id` is an element that generates a box: not `display:none` and not
-/// a [`NON_RENDERED_TAGS`] element. The shared render-tree predicate.
+/// Whether `id` is in the render tree at all — asked of **text nodes as much as
+/// elements**, because the box a UA skips structurally is the *parent's*, so raw
+/// text goes with it (`bl-e79a`; the needs walk sits above the same split). Two
+/// sources: the cascade's `display:none`, and the structural fact no cascade
+/// carries — [`Document::unpainted`], which is wider than the concealment the
+/// cascade folds in, since a `<canvas>`'s fallback content is painted nowhere
+/// while staying in the accessibility tree.
+pub fn renders(doc: &Document, id: NodeId, styles: &Styles) -> bool {
+    !styles.display_none(id) && !doc.unpainted(id)
+}
+
+/// Whether `id` is an element that generates a box: [`renders`], and not a
+/// [`NON_RENDERED_TAGS`] element. The shared render-tree predicate.
 fn is_rendered_element(doc: &Document, id: NodeId, styles: &Styles) -> bool {
     let NodeKind::Element(el) = &doc.node(id).kind else {
         return false;
     };
-    !styles.display_none(id) && !NON_RENDERED_TAGS.contains(&el.name.as_str())
+    renders(doc, id, styles) && !NON_RENDERED_TAGS.contains(&el.name.as_str())
 }
 
 /// Give rendered element `id` an empty placeholder box at its containing block's

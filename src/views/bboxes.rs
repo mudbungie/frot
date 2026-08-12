@@ -24,7 +24,7 @@
 
 use crate::css::{Display, Styles};
 use crate::dom::{Document, NodeEntry, NodeId, NodeKind, WalkEvent};
-use crate::layout::Layout;
+use crate::layout::{self, Layout};
 use serde_json::{json, Value};
 
 /// Build the reading-order box array. `layout`/`styles` are the same tables the
@@ -80,7 +80,7 @@ fn emit(
         "i": ordinals[id as usize],
         "tag": el.name,
         "rect": rect,
-        "text": direct_text(doc, entry),
+        "text": direct_text(doc, entry, styles),
     }));
     let children = if matches!(styles.display(id), Display::Flex | Display::InlineFlex) {
         layout.child_order(id)
@@ -92,15 +92,22 @@ fn emit(
     }
 }
 
-/// The element's own direct text: its immediate text-node children concatenated
-/// and whitespace-normalized (runs collapse to one space, ends trimmed), or
-/// [`Value::Null`] when that yields nothing. Descendant text belongs to the
-/// descendants' own entries, so only direct children count.
-fn direct_text(doc: &Document, entry: &NodeEntry) -> Value {
+/// The element's own direct text: its immediate **rendered** text-node children
+/// concatenated and whitespace-normalized (runs collapse to one space, ends
+/// trimmed), or [`Value::Null`] when that yields nothing. Descendant text
+/// belongs to the descendants' own entries, so only direct children count.
+///
+/// The render gate ([`layout::renders`]) is the same one the engine measured
+/// with, and it matters most here: a `<video>`'s or `<canvas>`'s fallback prose
+/// is a direct text child of the element that paints none of it, so without the
+/// gate the entry reported copy no user sees (`bl-e79a`).
+fn direct_text(doc: &Document, entry: &NodeEntry, styles: &Styles) -> Value {
     let mut buf = String::new();
     for &c in &entry.children {
         if let NodeKind::Text(t) = &doc.node(c).kind {
-            buf.push_str(t);
+            if layout::renders(doc, c, styles) {
+                buf.push_str(t);
+            }
         }
     }
     let norm = buf.split_whitespace().collect::<Vec<_>>().join(" ");

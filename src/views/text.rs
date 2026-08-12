@@ -4,10 +4,12 @@
 //! - Whitespace collapses per the HTML serializer (runs of whitespace fold
 //!   to a single space) **outside** `<pre>`.
 //! - `<pre>` content is preserved verbatim.
-//! - Subtrees under `<script>`, `<style>`, `<template>`, `<noscript>`, `<iframe>`,
-//!   `<svg>`, and `<math>` are skipped, as is a media element's fallback
-//!   content ([`crate::tags::renders_children`] — a content-model fact, so it
-//!   holds with or without `--css`).
+//! - Subtrees under `<script>`, `<style>`, `<template>`, `<noscript>`, `<svg>`
+//!   and `<math>` are skipped, as is fallback content — the children a UA that
+//!   implements the element paints nowhere
+//!   ([`crate::tags::renders_children`]: `<video>`, `<audio>`, `<iframe>`,
+//!   `<canvas>`). That is a content-model fact, so it holds with or without
+//!   `--css`.
 //! - Block-level boundaries become newlines; `<br>` becomes a newline.
 //! - With `--css` (a [`Styles`] table is passed): `display:none` nodes are
 //!   dropped with their subtrees — text nodes included, which is how a closed
@@ -21,14 +23,14 @@ use crate::css::{Styles, Visibility};
 use crate::dom::{Document, NodeId, NodeKind};
 use crate::tags::{is_block, renders_children};
 
-const SKIP_TAGS: &[&str] = &[
-    "script", "style", "template", "noscript", "iframe", "svg", "math",
-];
+const SKIP_TAGS: &[&str] = &["script", "style", "template", "noscript", "svg", "math"];
 
 /// Whether this element contributes no text at all. Two sources, both
 /// recipe-independent: this view's own skip set above, and the shared
-/// fallback-content fact ([`renders_children`] — a `<video>`'s contents are
-/// markup for a UA without `<video>`, and its own text is nothing).
+/// fallback-content fact ([`renders_children`] — a `<video>`'s or `<canvas>`'s
+/// contents are markup for a UA that cannot paint the box, and its own text is
+/// nothing). `<iframe>` lives in the shared fact rather than the local set, so
+/// geometry and the AX tree cut it at the same place this view does.
 fn is_skip(name: &str) -> bool {
     SKIP_TAGS.contains(&name) || !renders_children(name)
 }

@@ -153,3 +153,16 @@ fn compute_fills_inline_rects_through_the_block_pipeline() {
     );
     assert_eq!(layout.rect(id(&doc, "p")).unwrap().h, 20);
 }
+
+#[test]
+fn an_inline_non_rendered_element_measures_nothing() {
+    // `<script>`/`<style>` are UA-implicit `inline`, so they reach the inline
+    // collector as ordinary inline elements; `NON_RENDERED_TAGS` is what keeps
+    // their source out of the line box. Without it the `<p>` would be sized
+    // from JavaScript nobody sees.
+    let (doc, styles) = styled("<p>ab<script>xxxxxxxxxxxxxxxx</script>cd</p>");
+    let layout = crate::layout::compute(&doc, &styles, crate::layout::VIEWPORT_WIDTH);
+    let words = super::content_of(&doc, &styles, id(&doc, "p"));
+    assert_eq!(words.len(), 2);
+    assert!(layout.rect(id(&doc, "script")).is_none());
+}

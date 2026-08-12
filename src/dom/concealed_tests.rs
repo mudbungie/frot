@@ -1,7 +1,9 @@
-//! `Document::concealed`: the UA rules that withhold a node for what its
-//! *parent* is — a closed `<details>`'s disclosure content (`bl-74a6`) and a
-//! media element's fallback content (`bl-0f83`). The attribute-local half of
-//! the same question is `Element::hidden` (`bl-eeb4`).
+//! `Document::unpainted` / `Document::concealed`: the UA rules that withhold a
+//! node for what its *parent* is — a closed `<details>`'s disclosure content
+//! (`bl-74a6`) and a fallback-content element's children (`bl-0f83`,
+//! `bl-e79a`). The two queries differ on `<canvas>` alone, which paints no
+//! child and hides none from the accessibility tree. The attribute-local half
+//! of the same question is `Element::hidden` (`bl-eeb4`).
 
 use super::*;
 
@@ -132,4 +134,106 @@ fn a_media_element_with_no_source_still_conceals_its_fallback() {
         media_concealment("<video><p>no video</p></video>", "video"),
         [("p".into(), true)]
     );
+}
+
+/// `(label, unpainted, concealed)` for each child of the first `<tag>` in
+/// `html` — the two structural queries side by side, which is the whole point
+/// of `bl-e79a`: for `<canvas>` they disagree.
+fn structural(html: &str, tag: &str) -> Vec<(String, bool, bool)> {
+    let doc = Document::parse(html);
+    let m = first_element(&doc, tag);
+    doc.node(m)
+        .children
+        .iter()
+        .map(|&c| {
+            let label = match &doc.node(c).kind {
+                NodeKind::Element(el) => el.name.clone(),
+                kind => format!("{kind:?}"),
+            };
+            (label, doc.unpainted(c), doc.concealed(c))
+        })
+        .collect()
+}
+
+#[test]
+fn a_canvas_paints_no_child_and_conceals_none() {
+    // Chrome 139: `<canvas>x</canvas>` gives `x` zero client rects and no
+    // `innerText`, and still exposes `StaticText "x"` in the AX tree — HTML
+    // makes canvas fallback the element's accessible sub-tree. `unpainted`
+    // and `concealed` are what carry that split (`bl-e79a`).
+    assert_eq!(
+        structural("<canvas width=60><p>no canvas</p>raw</canvas>", "canvas"),
+        [
+            ("p".into(), true, false),
+            (r#"Text("raw")"#.into(), true, false),
+        ]
+    );
+}
+
+#[test]
+fn a_replaced_subtree_element_both_unpaints_and_conceals() {
+    // The rest of the fallback set has one answer for both questions: the UA
+    // replaces the subtree outright, so neither the page nor the AX tree has
+    // it. `<iframe>` joins the media pair on the same measurement.
+    for tag in ["video", "audio"] {
+        let html = format!("<{tag}><p>fallback</p></{tag}>");
+        assert_eq!(structural(&html, tag), [("p".into(), true, true)], "{tag}");
+    }
+    // An `<iframe>`'s content is parsed as raw text, never elements — Chrome
+    // reports the same single text node — so its one child is the whole
+    // markup, withheld all the same.
+    assert_eq!(
+        structural("<iframe><p>fallback</p></iframe>", "iframe"),
+        [(r#"Text("<p>fallback</p>")"#.into(), true, true)]
+    );
+}
+
+#[test]
+fn object_picture_and_ordinary_parents_withhold_nothing() {
+    // `<object>` fallback turns on a load outcome frot never learns, and a
+    // `<picture>`'s children are not fallback at all — the `<img>` is the
+    // rendered element (`bl-e79a`, measured, deliberately unchanged).
+    for tag in ["object", "picture", "div", "span"] {
+        let html = format!("<{tag}><p>inside</p>raw</{tag}>");
+        assert_eq!(
+            structural(&html, tag),
+            [
+                ("p".into(), false, false),
+                (r#"Text("raw")"#.into(), false, false),
+            ],
+            "{tag}"
+        );
+    }
+}
+
+#[test]
+fn a_closed_details_is_both_unpainted_and_concealed() {
+    // The `<details>` rule is document *state*, not a tag fact, so it holds
+    // for both queries and keeps the disclosure body out of the AX tree.
+    assert_eq!(
+        structural(
+            "<details><summary>S</summary><p>body</p></details>",
+            "details"
+        ),
+        [("summary".into(), false, false), ("p".into(), true, true)]
+    );
+}
+
+#[test]
+fn only_the_replaced_subtree_elements_withhold_children_from_ax() {
+    let doc = Document::parse(
+        "<video></video><audio></audio><iframe></iframe><canvas></canvas>\
+         <object></object><picture></picture><div></div>",
+    );
+    let withheld: Vec<&str> = [
+        "video", "audio", "iframe", "canvas", "object", "picture", "div",
+    ]
+    .into_iter()
+    .filter(|t| doc.withholds_children_from_ax(first_element(&doc, t)))
+    .collect();
+    assert_eq!(withheld, ["video", "audio", "iframe"]);
+    // Asked of a non-element node it is simply false — there is no tag.
+    let text = Document::parse("<p>t</p>");
+    let p = first_element(&text, "p");
+    assert!(!text.withholds_children_from_ax(text.node(p).children[0]));
 }

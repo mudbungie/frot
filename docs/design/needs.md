@@ -281,13 +281,64 @@ itself lives in `tags::renders_children`, and that placement is the difference:
 media fallback is a **content model** fact, not a UA *stylesheet* one, so no
 cascade is needed to see it and `--css` is not what makes it true. It therefore
 also holds in the raw views, which read it in the recipe-independent skips they
-already keep for `<script>`/`<iframe>`/`<svg>`. `[hidden]` and a closed
-`<details>` are document *state* and stay cascade-gated; this is what the
-markup means.
+already keep for `<script>`/`<svg>`. `[hidden]` and a closed `<details>` are
+document *state* and stay cascade-gated; this is what the markup means.
 
-`<object>`/`<canvas>` fallback is deliberately **not** in that set: the same
-argument looks like it should extend, but the ball asked for evidence rather
-than assumption, and none was measured here (`bl-e79a`).
+**The audit of the rest of the class (`bl-e79a`).** `<object>`/`<canvas>`/
+`<picture>` were left out of `bl-0f83` pending evidence. Measured 2026-08-11
+against Chrome 139 headless at 1280×720, reading `body.innerText`,
+`Range.getClientRects()` per text node, and `Accessibility.getFullAXTree`:
+
+| markup | painted | in AX |
+|---|---|---|
+| `<canvas>x</canvas>` | no | **yes** (`StaticText "x"`) |
+| `<iframe>x</iframe>` | no | no |
+| `<object data=ok.png>x</object>` (loads) | no | no |
+| `<object data=404.png>x</object>` | **yes** | **yes** |
+| `<object data=ok.png type=unsupported>x</object>` | **yes** | **yes** |
+| `<object>x</object>` (no `data`, no `type`) | **yes** | **yes** |
+| `<object type=image/png>x</object>` (no `data`) | no | no |
+| `<picture>x<img alt=a></picture>` | **yes** | **yes** |
+
+Three different answers, so three outcomes:
+
+- **`<canvas>` joins the set, but only for paint.** Its fallback content *is*
+  its accessible sub-tree, so the page must lose it and the AX tree must keep
+  it. One boolean could not say that, so `dom/conceal.rs` now answers two
+  questions — `unpainted` (no box) and `concealed` (no box *and* no AX node),
+  the strict subset the cascade folds into `display:none` (`layout.md` §2.1).
+  Repro before the fix: `<canvas>Your browser does not support canvas.</canvas>`
+  came out as body text under `--css --out text` and as a sized `bboxes` entry.
+- **`<object>` is deliberately unchanged.** Chrome paints its fallback exactly
+  when the resource does not become the element's box, which turns on the fetch
+  result, the sniffed MIME type and plugin support. frot never fetches
+  `<object data>`, so it cannot know which row it is looking at, and guessing an
+  outcome would be inventing state. Leaving the fallback rendered reports the
+  copy the document actually carries.
+- **`<picture>` is deliberately unchanged** — not fallback at all. Its
+  `<source>` children are void configuration and the `<img>` *is* the rendered
+  element; text sitting directly inside a `<picture>` paints and is exposed like
+  text in a `<span>`, which is already what frot does.
+
+Two residuals of `bl-0f83` fell out of the same audit and are fixed here: the
+inline collector measured a *text* node's width without asking whether it
+rendered, and `views::bboxes`'s `text` field read direct text nodes raw — so a
+`<video>`'s fallback prose still sized and captioned the replaced box. Both gates
+now sit above the element/text split, where the `<details>` walk already put
+theirs.
+
+`needs` asks the *paint* question (`unpainted`), not the cascade's: a page whose
+only body copy is canvas fallback paints nothing, so the `text` view honestly has
+no impression, and `needs: js` is literally right — a canvas has no content
+until a script draws one.
+
+**Still open, measured but out of scope.** `views::text` skips `<svg>` and
+`<math>` outright, but Chrome paints and exposes their text: `<svg><a
+href=/x><text>SVG_LINK_TEXT</text></a></svg>` yields a real client rect, an
+`innerText` line, and `link "SVG_LINK_TEXT"` in the AX tree — and frot's own
+`ax` and `bboxes` views agree, so only the `text` view omits it. That is a
+divergence in the *opposite* direction from this ball (omitting text a user
+sees) and needs its own task.
 
 Accepted residuals:
 

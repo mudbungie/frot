@@ -86,27 +86,58 @@ all, which is what keeps it out of `--out ax` when no styles are computed.
 
 Two further UA rules are **structural** rather than declarations — the parent's
 box swallows the child — so they land *after* the cascade rather than inside it
-(`css::cascade::conceal`, `dom::Document::concealed`). Every child they hit —
-element **or text node** — computes to `display: none`:
+(`css::cascade::conceal`, `dom::Document::concealed`, `dom/conceal.rs`). Every
+child they hit — element **or text node** — generates no box:
 
 - a `<details>` without `open` renders only its first `<summary>` child
   (`bl-74a6`);
-- a media element (`<video>`/`<audio>`) renders **none** of its children, which
-  HTML defines as fallback for a UA that does not implement the element
-  (`tags::renders_children`, `bl-0f83`).
+- a **fallback-content element** paints **none** of its children, which HTML
+  defines as content for a UA that does not implement the element
+  (`tags::renders_children`: `<video>`, `<audio>`, `<iframe>`, `<canvas>`;
+  `bl-0f83`, `bl-e79a`).
 
 Neither is author-overridable, because the box the UA skips is the parent's —
-`<details>`'s `::details-content`, the media element's replaced box — not the
-child's, and frot has no anonymous boxes to give the child one. Text nodes
-carry it too: `Styles` is parallel to the whole arena, so
+`<details>`'s `::details-content`, the element's replaced box — not the child's,
+and frot has no anonymous boxes to give the child one. Text nodes carry it too:
+`Styles` is parallel to the whole arena, so
 `<details><summary>Q</summary>A</details>` drops the `A` with everything else.
-Consumers need no new query — they already prune a subtree at `display:none`.
 
-The media half is a *content model* fact rather than a UA stylesheet one, so it
-also holds without `--css`: `views::text` and `ax::tree` read
-`tags::renders_children` in their own recipe-independent skips, the same way
-they already skip `<script>`/`<iframe>`/`<svg>`. The `<details>` half is state
-in the document and stays cascade-gated like `[hidden]`.
+### 2.1 Two structural queries, because `<canvas>` splits them (`bl-e79a`)
+
+"Not painted" and "not in the accessibility tree" were one fact until `<canvas>`
+was measured. HTML makes canvas fallback content the element's **accessible
+sub-tree**: Chrome 139 headless at 1280×720 gives `<canvas>x</canvas>` zero
+`getClientRects()` and no `innerText`, and still exposes a live
+`StaticText "x"` in `Accessibility.getFullAXTree`. Chrome does not model this as
+`display:none` either — the fallback computes `display:block`,
+`visibility:visible`, and simply generates no box. So `dom/conceal.rs` carries
+two queries over one tag table:
+
+| query | means | read by |
+|---|---|---|
+| `Document::unpainted` | generates no box | `layout::renders`, `needs::not_rendered` |
+| `Document::concealed` | unpainted **and** absent from the AX tree | `css::cascade::conceal` → `display:none` |
+
+`concealed` is the strict subset; they differ on `<canvas>` alone. Canvas
+fallback must stay out of the cascade's `display:none` precisely because
+`ax::tree` prunes there, and pruning it would drop the sub-tree HTML says a
+screen-reader user gets — the VISION §5 violation in the opposite direction from
+emitting text nobody sees. The exception is confined to the tag table:
+authored `display:none` inside canvas fallback still hides it from AX, in Chrome
+and here alike, because that arrives through the cascade.
+
+`layout::renders` is therefore the render-tree gate, and it sits **above the
+element/text split** — the box the UA skips is the parent's, so a `<video>`'s or
+`<canvas>`'s raw text is no more measurable than its markup. `views::bboxes`
+reads the same predicate for an element's `text` field, so a replaced box is
+never sized or captioned from copy nothing paints.
+
+The fallback half is a *content model* fact rather than a UA stylesheet one, so
+it also holds without `--css`: `views::text` and `ax::tree` read
+`tags::renders_children` / `tags::exposes_children` in their own
+recipe-independent skips, the same way they already skip
+`<script>`/`<svg>`/`<math>`. The `<details>` half is state in the document and
+stays cascade-gated like `[hidden]`.
 
 Its block-level tag set is *the same list* `views::text.rs` already uses for
 block breaks (`BLOCK_TAGS`) — extract it to one place so the two never drift

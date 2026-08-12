@@ -152,69 +152,6 @@ impl Document {
         out
     }
 
-    /// Whether `id` is concealed by its **parent** — the UA rules that withhold
-    /// a node for what its parent is, rather than for anything the node itself
-    /// carries ([`Element::hidden`] is the attribute-local half of the same
-    /// question). Answered for text nodes as much as elements: the box the UA
-    /// skips is the parent's, so everything inside it goes, markup or not.
-    ///
-    /// Two rules, both of them "the parent's box swallows the child":
-    ///
-    /// - A **`<details>` without `open`** renders only its first `<summary>`
-    ///   element child — the disclosure control. Every other child is
-    ///   disclosure content, which HTML Rendering ("The `details` and `summary`
-    ///   elements") puts in a `::details-content` box that is
-    ///   `content-visibility: hidden` while closed. A closed `<details>` with
-    ///   no `<summary>` conceals every child — the UA supplies its own
-    ///   disclosure control, which is not in the document.
-    /// - A **media element** renders *none* of its children
-    ///   ([`crate::tags::renders_children`], which owns that fact and is also
-    ///   read by the recipe-independent subtree skips in `views::text` and
-    ///   `ax::tree`).
-    ///
-    /// So, unlike `[hidden]`, no author declaration on the child reveals it:
-    /// the skipped box is not the child's, and frot has no anonymous boxes to
-    /// give it one.
-    ///
-    /// Two consumers keep it honest, the same pair [`Element::hidden`] has: the
-    /// cascade (`css::cascade`), which routes it on to `--css` text, the AX
-    /// tree and geometry, and the needs detector (`needs::not_rendered`), which
-    /// has no cascade to consult without `--css`.
-    pub fn concealed(&self, id: NodeId) -> bool {
-        let Some(parent) = self.node(id).parent else {
-            return false;
-        };
-        self.withholds_children(parent)
-            || (self.closed_details(parent) && self.first_summary(parent) != Some(id))
-    }
-
-    /// Whether `id` is an element that renders none of its children —
-    /// [`crate::tags::renders_children`], the one home of the fallback-content
-    /// fact. `<source>`/`<track>` are covered by it like any other child: they
-    /// configure the box, they are never rendered beside it.
-    pub fn withholds_children(&self, id: NodeId) -> bool {
-        matches!(&self.node(id).kind,
-            NodeKind::Element(el) if !crate::tags::renders_children(&el.name))
-    }
-
-    /// Whether `id` is a `<details>` element carrying no `open` attribute.
-    /// `open` is a boolean attribute, so presence is the fact.
-    fn closed_details(&self, id: NodeId) -> bool {
-        matches!(&self.node(id).kind,
-            NodeKind::Element(el) if el.name == "details" && el.attr("open").is_none())
-    }
-
-    /// The first `<summary>` element child of `id`, if any — the one child a
-    /// closed `<details>` renders (`details > summary:first-of-type`); a later
-    /// `<summary>` is disclosure content like any other child.
-    fn first_summary(&self, id: NodeId) -> Option<NodeId> {
-        self.node(id)
-            .children
-            .iter()
-            .copied()
-            .find(|&c| matches!(&self.node(c).kind, NodeKind::Element(el) if el.name == "summary"))
-    }
-
     pub fn text_content(&self, id: NodeId) -> String {
         let mut s = String::new();
         self.walk(Some(id), &mut |ev, entry| {
@@ -268,6 +205,7 @@ fn node_data_to_kind(data: &NodeData) -> NodeKind {
     }
 }
 
+mod conceal;
 mod mutate;
 
 #[cfg(test)]

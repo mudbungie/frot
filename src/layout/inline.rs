@@ -34,7 +34,7 @@
 
 use std::collections::HashMap;
 
-use super::{is_rendered_element, Rect, GLYPH_ADVANCE, LINE_HEIGHT};
+use super::{is_rendered_element, renders, Rect, GLYPH_ADVANCE, LINE_HEIGHT};
 use crate::css::Styles;
 use crate::dom::{Document, NodeId, NodeKind};
 
@@ -110,8 +110,13 @@ fn contents(
 /// Walk `id` in source order, appending a [`Word`] per whitespace-separated run
 /// of its rendered text. `ancestors` tracks the enclosing inline-element stack; a
 /// `display:none`/non-rendered element and its whole subtree are skipped (its
-/// generated content with it), a text node is tokenized, any other node kind
-/// contributes nothing.
+/// generated content with it), a rendered text node is tokenized, any other node
+/// kind contributes nothing.
+///
+/// The [`renders`] gate is taken *before* the element/text split (`bl-e79a`):
+/// structural concealment skips the parent's box, so a `<video>`'s or
+/// `<canvas>`'s raw text is no more measurable than its markup, and measuring it
+/// used to size the replaced box from copy nothing paints.
 fn collect(
     doc: &Document,
     styles: &Styles,
@@ -119,6 +124,9 @@ fn collect(
     ancestors: &mut Vec<NodeId>,
     words: &mut Vec<Word>,
 ) {
+    if !renders(doc, id, styles) {
+        return;
+    }
     match &doc.node(id).kind {
         NodeKind::Text(t) => tokenize(Some(t), ancestors, words),
         NodeKind::Element(_) => {

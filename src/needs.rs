@@ -217,13 +217,19 @@ fn is_sectioning(name: &str) -> bool {
 /// `display`. Without it there is no cascade, and the document's own two
 /// visibility facts — the `hidden` attribute and a closed `<details>` —
 /// are all there is.
+///
+/// The structural half asked here is the *paint* one
+/// ([`Document::unpainted`], `bl-e79a`), which is wider than what the cascade
+/// folds in: a `<canvas>`'s fallback content stays in the accessibility tree
+/// but is painted nowhere, so counting it as body content would report a page
+/// as fed when the `text` view emits nothing. Flagging it is also literally
+/// right — a canvas has no content until a script draws one.
 fn not_rendered(doc: &Document, id: NodeId, styles: Option<&Styles>) -> bool {
-    match styles {
-        Some(s) => s.display_none(id),
-        None => {
-            doc.concealed(id) || matches!(&doc.node(id).kind, NodeKind::Element(el) if el.hidden())
+    doc.unpainted(id)
+        || match styles {
+            Some(s) => s.display_none(id),
+            None => matches!(&doc.node(id).kind, NodeKind::Element(el) if el.hidden()),
         }
-    }
 }
 
 fn find_body(doc: &Document) -> Option<NodeId> {

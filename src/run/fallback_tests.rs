@@ -25,7 +25,7 @@ const MEDIA: &str = "<html><body><p>before</p>\
      <p>Sorry, your browser does not support embedded videos</p>\
      </video><p>after</p></body></html>";
 
-fn run_capture(args: &[&str]) -> (u8, String) {
+pub(super) fn run_capture(args: &[&str]) -> (u8, String) {
     let mut out = Vec::new();
     let mut err = Vec::new();
     let argv: Vec<String> = args.iter().map(|s| s.to_string()).collect();
@@ -33,7 +33,7 @@ fn run_capture(args: &[&str]) -> (u8, String) {
     (code, String::from_utf8(out).unwrap())
 }
 
-fn serve_and_run(body: &str, args: &[&str]) -> Value {
+pub(super) fn serve_and_run(body: &str, args: &[&str]) -> Value {
     let mut server = mockito::Server::new();
     let _m = server
         .mock("GET", "/")
@@ -49,7 +49,7 @@ fn serve_and_run(body: &str, args: &[&str]) -> Value {
 }
 
 /// Every `role` in the `ax` payload, in emission order.
-fn ax_roles(v: &Value) -> Vec<String> {
+pub(super) fn ax_roles(v: &Value) -> Vec<String> {
     fn walk(v: &Value, out: &mut Vec<String>) {
         if let Value::Array(arr) = v {
             for item in arr {
@@ -64,7 +64,7 @@ fn ax_roles(v: &Value) -> Vec<String> {
 }
 
 /// Every emitted `tag` in the `bboxes` payload, in reading order.
-fn bbox_tags(v: &Value) -> Vec<String> {
+pub(super) fn bbox_tags(v: &Value) -> Vec<String> {
     v["out"]
         .as_array()
         .unwrap()
