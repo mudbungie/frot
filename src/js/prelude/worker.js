@@ -10,6 +10,7 @@
 // which this runs after — it needs __frot_brand / __frot_iface).
 (function (g) {
   'use strict';
+  var onEvent = g.__frot_onevent;
   var brand = g.__frot_brand;
 
   // A branded native no-op. postMessage/terminate/port.close are real methods
@@ -19,27 +20,6 @@
     return brand(function () {}, name);
   }
 
-  // An event-handler IDL attribute (onmessage/onerror/…): an enumerable, native
-  // accessor on the prototype defaulting to null, storing its handler in a
-  // non-enumerable per-instance slot — exactly Firefox's shape. It is readable
-  // and settable; it simply never fires, because no thread dispatches to it.
-  function onEvent(proto, key) {
-    var slot = '_on_' + key;
-    Object.defineProperty(proto, key, {
-      get: brand(function () {
-        return Object.prototype.hasOwnProperty.call(this, slot) ? this[slot] : null;
-      }, 'get ' + key),
-      set: brand(function (fn) {
-        Object.defineProperty(this, slot, {
-          value: typeof fn === 'function' ? fn : null,
-          configurable: true,
-          writable: true,
-        });
-      }, 'set ' + key),
-      enumerable: true,
-      configurable: true,
-    });
-  }
 
   // The EventTarget methods Worker/SharedWorker/MessagePort inherit: present and
   // native. add/remove accept and discard — nothing frot does will ever dispatch

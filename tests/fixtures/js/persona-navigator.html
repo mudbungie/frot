@@ -293,11 +293,14 @@
   // Async: query()/requestPermission() resolutions and rejections. Their .then
   // callbacks run in the microtask drain AFTER this script, so they fold into
   // FAILS and re-write data-fail below — the Rust gate reads it only after settle.
-  function permOk(nm) {
+  // `want` is the state a REAL Firefox resolves for this name on a fresh profile
+  // (measured, two fresh profiles, bl-1ab7): 'prompt' for everything a user must
+  // consent to, but 'granted' for screen-wake-lock, which needs no consent.
+  function permOk(nm, want) {
     return perms.query({ name: nm }).then(function (s) {
       ok('perm:' + nm + ':status', s instanceof PermissionStatus);
       eq('perm:' + nm + ':tag', Object.prototype.toString.call(s), '[object PermissionStatus]');
-      eq('perm:' + nm + ':state', s.state, 'prompt');
+      eq('perm:' + nm + ':state', s.state, want || 'prompt');
       eq('perm:' + nm + ':name', s.name, nm);
       eq('perm:' + nm + ':onchange', s.onchange, null);
       native('perm:' + nm + ':addEventListener', s.addEventListener);
@@ -310,6 +313,7 @@
   }
   var asyncChecks = [
     permOk('geolocation'), permOk('notifications'), permOk('camera'),
+    permOk('screen-wake-lock', 'granted'),
     permRejects('perm:bogus', { name: 'bogus' }),   // unknown enum value
     permRejects('perm:noname', {}),                 // missing required member
     permRejects('perm:nonobj', 'geolocation'),      // not an object
@@ -505,6 +509,47 @@
   // lines); outputLatency is the device buffer and is positive.
   ok('ac:baseLatency', typeof ac.baseLatency === 'number' && ac.baseLatency === 0);
   ok('ac:outputLatency', ac.outputLatency > 0.033 && ac.outputLatency < 0.044);
+
+  // --- Surfaces re-read off Firefox 153.0esr (bl-1ab7, identity.md §3.12).
+  // Each of these pins a value that USED to be folklore here; the comment names
+  // what a real Firefox reports, so a regression reads as a diff against a
+  // measurement rather than against someone's belief.
+  // A native accessor: `.name` keeps the `get ` prefix, `.toString()` drops it.
+  var wd = Object.getOwnPropertyDescriptor(Screen.prototype, 'width');
+  eq('fn:getter-name', wd.get.name, 'get width');
+  eq('fn:getter-tostring', wd.get.toString(), 'function width() {\n    [native code]\n}');
+  ok('fn:getter-no-get-prefix', wd.get.toString().indexOf('function get ') === -1);
+  // Illegal-constructor text ends in a period.
+  try { new Screen(); ok('iface:illegal-throws', false); }
+  catch (e) { eq('iface:illegal-message', e.message, 'Illegal constructor.'); }
+  // Gecko's legacy Screen surface — present, and in Firefox's own order.
+  var sp = Object.getOwnPropertyNames(Screen.prototype);
+  ok('screen:moz-legacy', sp.indexOf('mozOrientation') !== -1
+    && sp.indexOf('mozLockOrientation') !== -1 && sp.indexOf('onmozorientationchange') !== -1);
+  eq('screen:moz-orientation', screen.mozOrientation, 'landscape-primary');
+  eq('screen:mozLock-returns-false', screen.mozLockOrientation('landscape-primary'), false);
+  eq('screen:top-left', screen.top + ',' + screen.left, '0,0');
+  ok('screen:orientation-lock-unlock', typeof screen.orientation.lock === 'function'
+    && typeof screen.orientation.unlock === 'function');
+  // Intl: constructors are non-enumerable, and the tag is qualified.
+  eq('intl:keys-empty', Object.keys(Intl).length, 0);
+  eq('intl:dtf-tag', Object.prototype.toString.call(new Intl.DateTimeFormat()),
+     '[object Intl.DateTimeFormat]');
+  // crypto: Gecko's own error wording, not the spec's prose.
+  try { crypto.getRandomValues(new Float32Array(2)); ok('crypto:float-throws', false); }
+  catch (e) { eq('crypto:float-name', e.name, 'TypeMismatchError');
+    ok('crypto:float-message', e.message.indexOf('The type of an object is incompatible') === 0); }
+  try { crypto.getRandomValues(new Uint8Array(70000)); ok('crypto:quota-throws', false); }
+  catch (e) { eq('crypto:quota-message', e.message,
+    'Crypto.getRandomValues: getRandomValues can only generate maximum 65536 bytes'); }
+  // indexedDB: three distinct version failures, and 1.5 is not one of them.
+  try { indexedDB.open('d', 0); ok('idb:zero-throws', false); }
+  catch (e) { eq('idb:zero-message', e.message,
+    'IDBFactory.open: 0 (Zero) is not a valid database version.'); }
+  try { indexedDB.open('d', -1); ok('idb:negative-throws', false); }
+  catch (e) { ok('idb:negative-message', e.message.indexOf('out of range for unsigned long long') !== -1); }
+  ok('idb:fractional-version-ok', (function () {
+    try { indexedDB.open('d', 1.5); return true; } catch (e) { return false; } })());
   ok('ac:resume-promise', ac.resume() instanceof Promise);
   ok('ac:suspend-promise', ac.suspend() instanceof Promise);
   ok('ac:close-promise', ac.close() instanceof Promise);

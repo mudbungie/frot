@@ -752,8 +752,9 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   `window.Notification` is a branded, constructable interface (static
   `permission`/`maxActions`/`requestPermission`). Every value is fixed / never
   random: on a FRESH profile nothing is granted or denied, so `query()` resolves
-  `state: 'prompt'` for every recognised name (the Firefox 140esr `PermissionName`
-  enum, as measured then and not re-read for the 153esr re-pin — `bl-b128`; an
+  the state a real Firefox resolves on a fresh profile — `'prompt'` for eight
+  names and `'granted'` for `screen-wake-lock`, measured on 153esr (`bl-1ab7`,
+  identity.md §3.12), which also re-verified the `PermissionName` enum itself; an
   unrecognised name **rejects** with the coherent `TypeError`),
   `Notification.permission` is `'default'`, and `requestPermission()` resolves an
   honest `'default'`. frot raises no prompt and shows no notification — a

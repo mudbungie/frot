@@ -21,12 +21,17 @@
       array instanceof Float32Array ||
       array instanceof Float64Array
     ) {
-      throw domError('TypeMismatchError', 'The provided ArrayBufferView is not an integer-typed view');
+      // Message READ off Firefox 153.0esr (`bl-1ab7`, §3.12) — it is Gecko's
+      // generic TypeMismatchError text, not the spec prose frot paraphrased.
+      throw domError('TypeMismatchError', 'The type of an object is incompatible '
+        + 'with the expected type of the parameter associated to the object');
     }
     if (array.byteLength > 65536) {
       throw domError(
         'QuotaExceededError',
-        "The ArrayBufferView's byte length (" + array.byteLength + ') exceeds the number of bytes of entropy available (65536)'
+        // Firefox's own wording, measured (`bl-1ab7`): it names the method and
+        // the cap, and does NOT quote the offending byte length.
+        'Crypto.getRandomValues: getRandomValues can only generate maximum 65536 bytes'
       );
     }
     var bytes = g.__frot_random_bytes(array.byteLength);

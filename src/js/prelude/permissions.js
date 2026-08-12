@@ -14,6 +14,7 @@
 // __frot_iface) and navigator.js (extends Navigator.prototype). No syscall.
 (function (g) {
   'use strict';
+  var onEvent = g.__frot_onevent;
   var brand = g.__frot_brand;
   var iface = g.__frot_iface;
 
@@ -23,25 +24,6 @@
     return brand(function () {}, name);
   }
 
-  // An event-handler IDL accessor (onchange/onclick/…): enumerable, native,
-  // defaults null, settable — but never fires (silence is the residual).
-  function onEvent(proto, key) {
-    var slot = '_on_' + key;
-    Object.defineProperty(proto, key, {
-      get: brand(function () {
-        return Object.prototype.hasOwnProperty.call(this, slot) ? this[slot] : null;
-      }, 'get ' + key),
-      set: brand(function (fn) {
-        Object.defineProperty(this, slot, {
-          value: typeof fn === 'function' ? fn : null,
-          configurable: true,
-          writable: true,
-        });
-      }, 'set ' + key),
-      enumerable: true,
-      configurable: true,
-    });
-  }
 
   // The EventTarget methods PermissionStatus / Notification inherit: present and
   // native. Nothing frot does dispatches to them, so retained listeners would be
@@ -84,27 +66,31 @@
   }
 
   // --- Permissions / PermissionStatus ----------------------------------------
-  // The Firefox 140esr PermissionName enum (dom/webidl/Permissions.webidl): a
-  // name outside it is not a valid enumeration value, so query() REJECTS with a
-  // TypeError, exactly as Firefox does. On a FRESH profile every recognised name
-  // resolves 'prompt' — nothing granted, nothing denied (deterministic, never
-  // random; no name defaults 'granted' un-prompted, so 'prompt' is the coherent
-  // answer across the board).
+  // The PermissionName enum, and each name's state on a FRESH profile — both
+  // READ from Firefox 153.0esr, two fresh profiles, `bl-1ab7` (identity.md
+  // §3.12). A name outside the enum is not a valid enumeration value, so query()
+  // REJECTS with a TypeError. The states are not uniform: `screen-wake-lock`
+  // resolves **granted** un-prompted (it needs no user consent), and the earlier
+  // "no name defaults 'granted', so 'prompt' across the board" was a belief the
+  // measurement refuted. Every value here is fixed / profile-independent.
   var NAMES = {
-    geolocation: 1, notifications: 1, push: 1, 'persistent-storage': 1,
-    midi: 1, 'storage-access': 1, 'screen-wake-lock': 1, camera: 1, microphone: 1,
+    geolocation: 'prompt', notifications: 'prompt', push: 'prompt',
+    'persistent-storage': 'prompt', midi: 'prompt', 'storage-access': 'prompt',
+    'screen-wake-lock': 'granted', camera: 'prompt', microphone: 'prompt',
   };
 
+  // `name` before `state`: that is the own-property order a real
+  // PermissionStatus prototype enumerates in (measured, §3.12).
   var PermissionStatus = iface('PermissionStatus', {
-    state: function () { return this._state; },
     name: function () { return this._name; },
+    state: function () { return this._state; },
   });
   eventTarget(PermissionStatus.prototype);
   onEvent(PermissionStatus.prototype, 'onchange');
 
   function status(name) {
     var s = Object.create(PermissionStatus.prototype);
-    setSlot(s, 'state', 'prompt');
+    setSlot(s, 'state', NAMES[name]);
     setSlot(s, 'name', name);
     return s;
   }
@@ -119,14 +105,14 @@
     }
     if (permission === null || typeof permission !== 'object') {
       return Promise.reject(new TypeError(
-        "Permissions.query: Argument 1 can't be converted to a dictionary"));
+        'Permissions.query: Argument 1 is not an object.'));
     }
     if (!('name' in permission) || permission.name === undefined) {
       return Promise.reject(new TypeError(
-        "Permissions.query: Missing required 'name' member of PermissionDescriptor"));
+        "Missing required 'name' member of PermissionDescriptor."));
     }
     var name = String(permission.name);
-    if (NAMES[name] !== 1) {
+    if (!Object.prototype.hasOwnProperty.call(NAMES, name)) {
       return Promise.reject(new TypeError(
         "Permissions.query: '" + name + "' (value of 'name' member of " +
         'PermissionDescriptor) is not a valid value for enumeration PermissionName.'));

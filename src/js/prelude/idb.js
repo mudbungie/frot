@@ -70,7 +70,8 @@
   function pendingThrows(proto, key) {
     Object.defineProperty(proto, key, {
       get: brand(function () {
-        throw domError('InvalidStateError', 'The request has not finished.');
+        throw domError('InvalidStateError',
+          'An attempt was made to use an object that is not, or is no longer, usable');
       }, 'get ' + key),
       enumerable: true,
       configurable: true,
@@ -85,7 +86,8 @@
     if (k instanceof Date && !isNaN(k.getTime())) return 1;
     if (typeof k === 'string') return 2;
     if (Array.isArray(k)) return 3;
-    throw domError('DataError', 'The parameter is not a valid key.');
+    throw domError('DataError',
+      'Data provided to an operation does not meet requirements.');
   }
   function cmpKeys(a, b) {
     var ra = keyRank(a);
@@ -131,10 +133,22 @@
     if (arguments.length < 1) {
       throw new TypeError('IDBFactory.open: At least 1 argument required, but only 0 passed');
     }
+    // Three distinct WebIDL failures, each message READ off Firefox 153.0esr
+    // (`bl-1ab7`, §3.12) rather than paraphrased: a non-finite version, a
+    // negative one (unsigned long long range), and zero. `1.5` is NOT an error —
+    // it coerces to 1 — so no integrality check belongs here.
     if (version !== undefined) {
       var v = Number(version);
-      if (isNaN(v) || v < 1) {
-        throw new TypeError('IDBFactory.open: The version must be an integer >= 1, got ' + version);
+      if (!isFinite(v)) {
+        throw new TypeError('IDBFactory.open: Argument 2 is not a finite value, '
+          + 'so is out of range for unsigned long long.');
+      }
+      if (v < 0) {
+        throw new TypeError(
+          'IDBFactory.open: Argument 2 is out of range for unsigned long long.');
+      }
+      if (Math.floor(v) === 0) {
+        throw new TypeError('IDBFactory.open: 0 (Zero) is not a valid database version.');
       }
     }
     return openRequest();

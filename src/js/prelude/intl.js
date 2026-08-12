@@ -39,14 +39,24 @@
     return d.getUTCMonth() + 1 + '/' + d.getUTCDate() + '/' + d.getUTCFullYear();
   });
   g.__frot_brand(DateTimeFormat, 'DateTimeFormat');
+  // `Object.prototype.toString.call(new Intl.DateTimeFormat())` is
+  // `[object Intl.DateTimeFormat]`, not `[object Object]` — the tag is on the
+  // PROTOTYPE and it carries the `Intl.` qualifier. Descriptor and value both
+  // READ off Firefox 153.0esr (`bl-1ab7`, identity.md §3.12).
+  Object.defineProperty(DateTimeFormat.prototype, Symbol.toStringTag, {
+    value: 'Intl.DateTimeFormat', writable: false, enumerable: false, configurable: true,
+  });
 
   var Intl = {};
   Object.defineProperty(Intl, Symbol.toStringTag, { value: 'Intl', configurable: true });
+  // Non-enumerable: measured, `Object.keys(Intl)` is `[]` on a real Firefox even
+  // though it carries twelve constructors. An enumerable one would make frot the
+  // only browser whose `Object.keys(Intl)` is non-empty.
   Object.defineProperty(Intl, 'DateTimeFormat', {
     value: DateTimeFormat,
     configurable: true,
     writable: true,
-    enumerable: true,
+    enumerable: false,
   });
   Object.defineProperty(g, 'Intl', {
     value: Intl,

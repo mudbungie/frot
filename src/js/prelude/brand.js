@@ -17,10 +17,20 @@
 
   // The one wrapper. A registered function renders as native code under its
   // display name; everything else (page/library code) still sees true source.
+  //
+  // An accessor's display name is its SPEC name — `get width` / `set onmessage`
+  // — because that is what `fn.name` must read. Its `toString()`, though, drops
+  // the prefix: measured on Firefox 153.0esr (`bl-1ab7`, identity.md §3.12),
+  //   Object.getOwnPropertyDescriptor(Screen.prototype,'width').get
+  //     .name     === 'get width'
+  //     .toString() === 'function width() {\n    [native code]\n}'
+  // and the setter renders under the bare name too. Rendering `function get
+  // width()` — as this did until the surfaces were read off a real binary — is a
+  // string no Firefox emits, so every branded getter was a tell.
   function toString() {
     var name = reg.get(this);
     if (name !== undefined) {
-      return 'function ' + name + '() {\n    [native code]\n}';
+      return 'function ' + name.replace(/^(get|set) /, '') + '() {\n    [native code]\n}';
     }
     return realToString.call(this);
   }
@@ -35,7 +45,16 @@
   // call site, owns the disguise (identity.md §8: "do not hand-patch each call").
   function brand(fn, name) {
     if (typeof fn === 'function') {
-      reg.set(fn, name === undefined ? fn.name : name);
+      var display = name === undefined ? fn.name : name;
+      reg.set(fn, display);
+      // `fn.name` is the other half of the disguise and the half a page reads
+      // directly: a real native accessor reports `get width` (measured, §3.12)
+      // where an unnamed prelude function expression reports `''`. Set it here,
+      // at the one site that already owns the display name, so no call site has
+      // to remember. `name` is configurable-but-not-writable on functions.
+      try {
+        Object.defineProperty(fn, 'name', { value: display, configurable: true });
+      } catch (e) { /* frozen or exotic: the toString disguise still holds */ }
     }
     return fn;
   }
@@ -53,7 +72,8 @@
   function iface(name, accessors) {
     var holder = {};
     holder[name] = function () {
-      throw new TypeError('Illegal constructor');
+      // Measured on 153.0esr (`bl-1ab7`): the message ends in a period.
+      throw new TypeError('Illegal constructor.');
     };
     var Ctor = holder[name];
     brand(Ctor, name);
@@ -85,7 +105,30 @@
     return e;
   }
 
-  // Expose all three as NON-enumerable globals: the persona/capability modules
+  // An event-handler IDL accessor (`onchange`/`onclick`/…): enumerable, native,
+  // defaults null, settable, and never firing (the silence is each capability's
+  // declared residual). One maker for the same reason `domError` is one — four
+  // modules shape these (permissions, worker, screen, idb) and four copies of an
+  // accessor pair is four chances for one of them to drift out of Firefox's shape.
+  function onEvent(proto, key) {
+    var slot = '_on_' + key;
+    Object.defineProperty(proto, key, {
+      get: brand(function () {
+        return Object.prototype.hasOwnProperty.call(this, slot) ? this[slot] : null;
+      }, 'get ' + key),
+      set: brand(function (fn) {
+        Object.defineProperty(this, slot, {
+          value: typeof fn === 'function' ? fn : null,
+          configurable: true,
+          writable: true,
+        });
+      }, 'set ' + key),
+      enumerable: true,
+      configurable: true,
+    });
+  }
+
+  // Expose all four as NON-enumerable globals: the persona/capability modules
   // reach them, but a page walking `Object.keys(window)`/`for..in` never sees
   // them (the raw `__frot_*` syscalls' enumerability is a separate, documented
   // residual — js.md §7). Branded native so their own toString does not leak.
@@ -93,6 +136,7 @@
     ['__frot_brand', brand],
     ['__frot_iface', iface],
     ['__frot_domerror', domError],
+    ['__frot_onevent', onEvent],
   ].forEach(function (pair) {
     brand(pair[1], pair[0]);
     Object.defineProperty(g, pair[0], {
