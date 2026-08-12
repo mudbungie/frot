@@ -47,9 +47,9 @@ It covers `todomvc-common`'s `base.js` in all three rows.
 
 | Fixture | Deployment | Also contains | Modifications |
 | --- | --- | --- | --- |
-| `js/todomvc-es6.{html,bundle.js,base.js}` | `/examples/javascript-es6/dist/` | — (framework-free ES6 + webpack runtime) | none — verbatim |
-| `js/react-todomvc.{html,bundle.js,base.js}` | `/examples/react/dist/` | React 18-era react/react-dom/scheduler/jsx-runtime (MIT, © Meta Platforms, Inc. and affiliates, `licenses/react-19.LICENSE` — same text and copyright line as the 19.x tree) and `classnames` (MIT, © 2018 Jed Watson) | none — verbatim |
-| `js/vue-todomvc.{html,bundle.js,base.js}` | `/examples/vue/dist/` | Vue 3.5 (MIT, `licenses/vue-3.4.21.LICENSE` — unchanged text across 3.x) and vue-router 4 (MIT, © 2019-present Eduardo San Martin Morote, `licenses/vue-router.LICENSE`) | none — verbatim |
+| `js/todomvc-es6.html`, `js/todomvc-es6.bundle.js`, `js/todomvc-es6.base.js` | `/examples/javascript-es6/dist/` | — (framework-free ES6 + webpack runtime) | none — verbatim |
+| `js/react-todomvc.html`, `js/react-todomvc.bundle.js`, `js/react-todomvc.base.js` | `/examples/react/dist/` | React 18-era react/react-dom/scheduler/jsx-runtime (MIT, © Meta Platforms, Inc. and affiliates, `licenses/react-19.LICENSE` — same text and copyright line as the 19.x tree) and `classnames` (MIT, © 2018 Jed Watson) | none — verbatim |
+| `js/vue-todomvc.html`, `js/vue-todomvc.bundle.js`, `js/vue-todomvc.base.js` | `/examples/vue/dist/` | Vue 3.5 (MIT, `licenses/vue-3.4.21.LICENSE` — unchanged text across 3.x) and vue-router 4 (MIT, © 2019-present Eduardo San Martin Morote, `licenses/vue-router.LICENSE`) | none — verbatim |
 
 **`js/react-todomvc.bundle.js.LICENSE.txt`** is the upstream file the bundle's
 first line points at (`/*! For license information please see
