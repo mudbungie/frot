@@ -2,7 +2,7 @@
 // __frot_subfetch syscall. GET only: any other method rejects (fetch) / throws
 // (XHR), counted through the §10 unified error channel. A refused or failed
 // request rejects/errors the same way. No live network after a URL first
-// resolves; nothing persists past the call. Loads after loop.js (uses g.Event).
+// resolves; nothing persists past the call. Loads after events.js (uses g.Event).
 (function (g) {
   'use strict';
 

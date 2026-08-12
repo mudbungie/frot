@@ -74,7 +74,7 @@
   proto.removeAttributeNS = function (_ns, name) {
     this.removeAttribute(name);
   };
-  // getRootNode (bl-3a36): no shadow DOM (§11), so the root is the document for
+  // getRootNode (bl-3a36): no shadow DOM (js.md §11), so the root is the document for
   // connected nodes and the subtree top for detached ones — walk the one arena.
   proto.getRootNode = function () {
     var top = this;
@@ -260,7 +260,7 @@
   // addEventListener throws mid-render, React's unwind misaligns its shared
   // cursor stack, and the *next* render dies on a corrupted context ("You
   // cannot render a <Router> inside another <Router>"). The trio is Node's own
-  // (loop.js — one registry, one implementation, loaded by the time a page can
+  // (events.js — one registry, one implementation, loaded by the time a page can
   // construct a fragment), keyed per fragment by a unique negative _id no
   // arena node can ever carry.
   var fragSeq = 0;

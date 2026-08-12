@@ -6,7 +6,7 @@
 // into a per-context digest. This file owns that CONTEXT — its properties, its draw
 // API, and the element bridge; the two expansions of the digest a page reads back
 // (the bitmap and the twelve `TextMetrics` magnitudes) live in canvasexp.js, which
-// states their shared §11 residual once. The whole surface was re-read off Firefox
+// states their shared identity.md §11 residual once. The whole surface was re-read off Firefox
 // 153.0esr in `bl-d22f` (identity.md §3.12). Runs after brand.js/dom.js/canvaspng.js
 // /canvasexp.js; no syscall (determinism forbids entropy).
 (function (g) {
@@ -207,7 +207,7 @@
   }
 
   // width/height are tag-guarded accessors on Node.prototype — the same shared-
-  // prototype shape residual getContext had (§11). Resizing resets the bitmap.
+  // prototype shape residual getContext had (identity.md §11). Resizing resets the bitmap.
   function reflect(name, dflt) {
     Object.defineProperty(Node.prototype, name, {
       configurable: true,

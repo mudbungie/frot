@@ -197,7 +197,7 @@
     },
   });
 
-  // ownerDocument: the one document (no frames, §11).
+  // ownerDocument: the one document (no frames, js.md §11).
   Object.defineProperty(proto, 'ownerDocument', {
     configurable: true,
     get: function () {

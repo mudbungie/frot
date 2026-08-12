@@ -8,7 +8,7 @@
 // the graph, never random. NO webkit-prefixed alias (Firefox has none). Runs
 // after audiobuf.js (render/mix/class) and audionode.js (the node/buffer
 // factories). currentTime is a frozen 0 for a realtime context and state stays
-// 'suspended' (no audio hardware clock) — declared §11 residuals, coherent with
+// 'suspended' (no audio hardware clock) — declared identity.md §11 residuals, coherent with
 // the deterministic persona. No syscall — determinism forbids entropy.
 (function (g) {
   'use strict';

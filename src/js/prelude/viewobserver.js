@@ -8,7 +8,7 @@
 // lazy-load library that would fall back to eager loading under ABSENCE
 // instead waits forever, silently. The initial batch here is a truthful
 // observation: frot's viewport sits at scroll offset 0 and never scrolls,
-// resizes, or animates (§11), exactly a real browser left untouched after
+// resizes, or animates (js.md §11), exactly a real browser left untouched after
 // load. The declared residual (identity.md §11): later DOM-mutation-driven
 // geometry changes produce no further entries. Delivery is a task on the one
 // §5 timer queue (browsers deliver observer batches from the rendering steps —

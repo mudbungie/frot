@@ -21,16 +21,25 @@
 //! `location`/`matchMedia`, `self`/`window` aliasing, spec-legal denials), the
 //! WHATWG-subset `URL`/`URLSearchParams` (`url.js`, over the `__frot_url_parse`
 //! syscall), the
-//! virtual-clock loop (`loop.js`: `setTimeout`/`setInterval`/
-//! `requestAnimationFrame`, `addEventListener`/`dispatchEvent`, the
-//! `DOMContentLoaded`/`load` lifecycle), and `fetch`/`XMLHttpRequest` over the
+//! event registry and interfaces (`events.js`: `EventTarget`/`Event`/
+//! `CustomEvent`, `addEventListener`/`dispatchEvent`), the virtual-clock loop
+//! (`loop.js`: `setTimeout`/`setInterval`/`requestAnimationFrame` and the
+//! `DOMContentLoaded`/`load` lifecycle — WHEN the host fires, not what an event
+//! IS), and `fetch`/`XMLHttpRequest` over the
 //! once-then-frozen subfetch cache (`net.js`, js.md §6).
 
+/// **Cite the document, not just the section.** `identity.md` and `js.md` both
+/// number their sections 1-13, and the same number means different things in
+/// each — §11 is *Residuals* in one and *Non-goals* in the other. A bare `(§11)`
+/// once sent an auditing agent to the wrong document and had it report a
+/// correctly-declared residual as undeclared (`bl-6438`), so every section
+/// reference in this module and the prelude names its file.
+///
 /// The concatenated prelude source. Each module is an IIFE over `globalThis`, so
 /// order matters only where one module extends another's globals: `elem.js`/
 /// `elem2.js` (and `env.js`, `loop.js`) run after `dom.js` because they extend
 /// the `document` and `Node` it defines — `elem2.js` after `elem.js` — and
-/// `net.js` runs after `loop.js` because its XHR uses `g.Event`. `url.js` is
+/// `net.js` runs after `events.js` because its XHR uses `g.Event`. `url.js` is
 /// standalone (it extends no other module, only the `__frot_url_parse` syscall),
 /// so its position is free.
 pub const SOURCE: &str = concat!(
@@ -91,12 +100,13 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/loop.js"),
     "\n",
-    // Abort surface (bl-e81b): AbortController/AbortSignal over loop.js's
-    // EventTarget and virtual-clock setTimeout.
+    // Abort surface (bl-e81b): AbortController/AbortSignal over events.js's
+    // EventTarget and loop.js's virtual-clock setTimeout.
     include_str!("prelude/abort.js"),
     "\n",
-    // Focus management (bl-3a36): activeElement + focus()/blur() — after loop.js
-    // because moving focus dispatches blur/focus through Node.dispatchEvent.
+    // Focus management (bl-3a36): activeElement + focus()/blur() — after
+    // events.js, because moving focus dispatches blur/focus through
+    // Node.dispatchEvent.
     include_str!("prelude/focus.js"),
     "\n",
     // Observers (bl-07ab). observer.js is the GENUINE MutationObserver seam: it
@@ -117,7 +127,7 @@ pub const SOURCE: &str = concat!(
     include_str!("prelude/net.js"),
     "\n",
     // IndexedDB (bl-8dde): coherent IDBFactory + interface-zoo presence, no
-    // persistence. AFTER loop.js because IDBVersionChangeEvent subclasses its
+    // persistence. AFTER events.js because IDBVersionChangeEvent subclasses its
     // `g.Event`; open()/deleteDatabase() hand out a permanently-pending request.
     include_str!("prelude/idb.js"),
     "\n",
@@ -153,7 +163,7 @@ pub const SOURCE: &str = concat!(
     // and the node/buffer factories), then audio.js (BaseAudioContext /
     // AudioContext / OfflineAudioContext, the create* API, and startRendering whose
     // rendered buffer is a deterministic function of the graph digest). After
-    // loop.js because OfflineAudioCompletionEvent subclasses its Event; it reads the
+    // events.js because OfflineAudioCompletionEvent subclasses its Event; it reads the
     // always-bound profile syscall for the `audio` SSOT facts.
     include_str!("prelude/audiobuf.js"),
     "\n",

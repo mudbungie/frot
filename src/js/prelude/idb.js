@@ -12,7 +12,7 @@
 // SUCCEEDS, so an error callback would CONTRADICT the persona (a louder tell).
 // `databases()` honestly resolves to [] (a stateless store has none); `cmp()` is
 // a real synchronous key comparison. Every value is fixed / profile-independent;
-// no syscall (pure JS over brand.js + loop.js's `g.Event`, so it runs after both).
+// no syscall (pure JS over brand.js + events.js's `g.Event`, so it runs after both).
 (function (g) {
   'use strict';
   var brand = g.__frot_brand;
@@ -246,7 +246,7 @@
   Object.setPrototypeOf(g.IDBCursorWithValue.prototype, g.IDBCursor.prototype);
 
   // IDBVersionChangeEvent IS constructable in Firefox (an Event subtype), UNLIKE
-  // the interface zoo; inherit loop.js's `g.Event` so `instanceof Event` holds.
+  // the interface zoo; inherit events.js's `g.Event` so `instanceof Event` holds.
   var VCE = brand(function (type, init) {
     if (arguments.length < 1) {
       throw new TypeError('IDBVersionChangeEvent constructor: At least 1 argument required, but only 0 passed');

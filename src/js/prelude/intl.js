@@ -4,7 +4,7 @@
 // page actually reads to detect locale/timezone: Intl.DateTimeFormat with a
 // faithful resolvedOptions(). Locale is the persona locale and timeZone is pinned
 // UTC (the §9 determinism decision — a host zone would leak entropy and vary
-// output; a declared residual, §11), both from the one __frot_env_profile()
+// output; a declared identity.md §11 residual), both from the one __frot_env_profile()
 // channel, so JS locale, the Accept-Language header, and navigator.language all
 // agree. Full NumberFormat/Collator/relative-time formatting stays a residual.
 (function (g) {

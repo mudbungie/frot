@@ -6,7 +6,7 @@
 // a settled run, one "not a function" report, and an empty shell.
 //
 // Page-driven, never host-driven: frot dispatches only DOMContentLoaded/load
-// (§11 — no interaction), so nothing here focuses anything by itself; a page
+// (js.md §11 — no interaction), so nothing here focuses anything by itself; a page
 // script calling focus() is the page acting, exactly like dispatchEvent. The
 // state is one wrapper handle (wrappers cache no arena state, §2). Focusability
 // follows Firefox: form controls (input except type=hidden, textarea, select,
@@ -14,7 +14,7 @@
 // contenteditable; focus() on anything else is the browser's silent no-op.
 // Moving focus fires `blur` on the element losing it and `focus` on the one
 // gaining it, through the same listener registry as every page dispatch. Loads
-// after loop.js (needs Node.dispatchEvent).
+// after events.js (needs Node.dispatchEvent).
 (function (g) {
   'use strict';
   var proto = g.Node.prototype;

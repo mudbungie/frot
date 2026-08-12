@@ -9,7 +9,7 @@
 // the `__frot_audio_node` (node factory) and `__frot_audio_buffer` helpers.
 // Runs after audiobuf.js (needs __frot_audio_render/_class/_mix) and brand.js.
 // AudioParam min/max are the generic float range and analyser data methods are
-// folding no-ops (offline persona) — declared §11 realism residuals. No syscall.
+// folding no-ops (offline persona) — declared identity.md §11 realism residuals.
 (function (g) {
   'use strict';
   var brand = g.__frot_brand;

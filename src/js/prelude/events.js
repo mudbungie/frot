@@ -1,6 +1,6 @@
 // Events: the ONE listener registry and the EventTarget interface over it
 // (bl-e81b, split out of loop.js by bl-6438; js.md §4.4/§11, identity.md §10).
-// DOMContentLoaded/load are the only events frot's host ever fires (§11) —
+// DOMContentLoaded/load are the only events frot's host ever fires (js.md §11) —
 // everything else registered here runs only if the page dispatches it itself, so
 // this file is a registry and a shape, not a scheduler: WHEN the host fires lives
 // in loop.js, which dispatches through the `__frot_dispatch` helper exported at

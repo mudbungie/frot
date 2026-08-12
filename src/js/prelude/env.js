@@ -14,7 +14,7 @@
   // --- self/window aliasing (js.md §1 spike, subtask 8) ---------------------
   // The global *is* the window: UMD bundles probe `self`, framework/router code
   // reads `window.*`, frame-busters compare `top`/`parent` to `self`. One arena,
-  // no frames (§11), so they all point at the single global.
+  // no frames (js.md §11), so they all point at the single global.
   g.self = g;
   g.window = g;
   g.top = g;
@@ -112,14 +112,14 @@
         get: function () {
           return L[k];
         },
-        // href/etc assignment is navigation (§7, §11) — observable, so counted.
+        // href/etc assignment is navigation (js.md §7/§11) — observable, so counted.
         set: function () {
           g.__frot_denied();
         },
       });
     }
   );
-  // `location = url` / `window.location = url` are navigation too (§11).
+  // `location = url` / `window.location = url` are navigation too (js.md §11).
   Object.defineProperty(g, 'location', {
     configurable: true,
     get: function () {

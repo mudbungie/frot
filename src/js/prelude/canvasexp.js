@@ -6,7 +6,7 @@
 // the same digest yields the same bytes and the same magnitudes on every
 // invocation, a changed draw or a changed string diverges, and nothing is random
 // per call (the tell a randomising privacy tool shows). Realism against a reference
-// Firefox render is the declared §11 residual, stated here once for both.
+// Firefox render is the declared identity.md §11 residual, stated here once for both.
 // What is NOT a residual is the SHAPE: `ImageData`'s fields and the TWELVE
 // `TextMetrics` fields in their prototype order were READ off Firefox 153.0esr
 // (`bl-d22f`, identity.md §3.12) — a missing key is the tell this file closes.
