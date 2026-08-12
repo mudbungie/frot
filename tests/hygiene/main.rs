@@ -8,6 +8,10 @@
 //! fresh address into a doc, the next golden ball drops a vendored bundle into
 //! `tests/fixtures/js/`.
 //!
+//! The same shape covers the checkout's own budgets ([`size`]): the 300-line
+//! source cap was enforced only over a commit's *staged* files, so a file that
+//! went over stayed over — unstaged and unseen — until CI swept the tree.
+//!
 //! Every gate here fails on the **class** of leak, never on the instance: the
 //! scrubbed address is deliberately not written down in this crate, since a
 //! test that pinned the literal would re-introduce what it guards against.
@@ -17,6 +21,7 @@ use std::path::{Path, PathBuf};
 
 mod identity;
 mod licensing;
+mod size;
 
 fn repo(rel: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)

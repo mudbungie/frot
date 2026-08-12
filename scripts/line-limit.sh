@@ -2,8 +2,9 @@
 # Single home for frot's source-file line cap.
 #
 # Reads newline-delimited file paths on stdin and exits non-zero if any
-# exceeds the limit. The number lives here and nowhere else: the pre-commit
-# hook feeds it the staged .rs set, CI feeds it every tracked .rs file.
+# exceeds the limit. The number lives here and nowhere else, and both callers
+# feed it the same set — `git ls-files '*.rs'`, every tracked source file — so
+# the pre-commit hook and CI cannot disagree about what passes.
 set -euo pipefail
 
 LIMIT=300

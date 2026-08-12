@@ -16,11 +16,13 @@ if [ -n "$staged_rs" ]; then
   }
 fi
 
-# Line cap. The limit itself lives in scripts/line-limit.sh (one home, shared
-# with CI); the hook only feeds it the staged set.
-if [ -n "$staged_rs" ]; then
-  printf '%s\n' "$staged_rs" | scripts/line-limit.sh || exit 1
-fi
+# Line cap over *every* tracked .rs file, the same sweep CI runs — not just the
+# staged set. A file can only go over by being edited, but the commit that
+# takes it over need not be the commit that gets gated: a close whose diff
+# touches other files would sail past a staged-only check while CI, which
+# sweeps the tree, stays red (bl-a68b). The limit itself lives in
+# scripts/line-limit.sh (one home, shared with CI).
+git ls-files '*.rs' | scripts/line-limit.sh || exit 1
 
 # Clippy. Runs before coverage so a lint error fails faster than the
 # instrumented build. Calls the Makefile `lint` target (one home, shared with
