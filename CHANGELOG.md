@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3](https://github.com/mudbungie/frot/compare/v0.0.2...v0.0.3) - 2026-09-29
+
+### Changes
+
+- Collapse the pre-commit gate to exec bl-gate (rollout phase 2; ops bl-3166) [bl-8a8b]
+- Remote gate: make check is the whole gate; pre-commit delegates to the noodlezoo builder [bl-254b]
+- host objects with no interface own their whole surface as instance data [bl-643d]
+- the 300-line cap does not see the JS prelude, and elem2.js is already over it [bl-6da7]
+- instance backing slots are visible own properties; a real Firefox instance has none [bl-3bdc]
+
 - **Under `--js`, a DOM object no longer carries frot's implementation on its
   face.** Every instance a page can reach — an element, a `Notification`, an
   audio node, a canvas or WebGL context, an observer, a `URL` — kept its state
