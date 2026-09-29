@@ -1,6 +1,6 @@
 [package]
 name = "frot"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2021"
 # The tagline's single authoritative home (rendered as the crates.io headline).
 # README.md repeats it verbatim; tests/binary.rs pins the match so they cannot
