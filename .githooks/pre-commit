@@ -1,73 +1,38 @@
 #!/usr/bin/env bash
-# frot pre-commit: enforce the source-file line cap and 100% test coverage.
+# The pre-commit gate (bl-254b; ops bl-3e3f, ~/ops/remote-builds.md "Repo gate").
+#
+# This laptop does not compile. The gate's targets are `make check`
+# (AGENTS.md "The gate"); the noodlezoo builder runs them on the staged tree
+# and signs a bl-speculate verdict; bl-remote-gate (userconf) brings it home.
+# Two steps, no third:
+#   1. `bl-speculate check` — a verified verdict for this exact tree under
+#      this toolchain already passed: done;
+#   2. `bl-remote-gate` — its exit is the gate's exit (0 pass, 1 the builder
+#      failed the tree, 75 no verdict: nothing recorded, commit refused).
+# There is no local build path. If the builder is unreachable, the answer is
+# 75, not `cargo test`. A local leak-scan step precedes these once frot has a
+# scanner (bl-59dc); it does not yet.
+#
+# BALLS_TOOLCHAIN is the gate half of every verdict key (balls ≥ 0.5.13):
+# exported once here, inherited by both tools. The builder's rustc is the
+# rust-toolchain.toml pin, so the string is byte-identical on both sides.
+
 set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+# Hook env (GIT_INDEX_FILE et al.) would point the tools at a temporary index.
+# shellcheck disable=SC2046
+unset $(git rev-parse --local-env-vars)
 
-# Every gate below is a property of the *tree*, so every gate is keyed on the
-# tracked source set and never on the index.
-#
-# `bl close` runs this hook on a worktree whose work is already committed: the
-# index equals HEAD, so `git diff --cached` is EMPTY. An index-keyed gate
-# therefore skipped on every close, and unformatted code, clippy warnings, a
-# failing POSIX suite and coverage gaps all reached main and only reddened CI
-# afterward (bl-0066). The line cap lost the same way and was moved off the
-# index by bl-a68b; this is the rest of that move. The set is the same sweep CI
-# runs, so the local close gate and CI cannot disagree about what passes.
-#
-# Line cap, over EVERY source language and not just Rust — so it runs first,
-# ahead of the cargo gates that a Rust-less tree would make vacuous. `make size`
-# composes the two homes (scripts/source-files.sh: what is source;
-# scripts/line-limit.sh: the number), so this, CI and tests/hygiene/size.rs run
-# one sweep. Before bl-6da7 both callers spelled out `git ls-files '*.rs'` and
-# the whole JS prelude went unchecked, with elem2.js over the cap.
-make size || {
-  echo "pre-commit: a source file is over the line cap (make size)" >&2
-  exit 1
-}
+for tool in cargo bl-speculate bl-remote-gate; do
+  command -v "$tool" >/dev/null 2>&1 || { echo "error: $tool not installed; cannot run the gate." >&2; exit 1; }
+done
+export BALLS_TOOLCHAIN="$(rustc -V)"
 
-# The cargo gates below need Rust. A tree with no Rust in it has nothing left
-# here to gate; they would all apply vacuously, so say so once instead of four
-# times.
-[ -n "$(git ls-files '*.rs')" ] || exit 0
-
-# Formatting. Cheap (well under a second), fails fast, and in lockstep with
-# CI's `cargo fmt --check` (rust-toolchain.toml pins the formatter so both
-# agree). `cargo fmt` reaches exactly the tracked .rs set, which is what
-# tests/hygiene/fmt.rs asserts at `cargo test` speed.
-cargo fmt --check || {
-  echo "pre-commit: run 'cargo fmt' — tree is not formatted" >&2
-  exit 1
-}
-
-# Clippy. Runs before coverage so a lint error fails faster than the
-# instrumented build. Calls the Makefile `lint` target (one home, shared with
-# CI's `make lint`).
-make lint || {
-  echo "pre-commit: clippy reported warnings (make lint)" >&2
-  exit 1
-}
-
-# POSIX conformance (docs/design/posix.md, gated by scripts/posix-suite.sh via
-# `make posix`). Keeps the local close gate in lockstep with CI's "POSIX
-# conformance suite" step.
-make posix || {
-  echo "pre-commit: POSIX conformance suite failed (make posix)" >&2
-  exit 1
-}
-
-# 100% line + region coverage. The threshold lives in the Makefile `cov` target
-# (one home, shared with CI); regions as well as lines, because a fully-covered
-# line can still hide an untaken branch or an unreached `?` edge — an
-# unreachable region is a design signal to delete the dead path, never to
-# suppress.
-if ! command -v cargo >/dev/null 2>&1; then
-  echo "pre-commit: cargo not found in PATH" >&2
-  exit 1
+if bl-speculate check; then
+  echo "gate: verdict cache hit — this exact tree already passed this exact gate." >&2
+  exit 0
 fi
-if ! cargo llvm-cov --version >/dev/null 2>&1; then
-  echo "pre-commit: cargo-llvm-cov not installed. Run 'make setup'." >&2
-  exit 1
-fi
-make cov >/dev/null || {
-  echo "pre-commit: line or region coverage below 100%" >&2
-  exit 1
-}
+echo "gate: no verdict yet — building on the noodlezoo builder (bl-remote-gate)..." >&2
+bl-remote-gate
+echo "gate: OK (remote verdict verified and imported)." >&2

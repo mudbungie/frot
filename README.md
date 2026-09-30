@@ -89,17 +89,19 @@ Docs: `VISION.md` is the why and the roadmap; `ARCHITECTURE.md` is the as-built 
 ## Building
 
 ```
-make setup           # install dev tooling (cargo-llvm-cov)
-make precommit-install
+make install-hooks   # seat the pre-commit hook (.githooks/pre-commit)
+make check           # the complete gate: size, fmt-check, lint, posix, cov
+make setup           # install cargo-llvm-cov, needed only to run `make cov` locally
 make build
 make test
-make cov             # 100% line coverage gate (matches the pre-commit hook)
 ```
 
 ## CI/CD
 
-GitHub Actions runs the same gates as the local pre-commit hook, so nothing
-lands ungated even if the hook is skipped or absent:
+GitHub Actions runs the same `make` targets as the gate (`make check`, which
+the pre-commit hook has the noodlezoo builder run on the staged tree — see
+AGENTS.md "The gate"), so nothing lands ungated even if the hook is skipped or
+absent:
 
 - **`.github/workflows/ci.yml`** (every push + pull request) — `cargo fmt
   --check`, `make lint` (clippy `-D warnings`), `make cov` (100% lines +

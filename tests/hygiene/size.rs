@@ -3,7 +3,7 @@
 //!
 //! The cap is a hard rule of the checkout, so it is checked the same way from
 //! everywhere: `scripts/source-files.sh` piped into `scripts/line-limit.sh`,
-//! which is exactly `make size` — what CI and the pre-commit hook both run.
+//! which is exactly `make size` — what CI and `make check` both run.
 //! Two facts, one home each: which files are source, and how long one may be.
 //!
 //! Both halves have gone wrong the same way, and neither failure could be seen

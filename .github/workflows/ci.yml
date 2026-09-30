@@ -43,7 +43,7 @@ jobs:
       # Delegates to `make size` — scripts/source-files.sh owns which files are
       # source (Rust, the JS prelude, the gate shell; never tests/fixtures,
       # which is data) and scripts/line-limit.sh owns the 300. Neither the set
-      # nor the number is duplicated here, so this and the pre-commit hook
+      # nor the number is duplicated here, so this and `make check`
       # cannot drift apart the way they did in bl-6da7.
       - name: Source-file line limit
         run: make size

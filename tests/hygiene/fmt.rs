@@ -1,7 +1,7 @@
 //! The tracked tree is formatted, and the formatter's sweep reaches all of it
 //! (`bl-0066`).
 //!
-//! `.githooks/pre-commit` runs `cargo fmt --check`, but it used to run it only
+//! `make check` runs `cargo fmt --check`, but the hook used to run it only
 //! when `git diff --cached` listed a `.rs` file. `bl close` runs the hook on a
 //! worktree whose work is already **committed**, so the index equals HEAD and
 //! that list is empty: the fmt gate — and clippy, POSIX and coverage with it —

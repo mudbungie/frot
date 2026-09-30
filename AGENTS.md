@@ -8,8 +8,8 @@ A stateless, single-binary tool that takes structural impressions of web pages. 
 
 ## Hard rules
 
-- **Source files ≤ 300 lines.** Enforced by pre-commit hook. Docs and config are exempt. If a file is growing, split it; don't widen the budget.
-- **Test coverage = 100%, lines *and* regions.** Enforced by pre-commit hook via `cargo llvm-cov --fail-under-lines 100 --fail-under-regions 100`. Regions catch what lines miss: an untaken branch or an unreached `?` error edge on a line that ran. If something can't be tested, redesign it so it can be — delete the dead path or take its dependency through the call signature. Untestable code is not built, and a region is never suppressed with an attribute or a `#[cfg]`.
+- **Source files ≤ 300 lines.** Enforced by `make size`, a step of the gate (below). Docs and config are exempt. If a file is growing, split it; don't widen the budget.
+- **Test coverage = 100%, lines *and* regions.** Enforced by `make cov` (`cargo llvm-cov --fail-under-lines 100 --fail-under-regions 100`), a step of the gate. Regions catch what lines miss: an untaken branch or an unreached `?` error edge on a line that ran. If something can't be tested, redesign it so it can be — delete the dead path or take its dependency through the call signature. Untestable code is not built, and a region is never suppressed with an attribute or a `#[cfg]`.
 - **Statelessness is non-negotiable.** No globals, no module-level mutable state, no implicit sessions. Pass state explicitly through call signatures.
 - **Output formats are machine-first.** New outputs must be parseable without heuristics. Pretty-printing is a separate concern.
 
@@ -17,15 +17,20 @@ A stateless, single-binary tool that takes structural impressions of web pages. 
 
 Task tracking is `bl` (see `bl --skill`). One agent takes a task all the way through — there is no separate review step or reviewer. All edits happen in `bl claim`-created worktrees; never edit `main` directly. Standard flow: `bl claim` (prints the worktree) → work in the worktree → `cd` to repo root → `bl close -m "<message>"`.
 
-`bl close` is the sole delivery and gate. It never merges `main` for you: it refuses unless `main` is already in your work branch, so you merge and re-test in the worktree first. Then it runs the repo's `pre-commit` hook on that exact tree (fmt, ≤300-line files, clippy, POSIX suite, 100% coverage), squashes the worktree diff to `main`, and tears the worktree down. A hook failure aborts the close and leaves the task claimed for the fix, so tests must pass in the worktree before closing.
+`bl close` is the sole delivery and gate. It never merges `main` for you: it refuses unless `main` is already in your work branch, so you merge and re-test in the worktree first. Then it runs the repo's `pre-commit` hook on that exact tree, squashes the worktree diff to `main`, and tears the worktree down. A hook failure aborts the close and leaves the task claimed for the fix.
 
-The hook gates the **tree**, never the index. `bl close` runs it on a worktree whose work is already committed, so `git diff --cached` is empty there; a gate keyed on the staged set silently skips on every close, which is how unformatted code (bl-0066) and an over-cap file (bl-a68b) reached `main`. Every gate is keyed on `git ls-files '*.rs'` instead — the same sweep CI runs. The cost is that a docs-only commit pays for clippy, the POSIX suite and coverage too; correctness of the landed tree is worth more than that.
+## The gate
+
+`make check` is the complete gate: `size → fmt-check → lint → posix → cov` (≤300-line files in every source language, `cargo fmt --check`, clippy `-D warnings`, the POSIX conformance suite, 100% line + region coverage). The pre-commit hook (`.githooks/pre-commit`) does not run them on this machine — this laptop does not compile in a gate (ops bl-3e3f, `~/ops/remote-builds.md` "Repo gate"). It exports `BALLS_TOOLCHAIN`, asks `bl-speculate check` for a verified verdict on the staged tree, and otherwise has the noodlezoo builder run `make check` and sign one (`bl-remote-gate`, from userconf): exit 0 is a pass, 1 means the builder failed the tree (read its log), 75 means no verdict — nothing recorded, commit refused, never `cargo test` instead. `.github/workflows/ci.yml` runs the same targets; nobody restates a step the Makefile defines. Run `make install-hooks` once per clone.
+
+The gate judges the **tree**, never the index: every step sweeps `git ls-files`, and the builder's verdict is keyed on the tree hash, so a docs-only commit pays for clippy, the POSIX suite and coverage too — or hits the verdict cache. A gate keyed on the staged set silently skipped on every `bl close`, whose worktree is already committed (bl-0066, bl-a68b).
 
 ## Build
 
 ```
-make setup              # one-time: install cargo-llvm-cov
-make precommit-install  # one-time: wire pre-commit hook
+make install-hooks      # one-time: seat .githooks/* in .git/hooks
+make check              # the complete gate (what the builder runs)
+make setup              # install cargo-llvm-cov, if you run `make check` here
 make test               # cargo test
 make cov                # cargo llvm-cov, requires 100% lines and regions
 make lint               # cargo clippy with -D warnings
