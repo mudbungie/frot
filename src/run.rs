@@ -73,11 +73,12 @@ fn build_envelope(args: &cli::Args, bounds: Bounds) -> Envelope {
             return Envelope::error(url, args.out, error).with_http(http);
         }
         let doc = Document::parse(&fetched.body);
-        // A zero-delay `<meta http-equiv=refresh>` in the document *as fetched*
-        // is the markup spelling of a redirect (`src/refresh.rs`): the
+        // A zero-delay refresh declared by the response *as fetched* — its
+        // `Refresh` header or a `<meta http-equiv=refresh>` — is the
+        // declarative spelling of a redirect (`src/refresh.rs`): the
         // navigation continues to its target and this document is never the
         // impression — so, like a 3xx body, its scripts are not run.
-        if let Some(target) = crate::refresh::target(&doc, &fetched.final_url) {
+        if let Some(target) = crate::refresh::target(&doc, &fetched.final_url, &fetched.headers) {
             loaded = nav.follow(&target, &fetched.final_url);
             continue;
         }

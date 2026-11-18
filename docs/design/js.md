@@ -1180,6 +1180,16 @@ Two moves against today's `run.rs`:
   > cookie first; frot does not model that, and says so here.) "One URL, one
   > document, one impression" holds: one impression, of the resource the caller
   > asked for.
+  >
+  > **Extended 2026-11-17 (`bl-e52a`).** The HTTP **`Refresh:` response header**
+  > is the same rule in a second spelling and is followed the same way, through
+  > the same parser and the same `Navigation::follow` hop. Precedence is the
+  > HTML spec's: the header is processed when the document is created, before
+  > any markup, so it is the first candidate — an immediate header wins over
+  > any `<meta>`, a delayed header claims the document and nothing is followed,
+  > and a header that does not parse or resolve claims nothing (a `<meta>` then
+  > may). The header's relative target resolves against the document URL, not a
+  > `<base>`; repeated header lines are one value joined with `, `.
 - **No persistence** across calls, of any kind (§7).
 - **No iframes.** Frame documents are not fetched or executed;
   `contentWindow`/`contentDocument` are `null`.

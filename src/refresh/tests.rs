@@ -12,7 +12,7 @@ fn meta(content: &str) -> String {
 }
 
 fn target_of(html: &str, page_url: &str) -> Option<String> {
-    target(&Document::parse(html), page_url)
+    target(&Document::parse(html), page_url, &[])
 }
 
 /// What a `content` value parses to: `(delay is zero, URL reference)`.
@@ -222,4 +222,71 @@ fn the_target_is_what_a_browser_would_load() {
             "html {html:?} at {page}"
         );
     }
+}
+
+fn refresh_header(value: &str) -> (String, String) {
+    ("Refresh".to_string(), value.to_string())
+}
+
+/// `(Refresh header lines, html, where the navigation goes)` — the header is
+/// the same rule in a second spelling, read before any `<meta>`.
+const HEADERS: &[(&[&str], &str, Option<&str>)] = &[
+    (&["0;url=/en/"], "<p>x</p>", Some("https://example.com/en/")),
+    (&["0"], "", Some(PAGE)),
+    (&["3;url=/en/"], "", None),
+    // The header claims the document first: an immediate header beats a meta,
+    // and a delayed header blocks an immediate meta.
+    (
+        &["0;url=/header"],
+        "<meta http-equiv=refresh content='0;url=/meta'>",
+        Some("https://example.com/header"),
+    ),
+    (
+        &["5;url=/header"],
+        "<meta http-equiv=refresh content='0;url=/meta'>",
+        None,
+    ),
+    // A header that does not parse or resolve claims nothing; the meta may.
+    (
+        &["soon"],
+        "<meta http-equiv=refresh content='0;url=/meta'>",
+        Some("https://example.com/meta"),
+    ),
+    (
+        &["0;url=http://[bad"],
+        "<meta http-equiv=refresh content='0;url=/meta'>",
+        Some("https://example.com/meta"),
+    ),
+    // The header resolves against the page, never a `<base>` not yet parsed.
+    (
+        &["0;url=start"],
+        "<base href='/docs/'>",
+        Some("https://example.com/a/start"),
+    ),
+    // Repeated lines are one value joined with `, `: the tail is the reference.
+    (
+        &["0", "url=/joined"],
+        "",
+        Some("https://example.com/joined"),
+    ),
+    // The same load rules: no scroll, no non-http(s) scheme.
+    (&["0;url=#top"], "", None),
+    (&["0;url=javascript:void(0)"], "", None),
+];
+
+#[test]
+fn the_refresh_header_is_the_same_rule_read_first() {
+    for (lines, html, want) in HEADERS {
+        let headers: Vec<_> = lines.iter().map(|l| refresh_header(l)).collect();
+        assert_eq!(
+            target(&Document::parse(html), PAGE, &headers).as_deref(),
+            *want,
+            "Refresh {lines:?} over {html:?}"
+        );
+    }
+    // The name matches in any case; other headers are not refreshes.
+    let other = [("Location".to_string(), "/x".to_string())];
+    assert_eq!(target(&Document::parse(""), PAGE, &other), None);
+    let lower = [("refresh".to_string(), "0;url=/en/".to_string())];
+    assert!(target(&Document::parse(""), PAGE, &lower).is_some());
 }

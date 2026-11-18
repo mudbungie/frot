@@ -1,18 +1,25 @@
-//! The declarative refresh — `<meta http-equiv=refresh>` as a navigation.
+//! The declarative refresh — a `Refresh:` response header or a
+//! `<meta http-equiv=refresh>` as a navigation.
 //!
-//! A zero-delay document refresh is the markup spelling of a redirect: a
+//! A zero-delay document refresh is the declarative spelling of a redirect: a
 //! browser lands on the target unattended, with no script and no human. frot
 //! follows it as part of the initial navigation (`run.rs`; decided 2026-11-17,
 //! `bl-c262`), so this module answers one question: *where does this document
 //! immediately send the navigation, if anywhere?*
 //!
-//! The grammar and the choice of element are HTML's "shared declarative refresh
-//! steps" (the `http-equiv` *refresh* pragma directive), followed literally:
+//! One rule, two spellings. The grammar and the choice of declaration are
+//! HTML's "shared declarative refresh steps", followed literally:
 //!
-//! - the **first `<meta>` whose refresh parses and resolves** claims the
-//!   document ("will declaratively refresh"); later ones are ignored, and one
-//!   that fails to parse claims nothing;
-//! - it may sit anywhere in the document — `<body>` counts as `<head>` does;
+//! - the **first declaration that parses and resolves** claims the document
+//!   ("will declaratively refresh"); later ones are ignored, and one that fails
+//!   to parse claims nothing;
+//! - the response's `Refresh` header is read first — when the document is
+//!   created, before any markup — and resolves against the document's own URL
+//!   (no `<base>` exists yet); each `<meta>` follows in tree order and resolves
+//!   against the document base URL. Several `Refresh` header lines are one
+//!   value joined with `, `, as Fetch combines any repeated header;
+//! - a `<meta>` may sit anywhere in the document — `<body>` counts as `<head>`
+//!   does;
 //! - a `<meta>` inside `<noscript>` is **not an element** to a scripting browser
 //!   (the reference; the parser frot shares with it reads `<noscript>` content
 //!   as text), so it never refreshes — the "enable JavaScript" detour is not
@@ -30,14 +37,21 @@
 use crate::dom::{Document, NodeKind, WalkEvent};
 use url::Url;
 
-/// The absolute URL the document at `page_url` immediately refreshes to, or
-/// `None` when it stays put. Relative targets resolve against the document base
-/// URL ([`crate::base`]), the one resolution authority.
-pub fn target(doc: &Document, page_url: &str) -> Option<String> {
+/// The absolute URL the document at `page_url`, served with the response
+/// `headers`, immediately refreshes to — or `None` when it stays put. A
+/// `<meta>`'s relative target resolves against the document base URL
+/// ([`crate::base`], the one resolution authority); the header's against the
+/// page.
+pub fn target(doc: &Document, page_url: &str, headers: &[(String, String)]) -> Option<String> {
     let (page, base) = Url::parse(page_url)
         .ok()
         .zip(crate::base::base_url(doc, page_url))?;
-    let (immediate, to) = contents(doc).iter().find_map(|content| {
+    let (header, metas) = (header(headers), contents(doc));
+    let mut declared = header
+        .iter()
+        .map(|h| (h, &page))
+        .chain(metas.iter().map(|m| (m, &base)));
+    let (immediate, to) = declared.find_map(|(content, base)| {
         let (immediate, reference) = parse(content)?;
         let to = match reference {
             Some(r) => base.join(r).ok()?,
@@ -60,6 +74,17 @@ fn same_document(a: &Url, b: &Url) -> bool {
     a.set_fragment(None);
     b.set_fragment(None);
     a == b
+}
+
+/// The response's `Refresh` header value: every line of that name, joined with
+/// `, ` (ASCII case-insensitive name), or `None` when there is none.
+fn header(headers: &[(String, String)]) -> Option<String> {
+    let lines: Vec<&str> = headers
+        .iter()
+        .filter(|(n, _)| n.eq_ignore_ascii_case("refresh"))
+        .map(|(_, v)| v.as_str())
+        .collect();
+    (!lines.is_empty()).then(|| lines.join(", "))
 }
 
 /// The `content` of every refresh pragma in tree order: a `<meta>` whose

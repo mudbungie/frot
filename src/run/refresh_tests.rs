@@ -54,6 +54,53 @@ fn an_immediate_refresh_lands_on_its_target_like_a_redirect() {
 }
 
 #[test]
+fn a_refresh_response_header_is_followed_like_the_meta() {
+    // bl-e52a: the same rule in its HTTP spelling. The header claims the
+    // document before its markup, so the meta's target is never requested and
+    // the interim page's script never runs.
+    let mut server = mockito::Server::new();
+    let root = format!("{}/", server.url());
+    let _r = server
+        .mock("GET", "/")
+        .with_header("refresh", "0; url=/real")
+        .with_header("set-cookie", "seen=1; Path=/")
+        .with_body(format!(
+            "{}<script>new Image().src = '/beacon'</script>",
+            refresh("0;url=/meta")
+        ))
+        .create();
+    let meta = server.mock("GET", "/meta").expect(0).create();
+    let landing = server
+        .mock("GET", "/real")
+        .match_header("referer", root.as_str())
+        .match_header("cookie", "seen=1")
+        .with_body("<p>header landing</p>")
+        .create();
+    let (code, v) = run_capture(&[&server.url(), "--js", "--out", "text"]);
+    landing.assert();
+    meta.assert();
+    assert_eq!(code, 0);
+    assert_eq!(v["out"], "header landing");
+    assert_eq!(v["url"]["final"], format!("{root}real"));
+    assert_eq!(v["js"]["scripts"], 0);
+}
+
+#[test]
+fn a_delayed_refresh_header_is_not_followed() {
+    let mut server = mockito::Server::new();
+    let _r = server
+        .mock("GET", "/")
+        .with_header("refresh", "5; url=/later")
+        .with_body("<p>read me first</p>")
+        .create();
+    let later = server.mock("GET", "/later").expect(0).create();
+    let (code, v) = run_capture(&[&server.url(), "--out", "text"]);
+    later.assert();
+    assert_eq!(code, 0);
+    assert_eq!(v["out"], "read me first");
+}
+
+#[test]
 fn a_delayed_refresh_is_not_followed() {
     let mut server = mockito::Server::new();
     let _r = server

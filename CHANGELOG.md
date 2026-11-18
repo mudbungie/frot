@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **An immediate `Refresh:` response header is now followed, as the
+  `<meta http-equiv="refresh">` already was.** A response carrying
+  `Refresh: 0; url=/real` sends a browser to `/real` unattended — the same HTML
+  rule as the meta, spelled as an HTTP header — but frot ignored the header and
+  returned the interim page (often an empty `ok`). It is now the same rule and
+  the same hop: redirect budget, cookies, `Referer`, `url.final` all as for the
+  meta. When a response declares both, the header is read first (it exists
+  before the markup does), so an immediate header wins and a delayed header
+  means nothing is followed. The header's relative target resolves against the
+  page URL, not a `<base>`. No flag, field or exit code changed. (`[bl-e52a]`)
+
 - **A page that is only an immediate `<meta http-equiv="refresh">` now returns
   the page it points at, not an empty `ok`.** `frot https://docs.astro.build/`
   returned `status: ok` with nothing in `out`: the root document is a

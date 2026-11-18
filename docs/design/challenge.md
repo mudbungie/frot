@@ -281,7 +281,8 @@ changes is that `human` stops being asserted before frot has tried.
   > trip itself still re-issues **the caller's URL**: both ride the one
   > in-invocation re-navigation path, `fetch::Navigation` (`load()` re-issues
   > the caller's URL, `follow()` takes a document-directed hop), on one session
-  > and one hop budget.
+  > and one hop budget. *(2026-11-17, `bl-e52a`: the `Refresh:` response header
+  > is the same rule and the same hop.)*
 - **Cross-invocation persistence** of tokens, cookies, or anything else.
 - **Body-copy classification** of challenge pages (`needs.md` §5) — a challenge is
   recognized only by a server's own declaration, unchanged.
