@@ -7,7 +7,9 @@
 //! (`docs/design/needs.md`):
 //!
 //! - [`challenge`] — a **transport** fact: the server declared the response
-//!   a stand-in for the page (`needs: ["human"]`, §3 of the design).
+//!   a stand-in for the page (§3 of the design; `needs: ["js"]` without `--js`,
+//!   `needs: ["human"]` once the page's own script has run and not passed it —
+//!   `docs/design/challenge.md`).
 //! - [`detect`] — a **document** fact: the DOM under the recipe carries no
 //!   renderable content (`needs: ["js"]`, the SPA-shell heuristic below).
 //!
@@ -74,22 +76,30 @@ use crate::fetch::header_value;
 ///   declaration in a different vendor's spelling, measured on Amazon's 202
 ///   (`bl-7e34`).
 ///
-/// The caller (`run.rs`) consults this only on the < 400 path — at >= 400
-/// the error flip already reports honestly — and returns pre-parse, so a
-/// declared challenge's scripts are never executed: detection stops earlier
-/// than evasion could begin.
-pub fn challenge(headers: &[(String, String)]) -> bool {
-    header_value(headers, "retry-after").is_some()
-        || ["cf-mitigated", "x-amzn-waf-action"]
-            .iter()
-            .any(|h| declares_challenge(headers, h))
+/// Returns the **name of the declaring header** (lower-case, one of
+/// `envelope::http::SURFACED`), which the envelope's `challenge.declared`
+/// reports. The caller (`run.rs`) consults this only below status 400 — from
+/// 400 up the error flip already reports honestly. What it does next is
+/// `docs/design/challenge.md`: without `--js` the verdict is `needs:["js"]`;
+/// with it the page's own script runs, and frot re-issues the navigation once
+/// if that script changed the request.
+pub fn challenge(headers: &[(String, String)]) -> Option<&'static str> {
+    DECLARING
+        .iter()
+        .copied()
+        .find(|name| declares_challenge(headers, name))
 }
 
-/// A vendor mitigation header whose value is literally `challenge`. Both
+/// The declaring headers, in the order they are consulted.
+const DECLARING: [&str; 3] = ["retry-after", "cf-mitigated", "x-amzn-waf-action"];
+
+/// Whether `name` declares a challenge on this response: `retry-after` by its
+/// presence, a vendor mitigation header by the literal value `challenge` — both
 /// vendors reuse the header for other actions (`block`, `count`), so only the
 /// challenge value declares a deferral.
 fn declares_challenge(headers: &[(String, String)], name: &str) -> bool {
-    header_value(headers, name).is_some_and(|v| v.trim().eq_ignore_ascii_case("challenge"))
+    header_value(headers, name)
+        .is_some_and(|v| name == "retry-after" || v.trim().eq_ignore_ascii_case("challenge"))
 }
 
 /// Views whose output materially depends on rendered body content.

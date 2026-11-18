@@ -1,8 +1,12 @@
 # Challenge — the declared-challenge round trip
 
-**Status: PROPOSAL, awaiting Mark's sign-off. No code has changed.** Design
-`bl-017a`, 2026-07-22. Living authority for this path; `identity.md` §10,
-`js.md` §11, `needs.md` §3/§5 and `VISION.md` carry dated in-place notes
+**Status: AS BUILT (`bl-15ff`, 2026-11-17).** Signed off by Mark on
+2026-11-17 — *"build the round trips."* Designed in `bl-017a`, 2026-07-22, as a
+proposal; the text below is that proposal, kept, with a dated **As built** note
+wherever the code differs from it. §11 is the as-built summary and the measured
+capstone: **the round trip works offline and did not get Amazon's page — a null,
+recorded in §11.3.** Living authority for this path; `identity.md` §10/§14,
+`js.md` §6/§11, `needs.md` §1/§3/§5 and `VISION.md` carry dated in-place notes
 pointing here.
 
 Trigger: Mark, 2026-07-22 — *"File the boundary movement ball. It's time for that
@@ -91,10 +95,43 @@ grounded in the code as it stands:
   (`fetch` rejects non-GET with a `TypeError`; XHR `send` throws), and it becomes
   the *only* place a verb is ever named.
 
+> **As built 2026-11-17 (`bl-15ff`) — the seam is real, in a different place
+> than sketched.** Rust's `pub(in path)` can only name an *ancestor* module, so
+> a type defined in `crate::fetch` cannot have a constructor visible "only to
+> `crate::js::subfetch`". The enforcement is therefore the reverse arrangement:
+> the type lives **where its only constructor may be called**.
+>
+> - `ScriptBody` (`src/js/subfetch/post.rs`) holds the bytes and their
+>   `Content-Type`. Its one constructor, `ScriptBody::from_script`, is
+>   `pub(super)` — callable from `crate::js::subfetch` and nowhere else — and
+>   refuses a body over `REQ_BODY_BYTES`, so an over-cap body cannot exist.
+> - The fetch layer only *consumes* it: `Transport::send(…, body:
+>   Option<&ScriptBody>, …)` sends `POST` iff it is `Some`
+>   (`src/fetch/transport.rs`), `fetch::Request` carries `body:
+>   Option<&ScriptBody>` (`src/fetch/dispatch.rs`), and the one session method
+>   that passes one is `FetchSession::submit(url, initiator, &ScriptBody,
+>   timeout)` — `Intent::FetchXhr` fixed, never cached. `navigation()`/`load()`/
+>   `follow()`/`subresource()` still cannot express a verb. There is no `enum
+>   ReqBody`; "no body" is `None`.
+> - Net effect is the one promised: **no code outside `src/js/subfetch/` can
+>   construct a non-GET request** — it has no way to obtain a `ScriptBody`.
+>   No Rust code names a verb except the two literals in `Transport::exchange`.
+> - The prelude (`src/js/prelude/net.js`) is the only place a method is chosen:
+>   `GET` → `__frot_subfetch`, `POST` → the new `__frot_subpost(url, body,
+>   contentType)` syscall, anything else rejects/throws as before.
+
 Non-goals that must stay pinned by test, because they are exactly where the
 design would drift: `form.submit()` / `requestSubmit()` remain no-ops, no input event is
 ever dispatched, no syscall exists that a host-side caller can use to originate a
 request.
+
+> **As built 2026-11-17 (`bl-15ff`).** Pinned in
+> `src/run/roundtrip_guard_tests.rs` (`frot_originates_no_submission`): a
+> challenge page holding a `<form method=post>` gets no POST and no GET of its
+> action from `submit()`, `requestSubmit()`, a dispatched `submit` or a
+> dispatched `click`. One correction to the wording above: frot's `<form>` has
+> **no** `submit`/`requestSubmit` at all — calling one throws rather than
+> silently doing nothing. Either way nothing is submitted, which is the pin.
 
 ---
 
@@ -114,6 +151,31 @@ which GETs)"*. This is a real interface change.
 | destination | **no new origin restriction** — deliberately | see below. |
 | response caching | a POST **must not** enter the once-then-frozen cache | it is not idempotent, and `FetchSession::run` keys the invocation cache by URL alone — a frozen POST response would be served to a later GET of the same URL. Today `cacheable = !matches!(intent, Navigation)`; that test must grow the verb. |
 | budget | rides the existing bounds; **no new time budget** | see below. |
+
+> **As built 2026-11-17 (`bl-15ff`) — the table holds; four things it did not
+> say.**
+>
+> 1. **Text bodies only.** A POST body is a string or a `URLSearchParams`
+>    (sent as UTF-8). An `ArrayBuffer`/typed array/`Blob`/`FormData` body
+>    **fails the request** (`fetch` rejects, XHR errors) rather than go out as
+>    something else. No measured mechanism posts bytes; widening it is a ball.
+> 2. **Request headers.** The POST carries the script's own `Content-Type`
+>    (from `fetch` `init.headers` in any of its three shapes, or XHR
+>    `setRequestHeader`), else the browser default for the body's type
+>    (`text/plain;charset=UTF-8`, or `application/x-www-form-urlencoded;charset=UTF-8`
+>    for `URLSearchParams`), plus the `Origin` a browser attaches to every POST;
+>    `Content-Length` is the serializer's. **No other script-set request header
+>    is sent** — that was already true of GETs and is unchanged.
+> 3. **Redirects.** A redirected POST follows the browser rule: `307`/`308`
+>    re-send the body to the new target; `301`/`302`/`303` continue as a GET
+>    with no body.
+> 4. **Target.** Only an `http(s)` URL can receive a POST (`data:`, `file:` are
+>    refused), on top of the existing remote→local block.
+>
+> The cache row is satisfied by construction, not by a grown test: a POST goes
+> through `FetchSession::submit`, which never touches the invocation cache, and
+> `Subfetch::post` never touches the once-then-frozen one — a later GET of the
+> same URL is its own request.
 
 **Why no vendor-origin allowlist.** The obvious constraint is "same-origin or a
 known challenge-vendor origin (`token.awswaf.com`, `challenges.cloudflare.com`)".
@@ -160,6 +222,26 @@ the precondition. The jar is the only mutation the round trip reads, and only th
 server writes it — so there is no timer, and no second attempt at an unchanged
 request.
 
+> **As built 2026-11-17 (`bl-15ff`) — the test is on the request, not the jar.**
+> "The jar differs from its state at the first navigation" was too loose in two
+> directions, so the code tests the sentence above it instead — *changed the
+> request frot would now send*. `fetch::Navigation::request()` returns the
+> header set a `load()` of the caller's URL would send right now (jar cookies
+> applicable to that URL, caller `-H` layered on, order-normalised); `run.rs`
+> reads it **after** the challenge response has arrived and **before** its
+> scripts run, then again after. A second navigation is issued iff the two
+> readings differ. Consequences, each pinned:
+>
+> - a cookie the **server** set on the challenge response itself is not a
+>   script's doing and earns nothing (`run::cookie_tests`);
+> - a cookie the script set that would **not ride** the re-issue (another
+>   path or domain) earns nothing;
+> - a caller's own `-H Cookie` replaces the jar's line, so the request cannot
+>   change and no round is taken — the caller has taken over the cookies.
+>
+> "An identical request is never re-sent" is thereby literal: the comparison
+> *is* the request.
+
 ### 4.2 The sequence
 
 ```
@@ -176,6 +258,24 @@ navigate(url)                       # GET, as today
 
 Note the challenge page is now **parsed and run**, where today `run.rs` returns
 pre-parse. The `>= 400` error flip beside it is untouched.
+
+> **As built 2026-11-17 (`bl-15ff`).** The sequence is built as drawn
+> (`src/run.rs`, `navigate`), with these additions the drawing left open:
+>
+> - **Below 400 only.** A response with status ≥ 400 takes the error flip even
+>   when it carries a challenge declaration. Cloudflare serves its managed
+>   challenge at **403** (measured, §11.3), so `cf-mitigated: challenge` never
+>   enters this sequence on that target. Whether it should is Mark's call —
+>   `bl-a7c5`.
+> - **The `js` block.** On an honest stop it is the challenge document's run
+>   (so `stopped:"budget"` is visible); when the round is spent and the answer
+>   is still a challenge, the second challenge document is **not** run and the
+>   block is the first run's; on a pass it is the delivered page's run.
+> - **Hops.** The re-issue is `Navigation::load()` on the same navigation: same
+>   session, pool, jar and the one ten-request hop budget, no referrer, exactly
+>   as the first. A challenge reached through a redirect or a refresh is
+>   answered the same way, and the re-issue walks the same hops again.
+> - **What the re-issue returns is reported as it is** — see §5.1's note.
 
 > **Code names updated 2026-11-17 (`bl-08d8`).** `FetchSession::navigate()` and
 > the private `FetchSession::run` this document cites (§2, §3) no longer exist.
@@ -233,6 +333,17 @@ the envelope.**
   `http.headers` surfaces — they cannot disagree, `bl-acec`).
 - `rounds` — navigations **after** the first. `0` when frot stopped without one.
 - `passed` — whether the re-navigation returned a non-challenge response.
+
+> **As built 2026-11-17 (`bl-15ff`).** `ChallengeInfo` in
+> `src/envelope/challenge.rs`; the last key of the envelope. `declared` is one
+> of `retry-after`, `cf-mitigated`, `x-amzn-waf-action` — whichever
+> `needs::challenge` matched first, in that order — and a test pins that each
+> is in `SURFACED`. The block rides **every** envelope shape, an `error`
+> included. `passed` is exactly the definition above, which has two corners
+> worth stating: a re-issue answered with **status ≥ 400** is `passed: true`
+> beside `status:"error"` (`http.403`) — the challenge was passed, then the
+> server refused — and a re-issue that got **no response** (timeout, redirect
+> loop) is `passed: false` beside the fetch error.
 
 Present only when a challenge was declared; absent otherwise
 (`skip_serializing_if = "Option::is_none"`, exactly as `js` and `http` do in
@@ -328,6 +439,21 @@ negotiable to make a gate pass**: a PoW is pure compute, so a PoW that outruns
 bigger number. If a target is measured to need more, that is a
 finding to record, not a constant to raise quietly.
 
+> **As built 2026-11-17 (`bl-15ff`) — one budget per invocation, made
+> literal.** The arithmetic above counts one JS run, but a passed challenge
+> means **two** documents run: the challenge, then the page behind it. Giving
+> each its own `EXEC_CPU_MS`/`NET_BUDGET_MS` would have doubled the invocation's
+> ceiling without anyone raising a constant. So both runs draw on **one**
+> `js::Bounds`: the network meter is shared, and `Deadline::bank()` closes the
+> first run's compute window keeping only what it left, which is all the second
+> run opens. The sentence above is therefore true of the whole invocation —
+> up to 1 s CPU plus up to 1 s of wire, across both runs. The cost is honest
+> and visible: a proof-of-work that spends 700 ms leaves the real page 300 ms,
+> and that page then reports `js:{settled:false, stopped:"budget"}` beside
+> `challenge:{passed:true}`. Pinned in `roundtrip_guard_tests.rs`. If the
+> page deserves a fresh allowance, that is a decision to make on evidence, not
+> a default to slip in.
+
 **(iii) Rate.** Recommendation: **no rate mechanism.** A single invocation is
 bounded at two navigations, and frot has no rate to govern — the call rate lives
 in the harness, and an inter-round delay would be a flag, which is a smell.
@@ -372,7 +498,15 @@ run.
 
 ---
 
+> **Measured 2026-11-17 — see §11.3.** In short: Amazon **null** (the challenge
+> script cannot finish inside frot's JS environment; no round was taken), reddit
+> honest stop, g2 untouched, zero `challenge` blocks on the ordinary corpus. The
+> §10.1 cookie-flow trace is **still owed**: the script never reached a write.
+
 ## 9. Proposed decomposition (proposed, NOT filed)
+
+> **As built 2026-11-17.** Not decomposed: one ball, `bl-15ff`, took all six
+> rows through in one delivery.
 
 No balls created by this ball. Recommended siblings once Mark signs off:
 
@@ -425,3 +559,95 @@ by the sibling-6 capstone **before** the sibling-3 loop assumes them:
   is an honest **false-negative** (never a false-`ok`), so it is fine to ship — but
   it is a residual, not a surprise: jar-delta is *a* sufficient pass signal, not
   the definition of "passed".
+
+---
+
+## 11. As built, and measured (`bl-15ff`, 2026-11-17)
+
+### 11.1 What happens, in order
+
+1. frot GETs the caller's URL, following redirects and zero-delay refreshes as
+   always.
+2. If the response is below 400 and carries `retry-after`, `cf-mitigated:
+   challenge` or `x-amzn-waf-action: challenge`, a challenge was declared, and
+   the envelope will carry a `challenge` block whatever happens next. Otherwise
+   nothing below applies and the invocation is exactly what it was before.
+3. Without `--js`: stop, `needs:["js"]`.
+4. With `--js`: note the request a re-issue would send, parse the challenge
+   document, and run its scripts in the ordinary sandbox under the ordinary
+   bounds. The scripts may `fetch`/XHR — including a POST with a text body, the
+   one new thing they can do. Whatever cookies those responses or
+   `document.cookie` set land in the invocation's jar.
+5. Note the request a re-issue would send *now*. Unchanged: stop,
+   `needs:["human"]`, `rounds:0`, with the `js` block of that run.
+6. Changed: GET the caller's URL again (`rounds:1`). That is the only extra
+   navigation there will ever be.
+7. Still a declared challenge: stop, `needs:["human"]`, `rounds:1`,
+   `passed:false`. Anything else: `passed:true`, and the response goes through
+   the ordinary pipeline — its scripts run on what is left of the invocation's
+   budget — to whatever envelope it earns.
+
+### 11.2 The envelope
+
+```json
+{"frot":"0","url":{"requested":"https://shop.example/","final":"https://shop.example/"},
+ "view":"text","status":"ok","out":"the real page",
+ "http":{"status":200,"headers":[]},
+ "js":{"scripts":0,"errors":0,"settled":true},
+ "challenge":{"declared":"x-amzn-waf-action","rounds":1,"passed":true}}
+```
+
+`challenge` is the only addition. `needs:["js"]` for a declared challenge
+without `--js` (it was `needs:["human"]`) is the one changed verdict.
+
+### 11.3 The capstone — a null
+
+Measured 2026-11-17, release build of the `bl-15ff` worktree. **Egress: the
+machine this session ran on. It was not verified to be the §3 reference egress
+(`identity.md` §3 deliberately records no address to compare against), so these
+rows are not controlled against the earlier baselines for IP reputation.**
+
+| target | recipe | result |
+|---|---|---|
+| `www.amazon.com/` ×3 | `--js --out text` | **not passed.** `needs:["human"]`, `http.status 202`, `challenge:{declared:"x-amzn-waf-action", rounds:0, passed:false}`, `js:{scripts:3, errors:2, settled:true}` — identical all three runs |
+| `www.amazon.com/` | `--out text` | `needs:["js"]`, same `challenge` block, no `js` block |
+| `www.reddit.com/` | `--js --out text` | honest stop. `needs:["human"]`, `http.status 200`, `challenge:{declared:"retry-after", rounds:0, passed:false}`, `js:{scripts:1, errors:1, settled:true}` |
+| `www.g2.com/` | `--js --out text` | untouched: `error{http.403}`, no `challenge` block |
+| `stackoverflow.com/questions` | `--js --out text` | `error{http.403}`, `cf-mitigated: challenge`, `server: cloudflare`, **no `challenge` block** — the Cloudflare challenge arrives at 403, on the error path (`bl-a7c5`) |
+| `en.wikipedia.org/wiki/Main_Page`, `lobste.rs/`, `news.ycombinator.com/`, `react.dev/` | `--js --out text` | no `challenge` block on any (`ok`, `ok`, `ok`, `needs:["js"]`) — zero false positives |
+
+**Amazon: failed, and exactly where.** The round trip was never reached. AWS
+WAF's `challenge.js` (702 kB) loads and runs, GETs
+`…token.awswaf.com/…/inputs?client=browser` (200), and then needs Web APIs
+frot's JS environment does not have, so it never produces a token, never
+POSTs, never writes a cookie. The request is unchanged, so frot stops after one
+navigation — the honest stop, working as designed. Traced with a throwaway
+harness that logged reads of absent globals (and, in a second pass, stubbed them
+to see what came next):
+
+| absent surface | evidence | ball |
+|---|---|---|
+| `crypto.subtle` | **the hard stop.** With everything else stubbed the script calls `crypto.subtle.importKey("raw", <32 bytes>, {name:"AES-GCM"}, …, ["encrypt"])` — the key and IV are the page's `window.gokuProps` | `bl-0647` |
+| `TextEncoder` / `TextDecoder` | read before and after the inputs fetch | `bl-53b7` |
+| `requestIdleCallback` | read right after the inputs fetch returns | `bl-b584` |
+| `Blob` (+ `URL.createObjectURL`) | read; the script also names `Worker` — if the proof-of-work runs in a Blob-URL worker, frot's non-executing `Worker` is the next wall (unmeasured) | `bl-78c5` |
+| `FormData` | read | `bl-6eb9` |
+
+None was built here: `crypto.subtle` is a large declared residual
+(`identity.md` §11) with an open decision attached, and the small ones do not
+move the outcome without it.
+
+**What this null does and does not say.** It is **not** the falsifier §8
+stated in advance (a challenge still posed *after* a passed round — IP/ASN
+reputation); that stays untested, because no round was passed. It says the
+blocker for Amazon moved from *"frot will not run the challenge"* to *"frot's
+JS environment cannot run this challenge"* — a capability gap with a named
+first item, which is the kind of thing frot can close. **§10.1's two residuals
+are still unmeasured**: which write mints `aws-waf-token`, and whether it is in
+scope for the re-issue, cannot be traced until the script gets that far.
+
+**The mechanism is proven only offline.** `src/run/roundtrip_tests.rs` and
+`roundtrip_guard_tests.rs` drive a synthetic challenge (compute a token; set it
+by `document.cookie`, by a same-origin POST whose response sets an HttpOnly
+cookie, or by a cross-origin POST) to the real page, and every stop short of it.
+No live target has yet been passed. That is the honest state of this feature.

@@ -96,14 +96,14 @@ fn fetch_rejects_a_refused_request() {
 }
 
 #[test]
-fn fetch_refuses_a_non_get_method() {
+fn fetch_refuses_every_method_but_get_and_post() {
     let s = session_at("https://example.com/");
     s.eval(
-        "globalThis.e=''; fetch('/x', {method:'POST'}) \
+        "globalThis.e=''; fetch('/x', {method:'PUT', body:'x'}) \
          .catch(function(err){ globalThis.e=String(err); });",
     )
     .unwrap();
-    assert!(s.eval("e").unwrap().contains("only GET"));
+    assert!(s.eval("e").unwrap().contains("only GET and POST"));
 }
 
 #[test]
@@ -146,10 +146,10 @@ fn xhr_get_reads_status_body_and_headers() {
 }
 
 #[test]
-fn xhr_refuses_a_non_get_method() {
+fn xhr_refuses_every_method_but_get_and_post() {
     let s = session_at("https://example.com/");
     let out = s
-        .eval("var x=new XMLHttpRequest(); x.open('POST','/x'); try { x.send(); 'sent' } catch(e) { 'threw' }")
+        .eval("var x=new XMLHttpRequest(); x.open('DELETE','/x'); try { x.send(); 'sent' } catch(e) { 'threw' }")
         .unwrap();
     assert_eq!(out, "threw");
 }
@@ -163,4 +163,80 @@ fn xhr_failed_get_fires_onerror() {
     )
     .unwrap();
     assert_eq!(s.eval("err").unwrap(), "true");
+}
+
+#[test]
+fn a_post_carries_the_scripts_content_type_in_every_shape_or_the_body_default() {
+    // The prelude is the one place a verb is named (challenge.md §2). The
+    // script's own Content-Type rides in any `init.headers` shape; with none,
+    // the body's type decides, as in a browser. A failed POST rejects.
+    let mut server = Server::new();
+    let mut post = |path: &str, ctype: &str, body: &str| {
+        server
+            .mock("POST", path)
+            .match_header("content-type", ctype)
+            .match_body(mockito::Matcher::Exact(body.into()))
+            .with_body("ok")
+            .expect(1)
+            .create()
+    };
+    let mocks = [
+        post("/record", "application/json", "{}"),
+        post("/pairs", "a/b", "p"),
+        post("/headers", "c/d", "h"),
+        post(
+            "/form",
+            "application/x-www-form-urlencoded;charset=UTF-8",
+            "a=1",
+        ),
+        post("/text", "text/plain;charset=UTF-8", "t"),
+        post("/empty", "text/plain;charset=UTF-8", ""),
+    ];
+    let s = session_at(&server.url());
+    s.eval(
+        "globalThis.n = 0; globalThis.bad = ''; var ok = function () { n++; }; \
+         fetch('/record', {method: 'post', headers: {'content-type': 'application/json'}, body: '{}'}).then(ok); \
+         fetch('/pairs', {method: 'POST', headers: [['X-A', '1'], ['Content-Type', 'a/b']], body: 'p'}).then(ok); \
+         fetch('/headers', {method: 'POST', headers: new Headers([['Content-Type', 'c/d']]), body: 'h'}).then(ok); \
+         fetch('/form', {method: 'POST', body: new URLSearchParams('a=1')}).then(ok); \
+         fetch('/text', {method: 'POST', headers: {'x-other': '1'}, body: 't'}).then(ok); \
+         fetch('/empty', {method: 'POST'}).then(ok); \
+         fetch('file:///etc/passwd', {method: 'POST', body: 'x'}) \
+           .catch(function (e) { globalThis.bad = String(e); }); \
+         fetch('/bytes', {method: 'POST', body: new Uint8Array([1, 2])}) \
+           .catch(function (e) { globalThis.bytes = String(e); });",
+    )
+    .unwrap();
+    assert_eq!(s.eval("n").unwrap(), "6");
+    assert!(s.eval("bad").unwrap().contains("remote"));
+    // Bytes frot cannot carry faithfully are refused, never sent as text.
+    assert!(s
+        .eval("bytes")
+        .unwrap()
+        .contains("only text request bodies"));
+    mocks.iter().for_each(|m| m.assert());
+}
+
+#[test]
+fn xhr_posts_its_body_under_the_content_type_the_script_set() {
+    let mut server = Server::new();
+    let m = server
+        .mock("POST", "/v")
+        .match_header("content-type", "application/json")
+        .match_header("x-ignored", mockito::Matcher::Missing)
+        .match_body(mockito::Matcher::Exact("{\"a\":1}".into()))
+        .with_status(201)
+        .with_body("made")
+        .expect(1)
+        .create();
+    let s = session_at(&server.url());
+    let out = s
+        .eval(
+            "var x = new XMLHttpRequest(); x.open('POST', '/v'); \
+             x.setRequestHeader('X-Ignored', '1'); x.setRequestHeader('Content-Type', 'application/json'); \
+             x.send(JSON.stringify({a: 1})); x.status + ':' + x.responseText + ':' + x.send.length",
+        )
+        .unwrap();
+    assert_eq!(out, "201:made:0");
+    m.assert();
 }

@@ -21,7 +21,7 @@
 use std::time::Duration;
 
 use bytes::Bytes;
-use http_body_util::{BodyExt, Empty, Limited};
+use http_body_util::{BodyExt, Full, Limited};
 use hyper::body::Incoming;
 use hyper::Request;
 use hyper_rustls::HttpsConnector;
@@ -35,8 +35,9 @@ use super::firefox_tls::firefox_client_config;
 use super::profile::FIREFOX_153_ESR;
 use super::{FetchError, POOL_PER_HOST};
 use crate::envelope::kinds;
+use crate::js::ScriptBody;
 
-type HttpsClient = Client<HttpsConnector<HttpConnector>, Empty<Bytes>>;
+type HttpsClient = Client<HttpsConnector<HttpConnector>, Full<Bytes>>;
 
 /// One raw HTTP response: status, headers (hyper's `HeaderMap` order — wire
 /// order within a repeated name, arbitrary across names), and the body
@@ -130,6 +131,7 @@ impl Transport {
     /// frot-owned pool would have to re-inherit ALPN-h2 connect dedup, checkout
     /// liveness, the checkout/dial race and canceled-request retry. This is a
     /// declared residual (§11), not an open defect.
+    #[cfg(test)]
     pub(crate) fn request_once(
         &self,
         url: &str,
@@ -137,8 +139,23 @@ impl Transport {
         max_body: u64,
         deadline: Duration,
     ) -> Result<RawResponse, FetchError> {
+        self.send(url, headers, None, max_body, deadline)
+    }
+
+    /// One exchange, a GET — or, when `body` is the page script's own request
+    /// body, the POST that script issued. The verb is never a parameter: only a
+    /// [`ScriptBody`] makes a POST, and only `crate::js::subfetch` can make one
+    /// (`docs/design/challenge.md` §2).
+    pub(crate) fn send(
+        &self,
+        url: &str,
+        headers: &[(String, String)],
+        body: Option<&ScriptBody>,
+        max_body: u64,
+        deadline: Duration,
+    ) -> Result<RawResponse, FetchError> {
         self.runtime.block_on(async {
-            tokio::time::timeout(deadline, self.exchange(url, headers, max_body))
+            tokio::time::timeout(deadline, self.exchange(url, headers, body, max_body))
                 .await
                 .map_err(|_| FetchError::new(kinds::FETCH_TIMEOUT, "request timed out"))?
         })
@@ -148,9 +165,14 @@ impl Transport {
         &self,
         url: &str,
         headers: &[(String, String)],
+        body: Option<&ScriptBody>,
         max_body: u64,
     ) -> Result<RawResponse, FetchError> {
-        let mut builder = Request::builder().method("GET").uri(url);
+        let (method, payload) = match body {
+            Some(b) => ("POST", Full::new(Bytes::copy_from_slice(b.bytes()))),
+            None => ("GET", Full::default()),
+        };
+        let mut builder = Request::builder().method(method).uri(url);
         for (n, v) in headers {
             builder = builder.header(n.as_str(), v.as_str());
         }
@@ -165,7 +187,7 @@ impl Transport {
             builder = builder.header("accept-encoding", super::decode::ACCEPT_ENCODING);
         }
         let req = builder
-            .body(Empty::<Bytes>::new())
+            .body(payload)
             .map_err(|e| FetchError::new(kinds::FETCH_URL, e.to_string()))?;
         let resp = self.client.request(req).await.map_err(map_legacy_error)?;
         let status = resp.status().as_u16();

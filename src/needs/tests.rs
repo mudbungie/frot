@@ -227,21 +227,33 @@ fn hdr(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
 
 #[test]
 fn retry_after_declares_a_challenge_whatever_its_value() {
-    assert!(challenge(&hdr(&[("retry-after", "0")])));
-    assert!(challenge(&hdr(&[("Retry-After", "120")])));
+    assert_eq!(
+        challenge(&hdr(&[("retry-after", "0")])),
+        Some("retry-after")
+    );
+    assert_eq!(
+        challenge(&hdr(&[("Retry-After", "120")])),
+        Some("retry-after")
+    );
 }
 
 #[test]
 fn cf_mitigated_challenge_declares_a_challenge_case_insensitively() {
-    assert!(challenge(&hdr(&[("cf-mitigated", "challenge")])));
-    assert!(challenge(&hdr(&[("CF-Mitigated", " Challenge ")])));
+    assert_eq!(
+        challenge(&hdr(&[("cf-mitigated", "challenge")])),
+        Some("cf-mitigated")
+    );
+    assert_eq!(
+        challenge(&hdr(&[("CF-Mitigated", " Challenge ")])),
+        Some("cf-mitigated")
+    );
 }
 
 #[test]
 fn other_cf_mitigated_values_are_not_a_challenge() {
     // Cloudflare uses the header for other mitigations; only the challenge
     // declaration means "the page was never served".
-    assert!(!challenge(&hdr(&[("cf-mitigated", "block")])));
+    assert_eq!(challenge(&hdr(&[("cf-mitigated", "block")])), None);
 }
 
 #[test]
@@ -250,8 +262,14 @@ fn amzn_waf_challenge_declares_a_challenge_case_insensitively() {
     // request headers with 202 + `x-amzn-waf-action: challenge` + an AWS WAF
     // `challenge.js` body. The declaration, not the empty-looking body, is
     // the fact.
-    assert!(challenge(&hdr(&[("x-amzn-waf-action", "challenge")])));
-    assert!(challenge(&hdr(&[("X-Amzn-Waf-Action", " Challenge ")])));
+    assert_eq!(
+        challenge(&hdr(&[("x-amzn-waf-action", "challenge")])),
+        Some("x-amzn-waf-action")
+    );
+    assert_eq!(
+        challenge(&hdr(&[("X-Amzn-Waf-Action", " Challenge ")])),
+        Some("x-amzn-waf-action")
+    );
 }
 
 #[test]
@@ -260,11 +278,20 @@ fn other_amzn_waf_actions_are_not_a_challenge() {
     // declared deferral this detector recognizes. (`captcha` at a 2xx would
     // fall through — it is not a deferral the server says to retry, and
     // inventing a verdict for an unmeasured shape is guessing.)
-    assert!(!challenge(&hdr(&[("x-amzn-waf-action", "block")])));
+    assert_eq!(challenge(&hdr(&[("x-amzn-waf-action", "block")])), None);
 }
 
 #[test]
 fn ordinary_response_headers_declare_nothing() {
-    assert!(!challenge(&hdr(&[("content-type", "text/html")])));
-    assert!(!challenge(&[]));
+    assert_eq!(challenge(&hdr(&[("content-type", "text/html")])), None);
+    assert_eq!(challenge(&[]), None);
+}
+
+#[test]
+fn every_declaring_header_is_surfaced_in_the_http_block() {
+    // `challenge.declared` names a header the caller can also read in
+    // `http.headers` (challenge.md §5.1): one capture, one allowlist.
+    for name in DECLARING {
+        assert!(crate::envelope::SURFACED.contains(&name), "{name}");
+    }
 }

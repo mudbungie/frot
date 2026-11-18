@@ -218,7 +218,8 @@ fn check_contract(target: &Target, label: &str, a: &Agg, which: &str, out: &mut 
 }
 
 /// §3.7: a declared-challenge negative control must make exactly one request and
-/// never be executed. The live view of that: `needs:["human"]` or a plain 4xx,
+/// never be executed. The live view of that, under the static recipe these
+/// controls run (`challenge.md` §5.2): `needs:["js"]` or a plain 4xx,
 /// and NO `js` block (nothing ran). One request cannot be counted black-box; the
 /// deterministic `src/run/persona_tests.rs` proves the exact count offline.
 fn check_challenge(target: &Target, label: &str, a: &Agg, which: &str, out: &mut Vec<String>) {
@@ -226,7 +227,7 @@ fn check_challenge(target: &Target, label: &str, a: &Agg, which: &str, out: &mut
         return;
     }
     let p = &a.probe;
-    let refused = p.needs == "human" || p.status == "error";
+    let refused = p.needs == "js" || p.status == "error";
     if !refused || p.executed {
         out.push(format!(
             "challenge-control: [{}] {} {which} recipe `{label}` refused={refused} executed={} — must refuse pre-execution",

@@ -227,3 +227,27 @@ fn a_page_classic_script_is_sloppy_and_frot_s_own_js_is_strict() {
         Err(EvalError::Exception(_))
     ));
 }
+
+#[test]
+fn a_banked_deadline_opens_only_what_the_last_window_left() {
+    // The compute budget is the invocation's (challenge.md §7): a finished run
+    // banks its remainder, and the next window is that remainder — not a fresh
+    // allowance. Banking a window that was never opened changes nothing.
+    let clock = Clock::manual();
+    let d = Deadline::on(clock.clone(), Duration::from_millis(100));
+    d.bank();
+    d.arm();
+    clock.advance(Duration::from_millis(60));
+    assert!(!d.expired());
+    d.bank();
+    assert!(!d.expired(), "a banked window is closed");
+    d.arm();
+    clock.advance(Duration::from_millis(39));
+    assert!(!d.expired());
+    clock.advance(Duration::from_millis(1));
+    assert!(d.expired(), "40 ms were left, and 40 ms have passed");
+    // An overrun leaves nothing: the next window is born expired.
+    d.bank();
+    d.arm();
+    assert!(d.expired());
+}

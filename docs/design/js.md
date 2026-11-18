@@ -462,6 +462,14 @@ design center. Two clocks, four limits:
   `settled: false, stopped: "network"` (§10).
 - **Memory cap: `JS_MEM_LIMIT = 64 MiB`** engine heap, engine-enforced.
 
+> **Scope of the two budgets, stated 2026-11-17 (`bl-15ff`).** Both are **per
+> invocation**. Until the challenge round trip an invocation ran one document,
+> so "per run" and "per invocation" were the same thing. Now a passed challenge
+> means two documents run — the challenge, then the page behind it — and they
+> spend **one** `Bounds`: the network meter is shared, and `Deadline::bank()`
+> closes the first run's compute window keeping only its remainder for the
+> second (`challenge.md` §7 note). Neither constant changed.
+
 All three bound *page scripts and the event loop*; the one-time API install is
 exempt from every one of them (`Engine::setup`: it disarms the compute window —
 the network budget needs no exemption, since install dispatches nothing to charge
@@ -618,6 +626,16 @@ is trivially "sync" since the whole loop is single-threaded and blocking):
   > frot *originates* nothing; a page script that POSTs is the browser acting,
   > and frot cannot construct such a request from the host side by
   > construction (`challenge.md` §2).
+  >
+  > **Landed 2026-11-17 (`bl-15ff`).** As superseded, with the as-built detail:
+  > `fetch`/XHR `POST` goes through a second syscall, `__frot_subpost(url,
+  > body, contentType)`, to `Subfetch::post` (`src/js/subfetch/post.rs`), which
+  > rides the same network-budget and byte-pool seam as a GET and is never
+  > frozen. The body must be text (a string or `URLSearchParams`), at most
+  > `REQ_BODY_BYTES` = 64 KiB; it carries the script's `Content-Type` (else the
+  > browser default for the body type) and `Origin`, and no other script-set
+  > header. Every method but GET and POST still rejects/throws. `net.js` is the
+  > only place frot names a verb.
 - **Once-then-frozen.** Each absolute URL is fetched at most once per call and
   its response cached for the call's lifetime. Deterministic within the call,
   nothing persists past it.
@@ -1145,6 +1163,10 @@ Two moves against today's `run.rs`:
   > **Load-bearing as of 2026-07-22 (`bl-017a`).** This bullet is **unchanged**
   > by the challenge design: `form.submit()`/`requestSubmit()` remain no-ops
   > even once the transport can carry a verb (`challenge.md` §2, §6).
+  > *(Landed 2026-11-17, `bl-15ff`: the transport now carries a script's POST,
+  > and a form is still never submitted — pinned in
+  > `run/roundtrip_guard_tests.rs`. Precisely: `<form>` has no `submit`/
+  > `requestSubmit` method in frot, so a call throws rather than no-ops.)*
 - **No navigation.** `location` writes, `history` pushes, meta-refresh:
   no-ops (counted where a page could observe the lie). One URL, one document,
   one impression.
@@ -1153,6 +1175,9 @@ Two moves against today's `run.rs`:
   > re-issues **the caller's own URL** after a server-posed challenge minted new
   > state — not a script-chosen navigation. "One URL, one impression" holds; "one
   > request" does not, and never governed redirects either (`challenge.md` §4).
+  > *(Landed 2026-11-17, `bl-15ff`: built as described — `Navigation::load()`
+  > a second time, at most once, only when the challenge script changed the
+  > request.)*
 
   > **Superseded in part 2026-11-17 (`bl-c262`, decided by Mark: "follow the
   > refreshes like a redirect"; built in `bl-08d8`).** "meta-refresh: no-op" and
@@ -1259,6 +1284,7 @@ Two moves against today's `run.rs`:
     > `needs:["js"]`; with `--js` on its script runs, and `needs:["human"]` is
     > reported only **after** that route was tried (`needs.md` §1/§3,
     > `challenge.md` §5.2).
+    > *(Landed 2026-11-17, `bl-15ff`.)*
 
 ## 12. Decomposition (proposed subtasks for bl-b3c5)
 

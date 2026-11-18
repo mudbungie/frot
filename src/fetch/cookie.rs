@@ -22,10 +22,12 @@
 //! that one line in place — never a duplicate, never sent cross-origin, never
 //! stored in the jar.
 //!
-//! **Challenge boundary.** The transport may `store` a `Set-Cookie` while
-//! receiving a declared challenge, but `run.rs` exits before parse/JS/subfetch
-//! and the session (hence this jar) then drops. frot never retries, so a
-//! challenge cookie is never replayed.
+//! **Challenge boundary** (`docs/design/challenge.md` §4). A declared
+//! challenge's `Set-Cookie`, and whatever its own script then writes or earns
+//! from a POST, land here like any other cookie. `run.rs` re-issues the
+//! caller's URL once iff that script changed the request this jar would
+//! produce — never to replay an unchanged one — and the jar still drops with
+//! the session.
 
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;

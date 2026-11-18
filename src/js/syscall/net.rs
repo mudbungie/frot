@@ -1,9 +1,11 @@
-//! The subfetch syscall (js.md §6) — the single host op behind `fetch`,
-//! `XMLHttpRequest`, and external `<script src>`. GET-only by construction (it
-//! only ever drives [`crate::js::subfetch`], which GETs); method policy is the
-//! prelude's, since a non-GET never reaches the wire.
+//! The subfetch syscalls (js.md §6) — the host ops behind `fetch`,
+//! `XMLHttpRequest`, and external `<script src>`. `__frot_subfetch(url)` is the
+//! GET; `__frot_subpost(url, body, contentType)` is the page script's own POST
+//! (`challenge.md` §2/§3), the only request with a body frot can issue. Method
+//! policy is the prelude's — it is the one place a verb is named, and every
+//! method but GET and POST is rejected there and never reaches the wire.
 //!
-//! `__frot_subfetch(url)` returns a plain object the prelude shapes into a
+//! Each returns a plain object the prelude shapes into a
 //! `Response`/XHR: a success carries `ok`/`status`/`url`/`body`/`headers`; a
 //! refusal or transport failure carries only `error` (a string), which the
 //! prelude turns into a rejected promise / XHR error — counted through the §10
@@ -29,6 +31,17 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
         let sf = host.subfetch.clone();
         move |ctx: Ctx<'js>, url: String| -> rquickjs::Result<Object<'js>> {
             let outcome = sf.borrow_mut().get(&url, crate::fetch::Intent::FetchXhr);
+            outcome_obj(&ctx, outcome)
+        }
+    });
+    bind!(ctx, g, "__frot_subpost", {
+        let sf = host.subfetch.clone();
+        move |ctx: Ctx<'js>,
+              url: String,
+              body: String,
+              ctype: String|
+              -> rquickjs::Result<Object<'js>> {
+            let outcome = sf.borrow_mut().post(&url, &body, &ctype);
             outcome_obj(&ctx, outcome)
         }
     });

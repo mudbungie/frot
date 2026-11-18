@@ -140,10 +140,11 @@ fn parallel_subresource_reads_share_the_jar_race_safe() {
 }
 
 #[test]
-fn a_declared_challenge_exits_before_any_cookie_replay() {
-    // The transport may parse the challenge's Set-Cookie, but run.rs exits at the
-    // `needs:human` verdict before parse/JS/subfetch — no second request, so a
-    // challenge cookie is never replayed (frot never retries).
+fn a_challenge_responses_own_cookie_earns_no_second_request() {
+    // The challenge response's Set-Cookie reaches the jar, but only the page's
+    // own *script* changing the request warrants a second navigation
+    // (challenge.md §4.1). The server's cookie alone — with `--js`, and a body
+    // that runs nothing — is not that: one request, never a retry.
     let mut server = mockito::Server::new();
     let page = server
         .mock("GET", "/")
@@ -153,11 +154,12 @@ fn a_declared_challenge_exits_before_any_cookie_replay() {
         .with_body("<html><body>please wait</body></html>")
         .expect(1)
         .create();
-    let (code, out, _) = run_capture(&[&server.url(), "--out", "text"]);
+    let (code, out, _) = run_capture(&[&server.url(), "--js", "--out", "text"]);
     assert_eq!(code, 0);
     let env = parse_envelope(&out);
     assert_eq!(env["status"], "needs");
     assert_eq!(env["needs"], serde_json::json!(["human"]));
+    assert_eq!(env["challenge"]["rounds"], 0);
     assert!(env.get("out").is_none(), "challenge produced output: {out}");
     page.assert(); // exactly one request — no retry replayed the challenge cookie
 }

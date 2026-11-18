@@ -188,3 +188,23 @@ fn kinds_constants_are_dotted_and_stable() {
     assert_eq!(kinds::PARSE, "parse");
     assert_eq!(kinds::INTERNAL, "internal");
 }
+
+#[test]
+fn envelope_with_challenge_is_the_last_key_and_absent_when_none() {
+    // challenge.md §5.1: additive, present only when a challenge was declared.
+    let url = || UrlBlock::resolved("https://a.example/", "https://a.example/");
+    let plain = Envelope::ok(url(), View::Text, serde_json::json!("x")).with_challenge(None);
+    assert!(!plain.to_json_string().contains("challenge"));
+    let mut info = ChallengeInfo::declared("x-amzn-waf-action");
+    assert_eq!((info.rounds, info.passed), (0, false));
+    info.rounds = 1;
+    info.passed = true;
+    let s = Envelope::ok(url(), View::Text, serde_json::json!("x"))
+        .with_challenge(Some(info.clone()))
+        .to_json_string();
+    assert!(s.ends_with(
+        ",\"challenge\":{\"declared\":\"x-amzn-waf-action\",\"rounds\":1,\"passed\":true}}"
+    ));
+    let back: Envelope = serde_json::from_str(&s).unwrap();
+    assert_eq!(back.challenge, Some(info));
+}

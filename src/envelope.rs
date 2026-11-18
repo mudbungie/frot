@@ -6,7 +6,11 @@
 
 use serde::{Deserialize, Serialize};
 
+mod challenge;
 mod http;
+pub use challenge::ChallengeInfo;
+#[cfg(test)]
+pub(crate) use http::SURFACED;
 pub use http::{HttpHeader, HttpInfo};
 
 pub const ENVELOPE_VERSION: &str = "0";
@@ -55,9 +59,10 @@ impl View {
 pub enum NeedsKind {
     Js,
     Css,
-    /// The page demands interactive verification no recipe provides — a
-    /// server-declared challenge/deferral (`docs/design/needs.md` §3). The
-    /// capability past the end of the flag list: escalate out of frot.
+    /// The page demands verification no recipe provides — a server-declared
+    /// challenge frot ran under `--js` and did not pass (`docs/design/needs.md`
+    /// §3, `challenge.md` §5.2). The capability past the end of the flag list:
+    /// escalate out of frot.
     Human,
 }
 
@@ -197,20 +202,31 @@ pub struct Envelope {
     pub http: Option<HttpInfo>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub js: Option<JsInfo>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub challenge: Option<ChallengeInfo>,
 }
 
 impl Envelope {
-    pub fn ok(url: UrlBlock, view: View, out: serde_json::Value) -> Self {
+    /// The shape every variant starts from: no payload, no signal blocks.
+    fn bare(url: UrlBlock, view: View, status: StatusKind) -> Self {
         Self {
             frot: ENVELOPE_VERSION.into(),
             url,
             view,
-            status: StatusKind::Ok,
-            out: Some(out),
+            status,
+            out: None,
             needs: None,
             error: None,
             http: None,
             js: None,
+            challenge: None,
+        }
+    }
+
+    pub fn ok(url: UrlBlock, view: View, out: serde_json::Value) -> Self {
+        Self {
+            out: Some(out),
+            ..Self::bare(url, view, StatusKind::Ok)
         }
     }
 
@@ -221,29 +237,16 @@ impl Envelope {
         out: Option<serde_json::Value>,
     ) -> Self {
         Self {
-            frot: ENVELOPE_VERSION.into(),
-            url,
-            view,
-            status: StatusKind::Needs,
             out,
             needs: Some(needs),
-            error: None,
-            http: None,
-            js: None,
+            ..Self::bare(url, view, StatusKind::Needs)
         }
     }
 
     pub fn error(url: UrlBlock, view: View, error: ErrorInfo) -> Self {
         Self {
-            frot: ENVELOPE_VERSION.into(),
-            url,
-            view,
-            status: StatusKind::Error,
-            out: None,
-            needs: None,
             error: Some(error),
-            http: None,
-            js: None,
+            ..Self::bare(url, view, StatusKind::Error)
         }
     }
 
@@ -258,6 +261,14 @@ impl Envelope {
     /// `None` (no `--js`) leaves the envelope untouched.
     pub fn with_js(mut self, js: Option<JsInfo>) -> Self {
         self.js = js;
+        self
+    }
+
+    /// Attach the declared-challenge signal (`docs/design/challenge.md` §5.1).
+    /// Additive; `None` — no challenge was declared — leaves the envelope
+    /// untouched, byte for byte.
+    pub fn with_challenge(mut self, challenge: Option<ChallengeInfo>) -> Self {
+        self.challenge = challenge;
         self
     }
 

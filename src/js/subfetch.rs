@@ -4,8 +4,10 @@
 //! runner (`super::run_external`) both ride this cache; the prelude shapes
 //! `fetch`/XHR over the syscall.
 //!
-//! The policy mirrors the stylesheet subfetch in `run.rs`: GET only (implicit —
-//! the cache only ever calls [`FetchSession::subresource`], which GETs), each URL
+//! The policy mirrors the stylesheet subfetch in `run.rs`: a GET
+//! ([`FetchSession::subresource`]) for everything but the one request a page
+//! script may issue with a body — its own POST ([`post`], `challenge.md` §2/§3),
+//! never cached. Each GET URL is
 //! fetched at most once and its response frozen for the call, `-H` headers ride
 //! only same-origin, remote→local reads refused. Bounds are one per real
 //! resource, each in its own unit (§6, bl-c7e9/bl-8dc0/bl-79dc): *time* — every
@@ -22,17 +24,21 @@
 //! while time and memory stood idle. Nothing persists past the call.
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use url::Url;
 
-use crate::fetch::{fetch_many, FetchResult, FetchSession, Intent, TIMEOUT_SECS};
+use crate::fetch::{FetchError, FetchResult, FetchSession, Intent, TIMEOUT_SECS};
 
 use super::engine::NetBudget;
 
 mod data;
+mod post;
+mod warm;
+
+pub(crate) use post::ScriptBody;
 
 /// §6 pooled response-byte budget per call. The frozen cache is the network-side
 /// analogue of the engine heap and takes the same allowance as
@@ -161,6 +167,24 @@ impl Subfetch {
         if let Some(payload) = data::payload(&url) {
             return self.local(&url, payload);
         }
+        let hit = self.wire(&url, |session, base, timeout| {
+            session.subresource(&url, base, intent, timeout)
+        });
+        if let Outcome::Got(frozen) = &hit {
+            self.cache.insert(url, frozen.clone());
+        }
+        hit
+    }
+
+    /// The one route to the wire, for a GET and a script's POST alike: refuse
+    /// once the §5 network budget or the byte pool is spent, otherwise run
+    /// `send`, charge its elapsed and its response bytes, and record the real
+    /// resource timing.
+    fn wire(
+        &mut self,
+        url: &str,
+        send: impl FnOnce(&FetchSession, &str, Duration) -> Result<FetchResult, FetchError>,
+    ) -> Outcome {
         if self.net.spent_out() {
             // The recorded fact behind §10 `stopped: "network"`: the run spent
             // its whole allowance on the wire and this seam turned the next
@@ -177,19 +201,16 @@ impl Subfetch {
         // duration (`bl-e707`). A failed dispatch — a timeout is the slowest
         // origin there is — is charged exactly as a served one.
         let start_ns = self.net.elapsed_nanos();
-        let (result, dur_ns) = self
-            .net
-            .charge(|| self.session.subresource(&url, &self.base, intent, timeout));
+        let (result, dur_ns) = self.net.charge(|| send(&self.session, &self.base, timeout));
         match result {
             Ok(r) => {
                 let frozen = freeze(r);
                 self.spent += frozen.body.len();
                 self.timings.push(ResourceTiming {
-                    name: url.clone(),
+                    name: url.to_string(),
                     start_ns,
                     dur_ns,
                 });
-                self.cache.insert(url, frozen.clone());
                 Outcome::Got(frozen)
             }
             Err(e) => Outcome::Failed(e.message),
@@ -219,51 +240,6 @@ impl Subfetch {
     /// The one message for a spent byte pool, shared by both paths.
     fn exhausted(&self) -> String {
         format!("subfetch byte budget exhausted ({} bytes)", self.budget)
-    }
-
-    /// Warm the cache concurrently with `specs` — the initial external scripts
-    /// discovered after parse (bl-08f6) — so the source-ordered queue that runs
-    /// next finds each already frozen. Each spec is resolved and the not-yet-cached
-    /// absolute URLs are fetched in parallel through the shared [`fetch_many`]
-    /// primitive, under this cache's *same* network budget and the byte pool's
-    /// remainder, then folded into the cache in one single-threaded pass that
-    /// charges `spent` exactly as a serial [`get`](Self::get) would. The wave's
-    /// own elapsed is charged to the network budget too — it is wire time however
-    /// many sockets shared it. Freezing here means a later `get` for a warmed URL
-    /// is a plain cache hit — served even past the budget, since no network is
-    /// left to gate. Failures are dropped: execution re-attempts and counts them
-    /// (§4.2), never a warm-time error.
-    pub fn warm(&mut self, specs: &[(String, Intent)]) {
-        let mut seen = HashSet::new();
-        let mut reqs = Vec::new();
-        for (spec, intent) in specs {
-            if let Ok(url) = self.resolve(spec) {
-                // A `data:` URL has no round trip to hide, so there is nothing to
-                // warm: it decodes when the queue reaches it.
-                if data::payload(&url).is_none()
-                    && !self.cache.contains_key(&url)
-                    && seen.insert(url.clone())
-                {
-                    reqs.push((url, *intent));
-                }
-            }
-        }
-        let left = self.net.left().min(Duration::from_secs(TIMEOUT_SECS));
-        let budget = self.budget.saturating_sub(self.spent);
-        let (wave, _) = self.net.charge(|| {
-            fetch_many(
-                &self.session,
-                &reqs,
-                &self.base,
-                Instant::now() + left,
-                budget,
-            )
-        });
-        for (i, r) in wave {
-            let frozen = freeze(r);
-            self.spent += frozen.body.len();
-            self.cache.insert(reqs[i].0.clone(), frozen);
-        }
     }
 
     /// Resolve `spec` against the page URL and enforce the remote→local block: a

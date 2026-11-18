@@ -112,10 +112,16 @@ fn thread_cpu_nanos() -> u64 {
 /// A fresh `Deadline` is *disarmed* — no window is open, so nothing has passed
 /// it. [`arm`](Self::arm) opens `budget` from now; [`disarm`](Self::disarm)
 /// returns it to that birth state (host setup is exempt from the page budget).
+///
+/// The budget is the **invocation's**, not one document's: [`bank`](Self::bank)
+/// closes a finished run's window and keeps only what it left, so a second run
+/// in the same invocation — the page behind an answered challenge
+/// (`challenge.md` §7) — opens the remainder, never a fresh allowance.
 #[derive(Clone)]
 pub struct Deadline {
     clock: Clock,
-    budget: Duration,
+    /// Nanoseconds of budget the next window opens with.
+    budget: Arc<AtomicU64>,
     /// Nanoseconds on `clock` at which the window closes; `u64::MAX` = disarmed.
     at: Arc<AtomicU64>,
 }
@@ -132,7 +138,7 @@ impl Deadline {
     pub fn on(clock: Clock, budget: Duration) -> Self {
         Deadline {
             clock,
-            budget,
+            budget: Arc::new(AtomicU64::new(budget.as_nanos() as u64)),
             at: Arc::new(AtomicU64::new(u64::MAX)),
         }
     }
@@ -140,8 +146,16 @@ impl Deadline {
     /// Open the window: `budget` from now on this clock. §5 arms once per run,
     /// so one budget spans every script, lifecycle dispatch and timer callback.
     pub fn arm(&self) {
-        let at = self.clock.elapsed_nanos() + self.budget.as_nanos() as u64;
+        let at = self.clock.elapsed_nanos() + self.budget.load(Ordering::Relaxed);
         self.at.store(at, Ordering::Relaxed);
+    }
+
+    /// Close an armed window and keep what it left as the whole budget: the
+    /// next [`arm`](Self::arm) opens only that. An expired window leaves nothing.
+    pub fn bank(&self) {
+        let at = self.at.swap(u64::MAX, Ordering::Relaxed);
+        let left = at.saturating_sub(self.clock.elapsed_nanos());
+        self.budget.fetch_min(left, Ordering::Relaxed);
     }
 
     /// Close the window back to its disarmed birth state — nothing can pass it.

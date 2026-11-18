@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **frot now answers a server-declared bot challenge the way a browser does
+  unattended — and tells you it did.** When a response declares itself a
+  challenge (`x-amzn-waf-action: challenge`, `cf-mitigated: challenge`, or
+  `retry-after` on a success response), `--js` now runs the challenge page's own
+  script. If that script changes the request frot would send (it mints a
+  cookie), frot requests your URL **once** more and returns what comes back. If
+  it changes nothing, or the answer is still a challenge, the result is
+  `needs: ["human"]` as before. frot never clicks, types, submits a form or
+  solves a CAPTCHA; the 1 s CPU and 1 s network budgets are unchanged and are
+  shared by the challenge and the page behind it. (`[bl-15ff]`, design
+  `docs/design/challenge.md`)
+  - **New envelope block `challenge`**, present only when a challenge was
+    declared: `"challenge":{"declared":"x-amzn-waf-action","rounds":1,"passed":true}`.
+    `declared` is the response header that declared it, `rounds` the extra
+    navigations taken (0 or 1), `passed` whether the last one was no longer a
+    challenge. It rides `ok`, `needs` and `error` envelopes alike.
+  - **Changed verdict:** a declared challenge fetched **without** `--js` is now
+    `needs: ["js"]` (it was `needs: ["human"]`), because adding `--js` is the
+    recipe that can answer it. With `--js`, an unanswered challenge is still
+    `needs: ["human"]`, now with a `js` block describing the script's run.
+  - **Page scripts can POST.** `fetch` and `XMLHttpRequest` accept method
+    `POST` with a text body (a string or `URLSearchParams`) up to 64 KiB; it is
+    sent with the script's `Content-Type` and an `Origin`, and its response is
+    never cached. Every other method is still rejected, a non-text body fails
+    the request, and frot's own navigation is always a GET.
+  - **Pages that declare no challenge are unchanged**, byte for byte, and make
+    no extra request.
+  - **Measured, not promised:** on 2026-11-17 this did **not** get Amazon's
+    page. The AWS WAF script cannot finish in frot's JS environment (it needs
+    `crypto.subtle`), so no round is taken and the result is `needs: ["human"]`
+    with `rounds: 0`. A Cloudflare challenge served with status 403 stays an
+    `http.403` error and is not attempted.
+
 - **`ax`: an unnamed `<form>` is now a `form` node.** `<form><input><button>
   Send</button></form>` used to put the textbox and button at the level of the
   form's parent; they are now children of a `form` with a null name, as in

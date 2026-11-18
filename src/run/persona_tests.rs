@@ -89,10 +89,10 @@ const CHALLENGE_HTML: &[u8] =
     b"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nRetry-After: 0\r\nContent-Length: 17\r\n\r\n<p>challenged!!</p>";
 
 #[test]
-fn declared_challenge_makes_exactly_one_request_never_executed() {
+fn a_declared_challenge_that_mints_nothing_makes_exactly_one_request() {
     let (port, rx) = origin(CHALLENGE_HTML);
-    // `--js` on purpose: even asked to execute, a declared challenge stops before
-    // parse/JS, so scripts never run (§3.7 "never executed or retried").
+    // `--js` on purpose: the challenge page is run (challenge.md §4.2), but it
+    // changes nothing about the request, so re-sending it would be a retry.
     let argv = vec![
         format!("http://127.0.0.1:{port}/"),
         "--js".into(),
@@ -103,7 +103,7 @@ fn declared_challenge_makes_exactly_one_request_never_executed() {
     let mut err = Vec::new();
     let exit = super::run_io(&argv, &mut out, &mut err);
     let env: Value = serde_json::from_slice(&out).unwrap();
-    // `needs:["human"]`, exit 0, and nothing executed or delivered.
+    // `needs:["human"]`, exit 0, and nothing delivered.
     assert_eq!(exit, 0);
     assert_eq!(env["status"], "needs");
     assert_eq!(env["needs"], serde_json::json!(["human"]));
@@ -111,7 +111,7 @@ fn declared_challenge_makes_exactly_one_request_never_executed() {
         env.get("out").is_none(),
         "a challenge delivers no impression"
     );
-    assert!(env.get("js").is_none(), "a challenge is never executed");
+    assert_eq!(env["challenge"]["rounds"], 0);
     // Exactly one request: one head arrives, then the channel goes quiet. The
     // `Ok`-then-timeout drains both arms, and a retry would surface a second `Ok`.
     let mut requests = 0;
@@ -121,8 +121,5 @@ fn declared_challenge_makes_exactly_one_request_never_executed() {
     {
         requests += 1;
     }
-    assert_eq!(
-        requests, 1,
-        "a declared challenge is fetched once, never retried"
-    );
+    assert_eq!(requests, 1, "an unchanged request is never re-sent");
 }

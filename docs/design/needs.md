@@ -40,6 +40,12 @@ of frot".
 > new `needs` kind and no new envelope shape, the same result `bl-7e34` reached.
 > *(Proposal awaiting Mark's sign-off; the shipped behaviour is the superseded
 > wording until the challenge design lands.)*
+>
+> **Landed 2026-11-17 (`bl-15ff`; signed off by Mark the same day).** The
+> narrowed meaning is now the shipped behaviour: a declared challenge without
+> `--js` is `needs:["js"]`; `needs:["human"]` is reported only after the page's
+> own script ran and did not earn the page. Both carry the envelope's
+> `challenge` block (`challenge.md` §5.1).
 
 `needs` is not an error. The transport succeeded and frot did its job; what
 it refuses to do is present a placeholder as the page. Exit code stays 0,
@@ -126,9 +132,25 @@ Semantics:
   > remains the sole recognition mechanism, and no body-copy or vendor-algorithm
   > knowledge enters here or anywhere else. The jar-delta precondition means an
   > identical request is never re-sent (`challenge.md` §4.1).
+  >
+  > **As built 2026-11-17 (`bl-15ff`).** The two bullets above ("fires
+  > pre-parse … No `out`, no `js` block — nothing ran" and "a declared
+  > challenge's scripts are not executed") are **superseded** for `--js`: the
+  > challenge document is parsed and its scripts run, so its `needs:["human"]`
+  > carries a `js` block. They still describe the no-`--js` case exactly, whose
+  > verdict is now `needs:["js"]`. Still true in both: every view flips, and no
+  > `out` is ever produced from a challenge document. `needs::challenge` now
+  > returns the **name** of the declaring header (for `challenge.declared`)
+  > instead of a bool; what it recognises is unchanged. The precondition as
+  > built compares the *request*, not the jar (`challenge.md` §4.1 note).
 - **Precedence over starvation**: a challenge page may also be starved,
   but `needs:["js"]` would be a lie there — no recipe change helps a page
   the origin refused to serve. `human` subsumes.
+  > **Superseded 2026-11-17 (`bl-15ff`).** `needs:["js"]` is now the *true*
+  > verdict for a declared challenge fetched without `--js` — the recipe change
+  > does help, because `--js` runs the challenge. The declaration still takes
+  > precedence over the starvation heuristic: the verdict comes from the
+  > header, never from the challenge body's text.
 
 Why `needs:["human"]` and not `error.kind:"http.challenge"`:
 
@@ -416,6 +438,10 @@ Accepted residuals:
   > own** and ships **no vendor algorithm**: the page computes its token, as it
   > does in a browser. The top-level navigation stays GET (`challenge.md`
   > §2–§3).
+  >
+  > **Landed 2026-11-17 (`bl-15ff`).** As amended. "No form submission" holds
+  > as written and is pinned by test: the one request with a body frot can send
+  > is a POST a page script issued itself through `fetch`/XHR.
 - No text-length thresholds. A 37-character page and a 37-kilobyte page
   are both either declared stand-ins or they are not.
 - No new flags. Both signals ride the existing `status`/`needs` shape;

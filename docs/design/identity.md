@@ -327,6 +327,13 @@ second connection is.
 | g2.com | `error{kind:"http.403"}` | 403 | `x-datadome: protected`, `server: cloudflare` |
 | www.amazon.com/ (added `bl-7e34`, 2026-07-22) | `needs:["human"]` — **correct since `bl-7e34`** | 202 | `x-amzn-waf-action: challenge`, `server: CloudFront` |
 
+> **Superseded 2026-11-17 (`bl-15ff`, `challenge.md` as built).** "One request
+> each, never executed" is no longer the rule for a declared challenge. Without
+> `--js` reddit and Amazon now report `needs:["js"]` (one request, nothing run)
+> plus a `challenge` block; with `--js` the page's own script runs, and both
+> still end at `needs:["human"]` after **one** request because neither script
+> changes the request (§3.18). g2's row is unchanged — a 403 is the error path.
+
 Both are the same real-world condition — *a bot defence refused us* — and a
 consumer must handle **two envelope shapes** to detect it. A 403 challenge was
 **indistinguishable from a genuine 403**, because the distinguishing signal
@@ -507,6 +514,15 @@ is, for this target, now *explained* rather than merely observed.
 **Followed up.** Mark's directive filing this ball was *"ultimately, we need
 to be able to get around it."* The design answering it is
 `docs/design/challenge.md` (`bl-017a`).
+
+> **Superseded in part 2026-11-17 (`bl-15ff`).** That design is built, and two
+> sentences above are no longer true. *"none of which `run.rs` does today"*:
+> it now runs the challenge page's script, lets it POST, and re-issues the
+> navigation if the request changed. *"So: there is no capability gap to file
+> for Amazon"*: measured false in §3.18 — with the challenge actually executed,
+> it stops for want of `crypto.subtle` and four smaller Web APIs. The verdict
+> `needs:["human"]` under `--js` still stands; it is now reached *after* the
+> script ran, not before.
 
 ---
 
@@ -1042,6 +1058,55 @@ build, 120 interleaved A/B pairs) against `CPU_GUARD_MS` = 500 ms (half of `EXEC
 `run_guarded` enforces. The canvas, WebGL and audio fingerprint digests are
 byte-identical across the change — the golden oracle pins them across two
 independent invocations and both still match.
+
+### 3.18 The challenge round trip measured — a null on access (`bl-15ff`, 2026-11-17)
+
+**Question asked.** `challenge.md` is built: frot now executes a declared
+challenge's own script and re-issues the navigation the token earns. §14 item 1
+narrowed its null to the identity epic and said this path owed its own
+measurement. **Does Amazon now return its page?**
+
+**Method.** Release build of the `bl-15ff` worktree.
+`frot https://www.amazon.com/ --js --out text` ×3, plus the `challenge.md` §8
+controls, once each. **Egress: the machine the session ran on — not verified to
+be the reference egress of §3** (no address is recorded to compare against), so
+unlike §3.8–§3.10 this section does not claim sameness.
+
+**Result — no. A null, and not the one that was predicted.**
+
+| target | envelope | `challenge` block |
+|---|---|---|
+| www.amazon.com/ `--js` ×3 | `needs:["human"]`, 202, `js:{scripts:3, errors:2, settled:true}` | `{declared:"x-amzn-waf-action", rounds:0, passed:false}` |
+| www.amazon.com/ (no `--js`) | `needs:["js"]`, 202 | same, no `js` block |
+| www.reddit.com/ `--js` | `needs:["human"]`, 200, `js:{scripts:1, errors:1, settled:true}` | `{declared:"retry-after", rounds:0, passed:false}` |
+| www.g2.com/ `--js` | `error{http.403}` | none |
+| stackoverflow.com/questions `--js` | `error{http.403}`, `cf-mitigated: challenge`, `server: cloudflare` | none |
+| wikipedia, lobste.rs, HN, react.dev `--js` | `ok` ×3, `needs:["js"]` | none |
+
+`rounds:0` on Amazon means the second navigation was **never issued**: the
+challenge script ran and left the request unchanged. Traced: `challenge.js`
+loads, GETs `…/inputs?client=browser` from the token host (200), then calls
+`crypto.subtle.importKey("raw", <32 bytes>, {name:"AES-GCM"}, …, ["encrypt"])`
+— and frot has no `crypto.subtle` (§11). It also reads `TextEncoder`,
+`requestIdleCallback`, `Blob` and `FormData`, all absent. No token, no POST, no
+cookie. Filed one ball per gap: `bl-0647` (`crypto.subtle`, the hard stop),
+`bl-53b7`, `bl-b584`, `bl-78c5`, `bl-6eb9`.
+
+**What it changes.**
+
+1. **§3.9's "there is no capability gap to file for Amazon" is withdrawn.**
+   It was true while the challenge was never executed; executing it found five.
+2. **IP/ASN reputation (§14 item 2) is still untested for Amazon.** The
+   falsifier `challenge.md` §8 named — still challenged *after* a passed round —
+   cannot fire until a round is passed.
+3. **Two things changed for a caller regardless:** a declared challenge without
+   `--js` now says `needs:["js"]`, and every declared challenge carries the
+   `challenge` block.
+4. **stackoverflow is back to a Cloudflare 403** (it returned 200 in §3.6/§3.8)
+   and carries `cf-mitigated: challenge`. At 403 it is the error path by design,
+   so the round trip does not run for it; whether it should is `bl-a7c5`.
+5. **No false positive.** No page that declares nothing gained a `challenge`
+   block or a second request.
 
 ---
 
@@ -1782,6 +1847,12 @@ fetches, and a JS `document.cookie` write feeds a later same-origin GET.
   a declared challenge, but `run.rs` still exits at the `needs:["human"]` verdict
   before parse/JS/subfetch, and the session (hence the jar) then drops. frot never
   retries, so a challenge cookie is never replayed.
+  > **Superseded 2026-11-17 (`bl-15ff`, `challenge.md` §4).** Under `--js` a
+  > declared challenge's script now runs, and if it changes the request frot
+  > would send, the caller's URL is re-issued once **with** the jar's cookies —
+  > that is the round trip. What still holds: a cookie the challenge *response*
+  > set, with no script changing anything, earns no second request; nothing is
+  > re-sent unchanged; and the jar still dies with the invocation.
 
 **Clocks (`bl-e707`, LANDED).** Clocks derive from the profile plus the existing
 virtual clock (`js.md` §5), not from a second source. The two facts that ball
@@ -1865,6 +1936,16 @@ alongside this one):
 is an honest `needs:["js"]`, `needs:["human"]`, or `error.kind: http.<code>` —
 never a degraded result that looks complete.
 
+> **Extended 2026-11-17 (`bl-15ff`, `challenge.md` as built; signed off by Mark
+> 2026-11-17, "build the round trips").** Scope now also includes **answering a
+> declared challenge the way an unattended browser does**: running the page's
+> own challenge script and re-issuing the navigation once if that script changed
+> the request. The line it does not cross is origination — frot synthesizes no
+> submission, click or input, and only a page script can issue the one non-GET
+> request frot can send (a text-bodied POST, ≤ 64 KiB). CAPTCHAs and every
+> interactive gate stay out. Whatever happened is reported: the envelope's
+> `challenge` block. The first live measurement is a null (§3.18).
+
 ---
 
 ## 11. Residuals — stated, not papered over
@@ -1875,8 +1956,8 @@ Permanently out of reach, by design or by constraint:
 |---|---|
 | **IP / ASN reputation** | Out of scope entirely. Likely dominates real outcomes (§14). |
 | **TCP/IP OS fingerprint** (TTL, window size, options) | Host kernel's, not frot's. Coherent by accident on Linux; **incoherent on any non-Linux host**, since the profile claims `X11; Linux x86_64`. Unfixable without raw sockets. |
-| **Required POST telemetry** | Not supported — the navigation is GET-only (the frottage rule). Sites that gate on a beacon POST cannot be served. `sendBeacon` returns `false` (a legal denial). |
-| **Proof-of-work challenges** | Not performed — frot computes no token of its own; `docs/design/challenge.md` is the proposed path (running the page's own challenge script). |
+| **Required POST telemetry** | Not supported — the navigation is GET-only (the frottage rule). Sites that gate on a beacon POST cannot be served. `sendBeacon` returns `false` (a legal denial). *(2026-11-17, `bl-15ff`: a page script's own `fetch`/XHR **POST** with a text body is now sent — `challenge.md` §3. The navigation is still GET-only and `sendBeacon` still returns `false`.)* |
+| **Proof-of-work challenges** | Not performed — frot computes no token of its own; `docs/design/challenge.md` is the proposed path (running the page's own challenge script). *(2026-11-17, `bl-15ff`: built. The page's own script is run under the unchanged `EXEC_CPU_MS`/`NET_BUDGET_MS`; a proof-of-work that outruns them is an honest stop. Measured on Amazon the script cannot finish for want of `crypto.subtle` — §3.18.)* |
 | **Behavioural challenges** (mouse paths, dwell time, scroll) | Not met — frot dispatches only the `DOMContentLoaded`/`load` lifecycle pair and synthesizes no input. |
 | **High-entropy rendering** (canvas/WebGL/audio/font metrics) | **In scope since 2026-07-20.** In scope as a coherent masquerade. **Canvas 2D (`bl-05e6`), WebGL (`bl-f624`), and Web Audio (`bl-8733`) are now BUILT (LANDED)** — see their own rows below. Only font metrics remain an **unbuilt filed gap** — `bl-bd4e` and follow-ups (§10). Not a permanent residual. |
 | **Font metrics via `offsetWidth` measurement loops** | The `document.fonts` / FontFaceSet API is a filed gap (a follow-up of `bl-bd4e`), but the **`offsetWidth`-based glyph-width channel is a residual**: frot's layout is a structural approximation (`layout.md` §6), so per-glyph text widths cannot be reproduced faithfully, and a *wrong* width is a louder tell than a missing font (§10's coherence bar). It is also unobservable to the `bl-bd4e` instrument (indistinguishable from ordinary layout reads), so no page can be cited as probing it — it is out by the no-folklore rule, not measured in. |
@@ -2154,6 +2235,18 @@ Attacking it before committing it, per `~/AGENTS.md`.
    > challenge path is unmeasured"* — not *"no measured access improvement,
    > period."* If the challenge path also nulls, item 2 below is the likely cause
    > and the result belongs in a new §3.10.
+
+   > **Measured 2026-11-17 (`bl-15ff`) — the challenge path also nulls, and item
+   > 2 is *not* shown to be the cause.** Recorded in **§3.18** (§3.10 was taken).
+   > Amazon ×3 with the round trip built: still `needs:["human"]`, 202,
+   > `challenge:{rounds:0, passed:false}`. The second navigation was never
+   > issued, because AWS WAF's script cannot complete inside frot's JS
+   > environment — it stops at `crypto.subtle` (`bl-0647`), with four smaller
+   > absent APIs beside it. So the honest statement is now: ***no measured access
+   > improvement from identity work, and none yet from the challenge round trip;
+   > the round trip's blocker is a named capability gap, and IP reputation
+   > remains untested for this target.*** A null, recorded as loudly as a win
+   > would have been.
 
 2. **IP/ASN reputation probably dominates.** Everything here is client identity.
    If a target scores the egress IP, a perfect profile changes nothing.

@@ -27,6 +27,7 @@ use url::Url;
 use super::decode::ACCEPT_ENCODING;
 use super::profile::FIREFOX_153_ESR;
 use super::{same_origin, Intent};
+use crate::js::ScriptBody;
 
 /// Derive the ordered request header description for one hop.
 ///
@@ -45,6 +46,10 @@ use super::{same_origin, Intent};
 ///   line. `None` (no jar, or nothing applicable) emits no `Cookie` header.
 ///   Placed after `Referer` and before `Upgrade-Insecure-Requests`, the position
 ///   Firefox sends it (`identity.md` §4.1/§9).
+/// - `body` is the page script's own request body, when the request is the POST
+///   that script issued (`challenge.md` §3): it adds the script's `Content-Type`
+///   and the `Origin` a browser attaches to every POST, after `Referer`.
+///   (`Content-Length` is the serializer's.)
 pub(crate) fn derive_headers(
     intent: Intent,
     target: &str,
@@ -52,6 +57,7 @@ pub(crate) fn derive_headers(
     referrer_source: Option<&str>,
     caller: &[(String, String)],
     cookie: Option<&str>,
+    body: Option<&ScriptBody>,
 ) -> Vec<(String, String)> {
     let p = &FIREFOX_153_ESR;
     let meta = p.request_meta(intent);
@@ -62,6 +68,10 @@ pub(crate) fn derive_headers(
     push(&mut h, "Accept-Encoding", ACCEPT_ENCODING.to_string());
     if let Some(referer) = referer(referrer_source, target) {
         push(&mut h, "Referer", referer);
+    }
+    if let Some(body) = body {
+        push(&mut h, "Content-Type", body.content_type().to_string());
+        push(&mut h, "Origin", origin(referrer_source));
     }
     if let Some(cookie) = cookie {
         push(&mut h, "Cookie", cookie.to_string());
@@ -120,6 +130,14 @@ fn referer(referrer_source: Option<&str>, target: &str) -> Option<String> {
     } else {
         Some(format!("{}/", src.origin().ascii_serialization()))
     }
+}
+
+/// The `Origin` of a script-issued POST: the serialized origin of the document
+/// that issued it, or the opaque `null` when there is none to name.
+fn origin(referrer_source: Option<&str>) -> String {
+    referrer_source
+        .and_then(|src| Url::parse(src).ok())
+        .map_or_else(|| "null".to_string(), |u| u.origin().ascii_serialization())
 }
 
 /// Schemeful same-site: same scheme and same registrable domain, but not

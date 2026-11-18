@@ -1,9 +1,13 @@
 //! The declared-challenge / bot-defence verdict family: a server that itself
 //! declares a success response is a stand-in for the page (`needs.md` §3 —
 //! `retry-after`, `cf-mitigated: challenge`, `x-amzn-waf-action: challenge`)
-//! flips pre-parse to `needs:["human"]` and is never executed; a defence that
-//! refuses at >= 400 keeps `error{http.<code>}` but is now distinguishable
-//! from a genuine failure by the surfaced markers. These are the offline pins
+//! is never reported as the page. Without `--js` the verdict is `needs:["js"]`
+//! (a recipe change genuinely helps); with it the page's own script runs, and a
+//! script that does not change the request ends in `needs:["human"]` — the
+//! round trip that follows a script that *does* is pinned in
+//! `roundtrip_tests.rs` (`docs/design/challenge.md`). A defence that refuses
+//! with a status of 400 or above keeps `error{http.<code>}`, distinguishable from a genuine failure by
+//! the surfaced markers. These are the offline pins
 //! for the live corpus in `identity.md` §3.7/§3.9 — the field evidence is
 //! dated and unrepeatable, the classification it established is not.
 
@@ -26,7 +30,7 @@ fn parse_envelope(s: &str) -> Value {
 }
 
 #[test]
-fn retry_after_on_200_flips_to_needs_human() {
+fn retry_after_on_200_without_js_needs_js() {
     // Field trial (bl-6d75): reddit's bot-challenge interstitial answers
     // HTTP 200 + `retry-after: 0` with a body that has a title and text — a
     // stand-in the server itself declared (needs.md §3). It must never be
@@ -42,14 +46,20 @@ fn retry_after_on_200_flips_to_needs_human() {
     assert_eq!(code, 0, "needs is not an error");
     let v = parse_envelope(&out);
     assert_eq!(v["status"], "needs");
-    assert_eq!(v["needs"], serde_json::json!(["human"]));
+    // challenge.md §5.2: `--js` is the recipe that can answer it, so the
+    // honest signal names it — and says a challenge was declared, by what.
+    assert_eq!(v["needs"], serde_json::json!(["js"]));
+    assert_eq!(
+        v["challenge"],
+        serde_json::json!({"declared": "retry-after", "rounds": 0, "passed": false})
+    );
     assert_eq!(v["http"]["status"], 200);
     assert!(v.get("out").is_none(), "no impression of a placeholder");
     assert!(v.get("error").is_none(), "nothing failed");
 }
 
 #[test]
-fn cf_mitigated_challenge_flips_to_needs_human() {
+fn cf_mitigated_challenge_without_js_needs_js() {
     // Cloudflare declares a challenge response with `cf-mitigated:
     // challenge` (needs.md §3); at a status < 400 that declaration — not the
     // body — flips the envelope.
@@ -64,11 +74,12 @@ fn cf_mitigated_challenge_flips_to_needs_human() {
     assert_eq!(code, 0);
     let v = parse_envelope(&out);
     assert_eq!(v["status"], "needs");
-    assert_eq!(v["needs"], serde_json::json!(["human"]));
+    assert_eq!(v["needs"], serde_json::json!(["js"]));
+    assert_eq!(v["challenge"]["declared"], "cf-mitigated");
 }
 
 #[test]
-fn amzn_waf_challenge_202_flips_to_needs_human_not_needs_js() {
+fn amzn_waf_challenge_202_that_mints_nothing_needs_human() {
     // Field trial (bl-7e34, measured 2026-07-22 from the reference egress,
     // `docs/design/identity.md` §3):
     // www.amazon.com answers frot's own request headers with `202` +
@@ -77,15 +88,17 @@ fn amzn_waf_challenge_202_flips_to_needs_human_not_needs_js() {
     // starvation detector (needs.md §4) read that text-free body as an SPA
     // shell and reported `needs:["js"]` — a lie: no recipe change renders a
     // page the origin refused to serve. The AWS WAF declaration is the same
-    // transport fact as Cloudflare's, so it takes the same verdict and, like
-    // every declared challenge, is never executed.
+    // transport fact as Cloudflare's, so it takes the same verdict. Under
+    // `--js` the page's script is run (challenge.md §4.2); here `challenge.js`
+    // does not load, nothing changes the request, and frot stops at one GET.
     let mut server = mockito::Server::new();
-    let _m = server
+    let page = server
         .mock("GET", "/")
         .with_status(202)
         .with_header("x-amzn-waf-action", "challenge")
         .with_header("server", "CloudFront")
         .with_body("<html><body><script src=\"/challenge.js\"></script></body></html>")
+        .expect(1)
         .create();
     let (code, out, _) = run_capture(&[&server.url(), "--js", "--out", "text"]);
     assert_eq!(code, 0, "needs is not an error");
@@ -98,10 +111,13 @@ fn amzn_waf_challenge_202_flips_to_needs_human_not_needs_js() {
     );
     assert_eq!(v["http"]["status"], 202);
     assert!(v.get("out").is_none(), "no impression of a placeholder");
-    assert!(
-        v.get("js").is_none(),
-        "a declared challenge is never executed"
+    page.assert();
+    assert_eq!(
+        v["challenge"],
+        serde_json::json!({"declared": "x-amzn-waf-action", "rounds": 0, "passed": false})
     );
+    assert_eq!(v["js"]["scripts"], 0, "{v}");
+    assert_eq!(v["js"]["errors"], 1, "the script that did not load: {v}");
     let hs = headers_of(&v);
     assert!(
         hs.contains(&("x-amzn-waf-action".into(), "challenge".into())),
@@ -160,7 +176,8 @@ fn challenge_header_that_fired_needs_is_the_one_surfaced() {
         .create();
     let (_c, out, _) = run_capture(&[&server.url(), "--out", "text"]);
     let v = parse_envelope(&out);
-    assert_eq!(v["needs"], serde_json::json!(["human"]));
+    assert_eq!(v["needs"], serde_json::json!(["js"]));
+    assert_eq!(v["challenge"]["declared"], "retry-after");
     let hs = headers_of(&v);
     assert!(
         hs.contains(&("retry-after".into(), "0".into())),
@@ -208,10 +225,10 @@ fn bot_defence_403_is_distinguishable_from_a_genuine_403() {
 }
 
 #[test]
-fn declared_challenge_flips_every_view_and_skips_js() {
-    // The flip is pre-parse and view-independent, mirroring the >= 400 flip:
-    // a `--out dom --js` of an interstitial still reports `needs:["human"]`,
-    // with no `js` block — a declared challenge's scripts never run.
+fn a_declared_challenge_flips_every_view() {
+    // The flip is view-independent, mirroring the >= 400 flip: a `--out dom
+    // --js` of an interstitial whose script ran and minted nothing reports
+    // `needs:["human"]`, with the `js` block of that run and no `out`.
     let mut server = mockito::Server::new();
     let _m = server
         .mock("GET", "/")
@@ -224,8 +241,7 @@ fn declared_challenge_flips_every_view_and_skips_js() {
     let v = parse_envelope(&out);
     assert_eq!(v["status"], "needs");
     assert_eq!(v["needs"], serde_json::json!(["human"]));
-    assert!(
-        v.get("js").is_none(),
-        "challenge scripts are never executed"
-    );
+    assert_eq!(v["js"]["scripts"], 1, "{v}");
+    assert_eq!(v["js"]["settled"], true, "{v}");
+    assert!(v.get("out").is_none(), "no impression of a placeholder");
 }

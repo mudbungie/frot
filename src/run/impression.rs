@@ -70,7 +70,7 @@ pub(super) fn impression(
 /// `--js-errors` the block also carries the bounded `js.messages` detail (§10).
 /// `bounds` are the run's two §5 budgets, taken through the call signature so
 /// the golden suite can meter its mock-served fixtures on a clock it owns.
-fn run_scripts(
+pub(super) fn run_scripts(
     args: &cli::Args,
     doc: Document,
     fetched: &FetchResult,

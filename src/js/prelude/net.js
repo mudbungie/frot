@@ -1,7 +1,11 @@
 // Network (js.md §6) — fetch + XMLHttpRequest over the once-then-frozen
-// __frot_subfetch syscall. GET only: any other method rejects (fetch) / throws
-// (XHR), counted through the §10 unified error channel. A refused or failed
-// request rejects/errors the same way. No live network after a URL first
+// __frot_subfetch syscall (GET) and __frot_subpost (the page's own POST,
+// challenge.md §2/§3 — never frozen). This file is the ONLY place frot names an
+// HTTP verb: GET and POST go to the wire, any other method rejects (fetch) /
+// throws (XHR), counted through the §10 unified error channel. A POST carries
+// the text body the script gave (a string or URLSearchParams — any other body
+// type fails the request) and its Content-Type; nothing else the script set
+// rides along. A refused or failed request rejects/errors the same way. No live network after a URL first
 // resolves; nothing persists past the call. Loads after events.js (uses g.Event
 // and its EventTarget).
 //
@@ -25,6 +29,34 @@
   }
   function method(init) {
     return init && init.method ? String(init.method).toUpperCase() : 'GET';
+  }
+
+  // The one dispatch: a GET through the frozen cache, or the script's POST
+  // with its text body. `ctype` is the script's own Content-Type, else what a
+  // browser derives from the body's type.
+  function dispatch(m, url, body, ctype) {
+    if (m === 'GET') return g.__frot_subfetch(url);
+    var form = body instanceof g.URLSearchParams;
+    var none = body === undefined || body === null;
+    // A text body only: bytes frot cannot carry faithfully (an ArrayBuffer, a
+    // Blob, a FormData) fail the request rather than go out as something else.
+    if (!none && !form && typeof body !== 'string')
+      return { error: 'frot: only text request bodies are supported' };
+    var kind = form ? 'application/x-www-form-urlencoded;charset=UTF-8' : 'text/plain;charset=UTF-8';
+    return g.__frot_subpost(url, none ? '' : String(body), ctype ? String(ctype) : kind);
+  }
+  function supported(m) {
+    return m === 'GET' || m === 'POST';
+  }
+  // The Content-Type among a fetch `init.headers` in any of its three shapes:
+  // a Headers, a list of pairs, a plain record.
+  function contentType(h) {
+    if (!h) return null;
+    if (typeof h.get === 'function') return h.get('content-type');
+    var pairs = Array.isArray(h) ? h : Object.keys(h).map(function (k) { return [k, h[k]]; });
+    for (var i = 0; i < pairs.length; i++)
+      if (String(pairs[i][0]).toLowerCase() === 'content-type') return pairs[i][1];
+    return null;
   }
 
   // --- Headers: the case-insensitive read subset the shim answers -------------
@@ -96,9 +128,10 @@
   attrs(Request.prototype, ['method', 'url']);
 
   g.fetch = function (input, init) {
-    if (method(init) !== 'GET')
-      return Promise.reject(new TypeError('frot: only GET requests are supported'));
-    var r = g.__frot_subfetch(absolute(input));
+    var m = method(init);
+    if (!supported(m))
+      return Promise.reject(new TypeError('frot: only GET and POST requests are supported'));
+    var r = dispatch(m, absolute(input), init && init.body, contentType(init && init.headers));
     if (r.error) return Promise.reject(new TypeError(r.error));
     return Promise.resolve(new Response(r));
   };
@@ -128,6 +161,7 @@
     st.method = 'GET';
     st.url = '';
     st.headers = [];
+    st.ctype = null;
   });
   Object.setPrototypeOf(XHR.prototype, XHRTarget.prototype);
   ops(XHR.prototype, {
@@ -135,14 +169,19 @@
       var st = slots(this);
       st.method = String(m).toUpperCase();
       st.url = String(url);
+      st.ctype = null;
       st.readyState = 1;
     },
-    setRequestHeader: function setRequestHeader() {},
+    // Only the Content-Type of the script's own POST body is carried (§6).
+    setRequestHeader: function setRequestHeader(n, v) {
+      if (String(n).toLowerCase() === 'content-type') slots(this).ctype = String(v);
+    },
     send: function send() {
-      // GET only: a non-GET send throws (counted), never submits (§6).
+      // Any method but GET/POST throws (counted), never reaches the wire (§6).
       var st = slots(this);
-      if (st.method !== 'GET') throw new Error('frot: only GET requests are supported');
-      var r = g.__frot_subfetch(st.url);
+      if (!supported(st.method))
+        throw new Error('frot: only GET and POST requests are supported');
+      var r = dispatch(st.method, st.url, arguments[0], st.ctype);
       st.status = r.error ? 0 : r.status;
       if (!r.error) {
         st.responseText = r.body;

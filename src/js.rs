@@ -29,6 +29,7 @@ pub use engine::EvalError;
 pub use geometry::StyleSource;
 pub use probe::{measure, Measurement};
 pub use session::Session;
+pub(crate) use subfetch::ScriptBody;
 pub use syscall::{Env, Log, Message};
 
 /// The `--js` execution outcome (`docs/design/js.md` §10), which the pipeline
@@ -79,6 +80,12 @@ impl Report {
 /// frozen [`Clock::manual`](engine::Clock::manual) (bl-c81a). Explicit through
 /// the call signature is the opposite of hidden test-only state — the same
 /// posture `run::deliver` already takes with the SIGPIPE disposition.
+///
+/// One `Bounds` is one **invocation's** allowance. A clone shares both meters,
+/// and [`run`] banks what a finished run left, so an invocation that runs two
+/// documents — a declared challenge, then the page behind it (`challenge.md`
+/// §7) — spends one budget across both, never two.
+#[derive(Clone)]
 pub struct Bounds {
     /// Compute, spent on a CPU clock.
     pub cpu: Deadline,
@@ -114,9 +121,11 @@ pub fn run(
     fetch: &FetchSession,
     bounds: Bounds,
 ) -> (Document, Report) {
+    let cpu = bounds.cpu.clone();
     let session = Session::with_bounds(doc, styles, env, fetch, bounds.cpu, bounds.net);
     session.begin();
     let report = run_session(&session);
+    cpu.bank();
     (session.into_document(), report)
 }
 

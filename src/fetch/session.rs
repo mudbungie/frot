@@ -46,6 +46,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use crate::js::ScriptBody;
+
+use super::request::derive_headers;
 use super::{
     build_transport, dispatch, CookieJar, FetchError, FetchResult, Request, SharedJar, Transport,
     MAX_REDIRECTS, TIMEOUT_SECS,
@@ -138,6 +141,7 @@ impl FetchSession {
             initiator,
             referrer: Some(initiator),
             timeout,
+            body: None,
         };
         let result = self.dispatch(&req, &mut { MAX_REDIRECTS })?;
         if vary_permits_reuse(&result.headers) {
@@ -147,6 +151,31 @@ impl FetchSession {
                 .insert(url.to_string(), result.clone());
         }
         Ok(result)
+    }
+
+    /// POST the page script's own `body` to `url` — the request the script at
+    /// `initiator` chose to issue (`docs/design/challenge.md` §2/§3). Always a
+    /// fetch/XHR, never a navigation or any other destination; never cached (a
+    /// POST is not idempotent, and the cache is keyed by URL alone); `Set-Cookie`
+    /// on the response reaches the jar like any other response's. There is no
+    /// way to call this without a [`ScriptBody`], and only `crate::js::subfetch`
+    /// can construct one.
+    pub(crate) fn submit(
+        &self,
+        url: &str,
+        initiator: &str,
+        body: &ScriptBody,
+        timeout: Duration,
+    ) -> Result<FetchResult, FetchError> {
+        let req = Request {
+            url,
+            intent: Intent::FetchXhr,
+            initiator,
+            referrer: Some(initiator),
+            timeout,
+            body: Some(body),
+        };
+        self.dispatch(&req, &mut { MAX_REDIRECTS })
     }
 
     /// The one request path: every request rides the shared pool, the jar, and
@@ -186,6 +215,28 @@ impl Navigation {
         self.go(target, Some(from))
     }
 
+    /// The request headers [`load`](Self::load) would send right now — the
+    /// caller's URL, the jar's applicable cookies, the caller `-H` overrides —
+    /// sorted, because it is a reading to compare, not a wire order. Two equal
+    /// readings mean a re-issue would be the same request, and an identical
+    /// request is never re-sent (`docs/design/challenge.md` §4.1).
+    pub fn request(&self) -> Vec<(String, String)> {
+        let (jar, anchor) = (self.session.jar.lock().unwrap(), &self.anchor);
+        let cookie = jar.header_for(anchor, None, Intent::Navigation);
+        let caller = &self.session.headers;
+        let mut headers = derive_headers(
+            Intent::Navigation,
+            anchor,
+            anchor,
+            None,
+            caller,
+            cookie.as_deref(),
+            None,
+        );
+        headers.sort();
+        headers
+    }
+
     fn go(&mut self, url: &str, referrer: Option<&str>) -> Result<FetchResult, FetchError> {
         let req = Request {
             url,
@@ -193,6 +244,7 @@ impl Navigation {
             initiator: &self.anchor,
             referrer,
             timeout: Duration::from_secs(TIMEOUT_SECS),
+            body: None,
         };
         self.session.dispatch(&req, &mut self.hops)
     }
