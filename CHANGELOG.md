@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3](https://github.com/mudbungie/frot/compare/v0.0.2...v0.0.3) - 2026-11-18
+
+### Changes
+
+- build the declared-challenge round trip (challenge.md, signed off by Mark 2026-11-17) [bl-15ff]
+- release PR shows no checks: a dispatched CI run stays off the PR's status rollup; restate its verdict as a commit status [bl-4de7]
+- make package: cargo publish --dry-run leaves no .crate to leak-scan; CI package step is red [bl-f28a]
+- an unnamed <form> is omitted; Chrome exposes it as role form with an empty name [bl-2a3c]
+- full CI/CD: fix release-plz PR CI, tags, GitHub Release + musl asset, crates.io publish path [bl-5cf3]
+- an inline <svg> is not named from its <title> child (Chrome: "Chart title") [bl-0a0a]
+- Adopt the leak-scan stack and wire store publication [bl-59dc]
+- <dt> (term) has no name; Chrome names it from its contents (term "Term") [bl-8ad7]
+- a row is named from its cells, fused with no separator ("Q110"); Chrome names a row "" [bl-3072]
+- <tbody> emits a rowgroup node; Chrome ignores tbody (explicit or implied) and keeps only <thead> [bl-e760]
+- a <table> is not named from its <caption> (Chrome: table "Quarterly totals") [bl-fd85]
+- HTTP `Refresh:` response header is not followed (sibling of the meta refresh, bl-08d8) [bl-e52a]
+- build the fidelity oracle (fidelity.md, signed off by Mark 2026-11-17) [bl-2e08]
+- zero-delay meta refresh returns an empty ok impression [bl-08d8]
+- renew the persona expiry pin (eol 2027-01-26) from Mozilla's published calendar [bl-d8f1]
+- Collapse the pre-commit gate to exec bl-gate (rollout phase 2; ops bl-3166) [bl-8a8b]
+- Remote gate: make check is the whole gate; pre-commit delegates to the noodlezoo builder [bl-254b]
+- host objects with no interface own their whole surface as instance data [bl-643d]
+- the 300-line cap does not see the JS prelude, and elem2.js is already over it [bl-6da7]
+- instance backing slots are visible own properties; a real Firefox instance has none [bl-3bdc]
+
 - **frot now answers a server-declared bot challenge the way a browser does
   unattended — and tells you it did.** When a response declares itself a
   challenge (`x-amzn-waf-action: challenge`, `cf-mitigated: challenge`, or
