@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`ax`: a `<table>` is now named from its `<caption>`.** `<table><caption>
+  Quarterly totals</caption>…` was `table` with a null name; it is
+  `table "Quarterly totals"`, as Chrome reports it. The first `<caption>` child
+  is read the way any descendant is read into a name — its `alt`s and
+  `aria-label` count, a hidden caption says nothing — and `aria-label` /
+  `aria-labelledby` on the table still win. The `caption` node itself is
+  unchanged. Found by the fidelity oracle. (`[bl-fd85]`)
+
 - **An immediate `Refresh:` response header is now followed, as the
   `<meta http-equiv="refresh">` already was.** A response carrying
   `Refresh: 0; url=/real` sends a browser to `/real` unattended — the same HTML

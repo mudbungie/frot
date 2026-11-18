@@ -286,7 +286,9 @@ other options might have belonged with `<video>`'s prose. Measured in Chrome
   `<legend>`), reference (the same, minus the two steps §2A/§2B exempt a
   *directly referenced* node from: it is read even when hidden, and its own
   `aria-labelledby` is not followed). All three doors and both exemptions are
-  measured against Chrome 139.
+  measured against Chrome 139. (A fourth door joined in `bl-fd85`: descendant —
+  one node read exactly as the contents door reads each child, which is how a
+  `<table>` reads its `<caption>`.)
 - The **`title` attribute** was the last divergence there and is a *sixth*
   fact, fixed in `bl-d8ff`. It is not a row in the alternative table but a
   third rule on the same axis, and the axis is what 33 more measured cases

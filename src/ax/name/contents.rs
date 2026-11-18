@@ -33,8 +33,8 @@
 //! alternative — that is rule 2F above, and conflating the two is what made an
 //! `aria-labelledby` target the one node exempt from 2F (`bl-0482`).
 //!
-//! Three doors lead in, one recursion behind them ([`contents_name`],
-//! [`element_name`], [`referenced_name`]); which one a name source knocks on is
+//! Four doors lead in, one recursion behind them ([`contents_name`],
+//! [`descendant_name`], [`element_name`], [`referenced_name`]); which one a name source knocks on is
 //! the whole of what distinguishes the sources. What each door then permits is
 //! [`walk::Via`], which the recursion reads through predicates and never
 //! matches on.
@@ -68,6 +68,16 @@ pub fn contents_name(
     visited.extend_from_slice(spent);
     let mut out = String::new();
     children_text(&w, id, &mut visited, &mut out);
+    out
+}
+
+/// What one descendant contributes to an ancestor's name: rule 2F applied to
+/// `id` exactly as [`contents_name`] applies it to each child — the door a
+/// `<table>` enters its `<caption>` by.
+pub fn descendant_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> String {
+    let w = Walk::contents(doc, styles);
+    let mut out = String::new();
+    node_text(&w, id, &mut Vec::new(), &mut out);
     out
 }
 

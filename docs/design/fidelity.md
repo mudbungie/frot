@@ -539,11 +539,12 @@ stylesheet), `script` (a deterministic DOM build with a timer; `--css --js`).
 **What the first recording found.** 51 ledger rows over 10 pages × 5 channels.
 `links` and `forms`: zero deltas. `text`: zero deltas outside the two
 blind-channel residuals. `bboxes`: zero outside two residuals. `ax`: seven
-divergences, each filed and pinned as a defect row —
+divergences, each filed and pinned as a defect row (a ball marked *fixed*
+has since landed and taken its rows out of the ledger) —
 
 | ball | divergence (frot `--css --out ax` vs Chrome 156) |
 |---|---|
-| `bl-fd85` | a `<table>` is not named from its `<caption>` |
+| `bl-fd85` (fixed) | a `<table>` is not named from its `<caption>` |
 | `bl-e760` | `<tbody>` emits a `rowgroup`; Chrome ignores tbody and keeps only `<thead>` |
 | `bl-3072` | a `row` is named from its cells, fused (`"Q110"`); Chrome names it `""` |
 | `bl-8ad7` | `<dt>` (`term`) has no name; Chrome names it from contents |

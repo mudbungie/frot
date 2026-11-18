@@ -10,12 +10,14 @@
 //!    - `<input type=image>` — `alt`
 //!    - other form controls (`<input>`, `<textarea>`, `<select>`) — the matching
 //!      `<label for=…>` or the wrapping `<label>` text content
+//!    - `<table>` — its first `<caption>` child, read as a descendant
+//!      ([`contents::descendant_name`])
 //!    - `<optgroup>` and `<option>` — the `label` content attribute
 //!      ([`label_attr`]); an `<option>` without one falls back to its contents
 //!    - everything else — the element's descendant text *alternatives* (the
 //!      §2F recursion, [`contents`]), but *only* when the element's role is
-//!      name-from-contents (see [`NAME_FROM_CONTENTS`]); containers (table,
-//!      row, list, paragraph, nav, …) yield no native name
+//!      name-from-contents (see [`NAME_FROM_CONTENTS`]); containers (row,
+//!      list, paragraph, nav, …) yield no native name
 //! 4. `title` — last, and only where the node's own name is at stake. `title`
 //!    is positional (`contents/walk.rs`): a `<label>`/`<legend>` and every node
 //!    inside an `aria-labelledby` reference read it too, a descendant read for
@@ -98,6 +100,7 @@ fn native_name(
         "input" => input_name(doc, id, el, styles),
         "textarea" | "select" => control_label_text(doc, id, el, styles),
         "fieldset" => fieldset_legend_text(doc, id, styles),
+        "table" => table_caption_text(doc, id, styles),
         "optgroup" => label_attr(el),
         "option" => label_attr(el).or_else(|| Some(contents_text(doc, id, styles))),
         _ if names_from_contents(doc, id) => Some(contents_text(doc, id, styles)),
@@ -241,6 +244,21 @@ fn fieldset_legend_text(
     found.map(|id| contents::element_name(doc, id, styles, &[]))
 }
 
+/// HTML-AAM: a `<table>` is named by its first `<caption>` child. Unlike a
+/// `<legend>`, the caption is read as a *descendant* — measured in Chrome 156,
+/// `<caption aria-label=A>t</caption>` names the table "A" but
+/// `<caption title=T></caption>` names it nothing, and a caption CSS hides
+/// names nothing either.
+fn table_caption_text(doc: &Document, table: NodeId, styles: Option<&Styles>) -> Option<String> {
+    let caption = doc
+        .node(table)
+        .children
+        .iter()
+        .copied()
+        .find(|&c| matches!(&doc.node(c).kind, NodeKind::Element(e) if e.name == "caption"))?;
+    Some(contents::descendant_name(doc, caption, styles))
+}
+
 fn find_by_id(doc: &Document, target: &str) -> Option<NodeId> {
     let mut found = None;
     doc.walk(None, &mut |ev, e| {
@@ -271,6 +289,9 @@ mod option_tests;
 
 #[cfg(test)]
 mod reference_tests;
+
+#[cfg(test)]
+mod structure_tests;
 
 #[cfg(test)]
 mod title_tests;

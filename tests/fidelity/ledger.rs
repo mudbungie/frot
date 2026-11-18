@@ -65,7 +65,6 @@ const CLOSED_DETAILS: Why = Why::Residual(
      channel over-reports paint. frot's omission is the painted truth — the same body is absent \
      from Chrome's own innerText and AX tree (measured 2026-11-18, Chrome 156).",
 );
-const TABLE_NAME: Why = Why::Defect("bl-fd85");
 const TBODY_ROWGROUP: Why = Why::Defect("bl-e760");
 const ROW_NAME: Why = Why::Defect("bl-3072");
 const TERM_NAME: Why = Why::Defect("bl-8ad7");
@@ -90,20 +89,6 @@ pub const LEDGER: &[Row] = &[
     row("disclosure", "bboxes", "- 8 p", CLOSED_DETAILS),
     row("disclosure", "bboxes", "- 9 a", CLOSED_DETAILS),
     // ax — open divergences, one ball each.
-    row(
-        "article",
-        "ax",
-        "- table \"Tomorrow at the pier\"",
-        TABLE_NAME,
-    ),
-    row("article", "ax", "+ table \"\"", TABLE_NAME),
-    row(
-        "structure",
-        "ax",
-        "- table \"Quarterly totals\"",
-        TABLE_NAME,
-    ),
-    row("structure", "ax", "+ table \"\"", TABLE_NAME),
     row("article", "ax", "+ rowgroup \"\"", TBODY_ROWGROUP),
     row("article", "ax", "+ (", TBODY_ROWGROUP),
     row("article", "ax", "+ )", TBODY_ROWGROUP),
