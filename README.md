@@ -125,9 +125,9 @@ absent. No step is re-typed in a workflow; the Makefile is the one definition.
 - **`.github/workflows/ci.yml`** (pull requests, and called by the release
   workflow on every push to main) — two jobs. `gates` runs `make check` (the
   line cap, the leak scan, `cargo fmt --check`, clippy `-D warnings`, the POSIX
-  suite, 100% line + region coverage) and `make package` (`cargo publish
-  --dry-run --locked`, then the leak scan over the files inside the built
-  `.crate`; it never publishes). `artifact` runs `make posix-musl`: it builds
+  suite, 100% line + region coverage) and `make package` (`cargo package
+  --locked`, which builds the `.crate` and compiles it from its own contents,
+  then the leak scan over the files inside it; it never publishes). `artifact` runs `make posix-musl`: it builds
   the static `x86_64-unknown-linux-musl` binary, strips it, asserts the 5-15 MiB
   envelope (`scripts/check-size.sh`), runs the POSIX suite against the stripped
   file, and keeps that file as a workflow artifact.

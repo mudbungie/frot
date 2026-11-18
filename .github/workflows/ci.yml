@@ -5,7 +5,7 @@ name: CI
 # and this file only readies a runner for it. Two things ride beside the gate
 # because a release needs them proven BEFORE anything is published:
 #
-#   * `make package` — the crates.io dry run, then the leak scan over the files
+#   * `make package` — `cargo package`, then the leak scan over the files
 #     inside the built `.crate` (what the registry would serve, forever).
 #   * `make posix-musl` — the stripped static-musl binary, size-gated and put
 #     through the POSIX suite, then uploaded as a workflow artifact. The release
@@ -68,7 +68,7 @@ jobs:
       - name: The gate (make check)
         run: make check
 
-      - name: Package (crates.io dry run + leak scan of the .crate)
+      - name: Package (build the .crate + leak scan of its contents)
         run: make package
 
   artifact:

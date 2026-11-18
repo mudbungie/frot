@@ -47,11 +47,15 @@ leak-scan:
 # The crates.io packaging gate: builds the .crate the registry would receive,
 # verifies it compiles from its own contents, then leak-scans the files INSIDE
 # it — the tarball, not the tree, is what a release publishes and can never
-# take back. --locked so the packaged Cargo.lock is the one we tested. Never
-# publishes; the upload belongs to the release workflow.
+# take back. --locked so the packaged Cargo.lock is the one we tested. `cargo
+# package`, not `cargo publish --dry-run`: the dry run deletes its tarball, and
+# a scan with nothing to read is not a gate (bl-f28a). The upload belongs to
+# the release workflow. The tarball is removed first so the scan can only ever
+# read the one this invocation built.
 package:
-	cargo publish --dry-run --locked
-	scripts/leak-scan.sh --crate "$$(ls -t target/package/frot-*.crate | head -n1)"
+	rm -f target/package/frot-*.crate
+	cargo package --locked
+	scripts/leak-scan.sh --crate target/package/frot-*.crate
 
 # The POSIX conformance gate (docs/design/posix.md): a /bin/sh harness spawning
 # the real binary at the process boundary — argv, streams, exit statuses,
