@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`ax`: an inline `<svg>` is now named from its `<title>`.** `<svg><title>
+  Chart title</title>…</svg>` was `graphics-document` with a null name; it is
+  `graphics-document "Chart title"`, as Chrome reports it. The title is the
+  first `<title>` *child* — one nested under a `<g>` belongs to the `<g>` —
+  and `aria-label`/`aria-labelledby` still win. The same rule now governs what
+  a graphic contributes to the name of a link or button around it, with two
+  consequences there: a `<title>` that is not a child no longer stands in for
+  the whole graphic (its text is still read, along with the rest of the
+  graphic's text), and an empty `<title>` no longer silences the graphic's
+  text. Found by the fidelity oracle. (`[bl-0a0a]`)
+
 - **`ax`: a `term` is now named from its contents.** `<dt>Term</dt>` was
   `term` with a null name; it is `term "Term"`, as Chrome reports it, and the
   same goes for `<dfn>` and `role=term`. ARIA makes `term` a name-from-author

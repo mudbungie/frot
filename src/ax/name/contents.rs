@@ -51,6 +51,7 @@ use crate::ax;
 use crate::css::Styles;
 use crate::dom::{Document, Element, NodeId, NodeKind};
 use native::native_alternative;
+pub use native::svg_title;
 use walk::Walk;
 
 /// The name `id`'s **descendants** compute for it: rule 2F over its children,

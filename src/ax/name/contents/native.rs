@@ -18,7 +18,7 @@ pub fn native_alternative(doc: &Document, id: NodeId, el: &Element) -> Option<St
         "textarea" => Some(doc.text_content(id)),
         "select" => Some(selected_option_text(doc, id)),
         "option" | "optgroup" => super::super::label_attr(el),
-        "svg" => svg_title_text(doc, id),
+        "svg" => svg_title(doc, id),
         _ => None,
     }
 }
@@ -53,15 +53,15 @@ fn selected_option_text(doc: &Document, id: NodeId) -> String {
     selected.or(first).unwrap_or_default()
 }
 
-/// SVG-AAM: an `<svg>` is named by its `<title>` child.
-fn svg_title_text(doc: &Document, id: NodeId) -> Option<String> {
-    let mut found = None;
-    doc.walk(Some(id), &mut |ev, e| {
-        if let (WalkEvent::Enter(n), NodeKind::Element(el)) = (ev, &e.kind) {
-            if found.is_none() && el.name == "title" {
-                found = Some(n);
-            }
-        }
-    });
-    found.map(|t| doc.text_content(t))
+/// SVG-AAM: an `<svg>` is named by its `<title>` *child* — the first one, and
+/// only a child: measured in Chrome 156 (`bl-0a0a`), a `<title>` deeper in
+/// (`<svg><g><title>`) names the `<g>`, not the graphic. An empty `<title>` is
+/// no title, unlike `alt=""`: Chrome names `<a><svg><title></title><text>t
+/// </text></svg></a>` "t". The one home of this fact, for the graphic's own
+/// name and for what it contributes to someone else's.
+pub fn svg_title(doc: &Document, id: NodeId) -> Option<String> {
+    let mut children = doc.node(id).children.iter().copied();
+    let title = children
+        .find(|&c| matches!(&doc.node(c).kind, NodeKind::Element(e) if e.name == "title"))?;
+    Some(doc.text_content(title)).filter(|t| !t.trim().is_empty())
 }
