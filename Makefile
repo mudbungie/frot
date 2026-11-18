@@ -1,4 +1,4 @@
-.PHONY: setup build test fmt fmt-check lint cov size package posix posix-musl check fidelity-record install-hooks clean
+.PHONY: setup build test fmt fmt-check lint cov size leak-scan package posix posix-musl check fidelity-record install-hooks clean
 
 # The build authority. Every gate step has ONE home here; `make check` is the
 # complete gate and the exact target the noodlezoo builder runs on a staged
@@ -33,11 +33,25 @@ cov:
 size:
 	scripts/source-files.sh | scripts/line-limit.sh
 
-# The crates.io packaging gate: builds the .crate the registry would receive and
-# verifies it compiles from its own contents. --locked so the packaged Cargo.lock
-# is the one we tested. Never publishes; the real upload is a deliberate manual act.
+# The disclosure gate (bl-59dc): scripts/leak-rules.sh is the table of what may
+# not be published — addresses, ASNs, coordinates, credentials, home paths,
+# emails, transcripts — and leak-scan.sh the mechanism, reading the INDEX.
+# --self-test first: a leak gate dies by silently matching nothing, so every
+# rule must still flag its own fixture and a planted address must fail the
+# scan. The machine-global balls plugin bl-leak-gate runs this same scanner
+# over each task-store commit; the scanner's presence is that opt-in.
+leak-scan:
+	@scripts/leak-scan.sh --self-test
+	@scripts/leak-scan.sh
+
+# The crates.io packaging gate: builds the .crate the registry would receive,
+# verifies it compiles from its own contents, then leak-scans the files INSIDE
+# it — the tarball, not the tree, is what a release publishes and can never
+# take back. --locked so the packaged Cargo.lock is the one we tested. Never
+# publishes; the upload belongs to the release workflow.
 package:
 	cargo publish --dry-run --locked
+	scripts/leak-scan.sh --crate "$$(ls -t target/package/frot-*.crate | head -n1)"
 
 # The POSIX conformance gate (docs/design/posix.md): a /bin/sh harness spawning
 # the real binary at the process boundary — argv, streams, exit statuses,
@@ -55,7 +69,7 @@ posix-musl:
 # The complete gate, in the old hook's order: the line cap first (every source
 # language, ahead of the cargo steps a Rust-less tree would make vacuous), then
 # cheap-to-expensive. This laptop never runs it; the builder does (bl-254b).
-check: size fmt-check lint posix cov
+check: size leak-scan fmt-check lint posix cov
 
 # Re-record the fidelity oracle's captures (docs/design/fidelity.md): drives a
 # local headless Chrome over tests/fixtures/fidelity/*.html and rewrites the

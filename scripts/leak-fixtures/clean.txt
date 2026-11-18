@@ -1,0 +1,33 @@
+# one near-miss per rule. Judged with no HOME override: the rules read this
+# file the same way on every account, which is the point of bl-167d.
+127.0.0.1 localhost
+0.0.0.0 and 255.255.255.255
+192.0.2.10 and 198.51.100.4 and 203.0.113.9
+2001:0db8:0000:0000:0000:0000:0000:0001
+-----BEGIN CERTIFICATE-----
+use std::vec::Vec;
+recorded at 2026-08-12T12:34:56Z
+let p = Path::new("/home/u/dev/yog");
+let q = Path::new("/home/op/x/../y");
+let r = Path::new("/Users/x/dev/yog");
+the wall leaf <world>/walls/home/brazen/ is not anyone's home directory
+"toolu_01" and "msg_1" are the house test ids
+"session_01" is one too, and claude.ai/code/ names no id at all
+password = "<redacted>"
+api_key: "${ANTHROPIC_API_KEY}"
+token = "test-token"
+let sk = "sk-short";
+{"auth":"none","credential":"not required","name":"local"}
+"authorization": "Bearer <token>"
+git commit --author "u <u@example.com>" -m x
+let addr = "t@t.local";
+let other = "drive@yog.invalid";
+the assistant replied, and Claude Code wrote the transcript
+Note: a colon after a word is not a speaker label
+ES2026 §27.1.3.3.4 is a section number and 1.2.3.4.5 a version, not addresses
+2001:db8::1 and 2001:DB8:0:1::7 are the RFC 3849 documentation prefix
+use feed::cafe; let x = dead::beef::f00d(); // paths, not addresses
+AS64496 and AS64511 are documentation ASNs; AS IS and ASN and AS2 are words
+latitude: 0.00, "lng": 0.0 and 0.00° N, 0.00° E are Null Island
+a flat = 1.25 translate and a long: word are not coordinates
+let addr = "a@b.example";

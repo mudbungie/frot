@@ -29,6 +29,12 @@ jobs:
       - name: Install dev tooling
         run: make setup
 
+      # Delegates to `make leak-scan` — the disclosure gate (bl-59dc). First,
+      # because it is cheap and because a tree that leaks should not get as far
+      # as a log full of its own contents.
+      - name: Leak scan (self-test + tracked tree)
+        run: make leak-scan
+
       - name: Format check
         run: cargo fmt --check
 
@@ -55,8 +61,9 @@ jobs:
       - name: POSIX conformance suite
         run: make posix
 
-      # Delegates to `make package` (cargo publish --dry-run --locked) so the
-      # crates.io packaging can never silently rot. Dry run only — the real
+      # Delegates to `make package` (cargo publish --dry-run --locked, then a
+      # leak scan of the files inside the built .crate) so the crates.io
+      # packaging can never silently rot or carry what the tree scan cannot see. Dry run only — the real
       # `cargo publish` belongs to the release workflow, which runs it when the
       # release PR is merged (release-plz.yml, `release-plz release` job).
       - name: Package (crates.io dry run)

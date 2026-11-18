@@ -90,7 +90,7 @@ Docs: `VISION.md` is the why and the roadmap; `ARCHITECTURE.md` is the as-built 
 
 ```
 make install-hooks   # seat the pre-commit hook (.githooks/pre-commit)
-make check           # the complete gate: size, fmt-check, lint, posix, cov
+make check           # the complete gate: size, leak-scan, fmt-check, lint, posix, cov
 make setup           # install cargo-llvm-cov, needed only to run `make cov` locally
 make build
 make test
@@ -122,12 +122,16 @@ the pre-commit hook has the noodlezoo builder run on the staged tree — see
 AGENTS.md "The gate"), so nothing lands ungated even if the hook is skipped or
 absent:
 
-- **`.github/workflows/ci.yml`** (every push + pull request) — `cargo fmt
-  --check`, `make lint` (clippy `-D warnings`), `make cov` (100% lines +
+- **`.github/workflows/ci.yml`** (every push + pull request) — `make leak-scan`
+  (the disclosure gate: `scripts/leak-rules.sh` is the table of what may not be
+  published — public IPv4/IPv6 addresses, ASNs, coordinates, credentials, home
+  paths, emails, transcripts — and its self-test proves every rule still flags
+  its fixture and that a planted address fails the scan), `cargo fmt --check`, `make lint` (clippy `-D warnings`), `make cov` (100% lines +
   regions), `make size` (the source-file line cap), `make posix` (the POSIX conformance
   suite gating `docs/design/posix.md` at the process boundary), and `make
-  package` (`cargo publish --dry-run --locked` — the crates.io packaging gate;
-  it never publishes). The gate values are never re-typed in CI: coverage
+  package` (`cargo publish --dry-run --locked`, then the same leak scan over
+  the files inside the built `.crate` — the crates.io packaging gate; it never
+  publishes). The gate values are never re-typed in CI: coverage
   delegates to `make cov`, the line cap delegates to `make size` — where
   `scripts/source-files.sh` owns *which* files are source (Rust, the JS
   prelude, the gate shell; never `tests/fixtures/`, which is data) and

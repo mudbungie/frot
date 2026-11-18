@@ -143,7 +143,7 @@ fn same_site_needs_matching_scheme_and_keeps_ips_whole() {
         "http://cdn.site.example/"
     ));
     // Two distinct IP literals are never same-site (no label splitting).
-    assert!(!same_site("http://127.0.0.1/", "http://10.0.0.1/"));
+    assert!(!same_site("http://127.0.0.1/", "http://192.0.2.1/"));
     // Unparseable input is never same-site.
     assert!(!same_site("::bad", "https://site.example/"));
 }

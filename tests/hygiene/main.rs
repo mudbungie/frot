@@ -1,12 +1,16 @@
 //! Repo-hygiene gates — invariants of the *checkout*, not of any run of the
 //! binary.
 //!
-//! Two leaks blocked publication once and were fixed by hand: a measurement's
-//! egress IP in the design docs (`bl-f521`, [`identity`]), and third-party
-//! fixture content carried with no licence or attribution (`bl-11f5`,
-//! [`licensing`]). A hand fix does not hold — the next field trial pastes a
-//! fresh address into a doc, the next golden ball drops a vendored bundle into
+//! Third-party fixture content carried with no licence or attribution blocked
+//! publication once and was fixed by hand (`bl-11f5`, [`licensing`]). A hand
+//! fix does not hold — the next golden ball drops a vendored bundle into
 //! `tests/fixtures/js/`.
+//!
+//! The other leak that blocked publication — a measurement's egress IP and ASN
+//! in the design docs (`bl-f521`) — was gated here until `bl-59dc` moved it to
+//! `scripts/leak-scan.sh` (`make leak-scan`), the one home for "what may not be
+//! published": the same table also judges the packaged crate and the task
+//! store, which no test in this crate can reach.
 //!
 //! The same shape covers the checkout's own budgets ([`size`]) and its
 //! formatting ([`fmt`]): both were gated off a commit's *staged* files, and
@@ -18,15 +22,12 @@
 //! pinned browser profile expires on the ESR calendar, so the gate is the wall
 //! clock rather than an edit, and nothing but a test run can notice it.
 //!
-//! Every gate here fails on the **class** of leak, never on the instance: the
-//! scrubbed address is deliberately not written down in this crate, since a
-//! test that pinned the literal would re-introduce what it guards against.
+//! Every gate here fails on the **class** of defect, never on the instance.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 mod fmt;
-mod identity;
 mod licensing;
 mod persona;
 mod size;

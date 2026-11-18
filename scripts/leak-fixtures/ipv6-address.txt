@@ -1,0 +1,6 @@
+# full 8-group form only (see the script header on compressed forms)
+fe80:0000:0000:0000:0204:61ff:fe9d:f156 notreal
+2402:0db8:1234:5678:9abc:def0:1234:5678 notreal
+2600:1f18:4a2b::17 notreal
+2a00:1450:4001:81b::200e notreal
+3fff:ab::1 notreal

@@ -1,0 +1,9 @@
+# labelled and hemisphere-marked coordinates. The point is the Greenwich
+# meridian marker — a notreal location in the sense that matters: nobody's.
+latitude: 51.4779 notreal
+"lng": -0.0015, "why": "notreal"
+lat=51.48 notreal
+lon: -0.0015 notreal
+longitude = "-0.0015" notreal
+51.4779° N, 0.0015° W notreal
+51.4779 N 0.0015 W notreal
