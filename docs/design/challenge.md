@@ -5,7 +5,8 @@
 proposal; the text below is that proposal, kept, with a dated **As built** note
 wherever the code differs from it. §11 is the as-built summary and the measured
 capstone: **the round trip works offline and did not get Amazon's page — a null,
-recorded in §11.3.** Living authority for this path; `identity.md` §10/§14,
+recorded in §11.3.** §11.4 is the run-by-run history of closing the gaps that
+null named. Living authority for this path; `identity.md` §10/§14,
 `js.md` §6/§11, `needs.md` §1/§3/§5 and `VISION.md` carry dated in-place notes
 pointing here.
 
@@ -627,7 +628,7 @@ to see what came next):
 
 | absent surface | evidence | ball |
 |---|---|---|
-| `crypto.subtle` | **the hard stop.** With everything else stubbed the script calls `crypto.subtle.importKey("raw", <32 bytes>, {name:"AES-GCM"}, …, ["encrypt"])` — the key and IV are the page's `window.gokuProps` | `bl-0647` |
+| `crypto.subtle` *(closed 2026-11-17, `bl-0647` — §11.4)* | **the hard stop.** With everything else stubbed the script calls `crypto.subtle.importKey("raw", <32 bytes>, {name:"AES-GCM"}, …, ["encrypt"])` — the key and IV are the page's `window.gokuProps` | `bl-0647` |
 | `TextEncoder` / `TextDecoder` | read before and after the inputs fetch | `bl-53b7` |
 | `requestIdleCallback` | read right after the inputs fetch returns | `bl-b584` |
 | `Blob` (+ `URL.createObjectURL`) | read; the script also names `Worker` — if the proof-of-work runs in a Blob-URL worker, frot's non-executing `Worker` is the next wall (unmeasured) | `bl-78c5` |
@@ -651,3 +652,43 @@ scope for the re-issue, cannot be traced until the script gets that far.
 by `document.cookie`, by a same-origin POST whose response sets an HttpOnly
 cookie, or by a cross-origin POST) to the real page, and every stop short of it.
 No live target has yet been passed. That is the honest state of this feature.
+
+### 11.4 The capstone, run by run (from `bl-0647`, 2026-11-17)
+
+§11.3 named gaps; this is what happened as each closed. Every row is
+`frot https://www.amazon.com/ --js --js-errors --out text`, release build, a
+handful of runs per stage, **from the machine the session ran on — not
+verified to be the §3 reference egress**. "Traced" means a throwaway build,
+never shipped, that logs reads of absent globals, `crypto.subtle` calls, the
+script's requests and unhandled rejections. A null is recorded as loudly as a
+win.
+
+| run | frot had | envelope | where the script stopped |
+|---|---|---|---|
+| 1 (`bl-15ff`, ×3) | the round trip | `needs:["human"]`, 202, `rounds:0`, `js:{scripts:3, errors:2}` | `crypto.subtle` absent (§11.3) |
+| 2 (`bl-0647`, ×2 + 1 traced) | + a real `crypto.subtle` | **unchanged — still a null**: `needs:["human"]`, 202, `rounds:0`, `js:{scripts:3, errors:2}` | **past the crypto.** `importKey("raw", 32 bytes, {name:"AES-GCM"}, false, ["encrypt"])` resolves; `encrypt({name:"AES-GCM", iv: 12 bytes, tagLength: 128}, key, 3655 bytes)` resolves to 3671 bytes. Then `new FormData()` — absent, `TypeError: not a function` — while building the POST body (`bl-6eb9`), and separately `document.scripts.length` — absent (`bl-c296`, new). No POST, no cookie |
+
+**What run 2 measured that §11.3 could only guess** (from the trace and from
+reading `challenge.js`):
+
+- **The crypto the script needs is exactly what was built**: one AES-256-GCM
+  key, a 96-bit IV, a 128-bit tag. Nothing else of `SubtleCrypto` is called.
+- **`FormData` is the POST body** on the path taken, so `bl-6eb9` and §3's
+  "text bodies only" limit do move together: the script appends string fields
+  and hands the `FormData` to `fetch`.
+- **`TextEncoder`/`TextDecoder` and `requestIdleCallback` are feature-tested**
+  (`'function' == typeof TextEncoder ? … : <its own UTF-8 code>`), so their
+  absence is not what stops it. `Blob` is used inside a `try` whose `catch`
+  falls back to `btoa`.
+- **`Worker` is not on the path.** The script's `Worker`/`Blob`/
+  `createObjectURL` text is a bundled library's CPU-core estimator, not the
+  proof-of-work. `bl-78c5`'s worry is not borne out so far.
+- **One of the script's three challenge kinds uploads padding**: it builds an
+  `ArrayBuffer` of 1 KiB, 10 KiB, 100 KiB, 1 MiB or 10 MiB by difficulty and
+  POSTs it base64-encoded. Above difficulty 2 that exceeds `REQ_BODY_BYTES`
+  (64 KiB, §3). Whether Amazon serves that kind is unmeasured.
+
+The offline proof now includes this shape: `src/run/roundtrip_subtle_tests.rs`
+is a synthetic challenge that fetches inputs, imports the page's 32-byte key,
+AES-GCM-encrypts its answer and POSTs it, against a server that mints the
+token only for the correct ciphertext (a published test vector).

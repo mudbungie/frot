@@ -65,7 +65,7 @@ Orchestration lives in `src/run.rs` (the navigation and its refusals) and `src/r
 | `src/js.rs` | `--js` capability entry: run scripts, return post-JS `Document` + `JsInfo` |
 | `src/js/engine.rs` | the swappable rquickjs seam (eval, ES-module eval, interrupt handler, memory cap, job queue, rejection tracking) — no `rquickjs` type escapes it |
 | `src/js/loader.rs` | ES-module `Resolver`/`Loader` (`Runtime::set_loader`, `loader` feature): resolves `import` specifiers and loads module source through the §6 subfetch cache — no `rquickjs` type escapes it |
-| `src/js/syscall{,.rs}`, `syscall/{env,net}.rs` | the ~20-op host↔JS table (node queries, mutations, `innerHTML`, selector match via `css::selector`, geometry, subfetch, env facts, console) |
+| `src/js/syscall{,.rs}`, `syscall/{env,net,crypto,subtle}.rs` | the host↔JS table (node queries, mutations, `innerHTML`, selector match via `css::selector`, geometry, subfetch, env facts, console, OS randomness, and the three WebCrypto primitives — digest, HMAC, AES-GCM — behind `crypto.subtle`, computed by `aws-lc-rs`) |
 | `src/js/prelude{,.rs}`, `prelude/*.js` | bundled JS web-API (`Node`/`Element`/`Document`, `querySelector`, timers, `fetch`/XHR, storage, `navigator`/`location`/`matchMedia`, the `bl-07ab` observers) built on the syscalls, `include_str!`-embedded |
 | `src/js/session.rs` | event loop: virtual clock, horizon, timers/rAF, microtask drain, lifecycle events, the two §5 bounds (CPU compute + wall network) → `settled`/`stopped` |
 | `src/js/subfetch.rs` | once-then-frozen GET network cache behind `__frot_subfetch` (`fetch`/XHR + external `<script src>` + ES-module loader) |

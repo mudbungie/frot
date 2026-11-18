@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`crypto.subtle` exists under `--js`, and it computes real values.** On a
+  secure page (`https:`, `file:`, loopback) `crypto.subtle` is a Firefox-shaped
+  `SubtleCrypto` with all twelve methods and a real `CryptoKey`. Implemented:
+  `digest` (SHA-1/256/384/512); AES-GCM (128/192/256-bit keys, 96-bit IV,
+  128-bit tag) and HMAC — `importKey`/`exportKey` as `raw` or `jwk`,
+  `generateKey`, `encrypt`/`decrypt`, `sign`/`verify`. Everything else Firefox
+  has (RSA, ECDSA/ECDH, Ed25519/X25519, AES-CBC/CTR/KW, HKDF, PBKDF2, other
+  AES-GCM IV/tag lengths, `wrapKey`/`unwrapKey`) rejects with
+  `NotSupportedError` — never a made-up result. Amazon's challenge script now
+  gets through its key import and encryption; it still does not pass (it stops
+  at `FormData` next — `docs/design/challenge.md` §11.4). [bl-0647]
+
 - **`window.isSecureContext` exists under `--js`**, as it does in every
   Firefox: `true` on `https:`, `file:` and loopback `http:`, `false` on any
   other `http:` page. `crypto.randomUUID` is now absent on an insecure page,

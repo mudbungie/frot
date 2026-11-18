@@ -183,6 +183,9 @@ mod roundtrip_tests;
 mod roundtrip_guard_tests;
 
 #[cfg(test)]
+mod roundtrip_subtle_tests;
+
+#[cfg(test)]
 mod bboxes_tests;
 
 #[cfg(test)]

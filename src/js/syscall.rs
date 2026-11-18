@@ -21,6 +21,7 @@ mod env;
 mod host;
 mod messages;
 mod net;
+mod subtle;
 
 pub use host::{Console, Counters, CurrentScript, Env, Host, Log, SharedDoc};
 pub use messages::{push as push_message, Message, Messages};
@@ -41,6 +42,7 @@ const GROUPS: &[Group] = &[
     net::install,
     cookie::install,
     crypto::install,
+    subtle::install,
 ];
 
 macro_rules! bind {

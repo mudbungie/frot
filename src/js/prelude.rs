@@ -102,6 +102,14 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/crypto.js"),
     "\n",
+    // SubtleCrypto + CryptoKey (bl-0647): the real WebCrypto subset over the
+    // `__frot_subtle_*` syscalls. subtlekey.js (CryptoKey, normalization, the
+    // error table) then subtle.js (the twelve methods). AFTER crypto.js — they
+    // add `subtle` to the Crypto.prototype that module builds.
+    include_str!("prelude/subtlekey.js"),
+    "\n",
+    include_str!("prelude/subtle.js"),
+    "\n",
     // Worker/SharedWorker (bl-342a): coherent constructor presence, no thread —
     // needs only brand.js, so its position among the identity surface is free.
     include_str!("prelude/worker.js"),

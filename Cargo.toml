@@ -85,6 +85,14 @@ rquickjs = { version = "0.12", default-features = false, features = ["loader"] }
 # `src/js/engine/clock.rs`.
 libc = "0.2"
 
+# WebCrypto (`crypto.subtle`, bl-0647): the digests, HMAC and AES-GCM a page
+# awaits and consumes, so they must be the real primitives. This is the crypto
+# provider rustls already links (the TLS stack above) — a direct dependency on
+# the locked crate with rustls's own feature set, so no new binary and no new
+# transitive, the same standing as `libc`. The one use is
+# `src/js/syscall/subtle/alg.rs`.
+aws-lc-rs = { version = "1", default-features = false, features = ["aws-lc-sys"] }
+
 [dev-dependencies]
 mockito = "1"
 # Local h1/h2 TLS servers for the transport oracle: hyper's auto server behind

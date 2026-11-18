@@ -1,6 +1,6 @@
 //! Binding the syscall table under a starved engine heap.
 //!
-//! [`super::bind`] registers nine groups of host functions, each of which
+//! [`super::bind`] registers ten groups of host functions, each of which
 //! allocates. Registering the table is *host setup*, not page script, so a
 //! failure is not a recoverable page error: [`super::install`] turns any `Err`
 //! here into a loud `.expect` panic. The guarantee under test is that every one

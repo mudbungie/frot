@@ -885,8 +885,11 @@ that, a page walking any of them read frot's implementation instead.
   OS randomness** (`/dev/urandom` via `__frot_random_bytes`), with the browser
   argument/quota/error contract (integer-typed view or `TypeMismatchError`, >65536
   bytes → `QuotaExceededError`) enforced in JS. Not deterministic and not pinned;
-  separate calls share no state (OQ-2). `crypto.subtle` stays a residual — **identity.md §11**, not this document's
-  §11 (Non-goals), which has no such row (`bl-6438`).
+  separate calls share no state (OQ-2). `crypto.subtle` is a real, partial `SubtleCrypto` since 2026-11-17
+  (`bl-0647`: SHA digests, AES-GCM, HMAC over three `__frot_subtle_*`
+  syscalls; `subtlekey.js` + `subtle.js`) — what it does and does not
+  implement is **identity.md §3.19 and §11**, not this document's §11
+  (Non-goals). `isSecureContext` (`bl-b0f8`) gates it and `randomUUID`.
 - **Native-code branding** (`bl-3926`, LANDED): frot's web APIs are JS over
   `__frot_*` syscalls, so an un-branded `fetch.toString()` would leak prelude
   source and the name `frot`. **One** `Function.prototype.toString` wrapper backed

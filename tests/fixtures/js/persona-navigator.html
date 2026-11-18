@@ -130,12 +130,17 @@
   eq('crypto:len', buf.length, 16);
   ok('uuid:v4', /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(crypto.randomUUID()));
   ok('uuid:distinct', crypto.randomUUID() !== crypto.randomUUID());
-  // crypto.subtle is ABSENT, and that absence is the DECLARED residual (identity
-  // .md §11), not an oversight — it is the one place frot knowingly differs here.
-  // Firefox 153.0esr has it (measured, bl-1ab7): typeof 'object', [object
-  // SubtleCrypto], twelve methods, and 'subtle' in Crypto.prototype's own names.
-  // This pins the residual so it cannot change silently in either direction.
-  eq('crypto:subtle-residual', typeof crypto.subtle, 'undefined');
+  // crypto.subtle is PRESENT and real (bl-0647; identity.md §3.19). Read off
+  // Firefox 153.0esr: typeof 'object', [object SubtleCrypto], twelve methods in
+  // this order, and Crypto.prototype's own names in this order. What the methods
+  // compute is pinned by known-answer tests in src/js/tests/subtle.rs.
+  eq('crypto:subtle', Object.prototype.toString.call(crypto.subtle), '[object SubtleCrypto]');
+  eq('crypto:proto', Object.getOwnPropertyNames(Crypto.prototype).join(),
+    'getRandomValues,randomUUID,subtle,constructor');
+  eq('crypto:subtle-methods', Object.getOwnPropertyNames(SubtleCrypto.prototype).join(),
+    'encrypt,decrypt,sign,verify,digest,generateKey,deriveKey,deriveBits,importKey,exportKey,wrapKey,unwrapKey,constructor');
+  native('digest', crypto.subtle.digest);
+  eq('secure-context', isSecureContext, true);
 
   // --- Worker / SharedWorker: coherent constructor presence, no execution ------
   // (bl-342a) Firefox exposes these; frot masquerades the surface (feature detect
