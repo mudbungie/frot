@@ -8,9 +8,13 @@
 //!   to *no role*: it is not rendered, so it is not exposed. Its layout twin
 //!   lives in the cascade (`Element::hidden_input`), because a role table
 //!   cannot tell `bboxes` anything.
-//! - **`<section>`, `<form>`** — landmark only when the element has an author
-//!   name; unnamed ones are `generic`. This is the single biggest source of
-//!   landmark noise (USA.gov exposed 7 sections where Chrome exposes 3).
+//! - **`<section>`** — a `region` only when the element has an author name;
+//!   unnamed it is `generic`. This is the single biggest source of landmark
+//!   noise (USA.gov exposed 7 sections where Chrome exposes 3). `<form>` is
+//!   *not* conditional: Chrome 156 exposes an unnamed `<form>` as `form ""`
+//!   wherever it stands — top level, inside `<search>`, empty — so it is a flat
+//!   row below (`bl-2a3c`). Whether a nameless form counts as a *landmark* is a
+//!   question for whoever navigates the tree, not for the tree.
 //! - **`<tbody>`** — a `rowgroup` only when the author named it, else `generic`
 //!   and its rows sit directly under the table. `<thead>` and `<tfoot>` are
 //!   always rowgroups. Measured, Chrome 156 (`bl-e760`): the HTML-AAM maps all
@@ -50,7 +54,6 @@ pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
             ))
         }
         "header" => return Some(context::header_footer(doc, id, "banner", "sectionheader")),
-        "form" => return Some(context::named_landmark(doc, el, "form")),
         "section" => return Some(context::named_landmark(doc, el, "region")),
         "img" => return Some(img_role(doc, el)),
         "input" => return input_role(el),
@@ -74,6 +77,7 @@ pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
         "dl" | "menu" | "ol" | "ul" => "list",
         "em" => "emphasis",
         "figure" => "figure",
+        "form" => "form",
         "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => "heading",
         "hr" => "separator",
         "ins" => "insertion",

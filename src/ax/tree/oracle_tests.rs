@@ -60,14 +60,18 @@ fn usa_gov_unnamed_sections_are_not_regions() {
 }
 
 /// Python docs: two search forms inside two `<search>` elements. Chrome: 2
-/// search landmarks, 0 nested form landmarks.
+/// search landmarks, each holding its `form ""` — the field report counted
+/// landmarks and so read the unnamed forms as absent; Chrome 156's full AX
+/// tree has them (`bl-2a3c`), and it is the tree frot emits.
 #[test]
 fn python_docs_search_landmarks() {
     let html = "<search><form><input type=search></form></search>\
                 <search><form><input type=search></form></search>";
     let v = tree(html);
     assert_eq!(count_role(&v, "search"), 2);
-    assert_eq!(count_role(&v, "form"), 0);
+    assert_eq!(count_role(&v, "form"), 2);
+    assert_eq!(v[0]["children"][0]["role"], "form");
+    assert_eq!(v[0]["children"][0]["name"], Value::Null);
 }
 
 /// Stanford: one page header plus 10 section headers, one page footer plus a

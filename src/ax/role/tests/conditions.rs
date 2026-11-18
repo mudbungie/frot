@@ -136,14 +136,23 @@ fn a_section_is_a_region_only_when_named() {
     );
 }
 
+/// `bl-2a3c`, Chrome 156: a `<form>` is a `form` named or not, wherever it
+/// stands. (`bl-a189` had made it named-only, from a landmark count.)
 #[test]
-fn a_form_is_a_landmark_only_when_named() {
-    // python.org: a search form inside <search> is not a second landmark.
-    assert_eq!(r("<form id=t><input></form>"), Some("generic"));
-    assert_eq!(
-        r("<form id=t aria-label='Site search'><input></form>"),
-        Some("form")
-    );
+fn a_form_is_a_form_named_or_not() {
+    for html in [
+        "<form id=t><input></form>",
+        "<form id=t></form>",
+        "<form id=t aria-label='Site search'><input></form>",
+        "<search><form id=t><input type=search></form></search>",
+        "<nav><form id=t><input></form></nav>",
+        "<form id=t role=bogus><input></form>",
+    ] {
+        assert_eq!(r(html), Some("form"), "{html}");
+    }
+    // An author role still replaces it.
+    assert_eq!(r("<form id=t role=search><input></form>"), Some("search"));
+    assert_eq!(r("<form id=t role=none><input></form>"), Some("none"));
 }
 
 #[test]

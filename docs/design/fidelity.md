@@ -549,7 +549,7 @@ has since landed and taken its rows out of the ledger) —
 | `bl-3072` (fixed) | a `row` is named from its cells, fused (`"Q110"`); Chrome names it `""` |
 | `bl-8ad7` (fixed) | `<dt>` (`term`) has no name; Chrome names it from contents |
 | `bl-0a0a` (fixed) | an inline `<svg>` is not named from its `<title>` |
-| `bl-2a3c` | an unnamed `<form>` is omitted; Chrome exposes `form ""` |
+| `bl-2a3c` (fixed) | an unnamed `<form>` is omitted; Chrome exposes `form ""` |
 | `bl-7430` | flex `order`/`row-reverse` reorder AX children (`layout.md` §5); Chrome's AX tree stays in DOM order |
 
 Two residuals joined the founding ones, both the channel's blindness rather

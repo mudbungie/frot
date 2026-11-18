@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`ax`: an unnamed `<form>` is now a `form` node.** `<form><input><button>
+  Send</button></form>` used to put the textbox and button at the level of the
+  form's parent; they are now children of a `form` with a null name, as in
+  Chrome's tree — at top level, inside `<search>` or `<nav>`, or empty. This
+  reverses the earlier named-only rule for forms: the HTML-AAM and ARIA make a
+  form a *landmark* only when named, but the browser keeps the node either
+  way, and frot reports the tree. Consumers counting `form` nodes as landmarks
+  should now require a name. `<section>` is unchanged (unnamed, no node), and
+  an author `role=` on a form still replaces the role. Found by the fidelity
+  oracle. (`[bl-2a3c]`)
+
 - **`ax`: an inline `<svg>` is now named from its `<title>`.** `<svg><title>
   Chart title</title>…</svg>` was `graphics-document` with a null name; it is
   `graphics-document "Chart title"`, as Chrome reports it. The title is the

@@ -65,7 +65,6 @@ const CLOSED_DETAILS: Why = Why::Residual(
      channel over-reports paint. frot's omission is the painted truth — the same body is absent \
      from Chrome's own innerText and AX tree (measured 2026-11-18, Chrome 156).",
 );
-const UNNAMED_FORM: Why = Why::Defect("bl-2a3c");
 const FLEX_ORDER: Why = Why::Defect("bl-7430");
 
 pub const LEDGER: &[Row] = &[
@@ -85,12 +84,6 @@ pub const LEDGER: &[Row] = &[
     row("disclosure", "bboxes", "- 8 p", CLOSED_DETAILS),
     row("disclosure", "bboxes", "- 9 a", CLOSED_DETAILS),
     // ax — open divergences, one ball each.
-    row("forms", "ax", "- form \"\"", UNNAMED_FORM),
-    row("forms", "ax", "- (", UNNAMED_FORM),
-    row("forms", "ax", "- )", UNNAMED_FORM),
-    row("forms", "ax", "- form \"\"", UNNAMED_FORM),
-    row("forms", "ax", "- (", UNNAMED_FORM),
-    row("forms", "ax", "- )", UNNAMED_FORM),
     row("flex", "ax", "- link \"source first\"", FLEX_ORDER),
     row("flex", "ax", "+ link \"source first\"", FLEX_ORDER),
     row("flex", "ax", "- button \"one\"", FLEX_ORDER),
