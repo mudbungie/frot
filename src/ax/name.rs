@@ -149,6 +149,11 @@ pub fn author_name(
 /// container roles (`table`, `rowgroup`, `list`,
 /// `listitem`, `paragraph`, `navigation`, `region`, `group`, …) are absent,
 /// so they yield no native name instead of echoing their whole subtree.
+///
+/// `term` is the one entry ARIA does not list (it is name-from-author there):
+/// Chrome 156 names a `<dt>`, a `<dfn>` and a `role=term` from their contents
+/// (`bl-8ad7`), and the browser is the oracle. `definition` stays out — Chrome
+/// names a `<dd>` nothing.
 const NAME_FROM_CONTENTS: &[&str] = &[
     "button",
     "cell",
@@ -165,6 +170,7 @@ const NAME_FROM_CONTENTS: &[&str] = &[
     "rowheader",
     "switch",
     "tab",
+    "term",
     "tooltip",
     "treeitem",
 ];

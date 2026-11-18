@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`ax`: a `term` is now named from its contents.** `<dt>Term</dt>` was
+  `term` with a null name; it is `term "Term"`, as Chrome reports it, and the
+  same goes for `<dfn>` and `role=term`. ARIA makes `term` a name-from-author
+  role; the browser names it from contents anyway, and frot follows the
+  browser. `definition` (`<dd>`) is still unnamed, as in Chrome. Found by the
+  fidelity oracle. (`[bl-8ad7]`)
+
 - **`ax`: a row of a plain table no longer has a name.** `<tr><th>Q1</th>
   <td>10</td></tr>` was `row "Q110"` — its cells' text, fused; it is now a
   `row` with a null name, as in Chrome, and the cells keep their own names. A

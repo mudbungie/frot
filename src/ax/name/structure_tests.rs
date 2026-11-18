@@ -148,3 +148,37 @@ fn a_grid_row_is_named_from_its_cells() {
 fn a_roleless_node_has_no_name_from_contents() {
     assert_eq!(name("<video>fallback</video>", "video"), None);
 }
+
+/// `bl-8ad7`: a `term` is named from its contents, whichever tag carries the
+/// role; a `definition` is not.
+#[test]
+fn a_term_is_named_from_its_contents() {
+    for (html, tag, want) in [
+        // The corpus case (`structure.html`).
+        (
+            "<dl><dt>Term</dt><dd>Definition text</dd></dl>",
+            "dt",
+            Some("Term"),
+        ),
+        ("<dl><dt>Term</dt><dd>Definition text</dd></dl>", "dd", None),
+        ("<dl><dt><img alt=IM> tail</dt></dl>", "dt", Some("IM tail")),
+        (
+            "<dl><dt>a <a href=x>lnk</a> b</dt></dl>",
+            "dt",
+            Some("a lnk b"),
+        ),
+        ("<dl><dt aria-label=AL>x</dt></dl>", "dt", Some("AL")),
+        ("<dl><dt></dt></dl>", "dt", None),
+        ("<dt>orphan</dt>", "dt", Some("orphan")),
+        ("<p><dfn>dfnterm</dfn></p>", "dfn", Some("dfnterm")),
+        ("<p><dfn title=DT>dfn2</dfn></p>", "dfn", Some("dfn2")),
+        (
+            "<p><span role=term>spanterm</span></p>",
+            "span",
+            Some("spanterm"),
+        ),
+        ("<p><span role=definition>spandef</span></p>", "span", None),
+    ] {
+        assert_eq!(name(html, tag).as_deref(), want, "{html}");
+    }
+}
