@@ -58,7 +58,13 @@
 
   var Crypto = g.__frot_iface('Crypto', {});
   Crypto.prototype.getRandomValues = g.__frot_brand(getRandomValues, 'getRandomValues');
-  Crypto.prototype.randomUUID = g.__frot_brand(randomUUID, 'randomUUID');
+  // `randomUUID` is `[SecureContext]`: read off 153.0esr (`bl-b0f8`, identity.md
+  // §3.19), `Object.getOwnPropertyNames(Crypto.prototype)` on an `http:` page is
+  // `["getRandomValues","constructor"]` — no `randomUUID`. frot published it
+  // everywhere.
+  if (g.__frot_secure_context()) {
+    Crypto.prototype.randomUUID = g.__frot_brand(randomUUID, 'randomUUID');
+  }
   var crypto = Object.create(Crypto.prototype);
   Object.defineProperty(g, 'crypto', {
     value: crypto,

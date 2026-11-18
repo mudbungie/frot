@@ -816,6 +816,8 @@ private copy of the `onEvent` accessor maker — the one `bl-1ab7` missed in
   which frot does not define at all (`crypto.subtle` is `[SecureContext]`, so a
   real Firefox on an `http:` page has none either). Filed with the measurements
   and the options: `bl-b0f8`.
+  > **Decided 2026-11-17 (`bl-b0f8`): publish it, as a real implementation.**
+  > `isSecureContext` is defined (§3.19); `SubtleCrypto` lands in `bl-0647`.
 
 Prelude CPU cost of all of the above: **none measurable**. Over six interleaved
 rounds of 300 release runs per binary, the new prelude came in ~0.7 ms per run
@@ -1107,6 +1109,80 @@ cookie. Filed one ball per gap: `bl-0647` (`crypto.subtle`, the hard stop),
    so the round trip does not run for it; whether it should is `bl-a7c5`.
 5. **No false positive.** No page that declares nothing gained a `challenge`
    block or a second request.
+
+### 3.19 The secure-context surface and WebCrypto's shape, read off the binary (`bl-b0f8`, 2026-11-17)
+
+**Ruling.** `bl-b0f8` asked whether frot publishes `crypto.subtle`. §3.18 turned
+the question from a coherence tell into a hard stop: Amazon's challenge script
+*consumes* `crypto.subtle`'s output. Under Mark's standing ruling (2026-07-20,
+§10 — *"match what the server is requiring … file backlogs for gaps"*) the answer
+is **yes, and as a real implementation, not a costume**: a page awaits the
+result and uses it, so a present-but-silent or fabricated `SubtleCrypto` is
+worse than none. An algorithm frot does not implement rejects with the
+`NotSupportedError` a real Firefox gives for an algorithm *it* does not know.
+The implementation is `bl-0647`; this ball lands the part that was wrong
+whatever the answer: `isSecureContext`.
+
+**Method.** The §3.17 rig: Mozilla's `linux-x86_64` en-US `firefox-153.0esr`
+tarball (SHA-256 verified, `BuildID` `20260716160951`), headless, a fresh
+profile, driven over Marionette, scripts run in the content window. One
+non-default pref, `dom.security.https_first = false`, so an `http:` page loads
+as `http:`. Pages: `https://example.com/`, `http://example.com/`, a `file:`
+page, `about:blank`, a `data:` URL, and a local server reached as `127.0.0.1`,
+`127.0.0.2`, `[::1]`, `localhost` and `foo.localhost`.
+
+| fact | value | provenance |
+|---|---|---|
+| `isSecureContext` on `https:`, `file:` | `true` | read |
+| …on `http:` to `127.0.0.1`, `127.0.0.2`, `[::1]`, `localhost`, `foo.localhost` | `true` | read |
+| …on `http:` (any other host), `about:blank`, `data:` | `false` | read |
+| its descriptor | an **own** accessor of the window: enumerable, configurable, `set === undefined`, getter `.name` `get isSecureContext`, `toString()` `function isSecureContext() {\n    [native code]\n}` | read |
+| `Object.getOwnPropertyNames(Crypto.prototype)`, secure | `["getRandomValues","randomUUID","subtle","constructor"]` | read |
+| …insecure | `["getRandomValues","constructor"]` — **`randomUUID` is `[SecureContext]` too**; frot published it everywhere | read |
+| `typeof SubtleCrypto`, `typeof CryptoKey`, `'subtle' in crypto`, insecure | `undefined`, `undefined`, `false` | read |
+| `Crypto.prototype.subtle` | accessor, enumerable, configurable, no setter, getter `get subtle`; `crypto.subtle === crypto.subtle`; the instance owns nothing | read |
+| `SubtleCrypto.prototype` | the twelve methods in §11's order then `constructor`; each a writable, enumerable, configurable data property; `.length` = `encrypt` 3, `decrypt` 3, `sign` 3, `verify` 4, `digest` 2, `generateKey` 3, `deriveKey` 5, `deriveBits` 2, `importKey` 5, `exportKey` 2, `wrapKey` 4, `unwrapKey` 7 | read |
+| `CryptoKey.prototype` | `type`, `extractable`, `algorithm`, `usages` (getter-only accessors), `constructor`; an instance owns nothing; `key.algorithm === key.algorithm`, `key.usages === key.usages` | read |
+| `new SubtleCrypto()`, `new CryptoKey()` | `TypeError: Illegal constructor.`; both globals non-enumerable, `.length` 0 | read |
+| a method's result | always a `Promise`; a WebIDL argument failure is a **rejection**, never a synchronous throw | read |
+| `key.usages` order | canonical, de-duplicated: `encrypt, decrypt, wrapKey, unwrapKey` / `sign, verify`, whatever order the caller gave | read |
+| `key.algorithm` | AES-GCM `{name, length}`; HMAC `{name, hash:{name}, length}` with `length` = the key's bits on import (a caller's `length` is ignored) and the hash's block size on generate (512 for SHA-1/256, 1024 for SHA-384/512) | read |
+| JWK export | keys in the order `alg, ext, k, key_ops, kty`; `alg` is `A128GCM`/`A192GCM`/`A256GCM`, `HS1`/`HS256`/`HS384`/`HS512`; `k` unpadded base64url | read |
+| AES-GCM parameters | any non-empty `iv` length is accepted; `tagLength` any multiple of 8 from 32 to 128; 192-bit keys work | read |
+
+**The error table** (every row read; `name: message`):
+
+| situation | rejection |
+|---|---|
+| unknown algorithm, or one the method does not take (`digest('MD5')`, `digest('AES-GCM')`, `importKey(…,'FOO')`), `spki`/`pkcs8` for a secret key | `NotSupportedError: Operation is not supported` |
+| bad format string, bad/empty/mismatched `usages`, HMAC without a valid `hash`, AES `generateKey` without `length` | `SyntaxError: An invalid or illegal string was specified` |
+| bad key bytes (AES not 16/24/32, empty HMAC key), any JWK defect (`k`/`kty` missing, `alg`/`ext`/`key_ops`/`use` mismatch, bad base64url) | `DataError: Data provided to an operation does not meet requirements` |
+| key lacks the usage, or is of another algorithm; exporting a non-extractable key | `InvalidAccessError: A parameter or an operation is not supported by the underlying object` |
+| AES-GCM without/with empty `iv`, bad `tagLength`, authentication failure, AES `generateKey` length not 128/192/256 | `OperationError: The operation failed for an operation-specific reason` |
+| too few arguments | `TypeError: SubtleCrypto.<m>: At least N arguments required, but only M passed` |
+| data not a buffer | `TypeError: SubtleCrypto.<m>: Argument N could not be converted to any of: ArrayBufferView, ArrayBuffer.` |
+| key not a `CryptoKey` | `TypeError: SubtleCrypto.<m>: Argument N does not implement interface CryptoKey.` |
+| `usages` not a sequence | `TypeError: SubtleCrypto.importKey: Argument 5 can't be converted to a sequence.` |
+| wrong `this` | `TypeError: 'digest' called on an object that does not implement interface SubtleCrypto.` (likewise `'get type'`/`CryptoKey`, `'get subtle'`/`Crypto`) |
+
+The algorithms 153.0esr recognises (probed by `importKey('raw', …)`: anything
+but `NotSupportedError` means recognised): RSASSA-PKCS1-v1_5, RSA-PSS, RSA-OAEP,
+ECDSA, ECDH, Ed25519, X25519, AES-CTR, AES-CBC, AES-GCM, AES-KW, HMAC, HKDF,
+PBKDF2, and the digests SHA-1/256/384/512. **Not** recognised: SHA-224, SHA-3,
+Ed448, X448, ChaCha20-Poly1305, AES-OCB, Argon2id, ML-KEM, ML-DSA.
+
+**What changed in frot here.** `window.isSecureContext` exists, with the
+measured descriptor and the measured truth table — one Rust predicate
+(`src/js/syscall/env/secure.rs`) behind one syscall, which `crypto.js` also
+reads, so the window and the `[SecureContext]` members cannot disagree.
+`crypto.randomUUID` is now absent on an insecure page, as on the binary.
+
+**Not built, declared.** `isSecureContext` sits between `crossOriginIsolated`
+and `indexedDB` in the window's own-property order on the binary; frot has no
+`crossOriginIsolated` and does not reproduce the window's key order at all, so
+the position is unclaimed. frot's errors are still plain `Error`s carrying the
+DOMException `name` and `message` — there is no `DOMException` interface in the
+engine (`e instanceof DOMException`, `e.code` differ), a pre-existing residual.
 
 ---
 
@@ -1969,7 +2045,7 @@ Permanently out of reach, by design or by constraint:
 | **Canvas 2D pixel realism** | **Context + hash provided (`bl-05e6`, LANDED)** — `getContext('2d')` returns a branded, Firefox-shaped `CanvasRenderingContext2D`; the drawing API (`fillRect`/`fillText`/`arc`/`measureText`/…) is present and branded native, and the property/attribute surface was READ off the binary in `bl-d22f` (§3.13): `getContextAttributes()` answers `{alpha, colorSpace, desynchronized, willReadFrequently}`, the text-shaping five (`letterSpacing`/`wordSpacing`/`fontKerning`/`fontStretch`/`textRendering`) carry their measured defaults, `imageSmoothingQuality` is ABSENT because Gecko does not implement it, and `measureText()` returns all TWELVE `TextMetrics` fields as prototype accessors in Firefox's order; `toDataURL()` returns a well-formed, decodable `image/png` data URL and `getImageData()` a right-sized `ImageData`. Both are a DETERMINISTIC function of (the fixed profile `canvas_seed` + the exact draw sequence + dimensions): the SAME draws hash identically on every invocation (asserted across two runs in `persona_gold`), DIFFERENT draws diverge, and the hash is never random per call — which is precisely the tell a randomising privacy tool shows. Presence + determinism are the coherence requirement (§10). **The residual is pixel and metric realism:** the bitmap AND the twelve `TextMetrics` magnitudes are digest expansions (an xorshift PRNG / digest slices, seeded by the draw or font+string digest), not a glyph raster, so it is stable and content-varying (the fingerprint properties that matter) but would not survive a pixel-level comparison against a reference Firefox render — and no such reference exists for an arbitrary draw sequence, while determinism defeats the louder randomised-canvas tell. `toDataURL` encodes only PNG (Firefox's default); a `jpeg`/`webp` request returns a coherent PNG (a minor residual). WebGL is a separate ball (`bl-f624`) — `getContext('webgl')` stays null. Deterministic, profile-seeded, **no syscall** (determinism forbids host entropy). |
 | **WebGL rendering realism** | **Context + fingerprint provided (`bl-f624`, LANDED)** — `getContext('webgl')`/`'webgl2'`/`'experimental-webgl'` return branded, Firefox-shaped `WebGLRenderingContext`/`WebGL2RenderingContext` (both published as interfaces; `[object …]` tags; "Illegal constructor" throws). `getParameter(VENDOR)` is Firefox's masked `"Mozilla"`; the RENDERER is **not** masked to `"Mozilla"` — **corrected 2026-08-11 (`bl-b128`, §3.11) against the running binary**, Gecko generalizes it to a bucketed class string and reports the SAME string in `getParameter(RENDERER)` and in `WEBGL_debug_renderer_info`'s `UNMASKED_RENDERER_WEBGL`. The persona's is the **coherent, deterministic, Linux-plausible SOFTWARE** one: `UNMASKED_VENDOR_WEBGL` = `"Mesa"`, renderer = `"llvmpipe, or similar"` in both slots — no driver or LLVM version reaches content at all, so the old `"llvmpipe (LLVM 19.1.7, 256 bits)"` was a string no Firefox emits. llvmpipe is chosen deliberately (Mark's ruling, 2026-07-20): it is common for real headless Linux Firefox and NEVER over-claims specific hardware — an NVIDIA/Intel string on this persona, or a value that varied per invocation, would be a LOUDER tell than absence. `VERSION`/`SHADING_LANGUAGE_VERSION` are Firefox's clean `"WebGL 1.0"`/`"WebGL 2.0"` + `"WebGL GLSL ES 1.0"`/`"3.00"`; the `MAX_*` limits, `getSupportedExtensions()`, and `getShaderPrecisionFormat` (all float qualifiers highp `{127,127,23}` — the desktop-GL signature) are ONE real llvmpipe build's set, **read from the binary** rather than reconstructed from docs (`bl-b128`): anisotropy present, and **ASTC present too** — the earlier "ASTC absent ⇔ software, not mobile" was a belief the measurement refuted. Every value is a deterministic function of the pinned profile — the SSOT const `src/fetch/webgl.rs`, delivered via the one `__frot_env_profile` channel `canvas_seed` uses, so `webgl.js` holds no identity literal (I1). `readPixels()`/`toDataURL()` are a deterministic, `canvas_seed`-derived digest expansion (shared with canvas via `webglpix.js`): the SAME draw sequence hashes identically on every invocation (asserted across two runs in `persona_gold`), a DIFFERENT one diverges, never random per call. Unknown enums return `null`, unsupported extensions `null` (Firefox's answers); a canvas binds ONE context type for life, so a cross-type `getContext` is `null`. **The residual is pixel realism:** frot runs no GL, so the pixels are a digest expansion, not a real llvmpipe raster — stable and content-varying (the fingerprint properties that matter) but not byte-equal to a reference render, for which no oracle exists for an arbitrary scene; determinism defeats the louder randomised tell. Deterministic, profile-seeded, **no syscall** (determinism forbids host entropy). |
 | **Web Audio rendering realism** | **Context + fingerprint provided (`bl-8733`, LANDED)** — `AudioContext`/`OfflineAudioContext` are branded, constructable, Firefox-shaped (`[object …]` tags; `BaseAudioContext` is abstract — "Illegal constructor"); no `webkitAudioContext` alias (Firefox has none — an alias would be the tell). The node zoo (`OscillatorNode`/`DynamicsCompressorNode`/`GainNode`/`AnalyserNode`/`BiquadFilterNode`/`AudioBufferSourceNode`/`AudioDestinationNode`), `AudioParam`, and `AudioBuffer` are present and branded native; `create*` factories and `connect`/`disconnect` build a real graph. `destination.maxChannelCount` is `2` (measured, both ESR lines). `sampleRate` `44100` is **pinned, not measured** — the real rate follows the output device (48000 on the capture box), host entropy like `hardwareConcurrency` (§8). `baseLatency`/`outputLatency` stay DERIVED from the rate so it is their single source, and their numerators were **corrected 2026-08-11 (`bl-b128`, §3.11)**: `baseLatency` is `0` because a real Linux Firefox reports `0` with audio flowing (measured, both lines, four runs — the old `128` frames was a plausible-looking number no Firefox emits), and `outputLatency` is `1536` frames (34.8 ms), pinned inside the 33.6–43.3 ms band actually measured, since the real value moves run to run. The fingerprint — `OfflineAudioContext.startRendering()`'s rendered `AudioBuffer` float samples — is a DETERMINISTIC function of (the fixed profile `audio_seed` + the exact graph digest: every node create, param write, `connect`/`disconnect`, `start`/`stop` folded in order via FNV, exactly the canvas/WebGL digest model): the SAME graph hashes identically on every invocation (asserted across two runs in `persona_gold`), a DIFFERENT graph (e.g. a different oscillator frequency) diverges, never random per call — precisely the tell a randomising privacy tool shows. Samples sit in the plausible `[-1, 1]` range; a constructed (un-rendered) `AudioBuffer` is silent zeros, like a real one. The render digest is frozen at `startRendering()` so it is stable even if the graph is mutated afterward. Every value derives from the pinned profile — the SSOT const `src/fetch/audio.rs`, delivered via the one `__frot_env_profile` channel `canvas_seed`/`webgl` use, so `audio.js` holds no identity literal (I1). **The residual is waveform realism:** frot runs no audio DSP, so the samples are a digest expansion, not a real Gecko oscillator→compressor render — stable and graph-varying (the fingerprint properties that matter) but not sample-equal to a reference Firefox render, for which no oracle exists for an arbitrary graph; determinism defeats the louder randomised tell. Generic `AudioParam` min/max, realtime `currentTime` `0`, and no-op `AnalyserNode` data methods are minor accepted residuals. Deterministic, profile-seeded, **no syscall** (determinism forbids host entropy). |
-| **`crypto.subtle` (WebCrypto)** | Residual. The full `SubtleCrypto` surface is a large capability left absent (`crypto` has no `.subtle`); a filed gap decides if/when it lands. Its absence is a mild coherence tell, accepted. **What a real one reports, measured on 153.0esr (`bl-1ab7`; recorded here by `bl-6438` so an implementer starts from a read):** `typeof crypto.subtle === 'object'`, `[object SubtleCrypto]`, twelve methods in this order — `encrypt`, `decrypt`, `sign`, `verify`, `digest`, `generateKey`, `deriveKey`, `deriveBits`, `importKey`, `exportKey`, `wrapKey`, `unwrapKey` — and `Object.getOwnPropertyNames(Crypto.prototype)` is `["getRandomValues","randomUUID","subtle","constructor"]`, where frot's omits `subtle`. This row IS the declaration `crypto.js` cites; `bl-6438` was filed believing it absent, having read js.md §11 (Non-goals), so both citations now name the document. |
+| **`crypto.subtle` (WebCrypto)** | **Decided 2026-11-17 (`bl-b0f8`): publish, as a real implementation — §3.19. Why: a page *awaits and consumes* the result (Amazon's challenge encrypts with it, §3.18), so presence-without-function — the Worker/IndexedDB pattern — hangs or poisons the page instead of reading as a quiet browser; and Mark's §10 ruling puts a capability a server requires in scope. Built in `bl-0647`; until that lands the absence below stands. `isSecureContext` and the `[SecureContext]` gate on `randomUUID` are in.** What follows is the row as it stood. Residual. The full `SubtleCrypto` surface is a large capability left absent (`crypto` has no `.subtle`); a filed gap decides if/when it lands. Its absence is a mild coherence tell, accepted. **What a real one reports, measured on 153.0esr (`bl-1ab7`; recorded here by `bl-6438` so an implementer starts from a read):** `typeof crypto.subtle === 'object'`, `[object SubtleCrypto]`, twelve methods in this order — `encrypt`, `decrypt`, `sign`, `verify`, `digest`, `generateKey`, `deriveKey`, `deriveBits`, `importKey`, `exportKey`, `wrapKey`, `unwrapKey` — and `Object.getOwnPropertyNames(Crypto.prototype)` is `["getRandomValues","randomUUID","subtle","constructor"]`, where frot's omits `subtle`. This row IS the declaration `crypto.js` cites; `bl-6438` was filed believing it absent, having read js.md §11 (Non-goals), so both citations now name the document. |
 | **`Intl` beyond `DateTimeFormat.resolvedOptions()`** | Residual. quickjs-ng ships without `Intl`; frot provides the low-entropy locale/timezone subset a page reads (`DateTimeFormat` + `resolvedOptions`, `timeZone` pinned UTC). `NumberFormat`/`Collator`/`RelativeTimeFormat`/real locale-aware formatting are unbuilt — a filed gap, not a permanent non-goal. |
 | **`__frot_*` syscall names enumerable on `globalThis`** | Residual. `Function.prototype.toString` no longer leaks their source or the name (`bl-3926` branding), but the syscall **names** are still enumerable globals (`Object.getOwnPropertyNames(window)`). Making them non-enumerable touches every `bind!` site and is tracked as a separate concern. |
 | **Three key shares** | Blocked by rustls (§6.4). |

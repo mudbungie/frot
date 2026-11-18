@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`window.isSecureContext` exists under `--js`**, as it does in every
+  Firefox: `true` on `https:`, `file:` and loopback `http:`, `false` on any
+  other `http:` page. `crypto.randomUUID` is now absent on an insecure page,
+  which is what Firefox 153 does (`docs/design/identity.md` §3.19). [bl-b0f8]
+
 ## [0.0.3](https://github.com/mudbungie/frot/compare/v0.0.2...v0.0.3) - 2026-11-18
 
 ### Changes

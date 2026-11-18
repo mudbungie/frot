@@ -9,8 +9,12 @@ use crate::fetch::FetchSession;
 use crate::js::{Env, Session, StyleSource};
 
 fn sess() -> Session {
+    sess_at("https://example.com/")
+}
+
+fn sess_at(url: &str) -> Session {
     let env = Env {
-        url: "https://example.com/".into(),
+        url: url.into(),
         user_agent: "frot-test/1".into(),
         accept_language: "en-US,en;q=0.5".into(),
     };
@@ -122,5 +126,55 @@ fn random_uuid_is_a_v4_uuid() {
         s.eval("crypto.randomUUID() !== crypto.randomUUID()")
             .unwrap(),
         "true"
+    );
+}
+
+/// `isSecureContext` and the `[SecureContext]` gate, as read off Firefox
+/// 153.0esr (`bl-b0f8`, identity.md §3.19): the window OWNS the accessor, it is
+/// always defined, and an insecure page's `Crypto.prototype` has no `randomUUID`.
+#[test]
+fn is_secure_context_is_always_defined_and_gates_random_uuid() {
+    let secure = sess();
+    assert_eq!(secure.eval("isSecureContext").unwrap(), "true");
+    assert_eq!(
+        secure
+            .eval(
+                "(function(){var d=Object.getOwnPropertyDescriptor(window,'isSecureContext');\
+                 return [d.enumerable,d.configurable,d.set===undefined,d.get.name,\
+                 d.get.toString()==='function isSecureContext() {\\n    [native code]\\n}']\
+                 .join();})()"
+            )
+            .unwrap(),
+        "true,true,true,get isSecureContext,true"
+    );
+    assert_eq!(
+        secure
+            .eval("Object.getOwnPropertyNames(Crypto.prototype).slice(0,2).join()")
+            .unwrap(),
+        "getRandomValues,randomUUID"
+    );
+    // A loopback `http:` page is secure too — measured, and what every offline
+    // fixture server is.
+    assert_eq!(
+        sess_at("http://127.0.0.1:8080/")
+            .eval("isSecureContext")
+            .unwrap(),
+        "true"
+    );
+
+    let plain = sess_at("http://example.com/");
+    assert_eq!(plain.eval("isSecureContext").unwrap(), "false");
+    assert_eq!(
+        plain
+            .eval("Object.getOwnPropertyNames(Crypto.prototype).join()")
+            .unwrap(),
+        "getRandomValues,constructor"
+    );
+    assert_eq!(plain.eval("typeof crypto.randomUUID").unwrap(), "undefined");
+    assert_eq!(
+        plain
+            .eval("crypto.getRandomValues(new Uint8Array(4)).length")
+            .unwrap(),
+        "4"
     );
 }

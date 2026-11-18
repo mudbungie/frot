@@ -58,6 +58,10 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
         "__frot_location",
         move |ctx: Ctx<'js>| location_obj(&ctx, &url)
     );
+    // One fact, one home: `isSecureContext` and every `[SecureContext]` member
+    // (`crypto.subtle`, `crypto.randomUUID`) read this, never the scheme.
+    let secure = secure::is_secure_context(&host.env.url);
+    bind!(ctx, g, "__frot_secure_context", move || secure);
     bind!(
         ctx,
         g,
@@ -233,6 +237,7 @@ fn url_parse<'js>(ctx: &Ctx<'js>, spec: &str, base: Option<&str>) -> rquickjs::R
     Ok(obj)
 }
 
+mod secure;
 #[cfg(test)]
 mod starve_tests;
 #[cfg(test)]

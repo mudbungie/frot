@@ -21,6 +21,20 @@
   g.parent = g;
   g.frameElement = null;
 
+  // --- isSecureContext (bl-b0f8) ------------------------------------------------
+  // Firefox ALWAYS defines it, true or false; frot defined nothing. Shape read
+  // off 153.0esr (identity.md §3.19): an OWN accessor of the window —
+  // enumerable, configurable, no setter, getter named `get isSecureContext`.
+  // The value is the host's one answer (`syscall/env/secure.rs`), the same one
+  // crypto.js gates its `[SecureContext]` members on.
+  Object.defineProperty(g, 'isSecureContext', {
+    get: g.__frot_brand(function () {
+      return g.__frot_secure_context();
+    }, 'get isSecureContext'),
+    enumerable: true,
+    configurable: true,
+  });
+
   // --- document.cookie: the one shared jar (bl-6dad, identity.md §9) ---------
   // Not a second in-memory string: get/set delegate to the Rust cookie jar the
   // transport owns (__frot_cookie_get/set at the final document URL). So a
