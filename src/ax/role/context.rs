@@ -52,7 +52,8 @@ pub fn scoped_aside(doc: &Document, id: NodeId, el: &Element) -> &'static str {
 }
 
 /// `<section>`/`<form>`: the landmark when named, `generic` when not — an
-/// unnamed landmark is noise a screen reader cannot navigate to.
+/// unnamed landmark is noise a screen reader cannot navigate to. `<tbody>` is a
+/// `rowgroup` on the same terms: unnamed, it groups nothing a `<table>` did not.
 pub fn named_landmark(doc: &Document, el: &Element, landmark: &'static str) -> &'static str {
     if author_name(doc, el).is_some() {
         landmark

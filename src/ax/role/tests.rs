@@ -153,9 +153,25 @@ fn table_subroles() {
     assert_eq!(r("<table id=t><tr><td>d</td></tr></table>"), Some("table"));
     assert_eq!(r("<table><tr id=t><td>d</td></tr></table>"), Some("row"));
     assert_eq!(r("<table><tr><td id=t>d</td></tr></table>"), Some("cell"));
-    for tag in ["thead", "tbody", "tfoot"] {
+    for tag in ["thead", "tfoot"] {
         let html = format!("<table><{tag} id=t><tr><td>d</td></tr></{tag}></table>");
         assert_eq!(r(&html), Some("rowgroup"), "{tag}");
+    }
+}
+
+/// `bl-e760`, each a Chrome 156 measurement: an unnamed `<tbody>` is not in
+/// the tree; a name or an author role keeps it.
+#[test]
+fn a_tbody_is_a_rowgroup_only_when_named() {
+    for (attrs, want) in [
+        ("", "generic"),
+        ("aria-label=TB", "rowgroup"),
+        ("title=TT", "rowgroup"),
+        ("role=rowgroup", "rowgroup"),
+        ("role=presentation", "presentation"),
+    ] {
+        let html = format!("<table><tbody id=t {attrs}><tr><td>d</td></tr></tbody></table>");
+        assert_eq!(r(&html), Some(want), "{attrs}");
     }
 }
 

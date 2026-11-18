@@ -545,7 +545,7 @@ has since landed and taken its rows out of the ledger) —
 | ball | divergence (frot `--css --out ax` vs Chrome 156) |
 |---|---|
 | `bl-fd85` (fixed) | a `<table>` is not named from its `<caption>` |
-| `bl-e760` | `<tbody>` emits a `rowgroup`; Chrome ignores tbody and keeps only `<thead>` |
+| `bl-e760` (fixed) | `<tbody>` emits a `rowgroup`; Chrome ignores tbody and keeps only `<thead>` |
 | `bl-3072` | a `row` is named from its cells, fused (`"Q110"`); Chrome names it `""` |
 | `bl-8ad7` | `<dt>` (`term`) has no name; Chrome names it from contents |
 | `bl-0a0a` | an inline `<svg>` is not named from its `<title>` |

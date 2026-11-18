@@ -11,6 +11,11 @@
 //! - **`<section>`, `<form>`** — landmark only when the element has an author
 //!   name; unnamed ones are `generic`. This is the single biggest source of
 //!   landmark noise (USA.gov exposed 7 sections where Chrome exposes 3).
+//! - **`<tbody>`** — a `rowgroup` only when the author named it, else `generic`
+//!   and its rows sit directly under the table. `<thead>` and `<tfoot>` are
+//!   always rowgroups. Measured, Chrome 156 (`bl-e760`): the HTML-AAM maps all
+//!   three to `rowgroup`, but Chrome leaves an unnamed `<tbody>` — explicit or
+//!   parser-implied — out of the tree as uninteresting.
 //! - **`<aside>`** — `complementary`, but inside sectioning content it needs a
 //!   name too, else `generic`.
 //! - **`<header>`/`<footer>`** — `banner`/`contentinfo` only when no sectioning
@@ -51,6 +56,7 @@ pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
         "input" => return input_role(el),
         "li" => return Some(context::listitem_or_generic(doc, id)),
         "select" => return Some(select_role(el)),
+        "tbody" => return Some(context::named_landmark(doc, el, "rowgroup")),
         "td" => return Some(context::cell_role(doc, id, "cell", "gridcell")),
         "th" => return Some(th_role(doc, id, el)),
         "article" => "article",
@@ -86,7 +92,7 @@ pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
         "sup" => "superscript",
         "svg" => "graphics-document",
         "table" => "table",
-        "tbody" | "tfoot" | "thead" => "rowgroup",
+        "tfoot" | "thead" => "rowgroup",
         "textarea" => "textbox",
         "time" => "time",
         "tr" => "row",

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`ax`: an unnamed `<tbody>` no longer emits a `rowgroup`.** The rows of a
+  table body — written out or implied by the parser — are now direct children
+  of the `table`, as in Chrome's tree; before, every data table carried a
+  `rowgroup` wrapper Chrome does not have. `<thead>` and `<tfoot>` are still
+  `rowgroup`s, and so is a `<tbody>` the author named (`aria-label`,
+  `aria-labelledby`, `title`) or gave `role=rowgroup`. This departs from the
+  HTML-AAM's flat `tbody` → `rowgroup` mapping in favour of what the browser
+  exposes. Found by the fidelity oracle. (`[bl-e760]`)
+
 - **`ax`: a `<table>` is now named from its `<caption>`.** `<table><caption>
   Quarterly totals</caption>…` was `table` with a null name; it is
   `table "Quarterly totals"`, as Chrome reports it. The first `<caption>` child

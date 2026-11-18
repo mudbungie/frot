@@ -96,3 +96,20 @@ fn w3c_number_input_is_a_spinbutton() {
     assert_eq!(count_role(&v, "spinbutton"), 1);
     assert_eq!(count_role(&v, "textbox"), 0);
 }
+
+/// `bl-e760`, Chrome 156: `table > rowgroup(thead) > row`, the body's row
+/// directly under the table, then `rowgroup(tfoot) > row`.
+#[test]
+fn only_thead_and_tfoot_group_their_rows() {
+    let v = tree(
+        "<table><thead><tr><th>H</th></tr></thead><tbody><tr><td>b</td></tr></tbody>\
+         <tfoot><tr><td>f</td></tr></tfoot></table>",
+    );
+    let roles: Vec<&str> = v[0]["children"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["role"].as_str().unwrap())
+        .collect();
+    assert_eq!(roles, ["rowgroup", "row", "rowgroup"]);
+}
