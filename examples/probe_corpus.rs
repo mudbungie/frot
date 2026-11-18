@@ -68,7 +68,7 @@ fn main() {
     );
     for (class, url) in CORPUS {
         println!("\n## [{}] {}", class_name(class), url);
-        let fetched = match FetchSession::new(Vec::new()).navigate(url) {
+        let fetched = match FetchSession::new(Vec::new()).navigation(url).load() {
             Ok(f) => f,
             Err(e) => {
                 println!("  fetch error: {} — {}", e.kind, e.message);

@@ -54,6 +54,11 @@ fn serve_keepalive(stream: TcpStream) {
     }
 }
 
+/// One fresh invocation's navigation to `url`.
+fn load(url: &str) -> Result<FetchResult, FetchError> {
+    FetchSession::new(Vec::new()).navigation(url).load()
+}
+
 fn get(s: &FetchSession, base: &str, path: &str) -> FetchResult {
     s.subresource(&format!("{base}{path}"), base, Intent::Style, GENEROUS)
         .unwrap()
@@ -111,8 +116,8 @@ fn a_navigation_is_never_cached() {
     // impression, not a reusable resource.
     let m = server.mock("GET", "/").with_body("doc").expect(2).create();
     let s = FetchSession::new(Vec::new());
-    assert_eq!(s.navigate(&server.url()).unwrap().body, "doc");
-    assert_eq!(s.navigate(&server.url()).unwrap().body, "doc");
+    assert_eq!(s.navigation(&server.url()).load().unwrap().body, "doc");
+    assert_eq!(s.navigation(&server.url()).load().unwrap().body, "doc");
     m.assert();
 }
 
@@ -125,9 +130,7 @@ fn fetch_ok_reports_status_body_and_charset() {
         .with_header("content-type", "text/html; charset=utf-8")
         .with_body("hello")
         .create();
-    let r = FetchSession::new(Vec::new())
-        .navigate(&server.url())
-        .unwrap();
+    let r = load(&server.url()).unwrap();
     assert_eq!(r.status, Some(200));
     assert_eq!(r.body, "hello");
     assert_eq!(r.charset, "utf-8");
@@ -145,9 +148,7 @@ fn a_404_is_read_not_errored() {
         .with_status(404)
         .with_body("not found")
         .create();
-    let r = FetchSession::new(Vec::new())
-        .navigate(&server.url())
-        .unwrap();
+    let r = load(&server.url()).unwrap();
     assert_eq!(r.status, Some(404));
     assert_eq!(r.body, "not found");
 }
@@ -166,7 +167,8 @@ fn redirects_are_followed_through_the_session() {
         .with_body("final")
         .create();
     let r = FetchSession::new(Vec::new())
-        .navigate(&format!("{}/start", server.url()))
+        .navigation(&format!("{}/start", server.url()))
+        .load()
         .unwrap();
     assert_eq!(r.status, Some(200));
     assert_eq!(r.body, "final");
@@ -198,9 +200,7 @@ fn a_subresource_redirect_is_followed_without_a_navigation_referrer_bump() {
 
 #[test]
 fn a_dead_port_is_a_connect_or_timeout_error() {
-    let e = FetchSession::new(Vec::new())
-        .navigate("http://127.0.0.1:1/")
-        .unwrap_err();
+    let e = load("http://127.0.0.1:1/").unwrap_err();
     assert!(
         e.kind == kinds::FETCH_CONNECT
             || e.kind == kinds::FETCH_TIMEOUT
@@ -223,17 +223,13 @@ fn a_truncated_body_is_a_fetch_error() {
             );
         }
     });
-    let e = FetchSession::new(Vec::new())
-        .navigate(&format!("http://{addr}/"))
-        .unwrap_err();
+    let e = load(&format!("http://{addr}/")).unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_BODY);
 }
 
 #[test]
 fn an_invalid_url_is_a_url_error() {
-    let e = FetchSession::new(Vec::new())
-        .navigate("not a url")
-        .unwrap_err();
+    let e = load("not a url").unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_URL);
 }
 
@@ -247,7 +243,8 @@ fn a_self_redirect_loop_is_a_redirect_error() {
         .expect_at_least(1)
         .create();
     let e = FetchSession::new(Vec::new())
-        .navigate(&format!("{}/", server.url()))
+        .navigation(&format!("{}/", server.url()))
+        .load()
         .unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_REDIRECT);
 }
@@ -264,7 +261,8 @@ fn a_cross_origin_redirect_strips_authorization() {
         .create();
     let headers = vec![("Authorization".to_string(), "secret".to_string())];
     let e = FetchSession::new(headers)
-        .navigate(&format!("{}/start", server.url()))
+        .navigation(&format!("{}/start", server.url()))
+        .load()
         .unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_CONNECT);
 }
@@ -279,7 +277,8 @@ fn a_corrupt_content_encoding_is_a_body_error() {
         .with_body("not gzip at all")
         .create();
     let e = FetchSession::new(Vec::new())
-        .navigate(&format!("{}/", server.url()))
+        .navigation(&format!("{}/", server.url()))
+        .load()
         .unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_BODY);
 }
@@ -291,7 +290,8 @@ fn a_redirect_missing_its_location_propagates_a_redirect_error() {
     let mut server = mockito::Server::new();
     let _m = server.mock("GET", "/").with_status(302).create();
     let e = FetchSession::new(Vec::new())
-        .navigate(&format!("{}/", server.url()))
+        .navigation(&format!("{}/", server.url()))
+        .load()
         .unwrap_err();
     assert_eq!(e.kind, kinds::FETCH_REDIRECT);
 }

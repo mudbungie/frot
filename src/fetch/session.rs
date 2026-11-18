@@ -47,8 +47,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use super::{
-    build_transport, dispatch, CookieJar, FetchError, FetchResult, SharedJar, Transport,
-    TIMEOUT_SECS,
+    build_transport, dispatch, CookieJar, FetchError, FetchResult, Request, SharedJar, Transport,
+    MAX_REDIRECTS, TIMEOUT_SECS,
 };
 
 /// A request's role in the page load (`identity.md` §4.2: destination ∈
@@ -106,24 +106,22 @@ impl FetchSession {
         self.jar.clone()
     }
 
-    /// GET the top-level document: the derivation builds the Firefox navigation
-    /// header set with the caller's `-H` as the final override, under the default
-    /// [`TIMEOUT_SECS`] ceiling. Never cached — the navigation is the impression,
-    /// not a reusable resource.
-    pub fn navigate(&self, url: &str) -> Result<FetchResult, FetchError> {
-        self.run(
-            url,
-            url,
-            Intent::Navigation,
-            Duration::from_secs(TIMEOUT_SECS),
-        )
+    /// Open the invocation's top-level navigation, anchored at the caller's
+    /// `url`. No request is issued until [`Navigation::load`].
+    pub fn navigation(&self, url: &str) -> Navigation {
+        Navigation {
+            session: self.clone(),
+            anchor: url.to_string(),
+            hops: MAX_REDIRECTS,
+        }
     }
 
     /// GET a safe-GET subresource resolved to `url`, initiated from `initiator`
     /// (the page URL, whose origin scopes the `-H` credentials), under `timeout`
     /// (derived by the caller from its phase deadline). Deduped against the
     /// invocation cache: a repeat request re-serves the frozen response with no
-    /// network and no budget spent.
+    /// network and no budget spent; a miss is fetched through the shared pool
+    /// and frozen for the invocation.
     pub fn subresource(
         &self,
         url: &str,
@@ -131,41 +129,72 @@ impl FetchSession {
         intent: Intent,
         timeout: Duration,
     ) -> Result<FetchResult, FetchError> {
-        self.run(url, initiator, intent, timeout)
-    }
-
-    /// The one request path. A cacheable intent (everything but a navigation) is
-    /// served from the invocation cache when present — no network, no budget —
-    /// else fetched through the shared pool and frozen for the invocation.
-    fn run(
-        &self,
-        url: &str,
-        initiator: &str,
-        intent: Intent,
-        timeout: Duration,
-    ) -> Result<FetchResult, FetchError> {
-        let cacheable = !matches!(intent, Intent::Navigation);
-        if cacheable {
-            if let Some(hit) = self.cache.lock().unwrap().get(url).cloned() {
-                return Ok(hit);
-            }
+        if let Some(hit) = self.cache.lock().unwrap().get(url).cloned() {
+            return Ok(hit);
         }
-        let result = dispatch(
-            &self.transport,
-            &self.jar,
+        let req = Request {
             url,
             intent,
             initiator,
-            &self.headers,
+            referrer: Some(initiator),
             timeout,
-        )?;
-        if cacheable && vary_permits_reuse(&result.headers) {
+        };
+        let result = self.dispatch(&req, &mut { MAX_REDIRECTS })?;
+        if vary_permits_reuse(&result.headers) {
             self.cache
                 .lock()
                 .unwrap()
                 .insert(url.to_string(), result.clone());
         }
         Ok(result)
+    }
+
+    /// The one request path: every request rides the shared pool, the jar, and
+    /// the caller overrides.
+    fn dispatch(&self, req: &Request, hops: &mut usize) -> Result<FetchResult, FetchError> {
+        dispatch(&self.transport, &self.jar, &self.headers, req, hops)
+    }
+}
+
+/// The invocation's top-level navigation — the **one** path by which frot
+/// issues a document GET, first or repeated. It holds the caller's URL (the
+/// `-H` origin anchor, so no later hop can carry caller credentials
+/// cross-origin) and one hop budget ([`MAX_REDIRECTS`]) that every request of
+/// every load draws on: an HTTP redirect and a document-directed hop
+/// ([`Navigation::follow`]) cost the same, and exhausting it is the one
+/// `fetch.redirect` error. Never cached — the navigation is the impression, not
+/// a reusable resource. State within a call (VISION principle 1): it lives and
+/// dies with the invocation's session.
+pub struct Navigation {
+    session: FetchSession,
+    anchor: String,
+    hops: usize,
+}
+
+impl Navigation {
+    /// GET the caller's URL as a user navigation (no referrer). Calling it again
+    /// re-issues that same URL on the same session and budget.
+    pub fn load(&mut self) -> Result<FetchResult, FetchError> {
+        let anchor = self.anchor.clone();
+        self.go(&anchor, None)
+    }
+
+    /// GET `target` because the document at `from` directed the navigation
+    /// there (a zero-delay meta refresh): `from` is the referrer, exactly as the
+    /// pre-redirect hop is for a 3xx.
+    pub fn follow(&mut self, target: &str, from: &str) -> Result<FetchResult, FetchError> {
+        self.go(target, Some(from))
+    }
+
+    fn go(&mut self, url: &str, referrer: Option<&str>) -> Result<FetchResult, FetchError> {
+        let req = Request {
+            url,
+            intent: Intent::Navigation,
+            initiator: &self.anchor,
+            referrer,
+            timeout: Duration::from_secs(TIMEOUT_SECS),
+        };
+        self.session.dispatch(&req, &mut self.hops)
     }
 }
 

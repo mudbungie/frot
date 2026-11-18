@@ -39,13 +39,15 @@ pub(crate) use cookie::{CookieJar, SharedJar};
 pub(crate) use decode::decode_body;
 pub(crate) use media::non_document;
 pub use profile::{BrowserProfile, H2Profile, TlsProfile, FIREFOX_153_ESR};
-pub use session::{FetchSession, Intent};
+pub use session::{FetchSession, Intent, Navigation};
 pub(crate) use transport::Transport;
 pub(crate) use webgl::facts as webgl_facts;
 
-/// Redirects followed before giving up with [`kinds::FETCH_REDIRECT`] — ureq's
-/// old default, so behaviour is unchanged.
-const MAX_REDIRECTS: usize = 10;
+/// Requests one hop chain may issue before giving up with
+/// [`kinds::FETCH_REDIRECT`] (ureq's old redirect default). A subresource gets a
+/// fresh budget; a [`Navigation`] holds one for the whole invocation, so HTTP
+/// redirects and document-directed hops draw on the same ten.
+pub(crate) const MAX_REDIRECTS: usize = 10;
 
 pub(crate) const TIMEOUT_SECS: u64 = 15;
 pub(crate) const MAX_BODY_BYTES: u64 = 16 * 1024 * 1024;
@@ -115,23 +117,45 @@ pub(crate) fn build_transport() -> Transport {
     Transport::new(firefox_tls::webpki_roots())
 }
 
-/// GET `url` over the session's shared `transport`, deriving the protocol-correct
-/// request metadata for each hop (`request::derive_headers`) from `intent`, the
-/// `initiator` (the caller-`-H` origin anchor), and the caller overrides. Each
-/// exchange runs under `timeout`. Follows up to [`MAX_REDIRECTS`] redirects,
+/// One request as a call site describes it. `initiator` is the caller-`-H`
+/// origin anchor; `referrer` is the URL that caused the request — `None` for
+/// the caller's own navigation, the document for a subresource or for a hop the
+/// document itself directed (`src/refresh.rs`).
+pub(crate) struct Request<'a> {
+    pub url: &'a str,
+    pub intent: Intent,
+    pub initiator: &'a str,
+    pub referrer: Option<&'a str>,
+    pub timeout: Duration,
+}
+
+/// Spend one request from a hop budget; an empty budget is the one
+/// [`kinds::FETCH_REDIRECT`] exhaustion, whatever asked for the hop.
+fn spend(hops: &mut usize) -> Result<(), FetchError> {
+    *hops = hops
+        .checked_sub(1)
+        .ok_or_else(|| FetchError::new(kinds::FETCH_REDIRECT, "too many redirects"))?;
+    Ok(())
+}
+
+/// GET `req.url` over the session's shared `transport`, deriving the
+/// protocol-correct request metadata for each hop (`request::derive_headers`)
+/// and running each exchange under `req.timeout`. Follows redirects while `hops`
+/// lasts — every request spends one, so a caller that issues several dispatches
+/// against one budget (a navigation: [`Navigation`]) bounds the whole chain —
 /// **recomputing** `Sec-Fetch-Site`/`Referer` and the same-origin caller scope
 /// for the new target (so cross-origin credentials, `Authorization` included,
 /// never leak). `file://` reads take the read path and ignore the pool.
 pub(crate) fn dispatch(
     transport: &Transport,
     jar: &SharedJar,
-    url: &str,
-    intent: Intent,
-    initiator: &str,
     caller: &[(String, String)],
-    timeout: Duration,
+    req: &Request,
+    hops: &mut usize,
 ) -> Result<FetchResult, FetchError> {
-    let parsed = validate_url(url)?;
+    let (intent, initiator) = (req.intent, req.initiator);
+    let parsed = validate_url(req.url)?;
+    spend(hops)?;
     if parsed.scheme() == "file" {
         return fetch_file(&parsed);
     }
@@ -143,14 +167,10 @@ pub(crate) fn dispatch(
     // same landing reached through a 302 would disagree about their own URL
     // (bl-2832). The caller's byte-for-byte spelling stays in `url.requested`.
     let mut current = parsed.to_string();
-    // The referrer source: a user navigation starts with none (site `none`, no
-    // referer); a subresource references its document across every hop. A
-    // navigation redirect adopts the pre-redirect hop as the new source.
-    let mut referrer = match intent {
-        Intent::Navigation => None,
-        _ => Some(initiator.to_string()),
-    };
-    for _ in 0..MAX_REDIRECTS {
+    // The referrer source: a subresource references its document across every
+    // hop; a navigation redirect adopts the pre-redirect hop as the new source.
+    let mut referrer = req.referrer.map(str::to_string);
+    loop {
         // The jar's applicable Cookie for this hop; `apply_caller` still layers a
         // caller `-H Cookie` over it as a single same-origin line (bl-6dad).
         let cookie = jar
@@ -165,32 +185,28 @@ pub(crate) fn dispatch(
             caller,
             cookie.as_deref(),
         );
-        let resp = transport.request_once(&current, &headers, MAX_BODY_BYTES, timeout)?;
+        let resp = transport.request_once(&current, &headers, MAX_BODY_BYTES, req.timeout)?;
         // Store this hop's Set-Cookie before following the redirect, so a
         // redirect-set cookie rides the landing request (acceptance #1).
         jar.lock().unwrap().store(&resp.headers, &current);
-        match redirect_target(resp.status, &resp.headers, &current)? {
-            Some(next) => {
-                if matches!(intent, Intent::Navigation) {
-                    referrer = Some(current.clone());
-                }
-                current = next;
-            }
-            None => {
-                let content_type = header_value(&resp.headers, "content-type");
-                let bytes = decode::inflate(&resp.headers, resp.body)?;
-                let (body, charset) = decode_body(&bytes, content_type.as_deref());
-                return Ok(FetchResult {
-                    final_url: current,
-                    status: Some(resp.status),
-                    headers: resp.headers,
-                    body,
-                    charset,
-                });
-            }
+        let Some(next) = redirect_target(resp.status, &resp.headers, &current)? else {
+            let content_type = header_value(&resp.headers, "content-type");
+            let bytes = decode::inflate(&resp.headers, resp.body)?;
+            let (body, charset) = decode_body(&bytes, content_type.as_deref());
+            return Ok(FetchResult {
+                final_url: current,
+                status: Some(resp.status),
+                headers: resp.headers,
+                body,
+                charset,
+            });
+        };
+        spend(hops)?;
+        if matches!(intent, Intent::Navigation) {
+            referrer = Some(current.clone());
         }
+        current = next;
     }
-    Err(FetchError::new(kinds::FETCH_REDIRECT, "too many redirects"))
 }
 
 /// The absolute redirect target for a response, or `None` when it is terminal.

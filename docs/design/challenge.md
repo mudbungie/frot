@@ -177,6 +177,19 @@ navigate(url)                       # GET, as today
 Note the challenge page is now **parsed and run**, where today `run.rs` returns
 pre-parse. The `>= 400` error flip beside it is untouched.
 
+> **Code names updated 2026-11-17 (`bl-08d8`).** `FetchSession::navigate()` and
+> the private `FetchSession::run` this document cites (§2, §3) no longer exist.
+> The top-level GET is `fetch::Navigation` — `session.navigation(url)`, then
+> `load()`; **`navigate(url) again` in the sequence above is a second `load()`
+> on the same `Navigation`**, which re-issues the caller's URL on the same
+> session, jar and hop budget. `run.rs`'s `build_envelope` is already a loop
+> that restarts at the top with a new response (the meta-refresh hop uses it via
+> `Navigation::follow`); the round trip is a second way to `continue` it, not a
+> second path. The invocation cache now lives in `FetchSession::subresource`
+> alone — a navigation never reaches it — so §3's "`cacheable =
+> !matches!(intent, Navigation)`" test is gone, and the verb rule it asks for
+> belongs in `subresource`.
+
 ### 4.3 The hard constant
 
 **`CHALLENGE_ROUNDS = 1`.** A constant, not a flag — the `EXEC_CPU_MS` /
@@ -259,6 +272,16 @@ changes is that `human` stops being asserted before frot has tried.
   construction rather than by prohibition.
 - **Script-chosen navigation.** frot re-issues the caller's URL; it never follows
   a page elsewhere. `location`/`history`/meta-refresh stay no-ops.
+  > **Superseded in part 2026-11-17 (`bl-c262`, `bl-08d8`).** One document-chosen
+  > navigation is now followed: a **zero-delay `<meta http-equiv=refresh>` in
+  > the markup as fetched**, treated as a redirect (`js.md` §11's note of the
+  > same date; rule in `src/refresh.rs`). It is not *script*-chosen — it is read
+  > before any script runs, and a script-inserted refresh, `location` and
+  > `history` stay no-ops — so this bullet's subject is unchanged. The round
+  > trip itself still re-issues **the caller's URL**: both ride the one
+  > in-invocation re-navigation path, `fetch::Navigation` (`load()` re-issues
+  > the caller's URL, `follow()` takes a document-directed hop), on one session
+  > and one hop budget.
 - **Cross-invocation persistence** of tokens, cookies, or anything else.
 - **Body-copy classification** of challenge pages (`needs.md` §5) — a challenge is
   recognized only by a server's own declaration, unchanged.

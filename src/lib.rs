@@ -14,6 +14,7 @@ pub mod fetch;
 pub mod js;
 pub mod layout;
 pub mod needs;
+pub mod refresh;
 pub mod run;
 pub mod tags;
 pub mod views;

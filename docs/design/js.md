@@ -1153,6 +1153,33 @@ Two moves against today's `run.rs`:
   > re-issues **the caller's own URL** after a server-posed challenge minted new
   > state — not a script-chosen navigation. "One URL, one impression" holds; "one
   > request" does not, and never governed redirects either (`challenge.md` §4).
+
+  > **Superseded in part 2026-11-17 (`bl-c262`, decided by Mark: "follow the
+  > refreshes like a redirect"; built in `bl-08d8`).** "meta-refresh: no-op" and
+  > "frot never follows a page to a *different* URL" are no longer true of one
+  > case: a **zero-delay `<meta http-equiv=refresh>` in the document as
+  > fetched** is the markup spelling of a 3xx, and frot follows it as part of
+  > the initial navigation — same `FetchSession`, same cookie jar, the document
+  > as referrer, and the one hop budget HTTP redirects spend (`MAX_REDIRECTS`;
+  > exhausting it is the existing `fetch.redirect`). `url.final` is the landed
+  > URL, exactly as after a redirect; the envelope gains nothing. The rule and
+  > its edge cases live in `src/refresh.rs` (HTML's "shared declarative refresh
+  > steps": first valid pragma wins, `<body>` counts, `<noscript>` content is
+  > not an element, no URL means reload, a fragment-only target is a scroll).
+  > Refusing it returned an empty `ok` for a page a browser reaches unattended —
+  > the false-`ok` VISION principle 5 forbids.
+  >
+  > **What still stands, verbatim:** `location` writes and `history` pushes are
+  > counted no-ops, a delay above zero is not followed (the browser shows this
+  > page first, so this page is the impression), and a refresh a *script*
+  > inserts is script-chosen navigation — a no-op. **The `--js` ordering rule:**
+  > the refresh is read from the parsed document *before* any script runs, and
+  > the refreshing document's scripts are never executed — it is an interim
+  > response like a 3xx body, never the impression. (A browser lets that
+  > document reach `load` before it navigates, so a script there could write a
+  > cookie first; frot does not model that, and says so here.) "One URL, one
+  > document, one impression" holds: one impression, of the resource the caller
+  > asked for.
 - **No persistence** across calls, of any kind (§7).
 - **No iframes.** Frame documents are not fetched or executed;
   `contentWindow`/`contentDocument` are `null`.

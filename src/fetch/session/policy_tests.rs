@@ -25,7 +25,8 @@ fn navigation_sends_the_firefox_set_layered_under_h() {
         .with_body("ok")
         .create();
     FetchSession::new(Vec::new())
-        .navigate(&server.url())
+        .navigation(&server.url())
+        .load()
         .unwrap();
     m.assert();
 }
@@ -46,7 +47,10 @@ fn a_caller_header_overrides_a_navigation_default_without_duplicating() {
         ("Accept".into(), "application/json".into()),
         ("User-Agent".into(), "custom/2".into()),
     ];
-    FetchSession::new(headers).navigate(&server.url()).unwrap();
+    FetchSession::new(headers)
+        .navigation(&server.url())
+        .load()
+        .unwrap();
     m.assert();
 }
 

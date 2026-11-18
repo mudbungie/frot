@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **A page that is only an immediate `<meta http-equiv="refresh">` now returns
+  the page it points at, not an empty `ok`.** `frot https://docs.astro.build/`
+  returned `status: ok` with nothing in `out`: the root document is a
+  zero-delay refresh to `/en/getting-started/`, which a browser follows with no
+  script and no human. frot now follows it as it follows an HTTP redirect — same
+  connection pool and cookies, the refreshing page as `Referer`, `url.final`
+  reporting where it landed — and shares the ten-request redirect budget, so a
+  refresh loop ends in the existing `fetch.redirect` error. A refresh with a
+  delay above zero is not followed (that page is what a browser shows first),
+  nor is one inside `<noscript>`, one a script inserts, or one whose target is
+  not `http(s)`. Under `--js` the refresh is taken before any script runs. No
+  flag, field or exit code changed. (`[bl-08d8]`, decided in `[bl-c262]`)
+
 - **The Firefox 153 ESR persona's expiry moved from 2027-01-26 to 2027-09-07.**
   The build fails on the day the pinned browser line passes the last release
   Mozilla has scheduled for it. Mozilla's calendar now runs 153.x through 153.27
