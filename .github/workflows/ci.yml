@@ -28,7 +28,7 @@ on:
   # (frot PR #1 sat that way for 30 days, then expired red: "likely failed
   # because of a workflow file issue"). `workflow_dispatch` is the one event
   # that token may cause, so `release-plz.yml` dispatches this workflow on the
-  # release branch; the check runs attach to the PR's head commit.
+  # release branch, and the `verdict` job below puts the result on the PR.
   workflow_dispatch:
 
 # CI reads the tree and writes nothing back. Every action is pinned to a full
@@ -96,3 +96,27 @@ jobs:
           name: frot-x86_64-unknown-linux-musl
           path: frot-x86_64-unknown-linux-musl
           if-no-files-found: error
+
+  # A dispatched run judges the release PR's head commit, and GitHub leaves a
+  # dispatched run's checks OFF the pull request: the commit's status rollup
+  # stays empty and `gh pr checks` reports none (measured on PR #1). A commit
+  # STATUS is always in the rollup, so the verdict is restated as one — the
+  # same context the dispatching step set to `pending`. Dispatch-only: under
+  # `pull_request` and `workflow_call` the jobs above are already the checks.
+  verdict:
+    name: report the verdict as a commit status
+    if: ${{ always() && github.event_name == 'workflow_dispatch' }}
+    needs: [gates, artifact]
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+    steps:
+      - name: Post the status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATE: ${{ (needs.gates.result == 'success' && needs.artifact.result == 'success') && 'success' || 'failure' }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state="$STATE" -f context="CI" \
+            -f description="make check, make package, make posix-musl" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

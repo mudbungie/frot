@@ -143,7 +143,8 @@ absent. No step is re-typed in a workflow; the Makefile is the one definition.
   1. `ci` — the whole of `ci.yml`, inside this run.
   2. The release PR — release-plz opens or refreshes a single PR that bumps
      the version and stages the `CHANGELOG.md` entry, and the workflow
-     dispatches `ci.yml` on that PR's branch so the PR carries its own checks.
+     dispatches `ci.yml` on that PR's branch; the verdict lands on the PR as
+     the commit status `CI`.
      **Merging that PR is the human control point.**
   3. Release, only if `ci` is green and only from the commit it judged — tag
      `v<version>`, the GitHub Release, `cargo publish` to crates.io.

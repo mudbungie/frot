@@ -22,8 +22,10 @@ name: Release-plz
 #     and GitHub starts no `pull_request` run for an event that token caused —
 #     it creates the run in `action_required`, gives it no job, and expires it
 #     red 30 days later ("likely failed because of a workflow file issue").
-#     `workflow_dispatch` is the one event that token may cause, and its check
-#     runs attach to the PR's head commit. No PAT, no stored secret.
+#     `workflow_dispatch` is the one event that token may cause. Its checks
+#     stay off the PR too, so the verdict travels as a commit status named
+#     `CI`: `pending` from this job, the result from ci.yml's `verdict` job.
+#     No PAT, no stored secret.
 #   * release (`needs: ci`) — releases the manifest version if the registry
 #     does not serve it yet, and ONLY from the commit `ci` judged.
 #   * release-binaries (`needs: release`) — attaches the artifact `ci` built in
@@ -66,8 +68,12 @@ jobs:
     # Owner guard: never runs in a fork. Neither trigger is reachable from a
     # fork PR, which fires `pull_request` — not requested here.
     if: github.repository_owner == 'mudbungie'
+    # A `uses:` job's permissions are the ceiling for the called workflow, and
+    # GitHub validates every job in it against that ceiling whether or not it
+    # will run: ci.yml's dispatch-only `verdict` job asks for `statuses: write`.
     permissions:
       contents: read
+      statuses: write
     uses: ./.github/workflows/ci.yml
 
   release-plz-pr:
@@ -77,8 +83,10 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      # To dispatch ci.yml on the release branch.
+      # To dispatch ci.yml on the release branch...
       actions: write
+      # ...and mark the PR head `pending` until that run reports.
+      statuses: write
     # Never two release-PR updates at once — they would race on the branch.
     concurrency:
       group: release-plz-pr-${{ github.ref }}
@@ -107,8 +115,11 @@ jobs:
         run: |
           set -euo pipefail
           branch="$(jq -r '.head_branch' <<<"$PR")"
-          echo "dispatching ci.yml on $branch"
+          sha="$(gh api "repos/$GH_REPO/git/ref/heads/$branch" -q '.object.sha')"
+          echo "dispatching ci.yml on $branch ($sha)"
           gh workflow run ci.yml --ref "$branch"
+          gh api "repos/$GH_REPO/statuses/$sha" -f state=pending -f context=CI \
+            -f description="ci.yml dispatched on the release branch"
 
   release-plz-release:
     name: release-plz release
