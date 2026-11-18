@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`Blob`, `URL.createObjectURL` and `URL.revokeObjectURL` exist under
+  `--js`.** A `Blob` is real bytes with `size`, `type`, `slice`, `text`,
+  `arrayBuffer` and `bytes`. A blob: URL is minted but cannot be loaded (no
+  `fetch` of it, and a Blob-URL `Worker` still never runs); there is no
+  `stream()`, `File` or `FileReader`. [bl-78c5]
+
 - **`document.scripts` exists under `--js`**: the `HTMLCollection` of the
   document's `<script>` elements, as of the moment it is read. [bl-c296]
 
@@ -25,7 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `new FormData(formElement)` is refused — frot does not read a form's
   controls. **With this, frot passes Amazon's declared challenge**: measured
   2026-11-17, `--js` returns the home page with
-  `challenge:{rounds:1, passed:true}` on 4 runs of 5
+  `challenge:{rounds:1, passed:true}` every time Amazon declared its
+  challenge — 11 runs of 15; the other 4 got an undeclared, textless 200
   (`docs/design/challenge.md` §11.4). [bl-6eb9]
 
 - **`crypto.subtle` exists under `--js`, and it computes real values.** On a

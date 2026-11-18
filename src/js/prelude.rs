@@ -127,6 +127,11 @@ pub const SOURCE: &str = concat!(
     // position is free.
     include_str!("prelude/encoding.js"),
     "\n",
+    // Blob + blob: URLs (bl-78c5): after encoding.js (its UTF-8 codec) and
+    // url.js (adds the two statics to `URL`); before formdata.js, which stores
+    // a Blob value as one.
+    include_str!("prelude/blob.js"),
+    "\n",
     include_str!("prelude/loop.js"),
     "\n",
     // requestIdleCallback (bl-b584): over loop.js's timer queue, through the

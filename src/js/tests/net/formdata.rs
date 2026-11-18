@@ -237,3 +237,32 @@ fn xhr_and_an_explicit_content_type_carry_a_form_data_too() {
     assert_eq!(ctype, "x/y");
     assert!(body.contains("name=\"k\""));
 }
+
+/// A `Blob` value is kept as that Blob, and a FormData holding one is bytes the
+/// request path cannot carry: the POST fails rather than send `[object Blob]`.
+#[test]
+fn a_form_data_holding_a_blob_is_not_sent_as_text() {
+    let mut server = Server::new();
+    let m = server.mock("POST", "/v").expect(0).create();
+    let s = session_at(&server.url());
+    s.eval(
+        "var out='', fd=new FormData(); fd.append('f', new Blob(['hi'])); \
+         fd.set('g', new Blob(['yo']), 'name.bin'); \
+         fetch('/v',{method:'POST',body:fd}).catch(function(e){out=String(e)})",
+    )
+    .unwrap();
+    assert!(s.eval("out").unwrap().contains("only text request bodies"));
+    m.assert();
+    assert_eq!(
+        caught(
+            &s,
+            "[fd.get('f') instanceof Blob, fd.get('f').size, fd.get('g').size]"
+        ),
+        "true,2,2"
+    );
+    // The filename form is only for a Blob value.
+    assert_eq!(
+        caught(&s, "fd.append('a','str','name')"),
+        "TypeError: FormData.append: Argument 2 is not an object."
+    );
+}

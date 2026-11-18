@@ -11,6 +11,7 @@ use super::{run, Bounds, Env, Report, Session, StyleSource};
 use crate::dom::Document;
 use crate::fetch::FetchSession;
 
+mod blob;
 mod clock;
 mod currentscript;
 mod encoding;

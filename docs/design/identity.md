@@ -1121,6 +1121,12 @@ cookie. Filed one ball per gap: `bl-0647` (`crypto.subtle`, the hard stop),
 > the §3 reference egress. Items 1–2 of "What it changes" are thereby
 > superseded: the gaps that mattered were two, and IP reputation is **not**
 > what gates this target from this egress.
+>
+> **Final tally 2026-11-17 (`bl-78c5`, `challenge.md` §11.4):** 15 `--js` runs
+> since the first pass — every one of the 11 declared challenges passed; 4
+> runs got an undeclared 200 with no text (`bl-eed9`). The challenge Amazon
+> serves is a 1 KiB padding upload, not a proof-of-work. Controls unchanged:
+> reddit honest stop, g2 and stackoverflow 403, no false positive.
 
 ### 3.20 The Web APIs the challenge path reads, read off the binary (`bl-6eb9` onward, 2026-11-17)
 
@@ -1202,6 +1208,38 @@ and the `timeout` option has no effect.
 declared:** like every collection frot hands out (js.md §3) it is a snapshot
 taken at each read, not one live object; and it sits on the `document` object
 rather than a `Document.prototype` frot does not have (`bl-9f79`).
+
+**`Blob` and blob: URLs (`bl-78c5`).**
+
+| fact | value | provenance |
+|---|---|---|
+| `Blob.prototype` | `slice`, `stream`, `text`, `arrayBuffer`, `bytes` (all length 0), `size`, `type` (getters), `constructor`; `Blob.length` 0; parent `Object.prototype`; an instance owns nothing | read |
+| parts | any iterable; a string is UTF-8 (a lone surrogate → `EF BF BD`); an `ArrayBuffer` or any view contributes its bytes (a `Uint16Array` of 2 → 4); a `Blob` its bytes; anything else its `String()`; no argument, or `undefined` → empty | read |
+| `type` | lowercased when every character is printable ASCII (`0x20`–`0x7E`), else `""`; `5` → `"5"`, `null` → `"null"`, `undefined` → `""` | read |
+| `endings: "native"` | every `\r\n` and lone `\r` in a **string** part becomes `\n` (Linux); `"transparent"` leaves them | read |
+| `slice(start, end, type)` | relative indices clamped like an array's (`slice(-100, 100)` whole, `slice(4, 2)` empty, `1.9` → 1, `"1"` → 1, `NaN` → 0); the slice's type is the third argument or `""`, never the parent's; a new `Blob` every time | read |
+| readers | `text()` (UTF-8 decode: malformed → U+FFFD, leading BOM dropped), `arrayBuffer()`, `bytes()` (`Uint8Array`) — each a `Promise`; a wrong receiver **rejects** `'text' called on an object that does not implement interface Blob.`; the `size` getter throws the same wording with `'get size'` | read |
+| constructor errors (`TypeError`) | `Blob constructor: Argument 1 can't be converted to a sequence.` (a string, `{}`, `null`); `…Argument 2 can't be converted to a dictionary.` (`5`); `…'x' (value of 'endings' member of BlobPropertyBag) is not a valid value for enumeration EndingType.` | read |
+| `URL` statics | `parse`, `canParse`, `createObjectURL`, `revokeObjectURL`; the last two length 1, writable, enumerable, configurable | read |
+| `createObjectURL(blob)` | `blob:https://example.com/<v4 uuid>`; **`blob:null/<uuid>` on a `file:` page**; a new URL per call; `{}` → `TypeError: URL.createObjectURL: Argument 1 could not be converted to any of: Blob, MediaSource.`; no argument → `…At least 1 argument required, but only 0 passed` | read |
+| `revokeObjectURL` | `undefined` for anything, including an unknown URL | read |
+| loading a blob: URL | `fetch` → 200 with the blob's `type` as `content-type`; XHR likewise, plus `content-length`; after revocation `TypeError: NetworkError when attempting to fetch resource.` | read |
+| in a `FormData` | a `Blob` value reads back as a `File`; `append("a", "str", "name")` → `TypeError: FormData.append: Argument 2 is not an object.` | read |
+
+*As built:* `src/js/prelude/blob.js`, pure JS over `encoding.js`'s codec.
+**Short of Firefox, declared (§11):** no `stream()`; a blob: URL is minted
+correctly but **nothing loads it** — `fetch`/XHR of one fails as a network
+error, and `new Worker(blobURL)` constructs and never runs (the standing Worker
+residual); no `File` (a `Blob` in a `FormData` stays a `Blob`, and such a
+`FormData` cannot be POSTed — the request path is text-only, `challenge.md`
+§3); no `FileReader` (`bl-8c46`); `URL.parse`/`URL.canParse` are absent.
+
+**On the `Worker` warning `bl-78c5` carried.** Measured (`challenge.md` §11.4):
+the challenge script's `Worker`/`createObjectURL` text is a bundled library's
+CPU-core estimator that the challenge path never calls, so an executing
+`Worker` is **not** required for Amazon, and none was built. The hazard is
+real in general and is now slightly wider: a script that feature-tests `Blob`
+and then waits on a Blob-URL worker waits forever in frot.
 
 ### 3.19 The secure-context surface and WebCrypto's shape, read off the binary (`bl-b0f8`, 2026-11-17)
 
@@ -2169,6 +2207,7 @@ Permanently out of reach, by design or by constraint:
 | **`FormData`** | Built 2026-11-17 (`bl-6eb9`, §3.20) because a measured challenge POSTs one. Residual: `new FormData(<form>)` throws a `frot:` `TypeError` — frot reads no form's controls, since it originates no submission (`challenge.md` §2) and an empty entry list would be a wrong answer; values are always strings (Firefox makes a `File` of a `Blob`); `entries()`/`keys()`/`values()` are array iterators, not `FormData Iterator`s. |
 | **`TextDecoder` legacy encodings** | `TextEncoder`/`TextDecoder` are built for UTF-8 (`bl-53b7`, §3.20). Firefox's `TextDecoder` also decodes some forty legacy encodings (`windows-1252`, `utf-16le`, `shift_jis`, …); frot's refuses every non-UTF-8 label with the `RangeError` Firefox gives an unknown one — a refusal, never mis-decoded text. A page that decodes a legacy encoding in script sees a Firefox that cannot. `encoding_rs` (Gecko's own decoder) is already linked, so closing this is a syscall, not a crate. |
 | **`requestIdleCallback` `timeout`** | Built on the virtual clock (`bl-b584`, §3.20): an idle callback runs once every timer due at that instant has run. The idle period therefore always arrives, so `didTimeout` is always `false` and a `timeout` option is accepted and unused — where a busy real page can report `true`. A coherent value a real Firefox also produces, not a fabricated one. |
+| **`Blob` / blob: URLs** | `Blob`, `URL.createObjectURL` and `revokeObjectURL` are real (`bl-78c5`, §3.20). Residual: no `Blob.prototype.stream` (no `ReadableStream`); a blob: URL cannot be loaded — `fetch`/XHR of one is a network error where Firefox answers 200, and a Blob-URL `Worker` never runs (the Worker row above); no `File`, no `FileReader` (`bl-8c46`); a `FormData` holding a `Blob` cannot be POSTed. Each is a refusal or an absence, never a wrong value. |
 | **`Intl` beyond `DateTimeFormat.resolvedOptions()`** | Residual. quickjs-ng ships without `Intl`; frot provides the low-entropy locale/timezone subset a page reads (`DateTimeFormat` + `resolvedOptions`, `timeZone` pinned UTC). `NumberFormat`/`Collator`/`RelativeTimeFormat`/real locale-aware formatting are unbuilt — a filed gap, not a permanent non-goal. |
 | **`__frot_*` syscall names enumerable on `globalThis`** | Residual. `Function.prototype.toString` no longer leaks their source or the name (`bl-3926` branding), but the syscall **names** are still enumerable globals (`Object.getOwnPropertyNames(window)`). Making them non-enumerable touches every `bind!` site and is tracked as a separate concern. |
 | **Three key shares** | Blocked by rustls (§6.4). |

@@ -6,9 +6,10 @@ proposal; the text below is that proposal, kept, with a dated **As built** note
 wherever the code differs from it. §11 is the as-built summary and the measured
 capstone: the round trip works offline and, on first measurement, did not get
 Amazon's page — a null, recorded in §11.3. §11.4 is the run-by-run history of
-closing the gaps that null named, and its last row is a pass: **measured
-2026-11-17, frot gets Amazon's page through the declared challenge**
-(`rounds:1, passed:true`, 4 runs of 5). Living authority for this path; `identity.md` §10/§14,
+closing the gaps that null named, and it ends in a pass: **measured
+2026-11-17, frot gets Amazon's page through the declared challenge** — every
+declared challenge of 11 was passed (`rounds:1, passed:true`); 4 further runs
+of 15 got a different, undeclared response (`bl-eed9`). Living authority for this path; `identity.md` §10/§14,
 `js.md` §6/§11, `needs.md` §1/§3/§5 and `VISION.md` carry dated in-place notes
 pointing here.
 
@@ -637,7 +638,7 @@ to see what came next):
 | `crypto.subtle` *(closed 2026-11-17, `bl-0647` — §11.4)* | **the hard stop.** With everything else stubbed the script calls `crypto.subtle.importKey("raw", <32 bytes>, {name:"AES-GCM"}, …, ["encrypt"])` — the key and IV are the page's `window.gokuProps` | `bl-0647` |
 | `TextEncoder` / `TextDecoder` *(closed 2026-11-17, `bl-53b7`)* | read before and after the inputs fetch | `bl-53b7` |
 | `requestIdleCallback` *(closed 2026-11-17, `bl-b584`)* | read right after the inputs fetch returns | `bl-b584` |
-| `Blob` (+ `URL.createObjectURL`) | read; the script also names `Worker` — if the proof-of-work runs in a Blob-URL worker, frot's non-executing `Worker` is the next wall (unmeasured) | `bl-78c5` |
+| `Blob` (+ `URL.createObjectURL`) *(closed 2026-11-17, `bl-78c5`; the `Worker` worry did not materialise — §11.4)* | read; the script also names `Worker` — if the proof-of-work runs in a Blob-URL worker, frot's non-executing `Worker` is the next wall (unmeasured) | `bl-78c5` |
 | `FormData` *(closed 2026-11-17, `bl-6eb9` — it is the token POST's body, §11.4)* | read | `bl-6eb9` |
 
 None was built here: `crypto.subtle` is a large declared residual
@@ -677,6 +678,7 @@ win.
 | 4 (`bl-53b7`, ×2) | + `TextEncoder`/`TextDecoder` | passed, 2 of 2: `ok`, 200, `rounds:1, passed:true`, 2.3–3.1 kB, `js:{scripts:~102, errors:5}` | finished. On the delivered page, two of the five errors are `Image is not defined` (`bl-1404`, new) |
 | 5 (`bl-b584`, ×2) | + `requestIdleCallback` | **1 of 2 passed** (`ok`, 200, `rounds:1, passed:true`, 4.7 kB, `js:{scripts:101, errors:5}`); **1 of 2** the undeclared 200 again — `needs:["js"]`, no `challenge` block, `js:{scripts:2, errors:0}` (`bl-eed9`, second sighting; both were the first request after a pause) | the passing run finished |
 | 6 (`bl-c296`, ×2) | + `document.scripts` | passed, 2 of 2: `ok`, 200, `rounds:1, passed:true`, 3.1 kB, `js:{scripts:102, errors:5}` | finished. Not traced, so that the challenge page's `document.scripts` walk now completes is shown by the offline test, not by this run |
+| 7 (`bl-78c5`, ×3 + 1 traced; the final tree) | + `Blob`, `URL.createObjectURL` | **2 of 4 passed** (`ok`, 200, `rounds:1, passed:true`, 2.3 kB, `js:{scripts:~102, errors:5}`); **2 of 4** the undeclared 200 (`bl-eed9`). A fifth request without `--js` got the declared 202 and `needs:["js"]`, as designed | the passing runs finished. With `Blob` present the script now tries `new FileReader()` before its `btoa` fallback (`bl-8c46`, new) |
 
 **What run 2 measured that §11.3 could only guess** (from the trace and from
 reading `challenge.js`):
@@ -696,7 +698,9 @@ reading `challenge.js`):
 - **One of the script's three challenge kinds uploads padding**: it builds an
   `ArrayBuffer` of 1 KiB, 10 KiB, 100 KiB, 1 MiB or 10 MiB by difficulty and
   POSTs it base64-encoded. Above difficulty 2 that exceeds `REQ_BODY_BYTES`
-  (64 KiB, §3). Whether Amazon serves that kind is unmeasured.
+  (64 KiB, §3). *(Measured in run 7: **this is the kind Amazon serves**, at
+  its smallest size — the trace shows `new Blob([<1024-byte ArrayBuffer>])`.
+  The whole token POST is 11.4 kB.)*
 
 The offline proof now includes this shape: `src/run/roundtrip_subtle_tests.rs`
 is a synthetic challenge that fetches inputs, imports the page's 32-byte key,
@@ -710,8 +714,10 @@ token only for the correct ciphertext (a published test vector).
 2. `challenge.js` GETs `…token.awswaf.com/…/inputs?client=browser` (200).
 3. It imports the page's 32-byte key and AES-256-GCM-encrypts 3,655 bytes of
    collected signals (§11.4 run 2).
-4. It builds a `FormData` (`solution_metadata`, plus the encrypted signals) and
-   POSTs it — 11.4 kB of multipart text — to `…token.awswaf.com/…/mp_verify`.
+4. It base64-encodes 1,024 bytes of padding (the "challenge": an upload, not a
+   computation), builds a `FormData` (`solution_metadata`, plus the encrypted
+   signals) and POSTs it — 11.4 kB of multipart text — to
+   `…token.awswaf.com/…/mp_verify`.
 5. The answer is 200, a small JSON object carrying a `token`. **No
    `Set-Cookie`.**
 6. The script writes `document.cookie = "aws-waf-token=…"` itself.
@@ -741,6 +747,31 @@ change.
 - **Nothing was raised to get here.** `EXEC_CPU_MS`, `NET_BUDGET_MS`,
   `REQ_BODY_BYTES` and `CHALLENGE_ROUNDS` are untouched; frot clicked nothing,
   solved nothing, and sent only the requests the page's own script chose.
-- **Proof-of-work was not the obstacle.** The challenge served here costs well
-  under the compute budget; the padding-upload kind (§11.4, above) was not
-  served.
+- **Proof-of-work was not the obstacle — none was asked for.** *(Corrected
+  after run 7; this bullet first said the padding-upload kind "was not
+  served", which nobody had measured.)* The challenge Amazon serves is the
+  padding upload at 1 KiB: no hashing loop, well inside both budgets and the
+  64 KiB body cap. A harder difficulty (100 KiB and up) would exceed that cap
+  and be an honest stop; that has not been observed.
+
+**Where it stands (2026-11-17, after run 7).** Since the challenge first
+passed: **15 `--js` runs, 11 passed, 4 got the undeclared 200.** Put the other
+way: **every one of the 11 declared challenges was passed** (`rounds:1,
+passed:true`, real home-page text), and the 4 misses are a response that
+declares nothing, runs two scripts cleanly and has no text — frot answers
+`needs:["js"]` and takes no round, which is the design for an undeclared page
+(§6). What that page is, and whether a browser gets it too, is `bl-eed9`.
+
+**§8's controls, re-run once each on the final tree** — unchanged from §11.3:
+reddit `needs:["human"]`, `challenge:{declared:"retry-after", rounds:0,
+passed:false}` (its script still changes nothing); g2 `error{http.403}`, no
+block; stackoverflow `error{http.403}` with `cf-mitigated: challenge`, no block
+(`bl-a7c5`); wikipedia, lobste.rs, HN `ok` and react.dev `needs:["js"]`, none
+with a `challenge` block — **zero false positives.**
+
+**What the delivered Amazon page still trips on** (its own scripts, after the
+challenge; 5 `js.errors` per run): `Image is not defined` twice (`bl-1404`);
+`crypto.subtle.importKey("raw", …, {name:"AES-CBC"}, …)` rejected
+`NotSupportedError` three times (`bl-db8f` — the first unimplemented algorithm
+with a measured caller). Its two `crypto.subtle.digest("SHA-256", …)` calls
+succeed.

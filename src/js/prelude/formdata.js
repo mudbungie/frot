@@ -7,12 +7,15 @@
 //
 // Declared short of Firefox (identity.md §11): `new FormData(form)` — collecting
 // a <form>'s controls — is refused, since frot originates no form submission
-// (challenge.md §2); an entry is always a string (a `Blob` value becomes a
-// `File` on the binary); and the iterators are array iterators, not `FormData
-// Iterator`s. Runs after brand.js; net.js takes the serializer.
+// (challenge.md §2); a `Blob` value is kept as that Blob (it becomes a `File`
+// on the binary) and a FormData holding one cannot be POSTed, because the
+// request path carries text only (challenge.md §3); and the iterators are array
+// iterators, not `FormData Iterator`s. Runs after blob.js; net.js takes the
+// serializer.
 (function (g) {
   'use strict';
   var slots = g.__frot_slots;
+  var Blob = g.Blob;
 
   function need(count, args, name) {
     if (args.length < count) {
@@ -27,6 +30,14 @@
       throw new TypeError('FormData.' + name + ': ' + args.length
         + ' is not a valid argument count for any overload.');
     }
+  }
+  // An entry's value: a Blob as itself, anything else as its string. The
+  // three-argument form names a file, so its value must be a Blob.
+  function entryValue(args, name) {
+    var value = args[1];
+    if (value instanceof Blob) return value;
+    if (args.length > 2) throw new TypeError('FormData.' + name + ': Argument 2 is not an object.');
+    return String(value);
   }
   function list(fd, name) {
     var l = slots(fd).list;
@@ -67,7 +78,7 @@
   g.__frot_ifaceops(proto, {
     append: function append(name, value) {
       overload(arguments, 'append');
-      list(this, 'append').push([String(name), String(value)]);
+      list(this, 'append').push([String(name), entryValue(arguments, 'append')]);
     },
     'delete': function (name) {
       need(1, arguments, 'delete');
@@ -93,7 +104,7 @@
     set: function set(name, value) {
       overload(arguments, 'set');
       name = String(name);
-      var entry = [name, String(value)], placed = false;
+      var entry = [name, entryValue(arguments, 'set')], placed = false;
       var kept = list(this, 'set').filter(function (e) {
         return e[0] !== name || (!placed && (placed = true));
       }).map(function (e) {
@@ -154,10 +165,15 @@
     });
     return out;
   }
-  // `{ body, type }` for a FormData, or null for anything else.
+  // `{ body, type }` for a FormData, `{ error }` for one holding bytes (a Blob),
+  // or null for anything else.
   function multipart(fd) {
     var entries = slots(fd).list;
     if (!entries) return null;
+    var bytes = entries.some(function (e) {
+      return typeof e[1] !== 'string';
+    });
+    if (bytes) return { error: 'frot: only text request bodies are supported' };
     var b = boundary();
     var parts = entries.map(function (e) {
       return '--' + b + '\r\nContent-Disposition: form-data; name="' + fieldName(e[0])

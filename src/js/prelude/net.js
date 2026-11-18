@@ -43,6 +43,7 @@
     var none = body === undefined || body === null;
     // A FormData goes out as the multipart text Firefox serializes (bl-6eb9).
     var parts = none ? null : multipart(body);
+    if (parts && parts.error) return parts;
     // A text body only: bytes frot cannot carry faithfully (an ArrayBuffer, a
     // Blob) fail the request rather than go out as something else.
     if (!none && !form && !parts && typeof body !== 'string')
