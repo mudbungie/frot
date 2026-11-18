@@ -129,6 +129,10 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/loop.js"),
     "\n",
+    // requestIdleCallback (bl-b584): over loop.js's timer queue, through the
+    // `__frot_idle_hook` seam that module leaves for it.
+    include_str!("prelude/idle.js"),
+    "\n",
     // Abort surface (bl-e81b): AbortController/AbortSignal over events.js's
     // EventTarget and loop.js's virtual-clock setTimeout.
     include_str!("prelude/abort.js"),

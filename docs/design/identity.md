@@ -1168,6 +1168,27 @@ UTF-8 decoder state machine, no syscall. **Short of Firefox, declared (§11):
 UTF-8 only.** Every other label Firefox decodes is refused with the
 `RangeError` above.
 
+**`requestIdleCallback` / `IdleDeadline` (`bl-b584`).**
+
+| fact | value | provenance |
+|---|---|---|
+| `requestIdleCallback`, `cancelIdleCallback` | own properties of the window: writable, enumerable, configurable; `.length` 1 each | read |
+| `IdleDeadline.prototype` | `timeRemaining` (length 0), `didTimeout` (getter), `constructor`; `new IdleDeadline()` is `Illegal constructor.`; an instance owns nothing | read |
+| handles | their own sequence from 1 (`1`, `2`, …), not the timer ids | read |
+| order | a microtask, then a `setTimeout(…, 0)` queued **after** the request, then the idle callback; idle callbacks in request order; one requested inside an idle callback runs in a later period, after a zero timeout queued beside it | read |
+| the callback | one argument; `didTimeout` `false`; `timeRemaining()` a number in `[0, 50]` (15.58 on the capture); after the callback returns, `timeRemaining()` is `0` | read |
+| `{timeout: 1}` | `didTimeout` `true` on the capture (the idle period came later than 1 ms) | read |
+| errors (`TypeError`) | `Window.requestIdleCallback: At least 1 argument required, but only 0 passed`; `…Argument 1 is not an object.` (`null`, a string); `…Argument 1 is not callable.` (`{}`); `…Argument 2 can't be converted to a dictionary.` (`5`); `Window.cancelIdleCallback: At least 1 argument required, but only 0 passed`; `'timeRemaining' called on an object that does not implement interface IdleDeadline.` | read |
+| `cancelIdleCallback(<unknown>)` | `undefined`, no error | read |
+
+*As built:* `src/js/prelude/idle.js` over the virtual-clock timer queue
+(`loop.js`'s `__frot_idle_hook` seam). An idle callback is queued 1 ms out and
+the loop runs every ordinary timer due at that instant first, which reproduces
+the measured order. `timeRemaining()` counts down from `min(50 ms, time to the
+next due timer)` on the observable clock. **Declared (§11):** the virtual page
+is idle as soon as its due timers have run, so `didTimeout` is always `false`
+and the `timeout` option has no effect.
+
 ### 3.19 The secure-context surface and WebCrypto's shape, read off the binary (`bl-b0f8`, 2026-11-17)
 
 **Ruling.** `bl-b0f8` asked whether frot publishes `crypto.subtle`. §3.18 turned
@@ -2133,6 +2154,7 @@ Permanently out of reach, by design or by constraint:
 | **`crypto.subtle` (WebCrypto)** | **Built 2026-11-17 (`bl-0647`; decided in `bl-b0f8`) as a real implementation, not a costume — §3.19.** Why real: a page *awaits and consumes* the result (Amazon's challenge encrypts with it, §3.18), so presence-without-function — the Worker/IndexedDB pattern — would hang or poison the page; and Mark's §10 ruling puts a capability a server requires in scope. **The residual is what is not implemented**, each of which Firefox 153 performs and frot rejects with `NotSupportedError: Operation is not supported` (never a wrong value): the algorithms RSASSA-PKCS1-v1_5, RSA-PSS, RSA-OAEP, ECDSA, ECDH, Ed25519, X25519, AES-CTR, AES-CBC, AES-KW, HKDF, PBKDF2; AES-GCM with an `iv` other than 96 bits or a tag other than 128; `wrapKey`/`unwrapKey`. A page that feature-tests by *calling* one of those sees a Firefox that lacks it — a tell, accepted, filed as `bl-db8f`. The shape (twelve methods, `CryptoKey`, `[SecureContext]`) and the error table are `read`. |
 | **`FormData`** | Built 2026-11-17 (`bl-6eb9`, §3.20) because a measured challenge POSTs one. Residual: `new FormData(<form>)` throws a `frot:` `TypeError` — frot reads no form's controls, since it originates no submission (`challenge.md` §2) and an empty entry list would be a wrong answer; values are always strings (Firefox makes a `File` of a `Blob`); `entries()`/`keys()`/`values()` are array iterators, not `FormData Iterator`s. |
 | **`TextDecoder` legacy encodings** | `TextEncoder`/`TextDecoder` are built for UTF-8 (`bl-53b7`, §3.20). Firefox's `TextDecoder` also decodes some forty legacy encodings (`windows-1252`, `utf-16le`, `shift_jis`, …); frot's refuses every non-UTF-8 label with the `RangeError` Firefox gives an unknown one — a refusal, never mis-decoded text. A page that decodes a legacy encoding in script sees a Firefox that cannot. `encoding_rs` (Gecko's own decoder) is already linked, so closing this is a syscall, not a crate. |
+| **`requestIdleCallback` `timeout`** | Built on the virtual clock (`bl-b584`, §3.20): an idle callback runs once every timer due at that instant has run. The idle period therefore always arrives, so `didTimeout` is always `false` and a `timeout` option is accepted and unused — where a busy real page can report `true`. A coherent value a real Firefox also produces, not a fabricated one. |
 | **`Intl` beyond `DateTimeFormat.resolvedOptions()`** | Residual. quickjs-ng ships without `Intl`; frot provides the low-entropy locale/timezone subset a page reads (`DateTimeFormat` + `resolvedOptions`, `timeZone` pinned UTC). `NumberFormat`/`Collator`/`RelativeTimeFormat`/real locale-aware formatting are unbuilt — a filed gap, not a permanent non-goal. |
 | **`__frot_*` syscall names enumerable on `globalThis`** | Residual. `Function.prototype.toString` no longer leaks their source or the name (`bl-3926` branding), but the syscall **names** are still enumerable globals (`Object.getOwnPropertyNames(window)`). Making them non-enumerable touches every `bind!` site and is tracked as a separate concern. |
 | **Three key shares** | Blocked by rustls (§6.4). |

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`requestIdleCallback` / `cancelIdleCallback` exist under `--js`.** An idle
+  callback runs on the virtual clock once every timer due at that instant has
+  run, and receives a real `IdleDeadline`. [bl-b584]
+
 - **`TextEncoder` and `TextDecoder` exist under `--js`**, for UTF-8:
   `encode`, `encodeInto`, and a spec-exact `decode` (replacement characters,
   BOM, `fatal`, `{stream: true}`). Any other `TextDecoder` label is refused

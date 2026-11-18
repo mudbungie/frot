@@ -636,7 +636,7 @@ to see what came next):
 |---|---|---|
 | `crypto.subtle` *(closed 2026-11-17, `bl-0647` — §11.4)* | **the hard stop.** With everything else stubbed the script calls `crypto.subtle.importKey("raw", <32 bytes>, {name:"AES-GCM"}, …, ["encrypt"])` — the key and IV are the page's `window.gokuProps` | `bl-0647` |
 | `TextEncoder` / `TextDecoder` *(closed 2026-11-17, `bl-53b7`)* | read before and after the inputs fetch | `bl-53b7` |
-| `requestIdleCallback` | read right after the inputs fetch returns | `bl-b584` |
+| `requestIdleCallback` *(closed 2026-11-17, `bl-b584`)* | read right after the inputs fetch returns | `bl-b584` |
 | `Blob` (+ `URL.createObjectURL`) | read; the script also names `Worker` — if the proof-of-work runs in a Blob-URL worker, frot's non-executing `Worker` is the next wall (unmeasured) | `bl-78c5` |
 | `FormData` *(closed 2026-11-17, `bl-6eb9` — it is the token POST's body, §11.4)* | read | `bl-6eb9` |
 
@@ -675,6 +675,7 @@ win.
 | 2 (`bl-0647`, ×2 + 1 traced) | + a real `crypto.subtle` | **unchanged — still a null**: `needs:["human"]`, 202, `rounds:0`, `js:{scripts:3, errors:2}` | **past the crypto.** `importKey("raw", 32 bytes, {name:"AES-GCM"}, false, ["encrypt"])` resolves; `encrypt({name:"AES-GCM", iv: 12 bytes, tagLength: 128}, key, 3655 bytes)` resolves to 3671 bytes. Then `new FormData()` — absent, `TypeError: not a function` — while building the POST body (`bl-6eb9`), and separately `document.scripts.length` — absent (`bl-c296`, new). No POST, no cookie |
 | 3 (`bl-6eb9`, ×4 + 1 traced) | + `FormData`, sent as multipart text | **PASSED, 4 of 5**: `status:"ok"`, `http.status 200`, `challenge:{declared:"x-amzn-waf-action", rounds:1, passed:true}`, 2.4–4.7 kB of the real home page's text, `js:{scripts:~100, errors:6–8}` on the delivered page. **1 of 5**: 200 with *no* declaration and no text → `needs:["js"]`, no `challenge` block (`bl-eed9`) | nowhere — it finished. Still absent and still read: `document.scripts` (one rejected side path, `bl-c296`), `TextEncoder`, `requestIdleCallback`, `Blob` (all feature-tested) |
 | 4 (`bl-53b7`, ×2) | + `TextEncoder`/`TextDecoder` | passed, 2 of 2: `ok`, 200, `rounds:1, passed:true`, 2.3–3.1 kB, `js:{scripts:~102, errors:5}` | finished. On the delivered page, two of the five errors are `Image is not defined` (`bl-1404`, new) |
+| 5 (`bl-b584`, ×2) | + `requestIdleCallback` | **1 of 2 passed** (`ok`, 200, `rounds:1, passed:true`, 4.7 kB, `js:{scripts:101, errors:5}`); **1 of 2** the undeclared 200 again — `needs:["js"]`, no `challenge` block, `js:{scripts:2, errors:0}` (`bl-eed9`, second sighting; both were the first request after a pause) | the passing run finished |
 
 **What run 2 measured that §11.3 could only guess** (from the trace and from
 reading `challenge.js`):

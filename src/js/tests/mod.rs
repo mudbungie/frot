@@ -17,6 +17,7 @@ mod encoding;
 mod envgold;
 mod evloop;
 mod facade;
+mod idle;
 mod iterator;
 mod net;
 mod netbudget;

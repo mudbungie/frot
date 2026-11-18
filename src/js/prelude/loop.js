@@ -130,14 +130,46 @@
   };
   g.cancelAnimationFrame = clear;
 
+  // --- The idle-callback seam (bl-b584) ----------------------------------------
+  // idle.js builds requestIdleCallback on these four; it removes the global.
+  // An idle callback is a timer 1 ms out, flagged so the driver below runs every
+  // ordinary timer due at that instant first.
+  Object.defineProperty(g, '__frot_idle_hook', {
+    configurable: true,
+    value: {
+      observe: observe,
+      queue: function (run, handle) {
+        schedule(run, 1, [], 0);
+        timers[timers.length - 1].idle = handle;
+      },
+      cancel: function (handle) {
+        timers = timers.filter(function (t) {
+          return t.idle !== handle;
+        });
+      },
+      // When the idle period that starts at `now` ends: 50 ms on, or sooner if a
+      // timer is due first.
+      until: function (now) {
+        return timers.reduce(function (soonest, t) {
+          return Math.min(soonest, Math.max(now, t.due));
+        }, now + 50);
+      },
+    },
+  });
+
   // Host driver: run the earliest timer due within the horizon, jumping the
   // clock to it; reschedule intervals (dropping any that step past the horizon).
   // Returns -1 when nothing is due (the loop is settled), else the callback's
   // error count (0 or 1) — a throw is counted and the loop continues (§5).
   g.__frot_next_timer = function () {
     var best = -1;
+    // Earliest due first; at the same instant an ordinary timer beats an idle
+    // callback, and equals keep their queue order.
+    function before(a, b) {
+      return a.due < b.due || (a.due === b.due && !a.idle && !!b.idle);
+    }
     for (var i = 0; i < timers.length; i++)
-      if (timers[i].due <= HORIZON && (best < 0 || timers[i].due < timers[best].due)) best = i;
+      if (timers[i].due <= HORIZON && (best < 0 || before(timers[i], timers[best]))) best = i;
     if (best < 0) return -1;
     var t = timers[best];
     // Jump the observable clock forward to at least the timer's due time — the
