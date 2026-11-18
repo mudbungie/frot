@@ -18,8 +18,8 @@
 # Conventional-Commit `feat:` lands as a patch bump below 1.0.0.
 [workspace]
 # Merging the release PR ships the crate: release-plz tags `v<version>`, cuts
-# the GitHub Release, and runs `cargo publish` to crates.io. That last step
-# needs the `CARGO_REGISTRY_TOKEN` repo secret (see release-plz.yml's header).
+# the GitHub Release, and runs `cargo publish` to crates.io (auth: see
+# "REGISTRY AUTH" in release-plz.yml's header).
 publish = true
 # Off deliberately: a cargo-semver-checks verdict OVERRIDES the bump above —
 # release-plz turns a detected API break into a major bump on its own — which

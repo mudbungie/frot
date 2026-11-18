@@ -120,34 +120,41 @@ delta it prints. A page without a capture fails the suite; it never skips.
 GitHub Actions runs the same `make` targets as the gate (`make check`, which
 the pre-commit hook has the noodlezoo builder run on the staged tree — see
 AGENTS.md "The gate"), so nothing lands ungated even if the hook is skipped or
-absent:
+absent. No step is re-typed in a workflow; the Makefile is the one definition.
 
-- **`.github/workflows/ci.yml`** (every push + pull request) — `make leak-scan`
-  (the disclosure gate: `scripts/leak-rules.sh` is the table of what may not be
-  published — public IPv4/IPv6 addresses, ASNs, coordinates, credentials, home
-  paths, emails, transcripts — and its self-test proves every rule still flags
-  its fixture and that a planted address fails the scan), `cargo fmt --check`, `make lint` (clippy `-D warnings`), `make cov` (100% lines +
-  regions), `make size` (the source-file line cap), `make posix` (the POSIX conformance
-  suite gating `docs/design/posix.md` at the process boundary), and `make
-  package` (`cargo publish --dry-run --locked`, then the same leak scan over
-  the files inside the built `.crate` — the crates.io packaging gate; it never
-  publishes). The gate values are never re-typed in CI: coverage
-  delegates to `make cov`, the line cap delegates to `make size` — where
-  `scripts/source-files.sh` owns *which* files are source (Rust, the JS
-  prelude, the gate shell; never `tests/fixtures/`, which is data) and
-  `scripts/line-limit.sh` owns the 300 — and the conformance checks live in
-  `scripts/posix-suite.sh` alone.
-- **`.github/workflows/release-plz.yml`** — the release pipeline. Every push to
-  main refreshes a single "release PR" that bumps the version and stages the
-  changelog; merging that PR is the human control point. Once CI concludes green
-  on main, the release job tags `v<version>`, cuts the GitHub Release, and runs
-  `cargo publish` to crates.io (needs the `CARGO_REGISTRY_TOKEN` repo secret),
-  then a dependent job builds the stripped, static
-  `x86_64-unknown-linux-musl` binary, asserts its size sits inside the
-  documented 5-15 MiB envelope (`scripts/check-size.sh`), runs the POSIX
-  conformance suite against that exact stripped artifact (the second target
-  `docs/design/posix.md` §7 claims; locally, `make posix-musl`), and uploads
-  it as a Release asset.
+- **`.github/workflows/ci.yml`** (pull requests, and called by the release
+  workflow on every push to main) — two jobs. `gates` runs `make check` (the
+  line cap, the leak scan, `cargo fmt --check`, clippy `-D warnings`, the POSIX
+  suite, 100% line + region coverage) and `make package` (`cargo publish
+  --dry-run --locked`, then the leak scan over the files inside the built
+  `.crate`; it never publishes). `artifact` runs `make posix-musl`: it builds
+  the static `x86_64-unknown-linux-musl` binary, strips it, asserts the 5-15 MiB
+  envelope (`scripts/check-size.sh`), runs the POSIX suite against the stripped
+  file, and keeps that file as a workflow artifact.
+- **The leak scan** (`make leak-scan`, a step of `make check`) is the
+  disclosure gate. `scripts/leak-rules.sh` is the table of what may not be
+  published — routable IPv4/IPv6 addresses, ASNs, coordinates, credentials,
+  home-directory paths, emails, transcripts. Its self-test is the negative
+  control: every rule must flag every line of its fixture
+  (`scripts/leak-fixtures/`), and a doc carrying an address fixture must fail
+  the scan.
+- **`.github/workflows/release-plz.yml`** — the release pipeline, one run per
+  push to main:
+  1. `ci` — the whole of `ci.yml`, inside this run.
+  2. The release PR — release-plz opens or refreshes a single PR that bumps
+     the version and stages the `CHANGELOG.md` entry, and the workflow
+     dispatches `ci.yml` on that PR's branch so the PR carries its own checks.
+     **Merging that PR is the human control point.**
+  3. Release, only if `ci` is green and only from the commit it judged — tag
+     `v<version>`, the GitHub Release, `cargo publish` to crates.io.
+  4. The binary — the `frot-x86_64-unknown-linux-musl` file `ci` built and
+     tested in step 1 is attached to the Release. It is never rebuilt.
+
+  crates.io auth is the `CARGO_REGISTRY_TOKEN` repo secret while it exists;
+  the release job also holds `id-token: write`, so once a trusted publisher is
+  registered for `release-plz.yml` at
+  <https://crates.io/crates/frot/settings>, deleting the secret switches the
+  pipeline to short-lived OIDC tokens with no edit.
 
 `rust-toolchain.toml` pins the compiler (and the `llvm-tools-preview` component
 and musl target) so local and CI agree.

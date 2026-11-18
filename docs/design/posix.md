@@ -207,8 +207,8 @@ frot's contract is asserted **only** on the targets its gates actually run:
 
 - `x86_64-unknown-linux-gnu` — the development and CI build (`make posix`).
 - `x86_64-unknown-linux-musl` — the shipped release artifact
-  (`make posix-musl`; the release pipeline runs the suite against the exact
-  stripped binary it uploads).
+  (`make posix-musl`; CI runs the suite against the stripped binary and the
+  release pipeline uploads that exact file).
 
 That is the whole claim. frot is **not** POSIX-certified, does not claim
 UNIX branding, and asserts nothing about macOS, the BSDs, illumos, or any

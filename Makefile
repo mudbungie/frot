@@ -55,16 +55,21 @@ package:
 
 # The POSIX conformance gate (docs/design/posix.md): a /bin/sh harness spawning
 # the real binary at the process boundary — argv, streams, exit statuses,
-# signals, lifecycle. `posix` gates the dev build; `posix-musl` the shipped
-# x86_64-unknown-linux-musl artifact (the release pipeline runs the suite
-# against the exact stripped binary it uploads).
+# signals, lifecycle. `posix` gates the dev build; `posix-musl` IS the shipped
+# x86_64-unknown-linux-musl artifact's gate — build, strip, the 5-15 MiB
+# envelope (scripts/check-size.sh), then the suite against the stripped binary.
+# CI runs it on every tree and keeps the file; the release pipeline attaches
+# that exact file to the GitHub Release and never rebuilds (ci.yml `artifact`).
 posix:
 	cargo build
 	scripts/posix-suite.sh target/debug/frot
 
+MUSL_BIN := target/x86_64-unknown-linux-musl/release/frot
 posix-musl:
-	cargo build --release --target x86_64-unknown-linux-musl
-	scripts/posix-suite.sh target/x86_64-unknown-linux-musl/release/frot
+	cargo build --release --locked --target x86_64-unknown-linux-musl
+	strip $(MUSL_BIN)
+	scripts/check-size.sh $(MUSL_BIN)
+	scripts/posix-suite.sh $(MUSL_BIN)
 
 # The complete gate, in the old hook's order: the line cap first (every source
 # language, ahead of the cargo steps a Rust-less tree would make vacuous), then
