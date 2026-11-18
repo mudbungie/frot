@@ -32,6 +32,19 @@
   g.document.getElementsByClassName = function (cls) {
     return g.__frot_elems(g.__frot_query_doc('.' + String(cls).trim().split(/\s+/).join('.')));
   };
+  // document.scripts (bl-c296): AWS WAF's challenge walks it looking for its own
+  // integration script, and threw on `undefined.length` (challenge.md §11.4). On
+  // Firefox 153.0esr it is an HTMLCollection of every <script> in the document,
+  // in tree order — ones a script inserted included, a detached one not. Like
+  // every collection frot hands out it is a snapshot taken at the read, where
+  // Firefox's is one live object (`document.scripts === document.scripts`).
+  Object.defineProperty(g.document, 'scripts', {
+    get: function () {
+      return g.__frot_elems(g.__frot_query_doc('script'));
+    },
+    enumerable: true,
+    configurable: true,
+  });
   g.document.getElementsByName = function (name) {
     return g.document.querySelectorAll('[name="' + String(name) + '"]');
   };

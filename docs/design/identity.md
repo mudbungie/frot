@@ -1189,6 +1189,20 @@ next due timer)` on the observable clock. **Declared (§11):** the virtual page
 is idle as soon as its due timers have run, so `didTimeout` is always `false`
 and the `timeout` option has no effect.
 
+**`document.scripts` (`bl-c296`).**
+
+| fact | value | provenance |
+|---|---|---|
+| descriptor | an accessor on `Document.prototype`: enumerable, configurable, no setter, getter `get scripts` | read |
+| value | `[object HTMLCollection]` of every `<script>` in the document, tree order; own keys are its indices; `item(n)` past the end is `null`; `namedItem(id)` and `collection[id]` find a script by id | read |
+| liveness | **one live object**: `document.scripts === document.scripts`, and a held reference grows and shrinks as scripts are inserted and removed (`[1, 2, 1]`); a created-but-detached `<script>` is not in it | read |
+
+*As built:* an accessor on frot's `document` (`doc.js`) returning the
+`HTMLCollection` of `querySelectorAll('script')`. **Short of Firefox, already
+declared:** like every collection frot hands out (js.md §3) it is a snapshot
+taken at each read, not one live object; and it sits on the `document` object
+rather than a `Document.prototype` frot does not have (`bl-9f79`).
+
 ### 3.19 The secure-context surface and WebCrypto's shape, read off the binary (`bl-b0f8`, 2026-11-17)
 
 **Ruling.** `bl-b0f8` asked whether frot publishes `crypto.subtle`. §3.18 turned

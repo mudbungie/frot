@@ -163,3 +163,50 @@ fn setting_id_invalidates_the_style_cache_it_shares_a_generation_with() {
         "block|tagged|none"
     );
 }
+
+/// `document.scripts` (`bl-c296`), as read off Firefox 153.0esr: an
+/// HTMLCollection of the document's `<script>` elements in tree order — the walk
+/// AWS WAF's challenge does (`challenge.md` §11.4).
+#[test]
+fn document_scripts_is_the_collection_of_script_elements() {
+    let s = sess(
+        "<html><head><script id=a>var x = 1;</script></head>\
+         <body><p>t</p><script id=b type=text/plain>AwsWafIntegration</script></body></html>",
+    );
+    let eval = |src: &str| s.eval(src).unwrap();
+    assert_eq!(
+        eval(
+            "[String(document.scripts), document.scripts instanceof HTMLCollection, \
+             document.scripts.length, Array.from(document.scripts, function(e){return e.id}), \
+             document.scripts[1].innerHTML, document.scripts.item(0).tagName, \
+             document.scripts.namedItem('b').id, \
+             String(document.scripts.item(9))].join(' ')"
+        ),
+        "[object HTMLCollection] true 2 a,b AwsWafIntegration SCRIPT b null"
+    );
+    // The measured walk: find the script whose text names the integration.
+    assert_eq!(
+        eval(
+            "(function(){for(var i=0;i<document.scripts.length;i++)\
+             if(document.scripts[i].innerHTML.includes('AwsWafIntegration'))return i;return -1})()"
+        ),
+        "1"
+    );
+    // A script the page inserts is in the next read; a detached one never is.
+    assert_eq!(
+        eval(
+            "(function(){var n=document.createElement('script'),d=document.createElement('script');\
+             document.head.appendChild(n);var grown=document.scripts.length;n.remove();\
+             return [grown, document.scripts.length].join()})()"
+        ),
+        "3,2"
+    );
+    let d = "Object.getOwnPropertyDescriptor(document,'scripts')";
+    assert_eq!(
+        eval(&format!(
+            "[{d}.enumerable,{d}.configurable,{d}.set===undefined,{d}.get.name,\
+             {d}.get.toString().indexOf('native code')>0].join()"
+        )),
+        "true,true,true,get scripts,true"
+    );
+}

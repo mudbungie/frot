@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`document.scripts` exists under `--js`**: the `HTMLCollection` of the
+  document's `<script>` elements, as of the moment it is read. [bl-c296]
+
 - **`requestIdleCallback` / `cancelIdleCallback` exist under `--js`.** An idle
   callback runs on the virtual clock once every timer due at that instant has
   run, and receives a real `IdleDeadline`. [bl-b584]

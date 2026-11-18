@@ -676,6 +676,7 @@ win.
 | 3 (`bl-6eb9`, ×4 + 1 traced) | + `FormData`, sent as multipart text | **PASSED, 4 of 5**: `status:"ok"`, `http.status 200`, `challenge:{declared:"x-amzn-waf-action", rounds:1, passed:true}`, 2.4–4.7 kB of the real home page's text, `js:{scripts:~100, errors:6–8}` on the delivered page. **1 of 5**: 200 with *no* declaration and no text → `needs:["js"]`, no `challenge` block (`bl-eed9`) | nowhere — it finished. Still absent and still read: `document.scripts` (one rejected side path, `bl-c296`), `TextEncoder`, `requestIdleCallback`, `Blob` (all feature-tested) |
 | 4 (`bl-53b7`, ×2) | + `TextEncoder`/`TextDecoder` | passed, 2 of 2: `ok`, 200, `rounds:1, passed:true`, 2.3–3.1 kB, `js:{scripts:~102, errors:5}` | finished. On the delivered page, two of the five errors are `Image is not defined` (`bl-1404`, new) |
 | 5 (`bl-b584`, ×2) | + `requestIdleCallback` | **1 of 2 passed** (`ok`, 200, `rounds:1, passed:true`, 4.7 kB, `js:{scripts:101, errors:5}`); **1 of 2** the undeclared 200 again — `needs:["js"]`, no `challenge` block, `js:{scripts:2, errors:0}` (`bl-eed9`, second sighting; both were the first request after a pause) | the passing run finished |
+| 6 (`bl-c296`, ×2) | + `document.scripts` | passed, 2 of 2: `ok`, 200, `rounds:1, passed:true`, 3.1 kB, `js:{scripts:102, errors:5}` | finished. Not traced, so that the challenge page's `document.scripts` walk now completes is shown by the offline test, not by this run |
 
 **What run 2 measured that §11.3 could only guess** (from the trace and from
 reading `challenge.js`):
