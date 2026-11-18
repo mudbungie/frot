@@ -65,7 +65,6 @@ const CLOSED_DETAILS: Why = Why::Residual(
      channel over-reports paint. frot's omission is the painted truth — the same body is absent \
      from Chrome's own innerText and AX tree (measured 2026-11-18, Chrome 156).",
 );
-const ROW_NAME: Why = Why::Defect("bl-3072");
 const TERM_NAME: Why = Why::Defect("bl-8ad7");
 const SVG_TITLE: Why = Why::Defect("bl-0a0a");
 const UNNAMED_FORM: Why = Why::Defect("bl-2a3c");
@@ -88,18 +87,6 @@ pub const LEDGER: &[Row] = &[
     row("disclosure", "bboxes", "- 8 p", CLOSED_DETAILS),
     row("disclosure", "bboxes", "- 9 a", CLOSED_DETAILS),
     // ax — open divergences, one ball each.
-    row("article", "ax", "- row \"\"", ROW_NAME),
-    row("article", "ax", "- row \"\"", ROW_NAME),
-    row("article", "ax", "- row \"\"", ROW_NAME),
-    row("article", "ax", "+ row \"TimeHeightState\"", ROW_NAME),
-    row("article", "ax", "+ row \"04:120.6 mLow\"", ROW_NAME),
-    row("article", "ax", "+ row \"10:314.1 mHigh\"", ROW_NAME),
-    row("structure", "ax", "- row \"\"", ROW_NAME),
-    row("structure", "ax", "- row \"\"", ROW_NAME),
-    row("structure", "ax", "- row \"\"", ROW_NAME),
-    row("structure", "ax", "+ row \"QuarterTotal\"", ROW_NAME),
-    row("structure", "ax", "+ row \"Q110\"", ROW_NAME),
-    row("structure", "ax", "+ row \"Q212\"", ROW_NAME),
     row("structure", "ax", "- term \"Term\"", TERM_NAME),
     row("structure", "ax", "+ term \"\"", TERM_NAME),
     row(

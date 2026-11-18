@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`ax`: a row of a plain table no longer has a name.** `<tr><th>Q1</th>
+  <td>10</td></tr>` was `row "Q110"` — its cells' text, fused; it is now a
+  `row` with a null name, as in Chrome, and the cells keep their own names. A
+  row is still named from its cells inside a `grid` or `treegrid`, where
+  Chrome names it too, and `aria-label`/`aria-labelledby`/`title` on a row
+  count everywhere. A `<td>`'s `cell`/`gridcell` choice now reads the same
+  one fact — the nearest ancestor with a table role — which differs from
+  before only for a table given a non-table `role=` nested inside a grid.
+  Found by the fidelity oracle. (`[bl-3072]`)
+
 - **`ax`: an unnamed `<tbody>` no longer emits a `rowgroup`.** The rows of a
   table body — written out or implied by the parser — are now direct children
   of the `table`, as in Chrome's tree; before, every data table carried a

@@ -16,8 +16,8 @@
 //!      ([`label_attr`]); an `<option>` without one falls back to its contents
 //!    - everything else — the element's descendant text *alternatives* (the
 //!      §2F recursion, [`contents`]), but *only* when the element's role is
-//!      name-from-contents (see [`NAME_FROM_CONTENTS`]); containers (row,
-//!      list, paragraph, nav, …) yield no native name
+//!      name-from-contents (see [`NAME_FROM_CONTENTS`]); containers (list,
+//!      paragraph, nav, a plain table's row, …) yield no native name
 //! 4. `title` — last, and only where the node's own name is at stake. `title`
 //!    is positional (`contents/walk.rs`): a `<label>`/`<legend>` and every node
 //!    inside an `aria-labelledby` reference read it too, a descendant read for
@@ -28,9 +28,11 @@
 //! subtrees and include `::before`/`::after` generated content.
 
 mod contents;
+mod related;
 
 use crate::css::Styles;
 use crate::dom::{Document, NodeId, NodeKind, WalkEvent};
+use related::{control_label_text, fieldset_legend_text, table_caption_text};
 
 /// The name a role that names from its contents takes from its subtree — the
 /// §2F recursion over descendants only ([`contents`]), never the element's own
@@ -143,7 +145,8 @@ pub fn author_name(
 /// Roles whose accessible name is computed from descendant text — the
 /// "Name From: contents" set of WAI-ARIA 1.2 (roles listed with
 /// `nameFrom: contents` in §5.4 Definition of Roles). Only these take the
-/// subtree-text fallback; container roles (`table`, `rowgroup`, `list`,
+/// subtree-text fallback (`row` too, conditionally: [`names_from_contents`]);
+/// container roles (`table`, `rowgroup`, `list`,
 /// `listitem`, `paragraph`, `navigation`, `region`, `group`, …) are absent,
 /// so they yield no native name instead of echoing their whole subtree.
 const NAME_FROM_CONTENTS: &[&str] = &[
@@ -159,7 +162,6 @@ const NAME_FROM_CONTENTS: &[&str] = &[
     "menuitemradio",
     "option",
     "radio",
-    "row",
     "rowheader",
     "switch",
     "tab",
@@ -167,9 +169,18 @@ const NAME_FROM_CONTENTS: &[&str] = &[
     "treeitem",
 ];
 
-/// Whether the node's effective role is in [`NAME_FROM_CONTENTS`].
+/// Whether the node's effective role is in [`NAME_FROM_CONTENTS`] — and, for
+/// a `row`, whether its table is a `grid`/`treegrid`. ARIA lists `row` as
+/// name-from-contents without condition, but a browser computes that name only
+/// where a row can be the thing in focus: measured in Chrome 156 (`bl-3072`),
+/// a row of a `table` is `""` — `<tr>` or `role=row`, focusable or not — while
+/// the same row in a grid is named from its cells.
 fn names_from_contents(doc: &Document, id: NodeId) -> bool {
-    matches!(crate::ax::role(doc, id), Some(r) if NAME_FROM_CONTENTS.contains(&r))
+    match crate::ax::role(doc, id) {
+        Some("row") => crate::ax::role::in_grid(doc, id),
+        Some(r) => NAME_FROM_CONTENTS.contains(&r),
+        None => false,
+    }
 }
 
 fn input_name(
@@ -187,76 +198,6 @@ fn input_name(
         "image" => el.attr("alt").map(str::to_string),
         _ => control_label_text(doc, id, el, styles),
     }
-}
-
-fn control_label_text(
-    doc: &Document,
-    control_id: NodeId,
-    el: &crate::dom::Element,
-    styles: Option<&Styles>,
-) -> Option<String> {
-    let target = el.attr("id");
-    let mut for_match: Option<NodeId> = None;
-    let mut label_stack: Vec<NodeId> = Vec::new();
-    let mut wrapping_label: Option<NodeId> = None;
-    doc.walk(None, &mut |ev, e| match ev {
-        WalkEvent::Enter(id) => {
-            if let NodeKind::Element(elx) = &e.kind {
-                if elx.name == "label" {
-                    label_stack.push(id);
-                    if let Some(t) = target {
-                        if for_match.is_none() && elx.attr("for") == Some(t) {
-                            for_match = Some(id);
-                        }
-                    }
-                } else if id == control_id && wrapping_label.is_none() {
-                    wrapping_label = label_stack.first().copied();
-                }
-            }
-        }
-        WalkEvent::Exit(id) => {
-            if label_stack.last() == Some(&id) {
-                label_stack.pop();
-            }
-        }
-    });
-    for_match
-        .or(wrapping_label)
-        .map(|id| contents::element_name(doc, id, styles, &[control_id]))
-}
-
-fn fieldset_legend_text(
-    doc: &Document,
-    fieldset_id: NodeId,
-    styles: Option<&Styles>,
-) -> Option<String> {
-    let mut found: Option<NodeId> = None;
-    doc.walk(Some(fieldset_id), &mut |ev, e| {
-        if found.is_some() {
-            return;
-        }
-        if let (WalkEvent::Enter(id), NodeKind::Element(el)) = (ev, &e.kind) {
-            if id != fieldset_id && el.name == "legend" {
-                found = Some(id);
-            }
-        }
-    });
-    found.map(|id| contents::element_name(doc, id, styles, &[]))
-}
-
-/// HTML-AAM: a `<table>` is named by its first `<caption>` child. Unlike a
-/// `<legend>`, the caption is read as a *descendant* — measured in Chrome 156,
-/// `<caption aria-label=A>t</caption>` names the table "A" but
-/// `<caption title=T></caption>` names it nothing, and a caption CSS hides
-/// names nothing either.
-fn table_caption_text(doc: &Document, table: NodeId, styles: Option<&Styles>) -> Option<String> {
-    let caption = doc
-        .node(table)
-        .children
-        .iter()
-        .copied()
-        .find(|&c| matches!(&doc.node(c).kind, NodeKind::Element(e) if e.name == "caption"))?;
-    Some(contents::descendant_name(doc, caption, styles))
 }
 
 fn find_by_id(doc: &Document, target: &str) -> Option<NodeId> {

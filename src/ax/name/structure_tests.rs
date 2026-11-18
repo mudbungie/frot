@@ -97,3 +97,54 @@ fn a_hidden_caption_names_nothing() {
         assert_eq!(name_css(&html, "table"), None, "{style}");
     }
 }
+
+/// `bl-3072`: a row of a plain `table` has no name of its own — focusable or
+/// not, `<tr>` or `role=row` — and still takes the author's.
+#[test]
+fn a_table_row_is_not_named_from_its_cells() {
+    for (html, want) in [
+        // The corpus case (`structure.html`): frot said "Q110".
+        (
+            "<table><caption>c</caption><tr><th scope=row>Q1</th><td>10</td></tr></table>",
+            None,
+        ),
+        (
+            "<table><caption>c</caption><tr tabindex=0><th scope=row>Q2</th><td>12</td></tr></table>",
+            None,
+        ),
+        (
+            "<table><caption>c</caption><tr aria-label=RL><td>z</td></tr></table>",
+            Some("RL"),
+        ),
+        (
+            "<table><caption>c</caption><tr title=RT><td>z</td></tr></table>",
+            Some("RT"),
+        ),
+    ] {
+        assert_eq!(name(html, "tr").as_deref(), want, "{html}");
+    }
+    let html = "<div role=table><p role=row><span role=cell>a</span></p></div>";
+    assert_eq!(name(html, "p"), None);
+}
+
+/// In a `grid` or `treegrid` the row *is* named from its cells (Chrome 156:
+/// `row "ab"` for the inline cells below). Where the cells are table cells
+/// Chrome also spaces them — "G1 10" — which frot does not yet (`bl-fb69`).
+#[test]
+fn a_grid_row_is_named_from_its_cells() {
+    for grid in ["grid", "treegrid"] {
+        let html = format!(
+            "<div role={grid}><p role=row><span role=gridcell>a</span>\
+             <span role=gridcell>b</span></p></div>"
+        );
+        assert_eq!(name(&html, "p").as_deref(), Some("ab"), "{grid}");
+        let html = format!("<table role={grid}><tr><td>G2</td></tr></table>");
+        assert_eq!(name(&html, "tr").as_deref(), Some("G2"), "{grid}");
+    }
+}
+
+/// A node with no role at all names nothing from its contents.
+#[test]
+fn a_roleless_node_has_no_name_from_contents() {
+    assert_eq!(name("<video>fallback</video>", "video"), None);
+}

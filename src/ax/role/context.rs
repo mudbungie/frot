@@ -78,19 +78,30 @@ pub fn listitem_or_generic(doc: &Document, id: NodeId) -> &'static str {
     }
 }
 
-/// `<td>`: `cell` in a table, `gridcell` in a grid — the ancestor table's role
-/// decides, so an author `role=grid` reaches its cells.
+/// `<td>`: `cell` in a table, `gridcell` in a grid — the table's role decides,
+/// so an author `role=grid` reaches its cells.
 pub fn cell_role(
     doc: &Document,
     id: NodeId,
     plain: &'static str,
     grid: &'static str,
 ) -> &'static str {
-    let table = ancestors(doc, id).find(|&a| tag(doc, a) == Some("table"));
-    match table.and_then(|a| super::role(doc, a)) {
-        Some("grid" | "treegrid") => grid,
-        _ => plain,
+    if in_grid(doc, id) {
+        grid
+    } else {
+        plain
     }
+}
+
+/// Whether the table `id` belongs to — its nearest ancestor with a table role
+/// — is an interactive one, a `grid` or `treegrid`. The one fact a table's
+/// role hands down to its parts: the role of a cell, and whether a row is
+/// named ([`crate::ax::name`]).
+pub fn in_grid(doc: &Document, id: NodeId) -> bool {
+    let table = ancestors(doc, id)
+        .filter_map(|a| super::role(doc, a))
+        .find(|r| matches!(*r, "table" | "grid" | "treegrid"));
+    matches!(table, Some("grid" | "treegrid"))
 }
 
 /// Whether a scope-less `<th>` heads its *row*: it opens the row and at least

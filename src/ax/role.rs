@@ -62,6 +62,12 @@ pub fn level(el: &Element) -> Option<u32> {
     }
 }
 
+/// Whether `id` is a part of a `grid` or `treegrid` rather than of a plain
+/// `table` ([`context::in_grid`]).
+pub fn in_grid(doc: &Document, id: NodeId) -> bool {
+    context::in_grid(doc, id)
+}
+
 const KNOWN_ROLES: &[&str] = &[
     "alert",
     "alertdialog",
