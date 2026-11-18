@@ -75,7 +75,7 @@ Orchestration lives in `src/run.rs` (the navigation and its refusals) and `src/r
 | `src/run/impression.rs` | glue, second half: the landed document → its envelope (JS → needs → styles → layout → view) |
 | `src/run/deliver.rs` | the delivery seam: one product on stdout, the exit status that reports what happened to it, SIGPIPE |
 
-Every module has a colocated `tests.rs`; `tests/binary.rs` drives the compiled binary end-to-end against a mockito server. Gates: 100% line coverage, ≤300 lines per source file, clippy `-D warnings` (pre-commit).
+Every module has a colocated `tests.rs`; `tests/binary.rs` drives the compiled binary end-to-end against a mockito server. `tests/fidelity.rs` is the **fidelity oracle** (`docs/design/fidelity.md`): it runs the compiled binary over the pages in `tests/fixtures/fidelity/` and compares five views against a real Chrome's recorded answers about the same bytes — record-then-compare, so Chrome is needed only by `scripts/fidelity-record` (`make fidelity-record`), never by `cargo test` or CI. Each channel is a projection of both sides onto frot's declared model, the predicate on the projection is equality, and `tests/fidelity/ledger.rs` holds every expected delta as a residual or an open defect, asserted in both directions. Nothing of it ships: it reads frot's public surface as any caller does. Gates: 100% line coverage, ≤300 lines per source file, clippy `-D warnings` (pre-commit).
 
 ## Fetch behavior
 

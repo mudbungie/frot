@@ -1,8 +1,10 @@
 # View fidelity — a differential oracle against a browser
 
-Living design for `bl-55cd`. **Status: PROPOSAL, awaiting Mark's sign-off. No
-code has changed and no sibling balls exist** — decomposition happens only
-after sign-off (the `bl-0356` → eight-siblings pattern). It fits inside
+Living design for `bl-55cd`. **Status: BUILT (`bl-2e08`, signed off by Mark
+2026-11-17).** The recorder is `scripts/fidelity-record`, the comparator
+`tests/fidelity.rs`, the ledger `tests/fidelity/ledger.rs`, the corpus
+`tests/fixtures/fidelity/`; §15 is the as-built record — what the first
+recording found, and where building it corrected this document. It fits inside
 `VISION.md` (frot is not a browser; principle 5, honest signals; principle 7,
 testability) and beside `docs/design/identity.md`, whose oracle discipline —
 normalized captures, declared residuals, a falsification rule — this design
@@ -81,8 +83,8 @@ and the fix was accessors in frot, not comparisons against Chrome.
 | `text` | `document.body.innerText` | whitespace-collapsed token sequence | **zero** (measured: 521/521 and 776/776 tokens on two real pages) |
 | `ax` | `Accessibility.getFullAXTree` | roled-node tree in frot's model: prune `ignored`/`InlineTextBox`/`StaticText`/`ListMarker`/`generic`/UA-widget subtrees; map Blink role names; trim names | zero after projection (measured on the §12 fixture set) |
 | `links` | `document.links` | filter frot's `links` to anchor kind (frot's view also carries `<link>`/`<area>`/forms of reference `document.links` lacks — measured 195 vs 163 on one page); compare resolved `href` + text in document order | zero |
-| `forms` | `document.forms` + `form.elements` | field list per form: tag/type/name/action/method | zero (unmeasured this session; verify in the sibling) |
-| `bboxes` | `getClientRects().length > 0` per element | **paintedness only** — box vs no box; never a coordinate | zero for flow content; declared non-goals excluded (§3.1) |
+| `forms` | `document.forms` + `form.elements` | field list per form: tag/type/name/action/method, over the four control tags the view declares (`input`/`textarea`/`select`/`button`), `type` as the attribute is written | zero (measured, §15) |
+| `bboxes` | `getClientRects().length > 0` per element | **paintedness only** — box vs no box; never a coordinate | zero for flow content; the two places the observable is not paintedness are ledger residuals (§3.3) |
 
 ### 2.3 Channels deliberately absent
 
@@ -141,11 +143,17 @@ score, and no per-fixture tuning:
   and includes a play button, a mute button, a time scrubber, and a link
   Chrome names `"Unable to play media."` — none of which exist in the page's
   markup. The projection prunes Chrome's tree to frot's model (drop
-  `ignored`, layout/text-granularity nodes, nameless `generic` wrappers, and
-  UA-widget subtrees under media/input elements; map Blink's role vocabulary
+  text-granularity nodes with their subtrees; *splice out* — remove the node,
+  keep its children — every `ignored` node, every `generic` wrapper, and
+  every node inside a user-agent shadow root; map Blink's role vocabulary
   — `DisclosureTriangle`→`button`, `SvgRoot`→`graphics-document`, … — one
   finite table in the comparator; trim name whitespace). What survives is
-  exactly what frot claims to produce, and on that, equality.
+  exactly what frot claims to produce, and on that, equality. (As built the
+  UA widgetry is spliced, not pruned by subtree as first written here: a
+  collapsed select's `MenuListPopup` is a UA-shadow node whose children are
+  the page's own `<option>`s. Which nodes are UA-shadow is itself recorded —
+  the capture's `ua_shadow` list, from `DOM.getDocument` — not guessed from
+  roles.)
 
 The direction matters: the projection maps **the browser's channel onto
 frot's declared model**, never frot toward the browser. A harness that
@@ -171,13 +179,21 @@ frot's model deliberately excludes the fact. These are handled exactly as
 `identity.md` §11/§12 handles ClientHello residuals: **asserted as residuals,
 never silently excluded.** The ledger is a per-fixture, per-channel list of
 expected deltas, in the capture's own terms, each with a reason and a source
-citation. The comparator applies the ledger *after* projection and fails in
+citation. A row is one of exactly two kinds: a **residual** (the reason), or
+an open **defect** (the ball that will fix it) — the second kind is how a
+divergence found at record time is pinned while its fix is still a filed
+ball, so the gate is green on "frot differs here, and it is filed" and goes
+red the moment the fix lands, until the row is deleted. The comparator applies the ledger *after* projection and fails in
 both directions — an undeclared delta fails, and a declared delta that stops
 appearing fails too (the residual's assertion is that it still differs in the
 declared way). A residual can therefore never drift silently, and the ledger
 is reviewed like code because it is code.
 
-The founding entries, all measured (§12):
+The founding entries, all measured (§12). As built (§15), the first, third
+and fifth are ledger rows; the second and fourth produce no delta at all —
+both rulers list every option, and Chrome's `StaticText` under `Canvas` is
+text granularity the `ax` projection already drops — so they are facts about
+the projection and need no row:
 
 | residual | reason |
 |---|---|
@@ -189,7 +205,10 @@ The founding entries, all measured (§12):
 
 ## 4. Corpus — same bytes, pinned captures
 
-- **Fixtures are checked in, small, and network-free.** Two kinds: authored
+- **Fixtures are checked in, small, and network-free.** (As built: the ten
+  authored pages only. The saved real pages of §12 were scratch files, never
+  checked in, and adding one is a licensing decision per page —
+  `tests/fixtures/NOTICE.md` — filed as `bl-5334`.) Two kinds: authored
   minimal fixtures, one per defect class (the §12 set: fallback, disclosure,
   hidden-attr, aria-hidden, generated content, tables/lists/selects, flex
   order, SVG text — i.e. the regression arena of `bl-eeb4`/`bl-74a6`/
@@ -200,7 +219,16 @@ The founding entries, all measured (§12):
   (`bl-aa7d`); they cost the repo, not the artifact.
 - **Captures are raw, projection is code.** The recorder stores Chrome's raw
   channel output (innerText string, `getFullAXTree` JSON, …) stamped with
-  Chrome version, flags, viewport, and date. Projection happens at compare
+  Chrome version, flags, viewport, and date, plus the sha256 of every file
+  Chrome was served — the comparator re-hashes them, so F1 is checked, not
+  assumed. Chrome does not read the fixture from `file://` as the §12 probe
+  did: the recorder intercepts every request (CDP `Fetch`) and answers it
+  from the corpus directory at a neutral base URL. A `file://` capture embeds
+  the recording machine's paths in every resolved href and AX `url`; served
+  this way a capture carries no local identity, and a page that asks for any
+  byte outside the corpus is refused outright. `links`/`forms` therefore
+  compare the *reference* — the URL relative to the page's own directory,
+  else to its origin — which is the same on both sides. Projection happens at compare
   time, applied to both sides — so improving a projection never requires
   re-recording, and the capture stays a fact about Chrome, not about the
   comparator (single source of truth).
@@ -237,7 +265,7 @@ noise floor (§3.2) dissolves the dilemma:
 - **The report exists only at record time.** Re-recording against a new
   Chrome, or recording a new fixture, surfaces every new delta as a failing
   comparison, and each one must be dispositioned before the capture can land:
-  a fix (a filed ball), or a ledger row (a reviewed residual claim). There is
+  a filed ball with its defect row, or a reviewed residual row (§3.3). There is
   no third bucket, no severity score, and no standing report to go unread —
   the "report" is a diff in a commit that cannot merge undispositioned.
 
@@ -368,7 +396,7 @@ and is refused, not deferred:
 > **Rule 3 — the instrument must catch its own founding class.** The first
 > implementation sibling must demonstrate each founding fixture red against
 > the pre-fix commit of its defect class (e.g. `<option>` fusion red before
-> its fix, `bl-d470`'s `<details>` red at `4f68c48`). If the harness cannot
+> its fix, `bl-74a6`'s closed `<details>` red before its). If the harness cannot
 > re-detect the defects that motivated it, it is not the instrument this doc
 > claims, and does not merge.
 
@@ -453,7 +481,7 @@ saved and read as the same bytes by both sides.
    (anchors + `<link rel=stylesheet>` + alternates…), `document.links` 163
    (anchors/areas only). Mapping = filter by kind, then compare.
 
-## 13. Decomposition — proposed siblings (NOT filed; after sign-off only)
+## 13. Decomposition — as proposed (built as one ball, `bl-2e08`)
 
 1. **Recorder + capture format** — `scripts/fidelity-record`, raw-channel
    captures with the F7 stamp; founding fixture set from §12. *Dep: none.*
@@ -485,3 +513,67 @@ box question (§12.4).
 - **OQ-3 — should the live recorder auto-save gated/changed pages as new
   fixtures?** Recommended: **no** — saving is a reviewed, deliberate act
   (§9, no crawler). The live half reports; a human saves.
+
+## 15. As built — 2026-11-18, Chrome 156.0.8078.73 (`bl-2e08`)
+
+**The instrument.** `scripts/fidelity-record` (Node ≥ 22, no dependencies;
+`make fidelity-record`) launches a local headless Chrome, serves each page of
+`tests/fixtures/fidelity/` to it over CDP `Fetch` at a neutral base URL,
+advances Chrome's virtual clock by frot's own 10 s `--js` horizon, and writes
+`<page>.json` beside `<page>.html`: the stamp (`chrome`, `flags`, `viewport`,
+`date`, `base`, `recipe`, `bytes` — the sha256 of every file served) and the
+raw channels (`text`, `links`, `forms`, `boxes`, `ax`, `ua_shadow`). The
+recipe is derived, not chosen: a page with a `<script` is compared under
+`--css --js`, any other under `--css` (§2.1). `tests/fidelity.rs` runs the
+compiled binary over the same files, projects both sides to a sequence of
+lines per channel, and requires the difference to be exactly the ledger's
+rows. A page with no capture, a capture with no page, an incomplete stamp, a
+viewport other than frot's 1280×720, or bytes that no longer hash to the
+stamp each fail.
+
+**The corpus.** Ten authored pages, one per defect class: `fallback`,
+`disclosure`, `hidden`, `generated`, `structure` (tables, lists, selects),
+`flex`, `svg`, `forms` (forms and links), `article` (landmarks, an external
+stylesheet), `script` (a deterministic DOM build with a timer; `--css --js`).
+
+**What the first recording found.** 51 ledger rows over 10 pages × 5 channels.
+`links` and `forms`: zero deltas. `text`: zero deltas outside the two
+blind-channel residuals. `bboxes`: zero outside two residuals. `ax`: seven
+divergences, each filed and pinned as a defect row —
+
+| ball | divergence (frot `--css --out ax` vs Chrome 156) |
+|---|---|
+| `bl-fd85` | a `<table>` is not named from its `<caption>` |
+| `bl-e760` | `<tbody>` emits a `rowgroup`; Chrome ignores tbody and keeps only `<thead>` |
+| `bl-3072` | a `row` is named from its cells, fused (`"Q110"`); Chrome names it `""` |
+| `bl-8ad7` | `<dt>` (`term`) has no name; Chrome names it from contents |
+| `bl-0a0a` | an inline `<svg>` is not named from its `<title>` |
+| `bl-2a3c` | an unnamed `<form>` is omitted; Chrome exposes `form ""` |
+| `bl-7430` | flex `order`/`row-reverse` reorder AX children (`layout.md` §5); Chrome's AX tree stays in DOM order |
+
+Two residuals joined the founding ones, both the channel's blindness rather
+than frot's: `innerText` omits a `<textarea>`'s painted default value, and
+`getClientRects()` still answers for the body of a closed `<details>` —
+Chrome hides it with `content-visibility: hidden`, which skips paint but
+keeps the boxes. The second means §2.2's observable is not paintedness
+everywhere; if rows of that kind grow with the corpus, Rule 2 says redraw the
+observable (`checkVisibility()` is the candidate), not the ledger.
+
+**Rule 3, demonstrated.** Today's comparator, corpus and ledger were run
+against frot rebuilt at the commit before each founding fix. All red, each on
+its own class:
+
+| frot at | before the fix for | red on (among others) |
+|---|---|---|
+| `f7281e3` | `bl-66ed` option fusion | `structure [text]` `- first` `- second` `+ firstsecond` |
+| `4cd5dd7` | `bl-c0a4` SVG text | `svg [text]` `- svg` `- label` `- words` |
+| `1d0e74e` | `bl-0f83` video fallback | `fallback [text]` `+ video` `+ fallback` `+ words`; `fallback [ax]` `+ link "download the clip"` |
+| `b1d3673` | `bl-74a6` closed `<details>` | `disclosure [text]` `+ Closed` `+ body` `+ text` …; `disclosure [ax]` `+ link "closed link"` |
+| `b10171c` | `bl-eeb4` `hidden` | `hidden [text]` `+ Hidden` `+ attribute` `+ text` …; `hidden [bboxes]` `+ 8 div` |
+
+It also re-detected classes nobody asked it about: every one of those builds
+put the `<title>` into `text`, and the first named an `<optgroup>` `""`
+(`bl-4093`). And it corrected Rule 3's own example: `4f68c48` is **not** red
+on closed `<details>` — `bl-d470` was a defect of the recipe *without* `--css`,
+which §2.1 already puts outside the comparable domain. The `--css` class is
+`bl-74a6`, and the rule now names it.

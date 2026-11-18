@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scripted page</title>
+</head>
+<body>
+<h1>Scripted page</h1>
+<div id="root"><p>Loading placeholder</p></div>
+<script>
+var root = document.getElementById('root');
+root.textContent = '';
+var list = document.createElement('ul');
+['built one', 'built two'].forEach(function (label) {
+  var item = document.createElement('li');
+  var link = document.createElement('a');
+  link.href = 'item.html';
+  link.textContent = label;
+  item.appendChild(link);
+  list.appendChild(item);
+});
+root.appendChild(list);
+setTimeout(function () {
+  var late = document.createElement('p');
+  late.textContent = 'Added by a timer';
+  root.appendChild(late);
+}, 500);
+</script>
+</body>
+</html>

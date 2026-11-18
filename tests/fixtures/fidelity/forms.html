@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Forms and links</title>
+<link rel="stylesheet" href="article.css">
+<link rel="alternate" type="application/atom+xml" href="feed.xml">
+</head>
+<body>
+<h1>Forms and links</h1>
+<form action="search.html" method="get" role="search">
+<label for="q">Search</label>
+<input id="q" type="search" name="q">
+<button type="submit">Go</button>
+</form>
+<form action="/account/login" method="POST">
+<fieldset>
+<legend>Sign in</legend>
+<label>Email <input type="email" name="email" required></label>
+<label>Password <input type="password" name="password"></label>
+<label><input type="checkbox" name="remember" checked> Remember me</label>
+<input type="hidden" name="token" value="t0">
+</fieldset>
+<label for="note">Note</label>
+<textarea id="note" name="note">draft text</textarea>
+<select name="plan" aria-label="Plan"><option value="f">Free</option><option value="p">Paid</option></select>
+<input type="submit" value="Sign in">
+</form>
+<form>
+<input name="bare">
+<button>Send</button>
+</form>
+<p><a href="relative.html">relative link</a>, <a href="/rooted/page.html">rooted link</a>,
+<a href="https://example.com/far">absolute link</a>, <a href="#frag">fragment link</a>,
+<a>no href</a>, <a href="spaced.html">  spaced
+  text  </a>.</p>
+</body>
+</html>

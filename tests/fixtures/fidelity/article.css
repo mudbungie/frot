@@ -1,0 +1,5 @@
+/* Hand-authored for the fidelity corpus (tests/fixtures/NOTICE.md §3). */
+.skip { display: none; }
+.byline::before { content: "By "; }
+.tags { display: flex; }
+.promo { visibility: hidden; }

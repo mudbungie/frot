@@ -94,7 +94,26 @@ make check           # the complete gate: size, fmt-check, lint, posix, cov
 make setup           # install cargo-llvm-cov, needed only to run `make cov` locally
 make build
 make test
+make fidelity-record # re-record the browser captures (needs a local Chrome and Node >= 22)
 ```
+
+### The fidelity oracle
+
+`cargo test` includes `tests/fidelity.rs`: frot's `text`, `ax`, `links`,
+`forms` and `bboxes` views compared against what a real Chrome answered about
+the same bytes (`docs/design/fidelity.md`). Chrome is not needed to run it —
+its answers are checked in beside each page in `tests/fixtures/fidelity/`,
+stamped with the Chrome version and date — and the comparison is exact:
+each channel is projected onto what frot claims to produce (text → token
+sequence; ax → roled, named structure; bboxes → painted or not, never a
+coordinate) and must then be equal. Every remaining difference is a row in
+`tests/fidelity/ledger.rs`, either a reasoned residual or an open defect by
+ball id, and a row whose difference disappears fails too.
+
+To add a page: write `tests/fixtures/fidelity/<name>.html` (self-contained —
+the recorder refuses a page that asks for bytes outside that directory), run
+`make fidelity-record`, then `cargo test --test fidelity` and disposition each
+delta it prints. A page without a capture fails the suite; it never skips.
 
 ## CI/CD
 

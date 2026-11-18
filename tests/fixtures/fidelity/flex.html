@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Flex order</title>
+<style>
+.row { display: flex; }
+.row .late { order: 2; }
+.row .early { order: 1; }
+.rev { display: flex; flex-direction: row-reverse; }
+</style>
+</head>
+<body>
+<h1>Flex order</h1>
+<nav class="row" aria-label="Ordered">
+<a class="late" href="b.html">source first</a>
+<a class="early" href="a.html">source second</a>
+</nav>
+<div class="rev">
+<button>one</button>
+<button>two</button>
+<button>three</button>
+</div>
+</body>
+</html>

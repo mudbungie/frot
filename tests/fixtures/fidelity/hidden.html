@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hidden content</title>
+<style>
+.gone { display: none; }
+.unseen { visibility: hidden; }
+.unseen .back { visibility: visible; }
+</style>
+</head>
+<body>
+<h1>Hidden content</h1>
+<p>Visible paragraph.</p>
+<div hidden><p>Hidden attribute text with a <a href="hidden.html">hidden link</a>.</p></div>
+<div class="gone"><p>Display none text.</p><button>Gone button</button></div>
+<div class="unseen"><p>Visibility hidden text.</p><p class="back">Visible again text.</p></div>
+<div aria-hidden="true"><p>Aria hidden text.</p><button>Aria hidden button</button></div>
+<p>Last paragraph.</p>
+</body>
+</html>

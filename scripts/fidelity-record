@@ -1,0 +1,261 @@
+#!/usr/bin/env node
+// The fidelity recorder (docs/design/fidelity.md §4, §6): drives a real
+// headless Chrome over the checked-in fixtures and writes one stamped capture
+// per page. tests/fidelity.rs compares frot against those captures offline, so
+// this is the ONLY place Chrome is needed — at record time, never in CI.
+//
+//   scripts/fidelity-record                 # re-record every fixture
+//   scripts/fidelity-record a.html b.html   # re-record the named ones
+//   CHROME=/path/to/chrome scripts/fidelity-record
+//
+// Zero dependencies: Node >= 22's built-in WebSocket speaks CDP.
+//
+// Three rules it enforces rather than documents:
+//   * Same bytes (F1). Chrome never touches the network or the disk. Every
+//     request is intercepted (CDP Fetch) and answered from the fixture
+//     directory at a neutral origin; a request for anything else — a remote
+//     URL, a file that is not there — refuses the capture.
+//   * No local identity. Because the page is served at BASE, no URL Chrome
+//     reports can carry this machine's paths; the stamp is Chrome's version,
+//     flags, viewport, the date and the fixture bytes' hashes, nothing else.
+//   * Raw captures (§4). Each channel is stored as Chrome answered it; the
+//     projection onto frot's model is comparator code, so improving one never
+//     needs a re-record.
+'use strict';
+const { spawn, spawnSync } = require('node:child_process');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+const DIR = path.resolve(__dirname, '..', 'tests', 'fixtures', 'fidelity');
+// Where Chrome is told the corpus lives. A directory below the origin, so a
+// rooted reference (`/x`) and a relative one (`x`) stay distinguishable.
+const BASE = 'http://fidelity.invalid/corpus/';
+const ROOT = new URL(BASE).pathname;
+const VIEWPORT = [1280, 720];
+// frot's --js runs timers to a 10 s virtual horizon (README, `--js`); Chrome's
+// virtual clock is advanced by the same budget so both saw the same timers.
+const VIRTUAL_TIME_MS = 10000;
+const FLAGS = ['--headless=new', '--hide-scrollbars', '--disable-gpu', '--disable-extensions',
+  '--disable-background-networking', '--no-first-run', '--no-default-browser-check'];
+const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
+  '.mjs': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.gif': 'image/gif' };
+
+function die(msg) {
+  process.stderr.write(`fidelity-record: ${msg}\n`);
+  process.exit(1);
+}
+
+function findChrome() {
+  const names = process.env.CHROME ? [process.env.CHROME]
+    : ['google-chrome', 'chromium', 'chromium-browser', 'chrome-headless-shell'];
+  for (const name of names) {
+    const hit = spawnSync('sh', ['-c', 'command -v "$0"', name], { encoding: 'utf8' });
+    if (hit.status === 0) return hit.stdout.trim();
+  }
+  return die(`no Chrome found (tried ${names.join(', ')}); set CHROME=<binary>. ` +
+    'The recorder refuses to run without one — there is no degraded mode.');
+}
+
+// One CDP connection: request/response by id, events by (session, method).
+class Cdp {
+  constructor(ws) {
+    this.ws = ws;
+    this.next = 0;
+    this.pending = new Map();
+    this.handlers = [];
+    ws.addEventListener('message', (ev) => this.receive(JSON.parse(ev.data)));
+  }
+
+  receive(msg) {
+    if (msg.id === undefined) {
+      for (const h of this.handlers) {
+        if (h.session === msg.sessionId && h.method === msg.method) h.fn(msg.params);
+      }
+      return;
+    }
+    const { resolve, reject, method } = this.pending.get(msg.id);
+    this.pending.delete(msg.id);
+    if (msg.error) reject(new Error(`${method}: ${msg.error.message}`));
+    else resolve(msg.result);
+  }
+
+  send(method, params = {}, sessionId) {
+    const id = ++this.next;
+    this.ws.send(JSON.stringify({ id, method, params, sessionId }));
+    return new Promise((resolve, reject) => this.pending.set(id, { resolve, reject, method }));
+  }
+
+  on(session, method, fn) {
+    this.handlers.push({ session, method, fn });
+  }
+
+  once(session, method) {
+    return new Promise((resolve) => this.on(session, method, resolve));
+  }
+}
+
+async function launch(chrome, profile) {
+  const child = spawn(chrome, [...FLAGS, `--window-size=${VIEWPORT.join(',')}`,
+    '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'],
+  { stdio: ['ignore', 'ignore', 'pipe'] });
+  const url = await new Promise((resolve, reject) => {
+    let err = '';
+    child.stderr.on('data', (chunk) => {
+      err += chunk;
+      const hit = /DevTools listening on (ws:\S+)/.exec(err);
+      if (hit) resolve(hit[1]);
+    });
+    child.on('exit', () => reject(new Error(`Chrome exited before listening:\n${err}`)));
+  });
+  const ws = new WebSocket(url);
+  await new Promise((resolve, reject) => {
+    ws.addEventListener('open', resolve);
+    ws.addEventListener('error', () => reject(new Error('CDP socket failed')));
+  });
+  return { child, cdp: new Cdp(ws) };
+}
+
+// Answer one intercepted request from the fixture directory, or refuse it.
+// `served` collects the bytes Chrome was given; `refused` what it may not have.
+function serve(cdp, session, served, refused) {
+  return async ({ requestId, request }) => {
+    const rel = request.url.startsWith(BASE)
+      ? decodeURIComponent(new URL(request.url).pathname.slice(ROOT.length)) : null;
+    const file = rel === null ? null : path.join(DIR, rel);
+    // The browser's own request, not the page's: no markup asked for it.
+    if (request.url === new URL('/favicon.ico', BASE).href) {
+      await cdp.send('Fetch.fulfillRequest', { requestId, responseCode: 404 }, session);
+      return;
+    }
+    if (file === null || path.relative(DIR, file).startsWith('..') || !fs.existsSync(file)) {
+      refused.push(request.url);
+      await cdp.send('Fetch.failRequest', { requestId, errorReason: 'Failed' }, session);
+      return;
+    }
+    const body = fs.readFileSync(file);
+    served[rel] = crypto.createHash('sha256').update(body).digest('hex');
+    // No charset in the header: the page's own bytes declare it, as on disk.
+    const type = TYPES[path.extname(file)] || 'application/octet-stream';
+    await cdp.send('Fetch.fulfillRequest', { requestId, responseCode: 200,
+      responseHeaders: [{ name: 'Content-Type', value: type }],
+      body: body.toString('base64') }, session);
+  };
+}
+
+// The in-page probes, one per channel, each returning Chrome's own answer.
+const PROBE = `(() => ({
+  text: document.body.innerText,
+  links: [...document.links].map((a) => (
+    { tag: a.localName, href: a.href, text: a.textContent })),
+  forms: [...document.forms].map((f) => ({
+    action: f.action, method: f.method,
+    elements: [...f.elements].map((e) => ({ tag: e.localName, type: e.type,
+      typeAttr: e.getAttribute('type'), name: e.getAttribute('name') })) })),
+  boxes: [...document.querySelectorAll('*')].map((e) => (
+    { tag: e.localName, rects: e.getClientRects().length })),
+  viewport: [innerWidth, innerHeight],
+}))()`;
+
+// Backend ids of every node inside a user-agent shadow root: the widgetry
+// Chrome builds for <video>, <input>, <details>… that is in no page's markup.
+function uaShadowNodes(node, inside, out) {
+  if (inside) out.push(node.backendNodeId);
+  for (const kid of node.children || []) uaShadowNodes(kid, inside, out);
+  for (const root of node.shadowRoots || []) {
+    uaShadowNodes(root, inside || root.shadowRootType === 'user-agent', out);
+  }
+  if (node.contentDocument) uaShadowNodes(node.contentDocument, inside, out);
+  return out;
+}
+
+async function record(cdp, name, chromeVersion) {
+  const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
+  const { sessionId: s } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
+  const served = {};
+  const refused = [];
+  cdp.on(s, 'Fetch.requestPaused', serve(cdp, s, served, refused));
+  await cdp.send('Fetch.enable', { patterns: [{ urlPattern: '*' }] }, s);
+  await cdp.send('Emulation.setDeviceMetricsOverride',
+    { width: VIEWPORT[0], height: VIEWPORT[1], deviceScaleFactor: 1, mobile: false }, s);
+  await cdp.send('Page.enable', {}, s);
+  await cdp.send('DOM.enable', {}, s);
+  await cdp.send('Accessibility.enable', {}, s);
+
+  const loaded = cdp.once(s, 'Page.loadEventFired');
+  await cdp.send('Page.navigate', { url: BASE + name }, s);
+  await loaded;
+  const expired = cdp.once(s, 'Emulation.virtualTimeBudgetExpired');
+  await cdp.send('Emulation.setVirtualTimePolicy',
+    { policy: 'pauseIfNetworkFetchesPending', budget: VIRTUAL_TIME_MS }, s);
+  await expired;
+
+  const probe = await cdp.send('Runtime.evaluate', { expression: PROBE, returnByValue: true }, s);
+  if (probe.exceptionDetails) throw new Error(`${name}: probe threw: ${probe.exceptionDetails.text}`);
+  const { viewport, ...channels } = probe.result.value;
+  const { nodes } = await cdp.send('Accessibility.getFullAXTree', {}, s);
+  // `frameId` names this session, not the page: a fresh random id per run.
+  for (const node of nodes) delete node.frameId;
+  const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true }, s);
+  await cdp.send('Target.closeTarget', { targetId });
+
+  if (refused.length) {
+    throw new Error(`${name}: asked for bytes outside the fixture directory — ` +
+      `localize or remove them (F1, same bytes): ${refused.join(', ')}`);
+  }
+  const html = fs.readFileSync(path.join(DIR, name), 'utf8');
+  return {
+    stamp: {
+      chrome: chromeVersion,
+      flags: FLAGS,
+      viewport,
+      virtual_time_ms: VIRTUAL_TIME_MS,
+      date: new Date().toISOString().slice(0, 10),
+      base: BASE,
+      // The one browser-comparable frot recipe (§2.1): a browser always runs
+      // scripts, so a page that has any is compared with --js.
+      recipe: /<script/i.test(html) ? ['--css', '--js'] : ['--css'],
+      bytes: served,
+    },
+    ...channels,
+    ax: nodes,
+    ua_shadow: uaShadowNodes(root, false, []),
+  };
+}
+
+// One array element per line: a re-record's diff then reads node by node.
+function serialize(capture) {
+  const fields = Object.entries(capture).map(([key, value]) => {
+    const body = Array.isArray(value) && value.length && typeof value[0] === 'object'
+      ? `[\n${value.map((v) => `  ${JSON.stringify(v)}`).join(',\n')}\n ]`
+      : JSON.stringify(value, null, key === 'stamp' ? 2 : 0);
+    return ` ${JSON.stringify(key)}: ${body}`;
+  });
+  return `{\n${fields.join(',\n')}\n}\n`;
+}
+
+async function main() {
+  if (typeof WebSocket === 'undefined') die('needs Node >= 22 (built-in WebSocket)');
+  const all = fs.readdirSync(DIR).filter((f) => f.endsWith('.html')).sort();
+  const names = process.argv.length > 2 ? process.argv.slice(2).map((a) => path.basename(a)) : all;
+  for (const name of names) if (!all.includes(name)) die(`no fixture ${name} in ${DIR}`);
+
+  const chrome = findChrome();
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'fidelity-record-'));
+  const { child, cdp } = await launch(chrome, profile);
+  try {
+    const { product } = await cdp.send('Browser.getVersion');
+    for (const name of names) {
+      const capture = await record(cdp, name, product.split('/')[1]);
+      fs.writeFileSync(path.join(DIR, name.replace(/\.html$/, '.json')), serialize(capture));
+      process.stdout.write(`recorded ${name} (Chrome ${capture.stamp.chrome})\n`);
+    }
+  } finally {
+    child.kill();
+    await new Promise((resolve) => child.on('exit', resolve));
+    fs.rmSync(profile, { recursive: true, force: true });
+  }
+}
+
+main().catch((e) => die(e.message));

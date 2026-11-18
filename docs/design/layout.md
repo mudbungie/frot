@@ -230,7 +230,7 @@ The claim that needed correcting twice, stated once, for all five rules:
 | `<datalist>` | UA *stylesheet* declaration, author-overridable | **no** — same reason, and measured to be a declaration rather than a structure (`bl-66ed`): `datalist { display: block }` makes Chrome paint the suggestions, put them in `innerText`, and stop ignoring them in the AX tree. So without `--css` frot's `text`/`ax` carry the suggestion list |
 | closed `<details>` | document **state**, structural | yes, everywhere |
 | media/`<iframe>` fallback | **content model**, structural | yes, everywhere |
-| `<canvas>` fallback | content model, structural, **paint only** | yes, everywhere — dropped from `text`/`bboxes`/`needs`, kept in `ax`, in either recipe (§2.1) |
+| `<canvas>` fallback | content model, structural, **paint only** | yes, everywhere — dropped from `text`/`bboxes`/`needs`; its *elements* are kept in `ax`, in either recipe (§2.1) — bare fallback text surfaces in no view, because `ax` has no text nodes (`fidelity.md` §3.3) |
 
 The rule of thumb the accessors enforce: a *declaration* needs the cascade; a
 *structure* does not. The recipe decides how a fact was computed, never which

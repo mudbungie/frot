@@ -1,4 +1,4 @@
-.PHONY: setup build test fmt fmt-check lint cov size package posix posix-musl check install-hooks clean
+.PHONY: setup build test fmt fmt-check lint cov size package posix posix-musl check fidelity-record install-hooks clean
 
 # The build authority. Every gate step has ONE home here; `make check` is the
 # complete gate and the exact target the noodlezoo builder runs on a staged
@@ -56,6 +56,15 @@ posix-musl:
 # language, ahead of the cargo steps a Rust-less tree would make vacuous), then
 # cheap-to-expensive. This laptop never runs it; the builder does (bl-254b).
 check: size fmt-check lint posix cov
+
+# Re-record the fidelity oracle's captures (docs/design/fidelity.md): drives a
+# local headless Chrome over tests/fixtures/fidelity/*.html and rewrites the
+# stamped capture beside each page. NOT a gate step and never run by CI — the
+# comparison (tests/fidelity.rs, inside `cargo test`) is offline. A deliberate,
+# dated act: every new delta it surfaces must be dispositioned in
+# tests/fidelity/ledger.rs before the captures can land.
+fidelity-record:
+	scripts/fidelity-record
 
 # Arm this clone's git hooks: one symlink per file in .githooks/, seated in the
 # repo's own hooks directory. Symlinks, not copies, so an updated hook is live

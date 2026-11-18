@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tables, lists, selects</title>
+</head>
+<body>
+<h1>Tables, lists, selects</h1>
+<table>
+<caption>Quarterly totals</caption>
+<thead><tr><th>Quarter</th><th>Total</th></tr></thead>
+<tbody>
+<tr><th scope="row">Q1</th><td>10</td></tr>
+<tr><th scope="row">Q2</th><td>12</td></tr>
+</tbody>
+</table>
+<table>
+<tr><td>layout left</td><td>layout right</td></tr>
+</table>
+<ol>
+<li>first step</li>
+<li>second step
+<ul><li>nested point</li></ul>
+</li>
+</ol>
+<dl><dt>Term</dt><dd>Definition text</dd></dl>
+<p><label for="pick">Pick one</label>
+<select id="pick" name="pick"><option>first</option><option selected>second</option></select></p>
+<p><label for="many">Pick many</label>
+<select id="many" name="many" size="4">
+<optgroup label="Group A"><option>alpha</option><option>beta</option></optgroup>
+<option>gamma</option>
+</select></p>
+</body>
+</html>

@@ -12,6 +12,7 @@ Two populations, two rules.
 | --- | --- | --- |
 | `needs/` | Shells and content pages for the `needs-js` heuristic | **Synthetic.** Hand-authored by this project, no third-party content — see `needs/README.md`. |
 | `js/` | Real framework distributions and real deployed bundles | **Verbatim third-party.** Licensed below. |
+| `fidelity/` | Pages for the fidelity oracle, and a browser's recorded answers about them | **Synthetic.** Hand-authored by this project; each `.json` beside a page is what a named Chrome version answered about that page (`scripts/fidelity-record`) — measurements of our own markup, no third-party content. |
 
 `js/` is verbatim on purpose: the golden field-trial suite replays the exact
 bytes that broke frot (`js/VERSIONS.md` pins every file by source URL, retrieval
@@ -88,6 +89,8 @@ App code: **MIT** — © 2025 Innei
 | `js/env-contract.html`, `js/persona-navigator.html`, `js/script-mode.html` | Hand-authored here | frot's own `MIT OR Apache-2.0` |
 | `js/dom-move.html` | Hand-authored here — a minimized DOM-move reproduction; it models the *pattern* a live page hit, and reproduces none of its markup (`VERSIONS.md`) | frot's own `MIT OR Apache-2.0` |
 | `needs/*.html` | Hand-authored here (`needs/README.md`) | frot's own `MIT OR Apache-2.0` |
+| `fidelity/*.html`, `fidelity/*.css` | Hand-authored here, one page per defect class (`docs/design/fidelity.md` §4) | frot's own `MIT OR Apache-2.0` |
+| `fidelity/*.json` | **DERIVED** — recorded from the pages above by `scripts/fidelity-record`; the stamp in each names the Chrome version and date | frot's own `MIT OR Apache-2.0` |
 
 ---
 

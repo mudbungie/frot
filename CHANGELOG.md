@@ -26,6 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on 2027-09-07 (read 2026-11-17), with ESR 175 beside it from 2027-06-29. No
   wire or script-visible value changed. (`[bl-d8f1]`)
 
+- **frot's views are now checked against a real browser on every test run.**
+  `tests/fidelity.rs` compares `text`, `ax`, `links`, `forms` and `bboxes`
+  with what Chrome answered about the same pages, from captures recorded once
+  by `scripts/fidelity-record` and checked in — so the comparison needs no
+  browser and no network. Agreement is exact, not scored: each view is
+  compared only on what frot claims to produce, and every known difference is
+  listed with its reason or its open ball. No behaviour of the binary changes.
+  (`[bl-2e08]`)
+
 - **Under `--js`, a DOM object no longer carries frot's implementation on its
   face.** Every instance a page can reach — an element, a `Notification`, an
   audio node, a canvas or WebGL context, an observer, a `URL` — kept its state

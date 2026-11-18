@@ -11,7 +11,8 @@
 #
 #   * Included: every tracked file in a language frot is written in — Rust, the
 #     JS prelude, and the shell of the gates themselves — wherever it lives.
-#     `.githooks/` holds only hook scripts, which carry no extension.
+#     `.githooks/` holds only hook scripts, which carry no extension, and so
+#     does `scripts/fidelity-record` (Node), named here for the same reason.
 #   * Excluded: `tests/fixtures/`, the tree's declared home for *data*. Every
 #     byte there is third-party (mapped row-by-row in `tests/fixtures/NOTICE.md`
 #     and gated by `tests/hygiene/licensing.rs`) or a synthetic page modelling a
@@ -26,4 +27,5 @@
 # absent. A new source language belongs in the list below and nowhere else.
 set -euo pipefail
 
-git ls-files '*.rs' '*.js' '*.mjs' '*.sh' '.githooks/*' ':(exclude)tests/fixtures/*'
+git ls-files '*.rs' '*.js' '*.mjs' '*.sh' '.githooks/*' 'scripts/fidelity-record' \
+  ':(exclude)tests/fixtures/*'
