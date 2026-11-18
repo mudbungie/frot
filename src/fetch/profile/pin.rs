@@ -23,15 +23,18 @@ pub const FIREFOX_153_ESR: BrowserProfile = BrowserProfile {
     color_depth: 24,
     canvas_seed: 0x_f00d_c0de, // opaque fixed seed; mixed with draws, never raw.
     timer_precision_us: 1_000, // 1 ms — Firefox's reduceTimerPrecision default
-    // ESR 153 branched 2026-07-21 and is the current line; ESR 115 runs beside
-    // it for legacy OSes only (§2). Mozilla has published **no** EOL for 153, so
-    // this is the last 153.x security release on its train calendar (153.11,
-    // 2027-01-26) — the horizon of what is published, never an extrapolation.
-    // Past it the calendar must be re-read, which is exactly what I8 forces.
+    // ESR 153 branched 2026-07-21 and is the current line (`FIREFOX_ESR`
+    // `153.7.0esr`, `FIREFOX_ESR_NEXT` empty). Mozilla still publishes **no**
+    // EOL for 153, so this is the last 153.x release on its train calendar:
+    // 153.27, 2027-09-07, after which the ESR column reads 175.x alone (ESR 175
+    // is scheduled to start 2027-06-29). Read 2026-11-17 (`bl-d8f1`) from
+    // https://whattrainisitnow.com/api/firefox/calendar/future/ — the horizon
+    // of what is published, never an extrapolation (§2). Was 153.11,
+    // 2027-01-26. Past it the calendar must be re-read, which is what I8 forces.
     eol: CivilDate {
         year: 2027,
-        month: 1,
-        day: 26,
+        month: 9,
+        day: 7,
     },
     alpn: &["h2", "http/1.1"],
     tls: TlsProfile {

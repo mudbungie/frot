@@ -133,11 +133,36 @@ delete.
 ESR 153** (endoflife.date carries the cycle with `eol: false`; the train
 schedule states an EOL for the 140 branch and none for 153). So `eol` is not a
 guess at the line's death and never an extrapolation from "roughly a year": it
-is **the last 153.x security release Mozilla has actually scheduled — 153.11 on
-2027-01-26** — i.e. the horizon of published knowledge. Past that date nobody
+is **the last 153.x release Mozilla has actually scheduled — 153.27 on
+2027-09-07** — i.e. the horizon of published knowledge. Past that date nobody
 here knows whether the line is still maintained, which is exactly when a human
 must re-read the calendar, and **a test fails once `eol` passes** (I8,
 `tests/hygiene/persona.rs`) — with no config knob and no calendar to remember.
+
+*Renewed 2026-11-17 (`bl-d8f1`).* The pin first read 153.11 on 2027-01-26, the
+end of the calendar as published on 2026-08-11. Re-read on 2026-11-17:
+
+- `https://product-details.mozilla.org/1.0/firefox_versions.json` —
+  `"FIREFOX_ESR": "153.7.0esr"`, `"FIREFOX_ESR_NEXT": ""`: 153 is still the
+  current line and no newer ESR has branched.
+- `https://whattrainisitnow.com/api/firefox/calendar/future/` (the JSON behind
+  `https://whattrainisitnow.com/calendar/`) — the `esr` column runs
+  `"153.8 + 115.46.0"` (2026-11-24) through `"153.27 + 175.5"` (release 180,
+  `"release_date":"2027-09-07"`); the next row, release 181 on 2027-09-21,
+  reads `"175.6"` alone. ESR 175 first appears as `"153.22 + 175.0"` on
+  2027-06-29.
+- No source states an EOL for 153 in words (endoflife.date still carries
+  `"cycle":"153" … "eol":false`); the date is the last row of the calendar that
+  names a 153.x release, nothing more.
+
+So the next re-pin is to **ESR 175**, measurable from 2027-06-29, with ten weeks
+of overlap before this pin trips. Nothing else in the persona is dated by this
+calendar: the UA is derived from `version_major` alone as `rv:<major>.0` /
+`Firefox/<major>.0` (§4.2), so the dot releases the calendar counts (153.8,
+153.9, …) have no field to land in. Whether a 153.x dot release moves a
+*measured* fact (TLS, h2) is not known from the calendar and was not re-measured
+here.
+
 The rule this replaces the old note with: *the date is copied from something
 Mozilla published, or the pin does not move.*
 
@@ -1036,7 +1061,7 @@ Today these facts are scattered across four files, which is the defect:
 | fact | value (Firefox 153.0esr) |
 |---|---|
 | `version_major` | `153` |
-| `pinned` / `eol` | `2026-08-11` / `2027-01-26` — the last **published** 153.x release, never an estimate (§2) |
+| `pinned` / `eol` | `2026-08-11` / `2027-09-07` — the last **published** 153.x release (153.27; calendar read 2026-11-17), never an estimate (§2) |
 | `user_agent` | `Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0` |
 | `platform` | `Linux x86_64` — the UA's second comment segment, and `navigator.platform`/`.oscpu` |
 | `window_system` | `X11` — the UA's *first* comment segment, and the whole of `navigator.appVersion` (`5.0 (X11)`). Not computable from `platform`: mapping an OS to its windowing token is a table, not a rule |

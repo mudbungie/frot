@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The Firefox 153 ESR persona's expiry moved from 2027-01-26 to 2027-09-07.**
+  The build fails on the day the pinned browser line passes the last release
+  Mozilla has scheduled for it. Mozilla's calendar now runs 153.x through 153.27
+  on 2027-09-07 (read 2026-11-17), with ESR 175 beside it from 2027-06-29. No
+  wire or script-visible value changed. (`[bl-d8f1]`)
+
 - **Under `--js`, a DOM object no longer carries frot's implementation on its
   face.** Every instance a page can reach — an element, a `Notification`, an
   audio node, a canvas or WebGL context, an observer, a `URL` — kept its state
