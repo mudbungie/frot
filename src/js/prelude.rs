@@ -123,6 +123,10 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/url.js"),
     "\n",
+    // TextEncoder/TextDecoder (bl-53b7): UTF-8 both ways, pure JS over brand.js;
+    // position is free.
+    include_str!("prelude/encoding.js"),
+    "\n",
     include_str!("prelude/loop.js"),
     "\n",
     // Abort surface (bl-e81b): AbortController/AbortSignal over events.js's

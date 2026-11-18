@@ -13,6 +13,7 @@ use crate::fetch::FetchSession;
 
 mod clock;
 mod currentscript;
+mod encoding;
 mod envgold;
 mod evloop;
 mod facade;

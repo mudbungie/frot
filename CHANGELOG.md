@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`TextEncoder` and `TextDecoder` exist under `--js`**, for UTF-8:
+  `encode`, `encodeInto`, and a spec-exact `decode` (replacement characters,
+  BOM, `fatal`, `{stream: true}`). Any other `TextDecoder` label is refused
+  with a `RangeError` rather than mis-decoded. [bl-53b7]
+
 - **`FormData` exists under `--js`, and a `fetch`/XHR POST can send one.** It
   goes out as the `multipart/form-data` text Firefox produces (same boundary
   format, same escaping), under the existing 64 KiB request-body cap.
