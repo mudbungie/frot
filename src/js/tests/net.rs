@@ -240,3 +240,5 @@ fn xhr_posts_its_body_under_the_content_type_the_script_set() {
     assert_eq!(out, "201:made:0");
     m.assert();
 }
+
+mod formdata;

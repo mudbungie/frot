@@ -89,6 +89,47 @@ fn a_challenge_that_encrypts_its_answer_with_subtle_crypto_is_passed() {
     );
 }
 
+/// The body shape measured on AWS WAF (`challenge.md` §11.4): the answer goes
+/// out as a `FormData`, so the POST is `multipart/form-data` text.
+#[test]
+fn a_challenge_that_posts_its_answer_as_form_data_is_passed() {
+    let mut server = mockito::Server::new();
+    let gate = challenge(
+        &mut server,
+        "crypto.subtle.digest('SHA-256',new Uint8Array([97,98,99])).then(function(d){\
+           var fd=new FormData(); fd.append('solution_data',JSON.stringify({checksum:hex(d)}));\
+           fd.append('signals','c2lnbmFscw==');\
+           return fetch('/telemetry',{body:fd,method:'POST'})});",
+    );
+    let telemetry = server
+        .mock("POST", "/telemetry")
+        .match_header(
+            "content-type",
+            Matcher::Regex("^multipart/form-data; boundary=----geckoformboundary[0-9a-f]+$".into()),
+        )
+        .match_body(Matcher::Regex(
+            "(?s)name=\"solution_data\"\r\n\r\n\\{\"checksum\":\"ba7816bf8f01cfea414140de5dae2223\
+             b00361a396177a9cb410ff61f20015ad\"\\}\r\n--.*name=\"signals\"\r\n\r\nc2lnbmFscw==\r\n"
+                .into(),
+        ))
+        .with_header("set-cookie", "aws-waf-token=minted; Path=/")
+        .with_body("{}")
+        .expect(1)
+        .create();
+    let real = server
+        .mock("GET", "/")
+        .match_header("cookie", "aws-waf-token=minted")
+        .with_body("<p>the real page</p>")
+        .expect(1)
+        .create();
+    let v = run_capture(&[&server.url(), "--js", "--out", "text"]);
+    gate.assert();
+    telemetry.assert();
+    real.assert();
+    assert_eq!(v["out"], "the real page", "{v}");
+    assert_eq!(v["challenge"]["passed"], true);
+}
+
 /// A challenge that needs an algorithm frot has not implemented gets a
 /// rejection it can see — not a fabricated key — so nothing is POSTed, no
 /// round is taken, and the stop is the honest one.

@@ -4,9 +4,11 @@
 2026-11-17 — *"build the round trips."* Designed in `bl-017a`, 2026-07-22, as a
 proposal; the text below is that proposal, kept, with a dated **As built** note
 wherever the code differs from it. §11 is the as-built summary and the measured
-capstone: **the round trip works offline and did not get Amazon's page — a null,
-recorded in §11.3.** §11.4 is the run-by-run history of closing the gaps that
-null named. Living authority for this path; `identity.md` §10/§14,
+capstone: the round trip works offline and, on first measurement, did not get
+Amazon's page — a null, recorded in §11.3. §11.4 is the run-by-run history of
+closing the gaps that null named, and its last row is a pass: **measured
+2026-11-17, frot gets Amazon's page through the declared challenge**
+(`rounds:1, passed:true`, 4 runs of 5). Living authority for this path; `identity.md` §10/§14,
 `js.md` §6/§11, `needs.md` §1/§3/§5 and `VISION.md` carry dated in-place notes
 pointing here.
 
@@ -160,6 +162,10 @@ which GETs)"*. This is a real interface change.
 >    (sent as UTF-8). An `ArrayBuffer`/typed array/`Blob`/`FormData` body
 >    **fails the request** (`fetch` rejects, XHR errors) rather than go out as
 >    something else. No measured mechanism posts bytes; widening it is a ball.
+>    *(2026-11-17, `bl-6eb9`: a `FormData` is now sent, as the
+>    `multipart/form-data` **text** Firefox serializes for it — AWS WAF's token
+>    POST is one, measured, §11.4. Its entries are strings, so it is still a
+>    text body under the same 64 KiB cap; bytes are still refused.)*
 > 2. **Request headers.** The POST carries the script's own `Content-Type`
 >    (from `fetch` `init.headers` in any of its three shapes, or XHR
 >    `setRequestHeader`), else the browser default for the body's type
@@ -667,6 +673,7 @@ win.
 |---|---|---|---|
 | 1 (`bl-15ff`, ×3) | the round trip | `needs:["human"]`, 202, `rounds:0`, `js:{scripts:3, errors:2}` | `crypto.subtle` absent (§11.3) |
 | 2 (`bl-0647`, ×2 + 1 traced) | + a real `crypto.subtle` | **unchanged — still a null**: `needs:["human"]`, 202, `rounds:0`, `js:{scripts:3, errors:2}` | **past the crypto.** `importKey("raw", 32 bytes, {name:"AES-GCM"}, false, ["encrypt"])` resolves; `encrypt({name:"AES-GCM", iv: 12 bytes, tagLength: 128}, key, 3655 bytes)` resolves to 3671 bytes. Then `new FormData()` — absent, `TypeError: not a function` — while building the POST body (`bl-6eb9`), and separately `document.scripts.length` — absent (`bl-c296`, new). No POST, no cookie |
+| 3 (`bl-6eb9`, ×4 + 1 traced) | + `FormData`, sent as multipart text | **PASSED, 4 of 5**: `status:"ok"`, `http.status 200`, `challenge:{declared:"x-amzn-waf-action", rounds:1, passed:true}`, 2.4–4.7 kB of the real home page's text, `js:{scripts:~100, errors:6–8}` on the delivered page. **1 of 5**: 200 with *no* declaration and no text → `needs:["js"]`, no `challenge` block (`bl-eed9`) | nowhere — it finished. Still absent and still read: `document.scripts` (one rejected side path, `bl-c296`), `TextEncoder`, `requestIdleCallback`, `Blob` (all feature-tested) |
 
 **What run 2 measured that §11.3 could only guess** (from the trace and from
 reading `challenge.js`):
@@ -692,3 +699,45 @@ The offline proof now includes this shape: `src/run/roundtrip_subtle_tests.rs`
 is a synthetic challenge that fetches inputs, imports the page's 32-byte key,
 AES-GCM-encrypts its answer and POSTs it, against a server that mints the
 token only for the correct ciphertext (a published test vector).
+
+**Run 3 is the first live pass.** What happened, in order, traced:
+
+1. GET `www.amazon.com/` → 202, `x-amzn-waf-action: challenge`. frot notes
+   the request a re-issue would send, and runs the page's three scripts.
+2. `challenge.js` GETs `…token.awswaf.com/…/inputs?client=browser` (200).
+3. It imports the page's 32-byte key and AES-256-GCM-encrypts 3,655 bytes of
+   collected signals (§11.4 run 2).
+4. It builds a `FormData` (`solution_metadata`, plus the encrypted signals) and
+   POSTs it — 11.4 kB of multipart text — to `…token.awswaf.com/…/mp_verify`.
+5. The answer is 200, a small JSON object carrying a `token`. **No
+   `Set-Cookie`.**
+6. The script writes `document.cookie = "aws-waf-token=…"` itself.
+7. The request frot would now send has a new cookie, so it GETs the caller's
+   URL once more → 200, the home page. Its ~100 scripts run on what is left of
+   the invocation's budget (one traced run ended `stopped:"network"`).
+
+**§10.1's two residuals are answered by measurement.** *Which write mints the
+token:* the script's own `document.cookie` write, from a token returned in the
+**body** of a cross-origin POST — not a `Set-Cookie` on that response, and not
+a same-origin POST. *Is it in scope for the re-issue:* yes — the script sets it
+on the page's own site, so it rides the second navigation. The trigger
+(§4.1, as built: "the request frot would now send changed") held with no
+change.
+
+**What this pass does and does not say.**
+
+- **§8's falsifier did not fire.** A passed round was *not* followed by another
+  challenge, so from this egress Amazon's gate is the challenge itself, not
+  IP/ASN reputation (`identity.md` §14 item 2). Other egresses are unmeasured.
+- **It is not 5 of 5.** One run got a 200 that declared nothing and had no
+  text. The round trip never saw it — no declaration, no round — and frot said
+  `needs:["js"]`. What that response is, is unmeasured (`bl-eed9`).
+- **The delivered page is a real but partial impression**: `js.errors` is 6–8
+  (Amazon's own scripts hit APIs frot lacks, and its telemetry hits the
+  network budget), and the text is 2.4–4.7 kB.
+- **Nothing was raised to get here.** `EXEC_CPU_MS`, `NET_BUDGET_MS`,
+  `REQ_BODY_BYTES` and `CHALLENGE_ROUNDS` are untouched; frot clicked nothing,
+  solved nothing, and sent only the requests the page's own script chose.
+- **Proof-of-work was not the obstacle.** The challenge served here costs well
+  under the compute budget; the padding-upload kind (§11.4, above) was not
+  served.

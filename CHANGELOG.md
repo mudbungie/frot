@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`FormData` exists under `--js`, and a `fetch`/XHR POST can send one.** It
+  goes out as the `multipart/form-data` text Firefox produces (same boundary
+  format, same escaping), under the existing 64 KiB request-body cap.
+  `new FormData(formElement)` is refused — frot does not read a form's
+  controls. **With this, frot passes Amazon's declared challenge**: measured
+  2026-11-17, `--js` returns the home page with
+  `challenge:{rounds:1, passed:true}` on 4 runs of 5
+  (`docs/design/challenge.md` §11.4). [bl-6eb9]
+
 - **`crypto.subtle` exists under `--js`, and it computes real values.** On a
   secure page (`https:`, `file:`, loopback) `crypto.subtle` is a Firefox-shaped
   `SubtleCrypto` with all twelve methods and a real `CryptoKey`. Implemented:

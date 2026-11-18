@@ -3,8 +3,8 @@
 // challenge.md §2/§3 — never frozen). This file is the ONLY place frot names an
 // HTTP verb: GET and POST go to the wire, any other method rejects (fetch) /
 // throws (XHR), counted through the §10 unified error channel. A POST carries
-// the text body the script gave (a string or URLSearchParams — any other body
-// type fails the request) and its Content-Type; nothing else the script set
+// the text body the script gave (a string, a URLSearchParams, or a FormData
+// as multipart text — any other body type fails the request) and its Content-Type; nothing else the script set
 // rides along. A refused or failed request rejects/errors the same way. No live network after a URL first
 // resolves; nothing persists past the call. Loads after events.js (uses g.Event
 // and its EventTarget).
@@ -20,6 +20,9 @@
   var iface = g.__frot_iface;
   var attrs = g.__frot_ifaceattrs;
   var ops = g.__frot_ifaceops;
+  // formdata.js's serializer, taken off the global: a page never sees it.
+  var multipart = g.__frot_multipart;
+  delete g.__frot_multipart;
 
   // A Request-like input exposes `.url`; anything else is stringified.
   function absolute(input) {
@@ -38,12 +41,16 @@
     if (m === 'GET') return g.__frot_subfetch(url);
     var form = body instanceof g.URLSearchParams;
     var none = body === undefined || body === null;
+    // A FormData goes out as the multipart text Firefox serializes (bl-6eb9).
+    var parts = none ? null : multipart(body);
     // A text body only: bytes frot cannot carry faithfully (an ArrayBuffer, a
-    // Blob, a FormData) fail the request rather than go out as something else.
-    if (!none && !form && typeof body !== 'string')
+    // Blob) fail the request rather than go out as something else.
+    if (!none && !form && !parts && typeof body !== 'string')
       return { error: 'frot: only text request bodies are supported' };
     var kind = form ? 'application/x-www-form-urlencoded;charset=UTF-8' : 'text/plain;charset=UTF-8';
-    return g.__frot_subpost(url, none ? '' : String(body), ctype ? String(ctype) : kind);
+    if (parts) kind = parts.type;
+    var text = none ? '' : parts ? parts.body : String(body);
+    return g.__frot_subpost(url, text, ctype ? String(ctype) : kind);
   }
   function supported(m) {
     return m === 'GET' || m === 'POST';

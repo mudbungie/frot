@@ -149,6 +149,10 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/viewobserver.js"),
     "\n",
+    // FormData (bl-6eb9): the entry list and its multipart serializer, which
+    // net.js — next — takes off the global for `fetch`/XHR request bodies.
+    include_str!("prelude/formdata.js"),
+    "\n",
     include_str!("prelude/net.js"),
     "\n",
     // IndexedDB (bl-8dde): coherent IDBFactory + interface-zoo presence, no
