@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.4](https://github.com/mudbungie/frot/compare/v0.0.3...v0.0.4) - 2026-11-20
+
+### Changes
+
+- the DOM interface chain — document as an arena node, and one prototype per node kind (the plan bl-9f79 is split by) [bl-fcdd]
+- FileReader is absent — AWS WAF's challenge tries FileReader.readAsDataURL(blob) first and falls back to btoa [bl-8c46]
+- an empty <dt title=T> is named from its title; Chrome names it "" [bl-0794]
+- an unnamed explicit role=form / role=region keeps its role; Chrome demotes it to generic [bl-c5a6]
+- an empty <caption> emits a caption node; Chrome leaves it out [bl-fe88]
+- a <table summary> is unnamed; Chrome names the table from its summary attribute [bl-2b09]
+- Image is absent — Amazon's delivered home page throws 'Image is not defined' (twice per run) [bl-1404]
+- a childless <svg> is graphics-document; Chrome exposes it as img, and a <g> with a <title> as a named group [bl-07bd]
+- vendored React 17 bundle in src/js/engine/ carries no licence attribution [bl-41e5]
+- crypto.subtle residual: the WebCrypto algorithms and AES-GCM parameters Firefox 153 has and frot rejects [bl-db8f]
+- www.amazon.com sometimes answers 200 with no challenge declaration and a script-only page — needs:[js] under --js [bl-eed9]
+- a declared challenge at status >= 400 (Cloudflare: 403 + cf-mitigated: challenge) never enters the round trip [bl-a7c5]
+- name-from-contents fuses block and table-cell boundaries (row "G110", button "blk1blk2"); Chrome separates them with a space [bl-fb69]
+- options of a collapsed select get boxes; Chrome gives them none [bl-2932]
+- fidelity recorder: capture what innerText and getClientRects miss, so residual rows become real checks [bl-7966]
+- flex order / row-reverse reorder AX children; Chrome's AX tree stays in DOM order [bl-7430]
+- Blob (and URL.createObjectURL) is absent — read by AWS WAF challenge.js [bl-78c5]
+- document.scripts is absent — AWS WAF challenge.js throws reading document.scripts.length [bl-c296]
+- requestIdleCallback is absent — read by AWS WAF challenge.js [bl-b584]
+- TextEncoder/TextDecoder are absent — read by AWS WAF challenge.js [bl-53b7]
+- FormData is absent — read by AWS WAF challenge.js [bl-6eb9]
+- crypto.subtle is absent — AWS WAF challenge stops at importKey('raw', 32 bytes, {name:'AES-GCM'}, _, ['encrypt']) [bl-0647]
+- decide whether frot publishes crypto.subtle (and isSecureContext with it) [bl-b0f8]
+
 - **`FileReader` and `ProgressEvent` exist under `--js`.** A `FileReader`
   reads a `Blob` as a data URL, text, an `ArrayBuffer` or a binary string, and
   fires `loadstart`, `progress`, `load` and `loadend` (or `abort`) in the order
