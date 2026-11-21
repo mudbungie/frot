@@ -36,6 +36,8 @@
 //! - **`<select>`** — `listbox` or `combobox` by its mode (`dom/select.rs`).
 //!
 //! - **`<svg>` and its parts** — `super::svg`.
+//! - **`<caption>`** — no role when it is empty and unnamed
+//!   ([`context::table_caption`]).
 //!
 //! Tags mapped to a *fixed* role are the flat rows below; each was audited
 //! against the HTML-AAM and carries no condition.
@@ -69,7 +71,8 @@ pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
         "blockquote" => "blockquote",
         "body" | "div" | "span" => "generic",
         "button" | "summary" => "button",
-        "caption" | "figcaption" => "caption",
+        "caption" => return context::table_caption(doc, id, el),
+        "figcaption" => "caption",
         "code" => "code",
         "datalist" => "listbox",
         "dd" => "definition",

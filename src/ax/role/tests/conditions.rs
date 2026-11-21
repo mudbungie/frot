@@ -211,3 +211,27 @@ fn empty_alt_is_decorative_unless_something_else_names_it() {
     assert_eq!(r("<img id=t alt='' aria-label='Logo'>"), Some("img"));
     assert_eq!(r("<img id=t alt='' title='Logo'>"), Some("img"));
 }
+
+/// `bl-fe88`, Chrome 158: an empty, unnamed table caption has no node.
+#[test]
+fn an_empty_unnamed_caption_has_no_role() {
+    for (caption, want) in [
+        ("<caption id=t></caption>", None),
+        ("<caption id=t> \n</caption>", None),
+        ("<caption id=t><!-- note --></caption>", None),
+        ("<caption id=t>words</caption>", Some("caption")),
+        ("<caption id=t><span></span></caption>", Some("caption")),
+        ("<caption id=t><img alt=''></caption>", Some("caption")),
+        ("<caption id=t aria-label=CL></caption>", Some("caption")),
+        ("<caption id=t title=CT></caption>", Some("caption")),
+    ] {
+        let html = format!("<table>{caption}<tr><th>a</th><td>b</td></tr></table>");
+        assert_eq!(r(&html), want, "{caption}");
+    }
+    // Only the table caption: the other two caption-role sources keep theirs.
+    assert_eq!(
+        r("<figure><figcaption id=t></figcaption></figure>"),
+        Some("caption")
+    );
+    assert_eq!(r("<div id=t role=caption></div>"), Some("caption"));
+}

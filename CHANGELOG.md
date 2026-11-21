@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: an empty, unnamed table `<caption>` emits no node**, as in
+  Chrome. A caption with any element child, any text, or an author name
+  (`aria-label`, `aria-labelledby`, `title`) keeps its `caption` node, and so
+  do an empty `<figcaption>` and an empty `role=caption`. [bl-fe88]
+
 - **`--out ax`: a `<table>` with no `<caption>` is named from its `summary`
   attribute**, as in Chrome. `aria-label` and a caption outrank it; it
   outranks `title`. [bl-2b09]

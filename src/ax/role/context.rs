@@ -70,6 +70,28 @@ pub fn author_name(doc: &Document, el: &Element) -> Option<String> {
     name::author_name(doc, el, None)
 }
 
+/// `<caption>`: a `caption`, unless it is empty — no element child, no text
+/// but whitespace — and the author gave it no name, in which case it has no
+/// role and no node. Measured in Chrome 158 (`bl-fe88`): `<caption></caption>`
+/// and `<caption> </caption>` are absent from the tree, while
+/// `<caption><span></span></caption>`, `<caption aria-label=L></caption>` and
+/// `<caption title=T></caption>` are `caption` nodes. It is the table
+/// caption's alone: an empty `<figcaption>` and an empty `role=caption` keep
+/// their nodes. The resolver takes no cascade, so a caption whose only content
+/// is CSS-hidden or CSS-generated is judged by its markup.
+pub fn table_caption(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
+    let empty = doc
+        .node(id)
+        .children
+        .iter()
+        .all(|&c| match &doc.node(c).kind {
+            NodeKind::Element(_) => false,
+            NodeKind::Text(t) => t.trim().is_empty(),
+            _ => true,
+        });
+    (!empty || author_name(doc, el).is_some()).then_some("caption")
+}
+
 /// `<li>`: a list item only inside a list.
 pub fn listitem_or_generic(doc: &Document, id: NodeId) -> &'static str {
     match doc.node(id).parent.and_then(|p| tag(doc, p)) {

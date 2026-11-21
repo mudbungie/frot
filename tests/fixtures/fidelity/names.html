@@ -43,5 +43,13 @@
 <table summary="loses to label" aria-label="label wins"><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
 <table summary="beats title" title="title loses"><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
 <table summary="grid summary" role="grid"><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+
+<h2>An empty caption has no node</h2>
+<table><caption></caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table><caption> </caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table><caption><span></span></caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table><caption aria-label="labelled caption"></caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table summary="shut out by an empty caption"><caption></caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<figure><figcaption></figcaption><p>figure body</p></figure>
 </body>
 </html>
