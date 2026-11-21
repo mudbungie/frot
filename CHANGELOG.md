@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`FileReader` and `ProgressEvent` exist under `--js`.** A `FileReader`
+  reads a `Blob` as a data URL, text, an `ArrayBuffer` or a binary string, and
+  fires `loadstart`, `progress`, `load` and `loadend` (or `abort`) in the order
+  and with the payloads Firefox does. Text is decoded as UTF-8 only: a legacy
+  `encoding` argument or `charset` is ignored. AWS WAF's challenge no longer
+  throws on its first `new FileReader()`. [bl-8c46]
+
 - **`--out ax`: `title` no longer names a `term`.** An empty `<dt title=T>`,
   `<dfn title=T>` or `role=term` is `term` with no name, as in Chrome; other
   roles still fall back to `title`. [bl-0794]
@@ -116,7 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--js`.** A `Blob` is real bytes with `size`, `type`, `slice`, `text`,
   `arrayBuffer` and `bytes`. A blob: URL is minted but cannot be loaded (no
   `fetch` of it, and a Blob-URL `Worker` still never runs); there is no
-  `stream()`, `File` or `FileReader`. [bl-78c5]
+  `stream()` or `File`. [bl-78c5]
 
 - **`document.scripts` exists under `--js`**: the `HTMLCollection` of the
   document's `<script>` elements, as of the moment it is read. [bl-c296]

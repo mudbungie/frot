@@ -141,6 +141,10 @@ pub const SOURCE: &str = concat!(
     // `__frot_idle_hook` seam that module leaves for it.
     include_str!("prelude/idle.js"),
     "\n",
+    // FileReader + ProgressEvent (bl-8c46): after blob.js (the bytes), events.js
+    // (EventTarget, Event) and loop.js (a read is one timer task).
+    include_str!("prelude/filereader.js"),
+    "\n",
     // Abort surface (bl-e81b): AbortController/AbortSignal over events.js's
     // EventTarget and loop.js's virtual-clock setTimeout.
     include_str!("prelude/abort.js"),

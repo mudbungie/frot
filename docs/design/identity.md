@@ -1235,7 +1235,8 @@ correctly but **nothing loads it** — `fetch`/XHR of one fails as a network
 error, and `new Worker(blobURL)` constructs and never runs (the standing Worker
 residual); no `File` (a `Blob` in a `FormData` stays a `Blob`, and such a
 `FormData` cannot be POSTed — the request path is text-only, `challenge.md`
-§3); no `FileReader` (`bl-8c46`); `URL.parse`/`URL.canParse` are absent.
+§3); `URL.parse`/`URL.canParse` are absent. *(`FileReader` was built in
+`bl-8c46`, below.)*
 
 **On the `Worker` warning `bl-78c5` carried.** Measured (`challenge.md` §11.4):
 the challenge script's `Worker`/`createObjectURL` text is a bundled library's
@@ -1279,6 +1280,34 @@ or `error` waits until the run ends; a `data:` image does not load; no
 size behind them); `alt`, `loading`, `decoding`, `crossOrigin`, `x`, `y` and
 the rest are not IMG properties; `HTMLImageElement.prototype` owns only
 `constructor`.
+
+**`FileReader` and `ProgressEvent` (`bl-8c46`, 2026-11-20).**
+
+| fact | value | provenance |
+|---|---|---|
+| `FileReader.prototype` | `readAsArrayBuffer, readAsBinaryString, readAsText, readAsDataURL` (length 1), `abort` (0), `readyState, result, error` (getters), `onloadstart, onprogress, onload, onabort, onerror, onloadend`, `EMPTY, LOADING, DONE`, `constructor`; parent `EventTarget.prototype`; `FileReader.length` 0; statics `EMPTY`/`LOADING`/`DONE` = 0/1/2, enumerable, non-writable, non-configurable, on the constructor and the prototype; an instance owns nothing | read |
+| a new reader | `readyState` 0, `result`, `error` and every handler `null`; a handler set to a non-function reads back `null` | read |
+| a read | synchronously `readyState` 1, `result` `null`. Then, in **one task** — after the caller's microtasks, before a `setTimeout(0)` it queued afterwards — `loadstart` (state 1, `loaded` 0), `progress` (state 1, `loaded` = `total`; **absent for an empty blob**), `load` (state 2, `result` set), `loadend` | read |
+| the events | `ProgressEvent`s, `isTrusted`, not bubbling, `lengthComputable` true, `total` the blob's size, `target` the reader; a handler's `this` is the reader | read |
+| results | `readAsDataURL` → `data:<blob type, or application/octet-stream>;base64,<standard base64, padded>`; `readAsArrayBuffer` → an `ArrayBuffer` (the same object on every read of `result`); `readAsBinaryString` → one char per byte; `readAsText` → decoded | read |
+| `readAsText` encoding | the `encoding` argument when it is a known label (an unknown one is ignored), else the blob type's `charset`, else a UTF-16 byte-order mark, else UTF-8; a UTF-8 BOM is dropped, malformed bytes are U+FFFD | read |
+| handler order | an `on…` handler is a listener in the place it was **first set** (`listener, handler, listener`); replacing it keeps the place; setting `null` gives it up | read |
+| a second read while loading | `InvalidStateError: An attempt was made to use an object that is not, or is no longer, usable`; a read started from `onload` is allowed, and the first read's `loadend` still fires | read |
+| `abort()` | does nothing unless a read is in flight; then, synchronously: `readyState` 2, `result` `null`, `error` an `AbortError` whose message is `The operation was aborted. ` (**with that trailing space**), then `abort` and `loadend` (`loaded` 0, `total` the blob's size); the read's own events never come. A later read clears `error` | read |
+| errors (`TypeError`) | `FileReader.readAsText: At least 1 argument required, but only 0 passed`; `…Argument 1 is not an object.` (a string, `null`); `…Argument 1 does not implement interface Blob.` (`{}`); `'readAsText' called on an object that does not implement interface FileReader.` (likewise `'get readyState'`); `FileReader constructor: 'new' is required` | read |
+| `ProgressEvent` | `.length` 1; prototype `lengthComputable, loaded, total, constructor`, parent `Event.prototype`; defaults `false, 0, 0`; `loaded`/`total` are doubles (`5.7`, `-1` kept; `NaN` → `TypeError: ProgressEvent constructor: 'loaded' member of ProgressEventInit is not a finite floating-point value.`); a non-object init → `…Value can't be converted to a dictionary.`; no argument → `…At least 1 argument required, but only 0 passed` | read |
+
+*As built:* `src/js/prelude/filereader.js`, over `blob.js`'s bytes, the one
+listener registry and one timer task on the virtual clock. The blob's bytes are
+already in memory, so a read cannot fail and `error` never fires. `Event`'s
+`isTrusted` now reads `true` for these events and `false` for everything a page
+constructs, as before. **Short of Firefox, declared (§11):** `readAsText`
+decodes UTF-8 whatever encoding is named — a legacy `encoding` argument, a
+`charset` in the blob's type and a UTF-16 byte-order mark are not honoured,
+because `encoding.js` has UTF-8 only (the standing `TextDecoder` residual);
+`FileReader()` and `ProgressEvent()` called without `new` do not throw the
+`'new' is required` `TypeError` (true of every frot interface, `bl-6404`); no
+`File`, so nothing but a `Blob` can be read.
 
 ### 3.19 The secure-context surface and WebCrypto's shape, read off the binary (`bl-b0f8`, 2026-11-17)
 
@@ -2289,8 +2318,9 @@ Permanently out of reach, by design or by constraint:
 | **`FormData`** | Built 2026-11-17 (`bl-6eb9`, §3.20) because a measured challenge POSTs one. Residual: `new FormData(<form>)` throws a `frot:` `TypeError` — frot reads no form's controls, since it originates no submission (`challenge.md` §2) and an empty entry list would be a wrong answer; values are always strings (Firefox makes a `File` of a `Blob`); `entries()`/`keys()`/`values()` are array iterators, not `FormData Iterator`s. |
 | **`TextDecoder` legacy encodings** | `TextEncoder`/`TextDecoder` are built for UTF-8 (`bl-53b7`, §3.20). Firefox's `TextDecoder` also decodes some forty legacy encodings (`windows-1252`, `utf-16le`, `shift_jis`, …); frot's refuses every non-UTF-8 label with the `RangeError` Firefox gives an unknown one — a refusal, never mis-decoded text. A page that decodes a legacy encoding in script sees a Firefox that cannot. `encoding_rs` (Gecko's own decoder) is already linked, so closing this is a syscall, not a crate. |
 | **`requestIdleCallback` `timeout`** | Built on the virtual clock (`bl-b584`, §3.20): an idle callback runs once every timer due at that instant has run. The idle period therefore always arrives, so `didTimeout` is always `false` and a `timeout` option is accepted and unused — where a busy real page can report `true`. A coherent value a real Firefox also produces, not a fabricated one. |
+| **`FileReader`** | Built 2026-11-20 (`bl-8c46`, §3.20) over `Blob`, with `ProgressEvent`. Residual: `readAsText` decodes **UTF-8 only** — a legacy `encoding` argument, a `charset` in the blob's type or a UTF-16 byte-order mark is ignored, where Firefox honours each (the same gap as the `TextDecoder` row); `error` never fires (an in-memory read cannot fail); no `File`. |
 | **`Image` / `<img>` loading** | `Image` and `HTMLImageElement` exist (`bl-1404`, §3.20). **An image never arrives** — a pinned choice: no request is sent for any `<img>` (so no beacon), neither `load` nor `error` fires, `complete` stays `false` once a `src` is set, the natural size is 0. A real Firefox holds that state only until the response; a page awaiting the image waits out the run. No `data:` image loading, no `decode()`, no IMG-specific properties beyond `src`/`width`/`height`/`complete`/`naturalWidth`/`naturalHeight`/`currentSrc`. Whether images should fail instead (what a Firefox with images blocked does, measured) or beacons be sent: `bl-91a4`. |
-| **`Blob` / blob: URLs** | `Blob`, `URL.createObjectURL` and `revokeObjectURL` are real (`bl-78c5`, §3.20). Residual: no `Blob.prototype.stream` (no `ReadableStream`); a blob: URL cannot be loaded — `fetch`/XHR of one is a network error where Firefox answers 200, and a Blob-URL `Worker` never runs (the Worker row above); no `File`, no `FileReader` (`bl-8c46`); a `FormData` holding a `Blob` cannot be POSTed. Each is a refusal or an absence, never a wrong value. |
+| **`Blob` / blob: URLs** | `Blob`, `URL.createObjectURL` and `revokeObjectURL` are real (`bl-78c5`, §3.20). Residual: no `Blob.prototype.stream` (no `ReadableStream`); a blob: URL cannot be loaded — `fetch`/XHR of one is a network error where Firefox answers 200, and a Blob-URL `Worker` never runs (the Worker row above); no `File`; a `FormData` holding a `Blob` cannot be POSTed. Each is a refusal or an absence, never a wrong value. |
 | **`Intl` beyond `DateTimeFormat.resolvedOptions()`** | Residual. quickjs-ng ships without `Intl`; frot provides the low-entropy locale/timezone subset a page reads (`DateTimeFormat` + `resolvedOptions`, `timeZone` pinned UTC). `NumberFormat`/`Collator`/`RelativeTimeFormat`/real locale-aware formatting are unbuilt — a filed gap, not a permanent non-goal. |
 | **`__frot_*` syscall names enumerable on `globalThis`** | Residual. `Function.prototype.toString` no longer leaks their source or the name (`bl-3926` branding), but the syscall **names** are still enumerable globals (`Object.getOwnPropertyNames(window)`). Making them non-enumerable touches every `bind!` site and is tracked as a separate concern. |
 | **Three key shares** | Blocked by rustls (§6.4). |

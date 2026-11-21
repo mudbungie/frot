@@ -82,8 +82,10 @@
     st.defaultPrevented = false;
     st.target = null;
     Object.defineProperty(inst, 'isTrusted', {
+      // False for anything a page constructs; true only where the host raises
+      // the event itself and marks it (filereader.js).
       get: g.__frot_brand(function () {
-        return false;
+        return st.trusted === true;
       }, 'get isTrusted'),
       enumerable: true,
       configurable: false,
