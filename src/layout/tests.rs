@@ -260,3 +260,11 @@ fn doctype_root_is_skipped_and_html_starts_at_origin() {
         }
     );
 }
+
+#[test]
+fn an_svg_description_generates_no_box() {
+    let (doc, styles) = styled("<svg><desc>d</desc><title>t</title></svg>");
+    let layout = compute(&doc, &styles, VIEWPORT_WIDTH);
+    assert_eq!(layout.rect(id(&doc, "desc")), None);
+    assert_eq!(layout.rect(id(&doc, "title")), None);
+}

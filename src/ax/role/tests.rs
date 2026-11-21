@@ -250,7 +250,7 @@ fn misc_roles() {
         ("<datalist id=t></datalist>", "listbox"),
         ("<time id=t>x</time>", "time"),
         ("<math id=t></math>", "math"),
-        ("<svg id=t></svg>", "graphics-document"),
+        ("<svg id=t></svg>", "img"),
         ("<body id=t>x</body>", "generic"),
         ("<span id=t>x</span>", "generic"),
         ("<div id=t>x</div>", "generic"),

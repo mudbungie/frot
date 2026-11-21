@@ -18,7 +18,9 @@ pub fn native_alternative(doc: &Document, id: NodeId, el: &Element) -> Option<St
         "textarea" => Some(doc.text_content(id)),
         "select" => Some(selected_option_text(doc, id)),
         "option" | "optgroup" => super::super::label_attr(el),
-        "svg" => svg_title(doc, id),
+        n if crate::ax::role::svg_titled(n) => svg_title(doc, id),
+        // An SVG description is never part of a name.
+        "desc" => Some(String::new()),
         _ => None,
     }
 }
@@ -53,9 +55,12 @@ fn selected_option_text(doc: &Document, id: NodeId) -> String {
     selected.or(first).unwrap_or_default()
 }
 
-/// SVG-AAM: an `<svg>` is named by its `<title>` *child* — the first one, and
-/// only a child: measured in Chrome 156 (`bl-0a0a`), a `<title>` deeper in
-/// (`<svg><g><title>`) names the `<g>`, not the graphic. An empty `<title>` is
+/// SVG-AAM: an `<svg>` — and equally a `<g>`, a shape, a `<use>`
+/// (`role::svg_titled`, `bl-07bd`) — is named by its `<title>` *child*: the
+/// first one, and only a child. Measured in Chrome 156 (`bl-0a0a`), a `<title>`
+/// deeper in (`<svg><g><title>`) names the `<g>`, not the graphic; a titled
+/// part speaks that title and is not descended into (`<a><svg><g><title>deep
+/// </title><text>tx</text></g></svg></a>` is "deep"). An empty `<title>` is
 /// no title, unlike `alt=""`: Chrome names `<a><svg><title></title><text>t
 /// </text></svg></a>` "t". The one home of this fact, for the graphic's own
 /// name and for what it contributes to someone else's.

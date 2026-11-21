@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: an inline `<svg>` with nothing exposed inside it is an `img`**
+  (was always `graphics-document`), as in Chrome. It stays a
+  `graphics-document` when it holds text in a `<text>` or a described part.
+  A described part — a `<g>`, shape, `<use>` or nested `<svg>` with a
+  `<title>`/`<desc>` child or an author name — now has a node of its own
+  (`group`, `graphics-symbol`, `graphics-object`), named from its `<title>`;
+  inside a link or button it contributes that title and not its contents. An
+  SVG `<desc>` no longer leaks into names, and gets no box in `bboxes`.
+  [bl-07bd]
+
 - **A vendored React bundle no longer ships in the crate.**
   `src/js/engine/react.production.min.js` — a second, unattributed React
   distribution read by one engine smoke test — is deleted; the test reads the

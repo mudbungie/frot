@@ -12,7 +12,8 @@
 //!      `<label for=…>` or the wrapping `<label>` text content
 //!    - `<table>` — its first `<caption>` child, read as a descendant
 //!      ([`contents::descendant_name`])
-//!    - `<svg>` — its `<title>` child ([`contents::svg_title`])
+//!    - `<svg>` and every SVG part (`<g>`, a shape, `<use>`) — its `<title>`
+//!      child ([`contents::svg_title`])
 //!    - `<optgroup>` and `<option>` — the `label` content attribute
 //!      ([`label_attr`]); an `<option>` without one falls back to its contents
 //!    - everything else — the element's descendant text *alternatives* (the
@@ -104,7 +105,7 @@ fn native_name(
         "textarea" | "select" => control_label_text(doc, id, el, styles),
         "fieldset" => fieldset_legend_text(doc, id, styles),
         "table" => table_caption_text(doc, id, styles),
-        "svg" => contents::svg_title(doc, id),
+        n if super::role::svg_titled(n) => contents::svg_title(doc, id),
         "optgroup" => label_attr(el),
         "option" => label_attr(el).or_else(|| Some(contents_text(doc, id, styles))),
         _ if names_from_contents(doc, id) => Some(contents_text(doc, id, styles)),

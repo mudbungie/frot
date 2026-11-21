@@ -118,7 +118,7 @@ pub fn heads_its_row(doc: &Document, id: NodeId) -> bool {
     cells.first() == Some(&id) && cells.iter().any(|&c| tag(doc, c) == Some("td"))
 }
 
-fn has_ancestor(doc: &Document, id: NodeId, tags: &[&str]) -> bool {
+pub fn has_ancestor(doc: &Document, id: NodeId, tags: &[&str]) -> bool {
     ancestors(doc, id).any(|a| tag(doc, a).is_some_and(|t| tags.contains(&t)))
 }
 

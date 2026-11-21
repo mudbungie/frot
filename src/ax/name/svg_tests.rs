@@ -65,12 +65,55 @@ fn an_svg_contributes_its_title_child_or_else_its_contents() {
             "<a href=3><svg><text>justtext</text></svg></a>",
             Some("justtext"),
         ),
-        // Chrome: "deep" — reached here by descending to the title's text.
+        // Chrome: "deep" — the titled group speaks its title and is not
+        // descended into (`bl-07bd`).
         (
-            "<a href=1><svg><g><title>deep</title></g></svg></a>",
+            "<a href=1><svg><g><title>deep</title><text>tx</text></g></svg></a>",
             Some("deep"),
+        ),
+        // A `<desc>` is a description, never part of a name (Chrome: "w").
+        (
+            "<a href=5><svg><g><desc>gd</desc><text>w</text></g></svg></a>",
+            Some("w"),
         ),
     ] {
         assert_eq!(name(html, "a").as_deref(), want, "{html}");
     }
+}
+
+/// A part is named by its own `<title>` child, like the graphic (`bl-07bd`,
+/// Chrome 158).
+#[test]
+fn an_svg_part_is_named_from_its_title_child() {
+    for (html, tag, want) in [
+        (
+            "<svg><g><title>nested</title><rect/></g></svg>",
+            "g",
+            Some("nested"),
+        ),
+        ("<svg><g><title></title><rect/></g></svg>", "g", None),
+        ("<svg><g><desc>d</desc><rect/></g></svg>", "g", None),
+        (
+            "<svg><g aria-label=AL><title>ti</title></g></svg>",
+            "g",
+            Some("AL"),
+        ),
+        ("<svg><g title=attr><rect/></g></svg>", "g", Some("attr")),
+        (
+            "<svg><rect><title>rt</title></rect></svg>",
+            "rect",
+            Some("rt"),
+        ),
+        (
+            "<svg><use href=#x><title>ut</title></use></svg>",
+            "use",
+            Some("ut"),
+        ),
+    ] {
+        assert_eq!(name(html, tag).as_deref(), want, "{html}");
+    }
+    // A nested graphic is such a part too.
+    let d = Document::parse("<svg><svg id=i><title>inner</title></svg></svg>");
+    let inner = find_by_id(&d, "i").unwrap();
+    assert_eq!(accessible_name(&d, inner, None), Some("inner".into()));
 }

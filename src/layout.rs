@@ -55,8 +55,10 @@ const GLYPH_ADVANCE: i32 = 8;
 /// the view-specific skip sets in `views::text`/`ax` (which classify
 /// differently — e.g. `text` also skips `svg`/`math`, while layout also skips
 /// the non-painting document metadata `head`/`title`/`meta`/`link`/`base`).
+/// `desc` is SVG's description, metadata like its `<title>`: Chrome 158 gives
+/// it no client rects (`bl-07bd`).
 const NON_RENDERED_TAGS: &[&str] = &[
-    "head", "title", "meta", "link", "base", "style", "script", "template", "noscript",
+    "head", "title", "meta", "link", "base", "style", "script", "template", "noscript", "desc",
 ];
 
 /// A box, in px, border-box, viewport coordinates with y increasing downward

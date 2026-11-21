@@ -23,6 +23,9 @@ use crate::dom::{Document, Element, NodeId, NodeKind};
 
 mod context;
 mod implicit;
+mod svg;
+
+pub use svg::titled as svg_titled;
 
 /// Effective ARIA role for the node `id`, or `None` when it carries no
 /// semantics (a non-element node, or an element the HTML-AAM maps to nothing).

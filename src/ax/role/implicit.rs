@@ -35,10 +35,12 @@
 //! - **`<a>`/`<area>`** — the pre-existing `href` condition, unchanged.
 //! - **`<select>`** — `listbox` or `combobox` by its mode (`dom/select.rs`).
 //!
+//! - **`<svg>` and its parts** — `super::svg`.
+//!
 //! Tags mapped to a *fixed* role are the flat rows below; each was audited
 //! against the HTML-AAM and carries no condition.
 
-use super::context;
+use super::{context, svg};
 use crate::dom::{Document, Element, NodeId};
 
 pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
@@ -59,6 +61,7 @@ pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
         "input" => return input_role(el),
         "li" => return Some(context::listitem_or_generic(doc, id)),
         "select" => return Some(select_role(el)),
+        "svg" => return svg::svg(doc, id, el),
         "tbody" => return Some(context::named_landmark(doc, el, "rowgroup")),
         "td" => return Some(context::cell_role(doc, id, "cell", "gridcell")),
         "th" => return Some(th_role(doc, id, el)),
@@ -94,13 +97,12 @@ pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
         "strong" => "strong",
         "sub" => "subscript",
         "sup" => "superscript",
-        "svg" => "graphics-document",
         "table" => "table",
         "tfoot" | "thead" => "rowgroup",
         "textarea" => "textbox",
         "time" => "time",
         "tr" => "row",
-        _ => return None,
+        _ => return svg::part(doc, id, el),
     };
     Some(fixed)
 }

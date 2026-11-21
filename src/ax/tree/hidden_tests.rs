@@ -129,7 +129,8 @@ fn angular_tabpanel_and_svg_shape() {
          <div role='tabpanel' aria-label='Deferrable Views' inert>C</div>\
          <div role='tabpanel' aria-label='Hydration' inert>D</div>",
     );
-    assert_eq!(count_role(&v, "graphics-document"), 1);
+    // A graphic with nothing exposed inside it is one picture (`bl-07bd`).
+    assert_eq!(names(&v, "img"), vec!["Real"]);
     assert_eq!(names(&v, "tabpanel"), vec!["Signals"]);
 }
 
