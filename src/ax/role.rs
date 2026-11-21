@@ -33,16 +33,28 @@ pub fn role(doc: &Document, id: NodeId) -> Option<&'static str> {
     let NodeKind::Element(el) = &doc.node(id).kind else {
         return None;
     };
-    explicit(el).or_else(|| implicit::role(doc, id, el))
+    explicit(doc, el).or_else(|| implicit::role(doc, id, el))
 }
 
-/// An author `role=` attribute, resolved to its first known token. An
-/// unrecognized token is ignored entirely (the implicit role stands), which is
-/// what browsers do with a typo'd role.
-fn explicit(el: &Element) -> Option<&'static str> {
-    let token = el.attr("role")?.split_whitespace().next()?;
-    KNOWN_ROLES.iter().find(|known| **known == token).copied()
+/// An author `role=` attribute, resolved to its first **usable** token; with
+/// none, the implicit role stands. Two things make a token unusable, both
+/// measured in Chrome 158 (`bl-c5a6`):
+///
+/// - it is not a role (`role="foo button"` is a `button`);
+/// - it is a [`NAMED_ONLY`] landmark on an element the author did not name.
+///   `<div role=region>` is generic, `<div role="form button">` is a `button`,
+///   and `<nav role=region>` is still a `navigation`. With `aria-label`,
+///   `aria-labelledby` or `title` the landmark stands. The element `<form>`
+///   needs no name — that is its implicit role, not this rule.
+fn explicit(doc: &Document, el: &Element) -> Option<&'static str> {
+    el.attr("role")?
+        .split_whitespace()
+        .filter_map(|token| KNOWN_ROLES.iter().find(|known| **known == token).copied())
+        .find(|role| !NAMED_ONLY.contains(role) || context::author_name(doc, el).is_some())
 }
+
+/// Landmark roles an author may claim only for a named element.
+const NAMED_ONLY: &[&str] = &["form", "region"];
 
 /// Heading level. Returns the `aria-level` value first if present and
 /// parseable, otherwise 1..=6 for h1..h6, otherwise `None`.

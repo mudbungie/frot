@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: `role=form` and `role=region` stand only on a named
+  element**, as in Chrome. Unnamed, the next `role` token applies, else the
+  element's implicit role: `<div role=region>` is generic,
+  `<div role="form button">` is a `button`, `<nav role=region>` is still a
+  `navigation`. An unknown first token is likewise skipped rather than voiding
+  the attribute (`role="foo button"` is a `button`). [bl-c5a6]
+
 - **`--out ax`: an empty, unnamed table `<caption>` emits no node**, as in
   Chrome. A caption with any element child, any text, or an author name
   (`aria-label`, `aria-labelledby`, `title`) keeps its `caption` node, and so

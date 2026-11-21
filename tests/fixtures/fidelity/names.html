@@ -51,5 +51,15 @@
 <table><caption aria-label="labelled caption"></caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
 <table summary="shut out by an empty caption"><caption></caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
 <figure><figcaption></figcaption><p>figure body</p></figure>
+
+<h2>An unnamed form or region role does not stand</h2>
+<div role="form"><input name="n8"></div>
+<div role="region"><p>unnamed region</p></div>
+<div role="form" aria-label="named form"><input name="n9"></div>
+<div role="region" aria-label="named region"><p>named</p></div>
+<div role="region" title="titled region"><p>titled</p></div>
+<div role="form button">second token</div>
+<div role="foo button">skips unknown</div>
+<nav role="region"><p>still navigation</p></nav>
 </body>
 </html>
