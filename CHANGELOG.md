@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **A vendored React bundle no longer ships in the crate.**
+  `src/js/engine/react.production.min.js` — a second, unattributed React
+  distribution read by one engine smoke test — is deleted; the test reads the
+  licensed React 17.0.2 fixture instead, which is excluded from the package.
+  The licensing gate now sweeps the whole tracked tree: every file under
+  `tests/fixtures/` needs a `NOTICE.md` row, and no file outside it may carry
+  a third-party licence banner. [bl-41e5]
+
 - **`crypto.subtle` now does every secret-key operation Firefox does.** New
   under `--js`: AES-CBC and AES-CTR `encrypt`/`decrypt`; AES-GCM with any IV
   length and all seven tag lengths (it was 96-bit IV, 128-bit tag only);

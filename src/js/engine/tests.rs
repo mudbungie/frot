@@ -196,7 +196,7 @@ fn smoke_runs_the_react_production_bundle() {
     // full `self`/`window` aliasing is subtask 8; the spike needs only this
     // one line to prove the engine *runs* the bundle.
     engine.eval("globalThis.self = globalThis;").unwrap();
-    let bundle = include_str!("react.production.min.js");
+    let bundle = include_str!("../../../tests/fixtures/js/react.production.min.js");
     engine.eval(bundle).unwrap();
     assert_eq!(
         engine.eval("typeof React.createElement").unwrap(),

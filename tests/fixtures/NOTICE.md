@@ -102,3 +102,13 @@ Adding a fixture to `js/` means adding its row here **and** vendoring its licenc
 text into `licenses/` — a third-party file with no row is a compliance bug, not a
 formatting one. Prefer a synthetic fixture in `needs/` whenever the test is about
 shape rather than exact bytes.
+
+`tests/hygiene/licensing.rs` holds both ends. Every tracked file under
+`tests/fixtures/` must be named in this file — by its own path, or by a
+`dir/*.ext` row for a family this project authored, which covers that directory
+only and never a subdirectory. And no tracked file *outside* `tests/fixtures/`
+may carry a licence banner other than frot's own two `LICENSE-*` texts: this
+directory is the only home for someone else's bytes. A React bundle vendored
+under `src/` sat outside the old one-directory sweep, with no row here, and
+shipped in the published crate (`bl-41e5`); a test under `src/` that needs such
+a file reads it from here (`include_str!("…/tests/fixtures/js/…")`).

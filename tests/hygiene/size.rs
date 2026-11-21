@@ -18,7 +18,7 @@
 //! reaches every source language (a spot check would pass on a sweep that had
 //! quietly narrowed again), and the limiter really rejects an oversized file.
 
-use super::repo;
+use super::{repo, tracked};
 use std::fs;
 use std::io::Write;
 use std::process::{Command, Output, Stdio};
@@ -52,21 +52,6 @@ fn swept() -> String {
         .unwrap_or_else(|e| panic!("spawn {SWEEP}: {e}"));
     assert!(listed.status.success(), "{SWEEP} failed");
     String::from_utf8(listed.stdout).expect("paths are utf8")
-}
-
-/// Tracked files matching `pathspec`, as `git ls-files` lists them.
-fn tracked(pathspec: &str) -> Vec<String> {
-    let listed = Command::new("git")
-        .args(["ls-files", pathspec])
-        .current_dir(repo(""))
-        .output()
-        .expect("run git ls-files");
-    assert!(listed.status.success(), "git ls-files failed");
-    String::from_utf8(listed.stdout)
-        .expect("paths are utf8")
-        .lines()
-        .map(str::to_owned)
-        .collect()
 }
 
 /// A scratch file of `lines` newline-terminated lines, named for the caller.

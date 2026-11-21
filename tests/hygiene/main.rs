@@ -26,6 +26,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 mod fmt;
 mod licensing;
@@ -54,4 +55,19 @@ fn files_in(rel: &str) -> Vec<String> {
         .collect();
     names.sort();
     names
+}
+
+/// Tracked files matching `pathspec`, as `git ls-files` lists them.
+fn tracked(pathspec: &str) -> Vec<String> {
+    let listed = Command::new("git")
+        .args(["ls-files", pathspec])
+        .current_dir(repo(""))
+        .output()
+        .expect("run git ls-files");
+    assert!(listed.status.success(), "git ls-files failed");
+    String::from_utf8(listed.stdout)
+        .expect("paths are utf8")
+        .lines()
+        .map(str::to_owned)
+        .collect()
 }
