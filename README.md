@@ -107,7 +107,7 @@ the same bytes (`docs/design/fidelity.md`). Chrome is not needed to run it —
 its answers are checked in beside each page in `tests/fixtures/fidelity/`,
 stamped with the Chrome version and date — and the comparison is exact:
 each channel is projected onto what frot claims to produce (text → token
-sequence; ax → roled, named structure; bboxes → painted or not, never a
+sequence; ax → roled, named structure; bboxes → box or no box, never a
 coordinate) and must then be equal. Every remaining difference is a row in
 `tests/fidelity/ledger.rs`, either a reasoned residual or an open defect by
 ball id, and a row whose difference disappears fails too.

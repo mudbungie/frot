@@ -20,13 +20,14 @@
 //     flags, viewport, the date and the fixture bytes' hashes, nothing else.
 //   * Raw captures (§4). Each channel is stored as Chrome answered it; the
 //     projection onto frot's model is comparator code, so improving one never
-//     needs a re-record.
+//     needs a re-record. What is asked of the page is fidelity-probes.js.
 'use strict';
 const { spawn, spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const probes = require('./fidelity-probes.js');
 
 const DIR = path.resolve(__dirname, '..', 'tests', 'fixtures', 'fidelity');
 // Where Chrome is told the corpus lives. A directory below the origin, so a
@@ -144,20 +145,6 @@ function serve(cdp, session, served, refused) {
   };
 }
 
-// The in-page probes, one per channel, each returning Chrome's own answer.
-const PROBE = `(() => ({
-  text: document.body.innerText,
-  links: [...document.links].map((a) => (
-    { tag: a.localName, href: a.href, text: a.textContent })),
-  forms: [...document.forms].map((f) => ({
-    action: f.action, method: f.method,
-    elements: [...f.elements].map((e) => ({ tag: e.localName, type: e.type,
-      typeAttr: e.getAttribute('type'), name: e.getAttribute('name') })) })),
-  boxes: [...document.querySelectorAll('*')].map((e) => (
-    { tag: e.localName, rects: e.getClientRects().length })),
-  viewport: [innerWidth, innerHeight],
-}))()`;
-
 // Backend ids of every node inside a user-agent shadow root: the widgetry
 // Chrome builds for <video>, <input>, <details>… that is in no page's markup.
 function uaShadowNodes(node, inside, out) {
@@ -191,13 +178,18 @@ async function record(cdp, name, chromeVersion) {
     { policy: 'pauseIfNetworkFetchesPending', budget: VIRTUAL_TIME_MS }, s);
   await expired;
 
-  const probe = await cdp.send('Runtime.evaluate', { expression: PROBE, returnByValue: true }, s);
-  if (probe.exceptionDetails) throw new Error(`${name}: probe threw: ${probe.exceptionDetails.text}`);
-  const { viewport, ...channels } = probe.result.value;
+  const ask = async (expression) => {
+    const answer = await cdp.send('Runtime.evaluate', { expression, returnByValue: true }, s);
+    if (answer.exceptionDetails) throw new Error(`${name}: probe threw: ${answer.exceptionDetails.text}`);
+    return answer.result.value;
+  };
+  const { viewport, ...channels } = await ask(probes.flat);
   const { nodes } = await cdp.send('Accessibility.getFullAXTree', {}, s);
   // `frameId` names this session, not the page: a fresh random id per run.
   for (const node of nodes) delete node.frameId;
   const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true }, s);
+  // Last: this probe rewrites the page (fidelity-probes.js).
+  const text = await ask(probes.text);
   await cdp.send('Target.closeTarget', { targetId });
 
   if (refused.length) {
@@ -218,6 +210,7 @@ async function record(cdp, name, chromeVersion) {
       recipe: /<script/i.test(html) ? ['--css', '--js'] : ['--css'],
       bytes: served,
     },
+    text,
     ...channels,
     ax: nodes,
     ua_shadow: uaShadowNodes(root, false, []),

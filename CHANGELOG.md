@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The fidelity oracle now checks what it used to excuse** (dev-tree only;
+  nothing shipped changes). The recorder reads string `::before`/`::after`
+  content and `<textarea>` values from Chrome in paint position, and counts a
+  box only where `checkVisibility()` holds, so nine ledger residuals — seven
+  `text`, two `bboxes` — became plain equalities and were deleted. Captures
+  re-recorded on Chrome 158. [bl-7966]
+
 - **`--css --out ax` no longer reorders flex children.** The AX tree is in DOM
   order in every recipe, as Chrome's is: flex `order` and
   `flex-direction: *-reverse` do not move AX nodes (measured, Chrome 156).

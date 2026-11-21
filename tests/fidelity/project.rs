@@ -102,8 +102,9 @@ pub fn frot_forms(out: &Value, page: &str) -> Vec<String> {
     lines
 }
 
-/// `bboxes`, Chrome's side: paintedness only — the elements with at least one
-/// client rect, by source-order index. No coordinate is read, ever.
+/// `bboxes`, Chrome's side: box or no box only — the elements the recorder
+/// counted a client rect for (it counts none where `checkVisibility()` is
+/// false), by source-order index. No coordinate is read, ever.
 pub fn chrome_boxes(boxes: &Value) -> Vec<String> {
     let painted = |(_, b): &(usize, &Value)| b["rects"].as_u64() > Some(0);
     let line = |(i, b): (usize, &Value)| format!("{i} {}", text_of(&b["tag"]));

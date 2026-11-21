@@ -80,11 +80,11 @@ and the fix was accessors in frot, not comparisons against Chrome.
 
 | frot view | Chrome observable | projection (§3) | expected divergence |
 |---|---|---|---|
-| `text` | `document.body.innerText` | whitespace-collapsed token sequence | **zero** (measured: 521/521 and 776/776 tokens on two real pages) |
+| `text` | `document.body.innerText`, read after the recorder has put the two things Chrome paints and `innerText` omits — string `::before`/`::after` content and `<textarea>` values — into the tree as text where they paint (§15.1) | whitespace-collapsed token sequence | **zero** (measured: 521/521 and 776/776 tokens on two real pages) |
 | `ax` | `Accessibility.getFullAXTree` | roled-node tree in frot's model: prune `ignored`/`InlineTextBox`/`StaticText`/`ListMarker`/`generic`/UA-widget subtrees; map Blink role names; trim names | zero after projection (measured on the §12 fixture set) |
 | `links` | `document.links` | filter frot's `links` to anchor kind (frot's view also carries `<link>`/`<area>`/forms of reference `document.links` lacks — measured 195 vs 163 on one page); compare resolved `href` + text in document order | zero |
 | `forms` | `document.forms` + `form.elements` | field list per form: tag/type/name/action/method, over the four control tags the view declares (`input`/`textarea`/`select`/`button`), `type` as the attribute is written | zero (measured, §15) |
-| `bboxes` | `getClientRects().length > 0` per element | **paintedness only** — box vs no box; never a coordinate | zero for flow content; the two places the observable is not paintedness are ledger residuals (§3.3) |
+| `bboxes` | `checkVisibility() && getClientRects().length > 0` per element (§15.1) | **box vs no box only**; never a coordinate | zero for flow content; the one place frot boxes what Chrome does not — a collapsed select's options — is in the ledger (§3.3) |
 
 ### 2.3 Channels deliberately absent
 
@@ -190,18 +190,22 @@ declared way). A residual can therefore never drift silently, and the ledger
 is reviewed like code because it is code.
 
 The founding entries, all measured (§12). As built (§15), the first, third
-and fifth are ledger rows; the second and fourth produce no delta at all —
+and fifth were ledger rows; the second and fourth produce no delta at all —
 both rulers list every option, and Chrome's `StaticText` under `Canvas` is
 text granularity the `ax` projection already drops — so they are facts about
-the projection and need no row:
+the projection and need no row. The first and fifth were a blind *ruler*, not
+a fact about frot, and a blind ruler is repaired, not declared: since
+`bl-7966` (§15.1) the recorder reads generated strings from Chrome, both rows
+are gone, and those tokens are compared like any other. Only the third is
+still in the ledger:
 
 | residual | reason |
 |---|---|
-| frot `text` includes string `::before`/`::after` content; `innerText` never does | The pseudo-content **is painted** (Chrome computes the content and generates the box) — the *channel* under-reports paint; frot's inclusion is the `--css` contract (`VISION.md`, `css.md`). frot is right; innerText is the blind ruler. |
+| frot `text` includes string `::before`/`::after` content; `innerText` never does | The pseudo-content **is painted** (Chrome computes the content and generates the box) — the *channel* under-reported paint; frot's inclusion is the `--css` contract (`VISION.md`, `css.md`). **No longer a row** (§15.1): the recorder now reads the computed string from Chrome, and the two sides are equal. |
 | `<select>` options: painted UI shows the selected option; `innerText` shows all options; frot shows all options | Both rulers differ from paint; comparing them to each other is stable. The *fusion* of option texts was a defect, not a residual (§12.3), and is fixed — `<option>`/`<optgroup>` are `BLOCK_TAGS` on their measured `display:block` (`bl-66ed`, `layout.md` §2.4). |
 | `bboxes`: a **collapsed** (`size=1`) select's options get a frot box; Chrome gives them zero client rects | Chrome renders the closed popup as a UA shadow widget, so the options' boxes exist only when the list is open (`size=4`/`multiple`, where Chrome and frot both box them). frot has no UA widget rendering and does not model select modes; it lays the options out in flow either way. An over-report of paint, in the direction that keeps the document's own copy — the same choice as `<object>` fallback (`tags.rs`). |
 | canvas bare-text fallback appears in no frot view; Chrome AX has `StaticText` under `Canvas` | frot's `ax` model has no text nodes, so bare text under `<canvas>` surfaces nowhere — a model consequence, uniform with `<p>` prose. Note: `layout.md` §2.1's "kept in ax" is thereby overstated for *bare text* — what survives is element fallback (measured: a link inside canvas appears; its sibling bare text does not). Fix the wording there when this lands. |
-| `open-quote`/`close-quote` and PUA icon glyphs | frot emits the raw `` codepoint and no quote marks; innerText emits neither. Sub-token noise the token projection mostly absorbs; declared for the icon-font case. |
+| `open-quote`/`close-quote` and PUA icon glyphs | frot emits the raw `` codepoint and no quote marks; innerText emits neither. **The icon row is gone** (§15.1): Chrome's computed `content` *is* that codepoint and Chrome paints it, so frot emitting it is an equality, not a choice. Quote marks are still unseen by both sides — Chrome paints them, the recorder reads only strings, frot emits none — so they produce no delta and no row (§10.5). |
 
 ## 4. Corpus — same bytes, pinned captures
 
@@ -370,9 +374,14 @@ and is refused, not deferred:
 4. **JS nondeterminism.** Only fixtures with deterministic scripts get a
    `--css --js` capture; pages whose DOM depends on `Date`/random/network
    timing are compared under `--css` only (the `ab_harness` parity rule).
-5. **The channel's own blind spots.** innerText cannot see generated
-   content; the AX channel cannot see what Blink chooses not to expose. The
-   ledger names these; it cannot repair them.
+5. **The channel's own blind spots.** The AX channel cannot see what Blink
+   chooses not to expose. `innerText` could not see generated content; the
+   recorder now reads the string part of it from Chrome (§15.1), and what is
+   left unseen is named here because it produces no delta to hang a row on:
+   `counter()`/`counters()`, `open-quote`/`close-quote`, images in `content`,
+   `::marker`, and the painted value or placeholder of an `<input>`. Chrome
+   paints all of these; frot's `text` emits none of them; the channel reports
+   neither, so it says nothing either way.
 6. **Fixture realism.** Localized saved pages drift from their origins the
    day they are saved. That is F1's price, paid knowingly; the live recorder
    exists to notice when reality has moved far enough to warrant a new save.
@@ -578,3 +587,52 @@ put the `<title>` into `text`, and the first named an `<optgroup>` `""`
 on closed `<details>` — `bl-d470` was a defect of the recipe *without* `--css`,
 which §2.1 already puts outside the comparable domain. The `--css` class is
 `bl-74a6`, and the rule now names it.
+
+### 15.1 The blind channels made to see — 2026-11-20, Chrome 158.0.8127.36 (`bl-7966`)
+
+Nine of the residual rows above said "frot is right, the ruler is blind". A
+row like that asserts only that frot still emits *something* there; it cannot
+catch frot emitting the wrong thing. So the ruler was repaired and the rows
+deleted. All ten pages were re-recorded on Chrome 158; no new delta appeared.
+
+**`text`.** After every other channel has been read, the recorder's text probe
+(`scripts/fidelity-probes.js`) asks Chrome for the computed `content` of every
+element's `::before` and `::after` and for every `<textarea>`'s value, inserts
+each as a real element where it paints (first child, last child, just before
+the control) carrying the computed `display`, `visibility` and
+`text-transform` of what it stands for, and reads `innerText` once. Measured
+on a scratch page: `attr()` arrives already resolved to a string; a
+`display:block` pseudo breaks the line; content under `display:none` or
+`visibility:hidden` stays out; `url()`, `counter()` and the alternative text
+after `/` are not taken. The capture's `text` is therefore no longer the bare
+`innerText` — it is `innerText` of the page with its generated strings made
+real. The insertion can in principle disturb a structural selector
+(`:empty`, `:first-child`) on the element it lands in; nothing in the corpus
+does, and a page where it did would show up as a delta, not hide one.
+
+The seven rows that became equalities: `article` `By`; `generated` `NEW:`
+(twice), `(done)` and the private-use icon glyph U+E609; `forms` `draft`
+`text` (the textarea). The icon glyph needed no decision: Chrome's computed
+`content` is that codepoint and Chrome paints it, so both sides carry it.
+
+**`bboxes`.** Measured, per element, `getClientRects().length` against
+`checkVisibility()` (default options):
+
+| case | client rects | `checkVisibility()` |
+|---|---|---|
+| body of a closed `<details>`; content under `hidden=until-found` | 1 | false |
+| `display:none`, `[hidden]`, `display:contents`, media/canvas fallback, a collapsed select's options | 0 | false |
+| `visibility:hidden` | 1 | true (false only with `visibilityProperty: true`) |
+| zero-size box, empty block, `opacity:0`, off-screen | 1 | true |
+| SVG `<defs>` and its children, `<wbr>` | 0 | true |
+
+Neither answer alone is "has a box"; their conjunction is, and that is what
+the recorder now stores in `boxes[].rects` (the rect count where
+`checkVisibility()` holds, else 0). `visibilityProperty` is deliberately off:
+frot's `bboxes` lists a `visibility:hidden` element because it occupies space
+(`layout.md` §7), and so does Chrome. The two closed-`<details>` rows became
+equalities; the channel's name for what it compares is now "box", not
+"paintedness".
+
+**What is left.** Four ledger rows, all one residual: the collapsed select's
+options (`bl-2932`). No row is a blind ruler any more.
