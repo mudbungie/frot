@@ -192,6 +192,11 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/canvaselem.js"),
     "\n",
+    // Image / HTMLImageElement (bl-1404): an <img> in no tree, and the tag-keyed
+    // interface. After canvas.js — it shares `width`/`height` on Node.prototype
+    // with the canvas element and defers to it for every other tag.
+    include_str!("prelude/image.js"),
+    "\n",
     // WebGL fingerprint (bl-f624): a coherent, deterministic simulation. webglpix.js
     // (the shared FNV digest + xorshift bitmap expansion) first, then webgl.js (the
     // branded WebGL/WebGL2 contexts, masked VENDOR/RENDERER, coherent Mesa/llvmpipe

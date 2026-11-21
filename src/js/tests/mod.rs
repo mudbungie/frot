@@ -19,6 +19,7 @@ mod envgold;
 mod evloop;
 mod facade;
 mod idle;
+mod image;
 mod iterator;
 mod net;
 mod netbudget;

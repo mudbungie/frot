@@ -795,6 +795,9 @@ succeed.
 > **2026-11-20 (`bl-db8f`):** AES-CBC is built, with the rest of the
 > secret-key half of WebCrypto (identity.md §3.19), so those three rejections
 > are gone.
+>
+> **2026-11-20 (`bl-1404`):** `Image` exists (identity.md §3.20); the page's
+> beacons construct and are not sent.
 
 ### 11.5 A challenge declared at 400 or above (`bl-a7c5`, 2026-11-20)
 

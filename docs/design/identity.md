@@ -1244,6 +1244,42 @@ CPU-core estimator that the challenge path never calls, so an executing
 real in general and is now slightly wider: a script that feature-tests `Blob`
 and then waits on a Blob-URL worker waits forever in frot.
 
+**`Image` and `HTMLImageElement` (`bl-1404`, 2026-11-20).**
+
+| fact | value | provenance |
+|---|---|---|
+| the globals | `Image` and `HTMLImageElement`: functions, `.length` 0, writable, non-enumerable, configurable; `Image.prototype === HTMLImageElement.prototype`; `Image()` without `new` → `TypeError: Image constructor: 'new' is required`; `new HTMLImageElement()` → `TypeError: Illegal constructor.` | read |
+| `new Image()` | an `<img>` (`tagName` `IMG`, `outerHTML` `<img>`) in the page's document with no parent; owns no properties; `instanceof` `Image`, `HTMLImageElement` and `HTMLElement` | read |
+| `new Image(w, h)` | sets the `width`/`height` **attributes**, converted as `unsigned long` (`'7'` → 7, `2.7` → 2, `-1` → 0); the height is only read when a width was passed (`new Image(undefined, 5)` → `<img>`) | read |
+| before any `src` | `complete` `true`, `naturalWidth`/`naturalHeight` 0, `width`/`height` 0, `src` and `currentSrc` `""`; nothing fires | read |
+| `img.src = url`, synchronously | the attribute is set (`src` reads back resolved), `complete` **`false`**, `naturalWidth` 0, `currentSrc` `""` | read |
+| …then, the image exists | `load`; `naturalWidth` its width; `complete` `true` | read |
+| …a 404, a refused connection, a non-image `data:` URL, `src = ""` | `error` (an `Event`); `naturalWidth` 0; `complete` `true` | read |
+| …a valid `data:image/gif` | `load`, with its real size, no network | read |
+| …with images blocked (`permissions.default.image = 2`), the image exists | `error`; `naturalWidth` 0; `complete` `true` | read |
+| `HTMLImageElement.prototype` | `decode, alt, src, srcset, crossOrigin, useMap, referrerPolicy, isMap, width, height, decoding, loading, fetchPriority, naturalWidth, naturalHeight, complete, name, align, hspace, vspace, longDesc, border, sizes, currentSrc, lowsrc, x, y, constructor`; parent `HTMLElement.prototype` | read |
+
+*As built:* `src/js/prelude/image.js`. `new Image()` is the node
+`document.createElement('img')` makes; `HTMLImageElement` matches any `<img>`
+by tag, like frot's other element interfaces. **The decision, and it is a
+choice (`pinned`), not a reading:** frot fetches no image and decodes none, so
+in frot **an image never arrives.** Assigning `src` sets the attribute and
+sends no request; neither `load` nor `error` ever fires; `complete` is `false`
+while there is a non-empty `src` and `true` otherwise; the natural size is 0.
+Every one of those values is what the binary reports in the instant after the
+assignment (row 5) — frot holds that instant for the whole run. It is the same
+for a parsed `<img>`, a created one and `new Image()`, which is why it was
+chosen: it changes nothing an existing `<img>` already did. **A beacon (`new
+Image().src = url`) is therefore not sent.** The alternatives — fail every
+image the way a Firefox with images blocked does (row 9), or send the GET —
+are a decision with consequences beyond this interface, filed as `bl-91a4`.
+**Short of Firefox, declared (§11):** a page that waits for an image's `load`
+or `error` waits until the run ends; a `data:` image does not load; no
+`decode()`; `width`/`height` are the attributes only (no layout or intrinsic
+size behind them); `alt`, `loading`, `decoding`, `crossOrigin`, `x`, `y` and
+the rest are not IMG properties; `HTMLImageElement.prototype` owns only
+`constructor`.
+
 ### 3.19 The secure-context surface and WebCrypto's shape, read off the binary (`bl-b0f8`, 2026-11-17)
 
 **Ruling.** `bl-b0f8` asked whether frot publishes `crypto.subtle`. §3.18 turned
@@ -2253,6 +2289,7 @@ Permanently out of reach, by design or by constraint:
 | **`FormData`** | Built 2026-11-17 (`bl-6eb9`, §3.20) because a measured challenge POSTs one. Residual: `new FormData(<form>)` throws a `frot:` `TypeError` — frot reads no form's controls, since it originates no submission (`challenge.md` §2) and an empty entry list would be a wrong answer; values are always strings (Firefox makes a `File` of a `Blob`); `entries()`/`keys()`/`values()` are array iterators, not `FormData Iterator`s. |
 | **`TextDecoder` legacy encodings** | `TextEncoder`/`TextDecoder` are built for UTF-8 (`bl-53b7`, §3.20). Firefox's `TextDecoder` also decodes some forty legacy encodings (`windows-1252`, `utf-16le`, `shift_jis`, …); frot's refuses every non-UTF-8 label with the `RangeError` Firefox gives an unknown one — a refusal, never mis-decoded text. A page that decodes a legacy encoding in script sees a Firefox that cannot. `encoding_rs` (Gecko's own decoder) is already linked, so closing this is a syscall, not a crate. |
 | **`requestIdleCallback` `timeout`** | Built on the virtual clock (`bl-b584`, §3.20): an idle callback runs once every timer due at that instant has run. The idle period therefore always arrives, so `didTimeout` is always `false` and a `timeout` option is accepted and unused — where a busy real page can report `true`. A coherent value a real Firefox also produces, not a fabricated one. |
+| **`Image` / `<img>` loading** | `Image` and `HTMLImageElement` exist (`bl-1404`, §3.20). **An image never arrives** — a pinned choice: no request is sent for any `<img>` (so no beacon), neither `load` nor `error` fires, `complete` stays `false` once a `src` is set, the natural size is 0. A real Firefox holds that state only until the response; a page awaiting the image waits out the run. No `data:` image loading, no `decode()`, no IMG-specific properties beyond `src`/`width`/`height`/`complete`/`naturalWidth`/`naturalHeight`/`currentSrc`. Whether images should fail instead (what a Firefox with images blocked does, measured) or beacons be sent: `bl-91a4`. |
 | **`Blob` / blob: URLs** | `Blob`, `URL.createObjectURL` and `revokeObjectURL` are real (`bl-78c5`, §3.20). Residual: no `Blob.prototype.stream` (no `ReadableStream`); a blob: URL cannot be loaded — `fetch`/XHR of one is a network error where Firefox answers 200, and a Blob-URL `Worker` never runs (the Worker row above); no `File`, no `FileReader` (`bl-8c46`); a `FormData` holding a `Blob` cannot be POSTed. Each is a refusal or an absence, never a wrong value. |
 | **`Intl` beyond `DateTimeFormat.resolvedOptions()`** | Residual. quickjs-ng ships without `Intl`; frot provides the low-entropy locale/timezone subset a page reads (`DateTimeFormat` + `resolvedOptions`, `timeZone` pinned UTC). `NumberFormat`/`Collator`/`RelativeTimeFormat`/real locale-aware formatting are unbuilt — a filed gap, not a permanent non-goal. |
 | **`__frot_*` syscall names enumerable on `globalThis`** | Residual. `Function.prototype.toString` no longer leaks their source or the name (`bl-3926` branding), but the syscall **names** are still enumerable globals (`Object.getOwnPropertyNames(window)`). Making them non-enumerable touches every `bind!` site and is tracked as a separate concern. |

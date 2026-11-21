@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`Image` and `HTMLImageElement` exist under `--js`.** `new Image()` is an
+  `<img>` element outside the tree; `new Image(w, h)` sets its `width` and
+  `height`. frot still fetches no images: assigning `src` sends no request (a
+  tracking-pixel beacon is not sent), neither `load` nor `error` fires, and
+  `complete` stays `false` with a natural size of 0 — for every `<img>`,
+  parsed or constructed. A page that waits for an image to load waits until
+  the run ends. [bl-1404]
+
 - **`--out ax`: an inline `<svg>` with nothing exposed inside it is an `img`**
   (was always `graphics-document`), as in Chrome. It stays a
   `graphics-document` when it holds text in a `<text>` or a described part.
