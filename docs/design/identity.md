@@ -1455,6 +1455,77 @@ engine (`e instanceof DOMException`, `e.code` differ), a pre-existing residual.
 
 ---
 
+### 3.21 The DOM interface chain: measured, decided, and split (`bl-9f79`, `bl-fcdd`, 2026-11-20)
+
+`bl-9f79` — *`document` owns 37 properties; a real one owns exactly one* — was
+deferred from `bl-643d` with two options: (a) make the document a real arena
+node so it can inherit `Node.prototype`, or (b) hang it off `EventTarget` and
+record the missing link. This section measures further, **decides (a)**, and
+shows why (a) is three prerequisite changes rather than one ball. No code
+landed with it.
+
+**Measured** (same rig as §3.19, a page served from a loopback address;
+frot is `main` at `1d998c8`):
+
+| question | Firefox 153.0esr | frot |
+|---|---|---|
+| `document.documentElement.parentNode` | the document | `null` |
+| `document.appendChild`, `.childNodes`, `.firstChild`, `.contains` | present (from `Node.prototype`); `childNodes.length` 2 | **absent** — `document.contains(document.body)` throws `not a function` |
+| `document instanceof Node` | `true` | `false` |
+| `document.textContent` / `.ownerDocument` | `null` / `null` | `undefined` / `null` |
+| `Object.getOwnPropertyNames(document).length` | 1 (`location`) | 32 |
+| `Object.prototype.toString.call(document)` | `[object HTMLDocument]` | `[object Object]` |
+| `Object.getOwnPropertyNames(Node.prototype).length` | 48 — tree operations, tree attributes, the node-type and document-position constants; **no element member** | 75 — `getAttribute`, `className`, `style`, `innerHTML`, `getContext`, `width`… included |
+| `Object.getOwnPropertyNames(Element.prototype).length` | 144 | 1 (`constructor`) |
+| `HTMLElement.prototype → Element.prototype → Node.prototype` | each link holds | neither holds |
+| a text node's prototype; `typeof textNode.getAttribute` | `Text.prototype`; `undefined` | the one `Node.prototype`; `function` |
+| `DocumentFragment.prototype` | `getElementById, prepend, append, replaceChildren, moveBefore, querySelector, querySelectorAll, children, firstElementChild, lastElementChild, childElementCount, constructor` — the tree operations are inherited | `appendChild, insertBefore, removeChild, nodeType, nodeName, ownerDocument, childNodes, firstChild, constructor`, hand-written |
+| `new DocumentFragment().parentNode` | `null` | `undefined` |
+
+So the ball's title understates it. The own-property count is the visible
+symptom of two structural facts:
+
+1. **The document is not in the arena.** `Document { nodes, roots }` (`src/dom.rs`)
+   has no entry for itself: `NodeKind` is `Element | Text | Comment | Doctype`
+   and a root's `parent` is `None`. No syscall can name the document, so its
+   prelude object is hand-built, and the tree operations a page calls on it do
+   not exist at all — a *functional* gap, not only a shape.
+2. **frot has one prototype for every node.** Each element, text node and
+   comment is `Object.create(Node.prototype)`, and that prototype carries the
+   element members too. `Element`, `HTMLElement`, `Text` and the tag-keyed
+   interfaces are `Symbol.hasInstance` predicates over empty prototypes.
+
+**Decision: (a), and in this order.** Option (b) is rejected: it would get the
+count to 1 while leaving `document.appendChild` absent and asserting that
+`nodeType`/`textContent` live on `Document.prototype`, which the binary
+contradicts. But (a) *as the ball states it* is not safe to build alone:
+because of fact 2, a document that inherited today's `Node.prototype` would
+gain `getAttribute`, `style`, `innerHTML` and `getContext`. That trades "37
+own properties" for "a document with element members" — a louder tell than
+the one being fixed. Hence three prerequisites, each a complete change that
+leaves frot coherent by itself:
+
+| step | ball | what changes | visible to a page when it lands |
+|---|---|---|---|
+| 1 | `bl-196a` | **Host.** The document becomes an arena node: a `NodeKind::Document` entry whose children *are* the roots (one list, not two), and every root's parent is it. The generic syscalls then work on its id with no special case. | a root's `parentNode` can be answered; nothing else yet |
+| 2 | `bl-de06` (needs 1) | **Host.** The staging fragment becomes an arena node (`NodeKind::Fragment`); inserting a fragment moves its children in `src/dom/mutate.rs`, replacing the private JS `drain` and the two `nodeType === 11` branches. | nothing |
+| 3 | `bl-78cb` (independent) | **Prelude.** One prototype per node kind — `Node.prototype` holding only what Gecko's holds, `Element.prototype`/`HTMLElement.prototype` holding the element members, `CharacterData.prototype` under `Text`/`Comment` — chosen by `wrap(id)` from the node's kind. Member placement is captured from the binary first, never taken from the specification. | text nodes lose element members; `Element.prototype` is populated |
+| 4 | `bl-9f79` (needs 1–3) | **Prelude.** `document = wrap(<document id>)` over `HTMLDocument.prototype → Document.prototype → Node.prototype → EventTarget.prototype`; the members the six modules assign onto `g.document` move to `Document.prototype` in the captured order (`~/.cache/frot-capture/cap11.json`, 232 names; frot defines the ones it implements, in that order); `DocumentFragment.prototype` likewise shrinks to its measured own members. The instance owns `location` alone. | the row-by-row table above closes |
+
+Sizing, so nobody rediscovers it: about 70 `NodeKind::` sites outside tests
+gain a case in step 1 (most are `if let Element` and need nothing), spread
+over `src/dom`, `src/js/syscall.rs`, `src/views`, `src/ax`, `src/layout`,
+`src/css` and `src/needs`; about 16 prelude files define members on the flat
+prototype and are touched by step 3 (`elem2.js` 24 definitions, `canvas.js`
+12, `elem.js` 9, `webgl.js` 6, and smaller). Step 1 must also decide whether
+the document entry is index 0 — every `NodeId` then shifts by one, which
+matters wherever a view prints an id — or a reserved id outside `nodes`; that
+is recorded here when it is made.
+
+**Until step 4 lands** the residual is exactly the frot column above, and
+`Image`'s and `<canvas>`'s members stay on the one `Node.prototype` behind a
+tag check (`image.js`, `canvaselem.js`) — step 3 moves them.
+
 ## 4. The one profile
 
 `BrowserProfile` is a single `const` (proposed home: `src/fetch/profile.rs`).
