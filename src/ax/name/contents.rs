@@ -39,17 +39,24 @@
 //! [`walk::Via`], which the recursion reads through predicates and never
 //! matches on.
 //!
-//! Spacing: raw text is concatenated verbatim (`<button>Hello<span>world</span>`
-//! is "Helloworld" in browsers too), while an alternative is a *word* standing
-//! in for an element and is fenced with spaces. The caller collapses runs, so
-//! the fences never double up.
+//! Spacing follows the **box**, not the role (`bl-fb69`, measured in Chrome
+//! 158). Inline content is concatenated verbatim (`<button>Hello<span>world
+//! </span>` is "Helloworld" in browsers too). Two things are fenced with
+//! spaces: an alternative, which is a *word* standing in for an element, and
+//! the contents of any element that is not a plain inline box — a block, a
+//! table cell, a list item, an inline-block, a flex container — plus the line
+//! breaks `<br>`/`<wbr>` ([`breaks`]). So `<button><div>a</div><div>b</div>`
+//! is "a b" and a grid row of `<td>`s is "G1 10", while a row of
+//! `<span role=gridcell>`s stays "ab". The caller collapses runs, so the
+//! fences never double up.
 
 mod native;
 mod walk;
 
 use crate::ax;
-use crate::css::Styles;
+use crate::css::{Display, Styles};
 use crate::dom::{Document, Element, NodeId, NodeKind};
+use crate::tags;
 use native::native_alternative;
 pub use native::svg_title;
 use walk::Walk;
@@ -142,6 +149,11 @@ fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, o
     let mut said = String::new();
     match alternative(inner, id, el, visited) {
         Some(text) => fence(&mut said, &text),
+        None if breaks(id, el, w.styles) => {
+            let mut own = String::new();
+            children_text(inner, id, visited, &mut own);
+            fence(&mut said, &own);
+        }
         None => children_text(inner, id, visited, &mut said),
     }
     // §2I is last and conditional on saying nothing at all — which an
@@ -155,8 +167,20 @@ fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, o
     out.push_str(&said);
 }
 
-/// An alternative is a *word* standing in for an element, so it is spaced off
-/// from the text either side of it.
+/// Whether `el`'s box separates its contents from the text either side: every
+/// box but a plain inline one, and the two line-break elements. The box is the
+/// cascade's `display` when there is one and the tag's own
+/// ([`tags::is_block`]) when there is not.
+fn breaks(id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
+    matches!(el.name.as_str(), "br" | "wbr")
+        || match styles {
+            Some(s) => s.display(id) != Display::Inline,
+            None => tags::is_block(&el.name),
+        }
+}
+
+/// Space `text` off from the text either side of it: an alternative is a
+/// *word* standing in for an element, and a non-inline box is its own run.
 fn fence(out: &mut String, text: &str) {
     out.push(' ');
     out.push_str(text);

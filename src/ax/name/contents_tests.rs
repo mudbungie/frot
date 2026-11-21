@@ -58,7 +58,7 @@ fn text_and_images_mix_in_tree_order() {
 
 #[test]
 fn inline_text_is_concatenated_without_invented_spaces() {
-    // Browsers name this "Helloworld": only alternatives are fenced.
+    // Browsers name this "Helloworld": an inline box is not a separator.
     assert_eq!(
         name("<button>Hello<span>world</span></button>", "button"),
         Some("Helloworld".into())

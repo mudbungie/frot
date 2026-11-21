@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `text`, two `bboxes` — became plain equalities and were deleted. Captures
   re-recorded on Chrome 158. [bl-7966]
 
+- **An accessible name computed from contents keeps block boundaries.** The
+  contents of any child that is not a plain inline box (a block, table cell,
+  list item, inline-block, flex container) and the line breaks `<br>`/`<wbr>`
+  are spaced off from their neighbours, as in Chrome:
+  `<button><div>a</div><div>b</div></button>` is "a b" (was "ab"), a grid row
+  of `<td>`s is "G1 10" (was "G110"). Inline children still join: two
+  `<span>`s are "in1in2". Under `--css` the box is the computed `display`.
+  [bl-fb69]
+
 - **`--css --out ax` no longer reorders flex children.** The AX tree is in DOM
   order in every recipe, as Chrome's is: flex `order` and
   `flex-direction: *-reverse` do not move AX nodes (measured, Chrome 156).

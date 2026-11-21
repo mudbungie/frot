@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Names and roles at the edges</title>
+</head>
+<body>
+<h1>Names and roles at the edges</h1>
+
+<h2>Separators in a name follow the box</h2>
+<table role="grid" aria-label="grid"><tr><th scope="row">G1</th><td>10</td></tr></table>
+<div role="grid" aria-label="spans"><div role="row"><span role="gridcell">a</span><span role="gridcell">b</span></div></div>
+<p><button>A<div>blk1</div><div>blk2</div>B</button></p>
+<div><a href="/paras"><p>para1</p><p>para2</p></a></div>
+<h3>head<br>br</h3>
+<p><button><span>in1</span><span>in2</span></button></p>
+<p><button>e<div></div>f</button></p>
+<p><button>n<div><div>nest</div></div>o</button></p>
+<p><button>hr<hr>rule</button></p>
+<h3>aa<span style="display:none">no</span>bb</h3>
+<div><label for="lz">la<div>lb</div>lc</label><input id="lz"></div>
+<p><button aria-labelledby="r1">zz</button></p><div id="r1">ra<div>rb</div>rc</div>
+</body>
+</html>

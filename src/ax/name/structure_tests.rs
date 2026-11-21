@@ -129,7 +129,7 @@ fn a_table_row_is_not_named_from_its_cells() {
 
 /// In a `grid` or `treegrid` the row *is* named from its cells (Chrome 156:
 /// `row "ab"` for the inline cells below). Where the cells are table cells
-/// Chrome also spaces them — "G1 10" — which frot does not yet (`bl-fb69`).
+/// Chrome also spaces them — "G1 10" — as does frot (`bl-fb69`, below).
 #[test]
 fn a_grid_row_is_named_from_its_cells() {
     for grid in ["grid", "treegrid"] {
@@ -181,4 +181,94 @@ fn a_term_is_named_from_its_contents() {
     ] {
         assert_eq!(name(html, tag).as_deref(), want, "{html}");
     }
+}
+
+// --- Separators follow the box (`bl-fb69`) ---------------------------------
+//
+// Every expectation is Chrome 158's name for the same markup
+// (`Accessibility.getFullAXTree`, `--headless=new`).
+
+#[test]
+fn a_block_child_is_spaced_off_and_an_inline_one_is_not() {
+    for (html, want) in [
+        (
+            "<button>A<div>blk1</div><div>blk2</div>B</button>",
+            "A blk1 blk2 B",
+        ),
+        (
+            "<button><span>in1</span><span>in2</span></button>",
+            "in1in2",
+        ),
+        ("<button>e<div></div>f</button>", "e f"),
+        ("<button>n<div><div>nest</div></div>o</button>", "n nest o"),
+        (
+            "<button>li<ul><li>one</li><li>two</li></ul></button>",
+            "li one two",
+        ),
+        ("<button>hr<hr>rule</button>", "hr rule"),
+    ] {
+        assert_eq!(name(html, "button").as_deref(), Some(want), "{html}");
+        assert_eq!(name_css(html, "button").as_deref(), Some(want), "{html}");
+    }
+}
+
+#[test]
+fn a_line_break_separates_words() {
+    assert_eq!(name("<h2>head<br>br</h2>", "h2"), Some("head br".into()));
+    assert_eq!(name("<h2>wb<wbr>wb2</h2>", "h2"), Some("wb wb2".into()));
+}
+
+#[test]
+fn a_table_cell_boundary_is_a_space_and_an_inline_gridcell_is_not() {
+    let cells = "<table role=grid><tr><th scope=row>G1</th><td>10</td></tr></table>";
+    assert_eq!(name(cells, "tr"), Some("G1 10".into()));
+    let spans = "<div role=grid><div role=row id=r><span role=gridcell>a</span>\
+                 <span role=gridcell>b</span></div></div>";
+    let d = Document::parse(spans);
+    let row = find_by_id(&d, "r").unwrap();
+    assert_eq!(accessible_name(&d, row, None), Some("ab".into()));
+}
+
+/// Under `--css` the box is the computed `display`, whatever the tag.
+#[test]
+fn the_computed_display_decides_under_css() {
+    for (html, want) in [
+        (
+            "<button>x<span style='display:block'>sb</span>y</button>",
+            "x sb y",
+        ),
+        (
+            "<button>x<div style='display:inline'>di</div>y</button>",
+            "xdiy",
+        ),
+        (
+            "<button>x<span style='display:inline-block'>ib</span>y</button>",
+            "x ib y",
+        ),
+        (
+            "<button>x<span style='display:flex'>fx</span>y</button>",
+            "x fx y",
+        ),
+        (
+            "<button>x<span style='display:inline-flex'>ifx</span>y</button>",
+            "x ifx y",
+        ),
+        (
+            "<button>x<span style='display:list-item'>li</span>y</button>",
+            "x li y",
+        ),
+    ] {
+        assert_eq!(name_css(html, "button").as_deref(), Some(want), "{html}");
+    }
+    // Without the cascade the tag's own box stands.
+    let html = "<button>x<div style='display:inline'>di</div>y</button>";
+    assert_eq!(name(html, "button"), Some("x di y".into()));
+}
+
+#[test]
+fn a_label_and_a_reference_space_their_blocks_too() {
+    let label = "<label for=z>la<div>lb</div>lc</label><input id=z>";
+    assert_eq!(name(label, "input"), Some("la lb lc".into()));
+    let reference = "<button aria-labelledby=r>zz</button><div id=r>ra<div>rb</div>rc</div>";
+    assert_eq!(name(reference, "button"), Some("ra rb rc".into()));
 }

@@ -544,7 +544,9 @@ stamp each fail.
 `disclosure`, `hidden`, `generated`, `structure` (tables, lists, selects),
 `flex`, `svg`, `forms` (forms and links), `article` (landmarks, an external
 stylesheet), `script` (a deterministic DOM build with a timer; `--css --js`).
-Added since: `select` (select modes, `bl-2932`, 2026-11-20, Chrome 158).
+Added since (2026-11-20, Chrome 158): `select` (select modes, `bl-2932`) and
+`names` (accessible-name and role edge cases, one section per ball, from
+`bl-fb69` on).
 
 **What the first recording found.** 51 ledger rows over 10 pages × 5 channels.
 `links` and `forms`: zero deltas. `text`: zero deltas outside the two
