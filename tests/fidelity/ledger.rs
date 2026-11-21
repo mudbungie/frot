@@ -14,15 +14,16 @@
 //! Rule 2 (`fidelity.md` §11) watches this file: if rows grow with the corpus,
 //! the projection is misdrawn and is what should change.
 
-/// Why a delta is expected. There is no third kind (F4).
+/// Why a delta is expected. There is no third kind (F4). Either kind may have
+/// no row at a given moment — an empty ledger is the healthy state — so a
+/// variant may stand unconstructed.
+#[allow(dead_code)]
 pub enum Why {
     /// frot is right and the channel is blind, or the fact is outside frot's
     /// declared model. The reason, with its source.
     Residual(&'static str),
     /// frot differs from the browser and the question is filed: the ball. The
-    /// row pins the divergence until that ball lands. A ledger with no defect
-    /// row is the healthy state, so the variant may stand unconstructed.
-    #[allow(dead_code)]
+    /// row pins the divergence until that ball lands.
     Defect(&'static str),
 }
 
@@ -42,16 +43,9 @@ const fn row(fixture: &'static str, channel: &'static str, delta: &'static str, 
     }
 }
 
-const COLLAPSED_SELECT: Why = Why::Residual(
-    "A collapsed select's options have no client rects in Chrome (the closed popup is a UA \
-     widget); frot does not model select modes and lays them out in flow — an over-report of \
-     paint that keeps the document's own copy (fidelity.md §3.3, layout.md §2.4).",
-);
+const HIDDEN_OPTION: Why = Why::Defect("bl-240d");
 
 pub const LEDGER: &[Row] = &[
-    // bboxes — where frot boxes what Chrome does not.
-    row("forms", "bboxes", "+ 25 option", COLLAPSED_SELECT),
-    row("forms", "bboxes", "+ 26 option", COLLAPSED_SELECT),
-    row("structure", "bboxes", "+ 35 option", COLLAPSED_SELECT),
-    row("structure", "bboxes", "+ 36 option", COLLAPSED_SELECT),
+    // text — open divergences, one ball each.
+    row("select", "text", "- h2", HIDDEN_OPTION),
 ];

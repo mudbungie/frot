@@ -84,7 +84,7 @@ and the fix was accessors in frot, not comparisons against Chrome.
 | `ax` | `Accessibility.getFullAXTree` | roled-node tree in frot's model: prune `ignored`/`InlineTextBox`/`StaticText`/`ListMarker`/`generic`/UA-widget subtrees; map Blink role names; trim names | zero after projection (measured on the §12 fixture set) |
 | `links` | `document.links` | filter frot's `links` to anchor kind (frot's view also carries `<link>`/`<area>`/forms of reference `document.links` lacks — measured 195 vs 163 on one page); compare resolved `href` + text in document order | zero |
 | `forms` | `document.forms` + `form.elements` | field list per form: tag/type/name/action/method, over the four control tags the view declares (`input`/`textarea`/`select`/`button`), `type` as the attribute is written | zero (measured, §15) |
-| `bboxes` | `checkVisibility() && getClientRects().length > 0` per element (§15.1) | **box vs no box only**; never a coordinate | zero for flow content; the one place frot boxes what Chrome does not — a collapsed select's options — is in the ledger (§3.3) |
+| `bboxes` | `checkVisibility() && getClientRects().length > 0` per element (§15.1) | **box vs no box only**; never a coordinate | zero for flow content; a collapsed select's options, once the one ledger residual here, have no box on either side since `bl-2932` (`layout.md` §2.4) |
 
 ### 2.3 Channels deliberately absent
 
@@ -196,14 +196,14 @@ text granularity the `ax` projection already drops — so they are facts about
 the projection and need no row. The first and fifth were a blind *ruler*, not
 a fact about frot, and a blind ruler is repaired, not declared: since
 `bl-7966` (§15.1) the recorder reads generated strings from Chrome, both rows
-are gone, and those tokens are compared like any other. Only the third is
-still in the ledger:
+are gone, and those tokens are compared like any other. The third went with
+`bl-2932` (2026-11-20), which made it true of frot instead of declaring it:
 
 | residual | reason |
 |---|---|
 | frot `text` includes string `::before`/`::after` content; `innerText` never does | The pseudo-content **is painted** (Chrome computes the content and generates the box) — the *channel* under-reported paint; frot's inclusion is the `--css` contract (`VISION.md`, `css.md`). **No longer a row** (§15.1): the recorder now reads the computed string from Chrome, and the two sides are equal. |
 | `<select>` options: painted UI shows the selected option; `innerText` shows all options; frot shows all options | Both rulers differ from paint; comparing them to each other is stable. The *fusion* of option texts was a defect, not a residual (§12.3), and is fixed — `<option>`/`<optgroup>` are `BLOCK_TAGS` on their measured `display:block` (`bl-66ed`, `layout.md` §2.4). |
-| `bboxes`: a **collapsed** (`size=1`) select's options get a frot box; Chrome gives them zero client rects | Chrome renders the closed popup as a UA shadow widget, so the options' boxes exist only when the list is open (`size=4`/`multiple`, where Chrome and frot both box them). frot has no UA widget rendering and does not model select modes; it lays the options out in flow either way. An over-report of paint, in the direction that keeps the document's own copy — the same choice as `<object>` fallback (`tags.rs`). |
+| ~~`bboxes`: a **collapsed** (`size=1`) select's options get a frot box; Chrome gives them zero client rects~~ | No longer a residual (`bl-2932`, 2026-11-20): frot models select modes, and a menu list's contents get no box (`layout.md` §2.4). Its 4 ledger rows are deleted. |
 | canvas bare-text fallback appears in no frot view; Chrome AX has `StaticText` under `Canvas` | frot's `ax` model has no text nodes, so bare text under `<canvas>` surfaces nowhere — a model consequence, uniform with `<p>` prose. Note: `layout.md` §2.1's "kept in ax" is thereby overstated for *bare text* — what survives is element fallback (measured: a link inside canvas appears; its sibling bare text does not). Fix the wording there when this lands. |
 | `open-quote`/`close-quote` and PUA icon glyphs | frot emits the raw `` codepoint and no quote marks; innerText emits neither. **The icon row is gone** (§15.1): Chrome's computed `content` *is* that codepoint and Chrome paints it, so frot emitting it is an equality, not a choice. Quote marks are still unseen by both sides — Chrome paints them, the recorder reads only strings, frot emits none — so they produce no delta and no row (§10.5). |
 
@@ -437,7 +437,7 @@ saved and read as the same bytes by both sides.
    outside a select entirely, so they joined `BLOCK_TAGS`. The same session
    measured two more facts in that subtree — `<datalist>` is a UA declaration
    (`layout.md` §2.3) and the collapsed select's absent option boxes are a
-   residual (§3.3) — and left the `<optgroup label>` accessible name filed
+   residual (§3.3; modelled instead since `bl-2932`) — and left the `<optgroup label>` accessible name filed
    separately as `bl-4093`, since `innerText` carries neither attribute and the
    text channel already agreed. Fixed there: the `label` content attribute is a
    name-from-author source on both tags, two rows in `ax::name`'s existing
@@ -544,6 +544,7 @@ stamp each fail.
 `disclosure`, `hidden`, `generated`, `structure` (tables, lists, selects),
 `flex`, `svg`, `forms` (forms and links), `article` (landmarks, an external
 stylesheet), `script` (a deterministic DOM build with a timer; `--css --js`).
+Added since: `select` (select modes, `bl-2932`, 2026-11-20, Chrome 158).
 
 **What the first recording found.** 51 ledger rows over 10 pages × 5 channels.
 `links` and `forms`: zero deltas. `text`: zero deltas outside the two
@@ -634,5 +635,8 @@ frot's `bboxes` lists a `visibility:hidden` element because it occupies space
 equalities; the channel's name for what it compares is now "box", not
 "paintedness".
 
-**What is left.** Four ledger rows, all one residual: the collapsed select's
-options (`bl-2932`). No row is a blind ruler any more.
+**What is left.** After `bl-7966`: four ledger rows, all one residual, the
+collapsed select's options. `bl-2932` (2026-11-20) modelled select modes and
+deleted them; its new `select` page pinned one open defect row instead
+(`bl-240d`: Chrome's `innerText` lists a `hidden` option, frot's `text` does
+not). No row is a blind ruler any more.

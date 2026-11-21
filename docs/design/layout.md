@@ -248,17 +248,37 @@ other options might have belonged with `<video>`'s prose. Measured in Chrome
   the whole text-channel defect, and it lives in `BLOCK_TAGS` (§2).
 - **`<datalist>` is a declaration**, so it is a cascade rule and a §2.3 row —
   not a structure, on the measured author override.
-- **The collapsed select's missing option boxes are a declared residual, not a
-  third structural query.** Chrome gives a `size=1` select's options zero
-  client rects while `innerText` still lists all of them and the AX tree still
-  exposes every one; an open `size=4` or `multiple` select gives them real
-  boxes. So the fact is "no box, still in text, still in AX" — a *third* answer
-  that `unpainted`/`concealed` cannot spell, and inventing a third query to
-  spell it would be the fourth-place mistake §2.2 exists to prevent. frot has
-  no UA widget rendering to model the popup with, and VISION holds the
-  not-a-browser line; it lays the options out in flow in both modes, which is
-  right for the listbox and an over-report of paint for the collapsed one.
-  Recorded in `fidelity.md` §3.3, where the text half was already a residual.
+- **A collapsed select's contents get no box — a layout-only fact, keyed on the
+  select's mode** (`bl-2932`, 2026-11-20; supersedes the residual this bullet
+  first declared, quoted below). Chrome gives everything inside a *menu list*
+  (the collapsed drop-down) zero client rects while `innerText` still lists
+  every option and the AX tree still exposes every one; a *list box* gives
+  them real boxes. So the fact is "no box, still in text, still in AX" — an
+  answer `unpainted`/`concealed` cannot spell, because `text` and `ax` read
+  those. It therefore lives in layout alone: `layout::renders` also asks
+  `layout/select.rs` whether the node's parent is a menu-list `<select>`. The
+  mode itself is `Element::list_box` (`src/dom/select.rs`), read by layout and
+  by the AX role (`listbox`/`combobox`), measured in Chrome 158:
+
+  | `multiple` | `size` | mode |
+  |---|---|---|
+  | no | absent, invalid, 0 or 1 | menu list |
+  | no | 2 or more | list box |
+  | yes | exactly 1 | menu list |
+  | yes | anything else | list box |
+
+  `size` follows HTML's non-negative-integer rules (`" 4 "`, `+3`, `2abc` are
+  list boxes; `x`, `-2`, `1.5` and an overflowing value are not above 1).
+  `<optgroup>`, `<hr>` and any other descendant go with the options. Author
+  `display` on the select or its options does not change the mode. The select
+  itself keeps its box; with no measured content it is a zero-size control
+  box, like `<input>`.
+
+  *Superseded text (2026-08-12):* "The collapsed select's missing option boxes
+  are a declared residual, not a third structural query. … frot has no UA
+  widget rendering to model the popup with, and VISION holds the not-a-browser
+  line; it lays the options out in flow in both modes, which is right for the
+  listbox and an over-report of paint for the collapsed one."
 - The **`<optgroup label>` / `<option label>` accessible name** is a fourth
   fact, in a fourth home (`ax::name`), and was not this section's: Chrome names
   the `group`/`option` from the attribute and frot did not — filed as `bl-4093`

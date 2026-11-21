@@ -24,6 +24,7 @@ use crate::dom::{Document, NodeId, NodeKind};
 
 mod flex;
 mod inline;
+mod select;
 
 /// Viewport width in px — hard-coded, not configurable (design §4). Load-bearing
 /// once geometry lands (inline line-breaks and block widths derive from it);
@@ -214,12 +215,14 @@ fn is_block_box(doc: &Document, id: NodeId, styles: &Styles) -> bool {
 /// Whether `id` is in the render tree at all — asked of **text nodes as much as
 /// elements**, because the box a UA skips structurally is the *parent's*, so raw
 /// text goes with it (`bl-e79a`; the needs walk sits above the same split). Two
-/// sources: the cascade's `display:none`, and the structural fact no cascade
+/// shared sources: the cascade's `display:none`, and the structural fact no cascade
 /// carries — [`Document::unpainted`], which is wider than the concealment the
 /// cascade folds in, since a `<canvas>`'s fallback content is painted nowhere
-/// while staying in the accessibility tree.
+/// while staying in the accessibility tree. A third is layout's alone: the
+/// contents of a collapsed `<select>` ([`select`]), which are boxless yet stay
+/// in `text` and in the accessibility tree, so no shared query can carry them.
 pub fn renders(doc: &Document, id: NodeId, styles: &Styles) -> bool {
-    !styles.display_none(id) && !doc.unpainted(id)
+    !styles.display_none(id) && !doc.unpainted(id) && !select::in_menu_list(doc, id)
 }
 
 /// Whether `id` is an element that generates a box: [`renders`], and not a

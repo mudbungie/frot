@@ -32,8 +32,8 @@
 //! - **`<li>`** — `listitem` only inside `<ul>`/`<ol>`/`<menu>`.
 //! - **`<img>`** — `presentation` for `alt=""`, but only when nothing else
 //!   names it: a name is a conflict that keeps the node exposed.
-//! - **`<a>`/`<area>`, `<select>`** — the pre-existing `href`/`multiple`/`size`
-//!   conditions, unchanged.
+//! - **`<a>`/`<area>`** — the pre-existing `href` condition, unchanged.
+//! - **`<select>`** — `listbox` or `combobox` by its mode (`dom/select.rs`).
 //!
 //! Tags mapped to a *fixed* role are the flat rows below; each was audited
 //! against the HTML-AAM and carries no condition.
@@ -150,10 +150,10 @@ fn input_role(el: &Element) -> Option<&'static str> {
     })
 }
 
+/// `listbox` or `combobox` by the select's mode — [`Element::list_box`], the
+/// one home of that table, which layout reads too.
 fn select_role(el: &Element) -> &'static str {
-    let multiple = el.attr("multiple").is_some();
-    let size: u32 = el.attr("size").and_then(|s| s.parse().ok()).unwrap_or(0);
-    if multiple || size > 1 {
+    if el.list_box() {
         "listbox"
     } else {
         "combobox"

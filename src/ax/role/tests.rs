@@ -119,6 +119,19 @@ fn select_with_size_1_is_combobox() {
     assert_eq!(r("<select id=t size=1></select>"), Some("combobox"));
 }
 
+/// Chrome 158: `multiple size=1` is a menu list, and `size` is read by HTML's
+/// integer rules (`dom/select.rs`, `bl-2932`).
+#[test]
+fn select_role_follows_the_select_mode() {
+    assert_eq!(
+        r("<select id=t multiple size=1></select>"),
+        Some("combobox")
+    );
+    assert_eq!(r("<select id=t size=' 4 '></select>"), Some("listbox"));
+    assert_eq!(r("<select id=t size=2abc></select>"), Some("listbox"));
+    assert_eq!(r("<select id=t size=+3></select>"), Some("listbox"));
+}
+
 #[test]
 fn select_with_unparseable_size_is_combobox() {
     assert_eq!(r("<select id=t size=xx></select>"), Some("combobox"));

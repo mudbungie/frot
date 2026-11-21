@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out bboxes` gives a collapsed `<select>`'s options no box.** A select
+  is a list box when it has `multiple` (unless `size=1`) or `size` of 2 or
+  more; otherwise it is a drop-down, and nothing inside it is laid out — as
+  in Chrome, where those options have no client rects. The select keeps its
+  own (now empty) box; `text` and `ax` still list every option. The `ax` role
+  follows the same rule, so `<select multiple size=1>` is now a `combobox`
+  and `size=" 4 "` / `size=2abc` a `listbox`. [bl-2932]
+
 - **The fidelity oracle now checks what it used to excuse** (dev-tree only;
   nothing shipped changes). The recorder reads string `::before`/`::after`
   content and `<textarea>` values from Chrome in paint position, and counts a

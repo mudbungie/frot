@@ -216,6 +216,7 @@ fn node_data_to_kind(data: &NodeData) -> NodeKind {
 
 mod conceal;
 mod mutate;
+mod select;
 
 #[cfg(test)]
 mod tests;
