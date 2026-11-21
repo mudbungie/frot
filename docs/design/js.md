@@ -886,8 +886,9 @@ that, a page walking any of them read frot's implementation instead.
   argument/quota/error contract (integer-typed view or `TypeMismatchError`, >65536
   bytes → `QuotaExceededError`) enforced in JS. Not deterministic and not pinned;
   separate calls share no state (OQ-2). `crypto.subtle` is a real, partial `SubtleCrypto` since 2026-11-17
-  (`bl-0647`: SHA digests, AES-GCM, HMAC over three `__frot_subtle_*`
-  syscalls; `subtlekey.js` + `subtle.js`) — what it does and does not
+  (`bl-0647`, widened by `bl-db8f`: SHA digests, HMAC, PBKDF2, HKDF and AES in
+  CBC/CTR/GCM/KW over eight `__frot_subtle_*` syscalls; `subtlekey.js` +
+  `subtlealg.js` + `subtle.js`; no public-key algorithm) — what it does and does not
   implement is **identity.md §3.19 and §11**, not this document's §11
   (Non-goals). `isSecureContext` (`bl-b0f8`) gates it and `randomUUID`.
 - **Native-code branding** (`bl-3926`, LANDED): frot's web APIs are JS over

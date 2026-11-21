@@ -104,9 +104,12 @@ pub const SOURCE: &str = concat!(
     "\n",
     // SubtleCrypto + CryptoKey (bl-0647): the real WebCrypto subset over the
     // `__frot_subtle_*` syscalls. subtlekey.js (CryptoKey, normalization, the
-    // error table) then subtle.js (the twelve methods). AFTER crypto.js — they
-    // add `subtle` to the Crypto.prototype that module builds.
+    // error table), subtlealg.js (each algorithm's rules, `bl-db8f`), then
+    // subtle.js (the twelve methods). AFTER crypto.js — they add `subtle` to
+    // the Crypto.prototype that module builds.
     include_str!("prelude/subtlekey.js"),
+    "\n",
+    include_str!("prelude/subtlealg.js"),
     "\n",
     include_str!("prelude/subtle.js"),
     "\n",

@@ -1,70 +1,103 @@
-//! The primitives themselves, as pure functions of their bytes: SHA-1/256/384/
-//! 512, HMAC over each, and AES-GCM with 128/192/256-bit keys. `None` means
-//! "not something this table computes" (or, for [`gcm_open`], "did not
-//! authenticate"); the prelude owns what a page is told about it.
-//!
-//! AES-GCM is the provider's safe AEAD, which fixes the nonce at 96 bits and the
-//! tag at 128. Firefox also accepts other nonce and tag lengths (identity.md
-//! §3.19); those are a declared residual (§11), refused in `subtle.js` before
-//! they reach here.
+//! The keyless and hash-keyed primitives, as pure functions of their bytes:
+//! SHA-1/256/384/512, HMAC over each, and the two key-derivation functions
+//! WebCrypto names, PBKDF2 and HKDF, over each (`bl-db8f`). All four are the
+//! provider's. `None` means "not something this table computes"; the prelude
+//! owns what a page is told about it. AES is [`super::aes`].
 
-use aws_lc_rs::{aead, digest, hmac};
+use std::num::NonZeroU32;
 
-/// The four digests WebCrypto names, each with its HMAC twin.
-fn hash(name: &str) -> Option<(&'static digest::Algorithm, hmac::Algorithm)> {
-    Some(match name {
+use aws_lc_rs::{digest, hkdf, hmac, pbkdf2};
+
+/// One digest WebCrypto names, with its HMAC, PBKDF2 and HKDF twins.
+struct Hash {
+    digest: &'static digest::Algorithm,
+    hmac: hmac::Algorithm,
+    pbkdf2: pbkdf2::Algorithm,
+    hkdf: hkdf::Algorithm,
+}
+
+fn hash(name: &str) -> Option<Hash> {
+    let (digest, hmac, pbkdf2, hkdf) = match name {
         "SHA-1" => (
             &digest::SHA1_FOR_LEGACY_USE_ONLY,
             hmac::HMAC_SHA1_FOR_LEGACY_USE_ONLY,
+            pbkdf2::PBKDF2_HMAC_SHA1,
+            hkdf::HKDF_SHA1_FOR_LEGACY_USE_ONLY,
         ),
-        "SHA-256" => (&digest::SHA256, hmac::HMAC_SHA256),
-        "SHA-384" => (&digest::SHA384, hmac::HMAC_SHA384),
-        "SHA-512" => (&digest::SHA512, hmac::HMAC_SHA512),
+        "SHA-256" => (
+            &digest::SHA256,
+            hmac::HMAC_SHA256,
+            pbkdf2::PBKDF2_HMAC_SHA256,
+            hkdf::HKDF_SHA256,
+        ),
+        "SHA-384" => (
+            &digest::SHA384,
+            hmac::HMAC_SHA384,
+            pbkdf2::PBKDF2_HMAC_SHA384,
+            hkdf::HKDF_SHA384,
+        ),
+        "SHA-512" => (
+            &digest::SHA512,
+            hmac::HMAC_SHA512,
+            pbkdf2::PBKDF2_HMAC_SHA512,
+            hkdf::HKDF_SHA512,
+        ),
         _ => return None,
+    };
+    Some(Hash {
+        digest,
+        hmac,
+        pbkdf2,
+        hkdf,
     })
 }
 
 pub fn digest(name: &str, data: &[u8]) -> Option<Vec<u8>> {
-    hash(name).map(|(alg, _)| digest::digest(alg, data).as_ref().to_vec())
+    hash(name).map(|h| digest::digest(h.digest, data).as_ref().to_vec())
 }
 
 pub fn hmac(name: &str, key: &[u8], data: &[u8]) -> Option<Vec<u8>> {
-    hash(name).map(|(_, alg)| {
-        hmac::sign(&hmac::Key::new(alg, key), data)
+    hash(name).map(|h| {
+        hmac::sign(&hmac::Key::new(h.hmac, key), data)
             .as_ref()
             .to_vec()
     })
 }
 
-/// The AEAD key and nonce for one call, or `None` for a key that is not 16, 24
-/// or 32 bytes or a nonce that is not 12.
-fn gcm(key: &[u8], iv: &[u8]) -> Option<(aead::LessSafeKey, aead::Nonce)> {
-    let alg = match key.len() {
-        16 => &aead::AES_128_GCM,
-        24 => &aead::AES_192_GCM,
-        32 => &aead::AES_256_GCM,
-        _ => return None,
-    };
-    let key = aead::UnboundKey::new(alg, key).ok();
-    let nonce = aead::Nonce::try_assume_unique_for_key(iv).ok();
-    key.map(aead::LessSafeKey::new).zip(nonce)
+/// The most PBKDF2 work one call may ask for, in HMAC iterations summed over
+/// output blocks. The provider's loop cannot be interrupted, so the script CPU
+/// budget (`EXEC_CPU_MS`) cannot stop it; this bounds it instead — a few
+/// seconds at worst, and three times OWASP's 600 000-iteration SHA-256 advice
+/// for a one-block key. Beyond it the derivation is refused, never truncated.
+pub const PBKDF2_WORK: u64 = 2_000_000;
+
+/// PBKDF2-HMAC: `len` bytes from a password. `None` for zero iterations or
+/// more than [`PBKDF2_WORK`].
+pub fn pbkdf2(name: &str, key: &[u8], salt: &[u8], rounds: u32, len: usize) -> Option<Vec<u8>> {
+    let h = hash(name)?;
+    let blocks = len.div_ceil(h.digest.output_len()) as u64;
+    let rounds = NonZeroU32::new(rounds)
+        .filter(|r| u64::from(r.get()).saturating_mul(blocks) <= PBKDF2_WORK)?;
+    let mut out = vec![0; len];
+    pbkdf2::derive(h.pbkdf2, rounds, salt, key, &mut out);
+    Some(out)
 }
 
-/// Ciphertext with the 16-byte tag appended — WebCrypto's layout.
-pub fn gcm_seal(key: &[u8], iv: &[u8], aad: &[u8], data: &[u8]) -> Option<Vec<u8>> {
-    let (key, nonce) = gcm(key, iv)?;
-    let mut buf = data.to_vec();
-    let sealed = key.seal_in_place_append_tag(nonce, aead::Aad::from(aad), &mut buf);
-    sealed.ok().map(|()| buf)
+/// An HKDF output length — the provider asks for it as a type.
+struct Len(usize);
+
+impl hkdf::KeyType for Len {
+    fn len(&self) -> usize {
+        self.0
+    }
 }
 
-/// The plaintext of `data` (ciphertext + tag), or `None` if it does not
-/// authenticate under this key, nonce and associated data.
-pub fn gcm_open(key: &[u8], iv: &[u8], aad: &[u8], data: &[u8]) -> Option<Vec<u8>> {
-    let (key, nonce) = gcm(key, iv)?;
-    let mut buf = data.to_vec();
-    let opened = key.open_in_place(nonce, aead::Aad::from(aad), &mut buf);
-    let len = opened.ok()?.len();
-    buf.truncate(len);
-    Some(buf)
+/// HKDF (RFC 5869), extract-then-expand: `len` bytes from input keying
+/// material. `None` past the RFC's limit of 255 hash lengths.
+pub fn hkdf(name: &str, key: &[u8], salt: &[u8], info: &[u8], len: usize) -> Option<Vec<u8>> {
+    let prk = hkdf::Salt::new(hash(name)?.hkdf, salt).extract(key);
+    let info = [info];
+    let okm = prk.expand(&info, Len(len)).ok()?;
+    let mut out = vec![0; len];
+    okm.fill(&mut out).ok().map(|()| out)
 }

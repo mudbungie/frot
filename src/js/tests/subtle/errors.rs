@@ -2,7 +2,7 @@
 //! §3.19) — and the one place frot answers differently on purpose: what it has
 //! not implemented rejects `NotSupportedError` (identity.md §11).
 
-use super::{page, settle, ACCESS, DATA, NOT_SUPPORTED, SYNTAX};
+use super::{page, settle, ACCESS, DATA, NOT_SUPPORTED, OPERATION, SYNTAX};
 
 #[test]
 fn import_key_rejects_as_firefox_does() {
@@ -179,21 +179,20 @@ fn a_key_only_does_what_it_was_made_for() {
     }
 }
 
-/// Where frot stops short of Firefox it says so: every one of these SUCCEEDS on
-/// 153.0esr and rejects `NotSupportedError` here — never a wrong answer.
+/// Where frot stops short of Firefox it says so: a key of any of these
+/// public-key algorithms can be imported or generated on 153.0esr, and here
+/// each rejects `NotSupportedError` — never a wrong answer (`bl-db8f`).
 #[test]
 fn what_is_not_implemented_rejects_not_supported() {
     let s = page();
     for alg in [
-        "'PBKDF2'",
-        "'HKDF'",
-        "'AES-CBC'",
-        "'AES-CTR'",
-        "'AES-KW'",
         "'Ed25519'",
         "'X25519'",
         "{name:'ECDSA',namedCurve:'P-256'}",
+        "{name:'ECDH',namedCurve:'P-256'}",
         "{name:'RSA-OAEP',hash:'SHA-256'}",
+        "{name:'RSA-PSS',hash:'SHA-256'}",
+        "{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'}",
     ] {
         assert_eq!(
             settle(
@@ -208,19 +207,16 @@ fn what_is_not_implemented_rejects_not_supported() {
             NOT_SUPPORTED,
             "{alg}"
         );
+        assert_eq!(
+            settle(
+                &s,
+                &format!("aes(['unwrapKey']).then(function(k){{return S.unwrapKey('raw',U(32),k,GCM,{alg},true,['sign'])}})")
+            ),
+            NOT_SUPPORTED,
+            "{alg}"
+        );
     }
     let wrapper = "aes(['encrypt','decrypt','wrapKey','unwrapKey'])";
-    for call in [
-        "S.encrypt({name:'AES-GCM',iv:U(16)},k,U(4))",
-        "S.encrypt({name:'AES-GCM',iv:U(1)},k,U(4))",
-        "S.encrypt({name:'AES-GCM',iv:U(12),tagLength:96},k,U(4))",
-        "S.decrypt({name:'AES-GCM',iv:U(12),tagLength:'32'},k,U(20))",
-        "aes(['encrypt'],true).then(function(x){return S.wrapKey('raw',x,k,GCM)})",
-        "S.unwrapKey('raw',U(32),k,GCM,'AES-GCM',true,['encrypt'])",
-    ] {
-        let expr = format!("{wrapper}.then(function(k){{return {call}}})");
-        assert_eq!(settle(&s, &expr), NOT_SUPPORTED, "{call}");
-    }
     assert_eq!(
         settle(
             &s,
@@ -239,4 +235,21 @@ fn what_is_not_implemented_rejects_not_supported() {
         "TypeError: SubtleCrypto.unwrapKey: Argument 2 could not be converted to any of: \
          ArrayBufferView, ArrayBuffer."
     );
+}
+
+/// The one bound that is frot's own, not Firefox's: PBKDF2 past the work limit
+/// (`syscall::subtle::alg::PBKDF2_WORK`) is refused, where a browser would
+/// grind through it.
+#[test]
+fn pbkdf2_past_the_work_limit_is_an_operation_error() {
+    let s = page();
+    let derive = |rounds: u32| {
+        format!(
+            "S.importKey('raw',U(8),'PBKDF2',false,['deriveBits']).then(function(k){{return \
+             S.deriveBits({{name:'PBKDF2',salt:U(8),iterations:{rounds},hash:'SHA-256'}},k,256)}})\
+             .then(function(b){{return b.byteLength}})"
+        )
+    };
+    assert_eq!(settle(&s, &derive(1000)), "32");
+    assert_eq!(settle(&s, &derive(2_000_001)), OPERATION);
 }

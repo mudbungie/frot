@@ -284,4 +284,5 @@ fn hmac_keys_sign_and_verify() {
 }
 
 mod errors;
+mod firefox;
 mod keys;

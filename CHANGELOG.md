@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`crypto.subtle` now does every secret-key operation Firefox does.** New
+  under `--js`: AES-CBC and AES-CTR `encrypt`/`decrypt`; AES-GCM with any IV
+  length and all seven tag lengths (it was 96-bit IV, 128-bit tag only);
+  AES-KW; PBKDF2 and HKDF through `deriveBits`/`deriveKey`; and
+  `wrapKey`/`unwrapKey` under any of the four AES modes — each with
+  `importKey`/`exportKey` (`raw`, `jwk`) and `generateKey`. Results, key
+  shapes and every error (name, message and which check wins) match Firefox
+  153.0esr on 444 captured calls. Two limits: PBKDF2 is refused
+  (`OperationError`) past 2 000 000 HMAC iterations × output blocks, where a
+  browser would keep computing; and the public-key algorithms (RSA, ECDSA,
+  ECDH, Ed25519, X25519) still reject `NotSupportedError`. Amazon's delivered
+  home page imports an AES-CBC key, which no longer fails. [bl-db8f]
+
 - **A bot challenge declared at an error status now gets the same treatment as
   any other declared challenge.** A response with status 400 or above that
   carries `cf-mitigated: challenge` or `x-amzn-waf-action: challenge` —

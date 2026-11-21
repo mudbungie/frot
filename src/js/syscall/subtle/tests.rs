@@ -1,6 +1,6 @@
 //! Known-answer tests for the WebCrypto primitives — published vectors, never a
-//! value the implementation produced for itself — and the three syscalls that
-//! carry them to the prelude. The `crypto.subtle` surface a page sees (shapes,
+//! value the implementation produced for itself — and the syscalls that carry
+//! them to the prelude (AES's vectors are in `aes::tests`). The `crypto.subtle` surface a page sees (shapes,
 //! errors, key handling) is pinned in `js::tests::subtle`.
 
 use super::alg;
@@ -90,75 +90,81 @@ fn hmac_matches_rfc_2202_and_rfc_4231() {
     );
 }
 
-/// The McGrew–Viega GCM specification's test cases (the vectors NIST adopted):
-/// 2 (AES-128), 8 (AES-192) and 14 (AES-256) encrypt one zero block under a zero
-/// key and nonce; 4 carries associated data and a 60-byte plaintext.
+/// RFC 6070's PBKDF2-HMAC-SHA1 cases 1, 2 and 3 (`"password"`, `"salt"`, 1, 2
+/// and 4096 iterations) and RFC 7914 §11's first PBKDF2-HMAC-SHA256 case.
 #[test]
-fn aes_gcm_matches_the_gcm_specification_vectors() {
-    let zero_block = [0u8; 16];
+fn pbkdf2_matches_rfc_6070_and_rfc_7914() {
     let cases = [
-        (
-            16,
-            "0388dace60b6a392f328c2b971b2fe78ab6e47d42cec13bdf53a67b21257bddf",
-        ),
-        (
-            24,
-            "98e7247c07f0fe411c267e4384b0f6002ff58d80033927ab8ef4d4587514f0fb",
-        ),
-        (
-            32,
-            "cea7403d4d606b6e074ec5d3baf39d18d0d1c8a799996bf0265b98b5d48ab919",
-        ),
+        (1, "0c60c80f961f0e71f3a9b524af6012062fe037a6"),
+        (2, "ea6c014dc72d6f8ccd1ed92ace1d41f0d8de8957"),
+        (4096, "4b007901b765489abead49d926f721d065a429c1"),
     ];
-    for (len, want) in cases {
-        let key = vec![0u8; len];
-        let sealed = alg::gcm_seal(&key, &[0; 12], &[], &zero_block).unwrap();
-        assert_eq!(hex(&sealed), want, "{len}-byte key");
-        assert_eq!(
-            alg::gcm_open(&key, &[0; 12], &[], &sealed).unwrap(),
-            zero_block
-        );
+    for (rounds, want) in cases {
+        let out = alg::pbkdf2("SHA-1", b"password", b"salt", rounds, 20).unwrap();
+        assert_eq!(hex(&out), want, "{rounds} iterations");
     }
-
-    let key = unhex("feffe9928665731c6d6a8f9467308308");
-    let iv = unhex("cafebabefacedbaddecaf888");
-    let aad = unhex("feedfacedeadbeeffeedfacedeadbeefabaddad2");
-    let plain = unhex(
-        "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a72\
-         1c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39",
-    );
-    let sealed = alg::gcm_seal(&key, &iv, &aad, &plain).unwrap();
     assert_eq!(
-        hex(&sealed),
-        "42831ec2217774244b7221b784d0d49ce3aa212f2c02a4e035c17e2329aca12e\
-         21d514b25466931c7d8f6a5aac84aa051ba30b396a0aac973d58e091\
-         5bc94fbc3221a5db94fae95ae7121a47"
+        hex(&alg::pbkdf2("SHA-256", b"passwd", b"salt", 1, 64).unwrap()),
+        "55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc\
+         49ca9cccf179b645991664b39d77ef317c71b845b1e30bd509112041d3a19783"
     );
-    assert_eq!(alg::gcm_open(&key, &iv, &aad, &sealed).unwrap(), plain);
+    // SHA-384 and SHA-512 are wired to their own HMACs: each output differs.
+    let wide = ["SHA-1", "SHA-256", "SHA-384", "SHA-512"]
+        .map(|name| alg::pbkdf2(name, b"password", b"salt", 1, 16).unwrap());
+    assert!((0..4).all(|i| (0..i).all(|j| wide[i] != wide[j])));
+    // No bytes asked for is no bytes; an empty password and salt are allowed.
+    assert_eq!(alg::pbkdf2("SHA-1", b"", b"", 1, 0).unwrap(), b"");
+    assert_eq!(alg::pbkdf2("SHA-1", b"", b"", 1, 4).unwrap().len(), 4);
 }
 
+/// The refusals: an unknown hash, no iterations, and more work than
+/// [`alg::PBKDF2_WORK`] — which counts every output block.
 #[test]
-fn aes_gcm_refuses_what_it_cannot_do_and_what_does_not_authenticate() {
-    let key = [0u8; 32];
-    let sealed = alg::gcm_seal(&key, &[0; 12], b"aad", b"secret").unwrap();
-    // A flipped bit anywhere, other associated data, another key or nonce.
-    let mut flipped = sealed.clone();
-    flipped[0] ^= 1;
-    assert_eq!(alg::gcm_open(&key, &[0; 12], b"aad", &flipped), None);
-    assert_eq!(alg::gcm_open(&key, &[0; 12], b"", &sealed), None);
-    assert_eq!(alg::gcm_open(&[1; 32], &[0; 12], b"aad", &sealed), None);
-    assert_eq!(alg::gcm_open(&key, &[1; 12], b"aad", &sealed), None);
-    // Shorter than a tag: nothing to authenticate.
-    assert_eq!(alg::gcm_open(&key, &[0; 12], b"aad", &sealed[..4]), None);
-    // A key that is not 16/24/32 bytes; a nonce that is not 12.
-    assert_eq!(alg::gcm_seal(&[0; 5], &[0; 12], b"", b"x"), None);
-    assert_eq!(alg::gcm_open(&[0; 5], &[0; 12], b"", &sealed), None);
-    assert_eq!(alg::gcm_seal(&key, &[0; 16], b"", b"x"), None);
-    assert_eq!(alg::gcm_open(&key, &[0; 16], b"", &sealed), None);
-    // The empty message seals to a bare tag and opens to nothing.
-    let tag = alg::gcm_seal(&key, &[0; 12], b"", b"").unwrap();
-    assert_eq!(tag.len(), 16);
-    assert_eq!(alg::gcm_open(&key, &[0; 12], b"", &tag).unwrap(), b"");
+fn pbkdf2_refuses_what_it_cannot_do_and_what_would_not_end() {
+    assert_eq!(alg::pbkdf2("MD5", b"p", b"s", 1, 20), None);
+    assert_eq!(alg::pbkdf2("SHA-1", b"p", b"s", 0, 20), None);
+    let most = u32::try_from(alg::PBKDF2_WORK).unwrap();
+    assert_eq!(alg::pbkdf2("SHA-256", b"p", b"s", most + 1, 32), None);
+    assert_eq!(alg::pbkdf2("SHA-256", b"p", b"s", most / 2 + 1, 33), None);
+    assert_eq!(
+        alg::pbkdf2("SHA-256", b"p", b"s", u32::MAX, usize::MAX),
+        None
+    );
+    assert!(alg::pbkdf2("SHA-256", b"p", b"s", 1000, 33).is_some());
+}
+
+/// RFC 5869's test cases 1 (SHA-256), 3 (SHA-256, empty salt and info) and 4
+/// (SHA-1).
+#[test]
+fn hkdf_matches_rfc_5869() {
+    let salt = unhex("000102030405060708090a0b0c");
+    let info = unhex("f0f1f2f3f4f5f6f7f8f9");
+    assert_eq!(
+        hex(&alg::hkdf("SHA-256", &[0x0b; 22], &salt, &info, 42).unwrap()),
+        "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf\
+         34007208d5b887185865"
+    );
+    assert_eq!(
+        hex(&alg::hkdf("SHA-256", &[0x0b; 22], b"", b"", 42).unwrap()),
+        "8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d\
+         9d201395faa4b61a96c8"
+    );
+    assert_eq!(
+        hex(&alg::hkdf("SHA-1", &[0x0b; 11], &salt, &info, 42).unwrap()),
+        "085a01ea1b10f36933068b56efa5ad81a4f14b822f5b091568a9cdd4f155fda2\
+         c22e422478d305f3f896"
+    );
+    // The RFC's ceiling is 255 hash lengths; no bytes asked for is no bytes.
+    assert_eq!(
+        alg::hkdf("SHA-256", b"k", b"", b"", 255 * 32)
+            .unwrap()
+            .len(),
+        8160
+    );
+    assert_eq!(alg::hkdf("SHA-256", b"k", b"", b"", 255 * 32 + 1), None);
+    assert_eq!(alg::hkdf("SHA-384", b"k", b"", b"", 255 * 48 + 1), None);
+    assert_eq!(alg::hkdf("SHA-512", b"", b"", b"", 0).unwrap(), b"");
+    assert_eq!(alg::hkdf("MD5", b"k", b"", b"", 8), None);
 }
 
 fn sess() -> Session {
@@ -214,20 +220,66 @@ fn the_syscalls_carry_bytes_both_ways() {
         "undefined"
     );
     assert_eq!(
-        s.eval("hex(__frot_subtle_gcm(false, U(32), U(12), U(0), U(16)))")
+        s.eval("hex(__frot_subtle_gcm(false, U(32), U(12), U(0), 16, U(16)))")
             .unwrap(),
         "cea7403d4d606b6e074ec5d3baf39d18d0d1c8a799996bf0265b98b5d48ab919"
     );
+    // Each cipher round-trips through its two directions; `open` on what was
+    // never sealed is `undefined`.
+    let msg = "new Uint8Array([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16])";
+    for (seal, open, junk) in [
+        (
+            "__frot_subtle_gcm(false, U(32), U(12), U(0), 12, M)",
+            "__frot_subtle_gcm(true, U(32), U(12), U(0), 12, C)",
+            "__frot_subtle_gcm(true, U(32), U(12), U(0), 12, U(20))",
+        ),
+        (
+            "__frot_subtle_cbc(false, U(24), U(16), M)",
+            "__frot_subtle_cbc(true, U(24), U(16), C)",
+            "__frot_subtle_cbc(true, U(24), U(16), U(16))",
+        ),
+        (
+            "__frot_subtle_ctr(U(16), U(16), 64, M)",
+            "__frot_subtle_ctr(U(16), U(16), 64, C)",
+            "__frot_subtle_ctr(U(16), U(16), 0, U(16))",
+        ),
+        (
+            "__frot_subtle_kw(false, U(16), M)",
+            "__frot_subtle_kw(true, U(16), C)",
+            "__frot_subtle_kw(true, U(16), U(24))",
+        ),
+    ] {
+        let run = format!("(function(){{var M={msg},C={seal};return hex({open})+' '+{junk}}})()");
+        assert_eq!(
+            s.eval(&run).unwrap(),
+            "0102030405060708090a0b0c0d0e0f10 undefined",
+            "{seal}"
+        );
+    }
+    let abc = "new Uint8Array([97,98,99])";
     assert_eq!(
-        s.eval(
-            "hex(__frot_subtle_gcm(true, U(32), U(12), U(0), \
-             __frot_subtle_gcm(false, U(32), U(12), U(0), new Uint8Array([1,2,3]))))"
-        )
-        .unwrap(),
-        "010203"
+        s.eval(&format!(
+            "hex(__frot_subtle_pbkdf2('SHA-1', {abc}, {abc}, 2, 4))"
+        ))
+        .unwrap()
+        .len(),
+        8
     );
     assert_eq!(
-        s.eval("String(__frot_subtle_gcm(true, U(32), U(12), U(0), U(20)))")
+        s.eval("String(__frot_subtle_pbkdf2('SHA-1', U(1), U(1), 0, 4))")
+            .unwrap(),
+        "undefined"
+    );
+    assert_eq!(
+        s.eval(&format!(
+            "hex(__frot_subtle_hkdf('SHA-256', {abc}, U(0), U(0), 5))"
+        ))
+        .unwrap()
+        .len(),
+        10
+    );
+    assert_eq!(
+        s.eval("String(__frot_subtle_hkdf('MD5', U(1), U(0), U(0), 5))")
             .unwrap(),
         "undefined"
     );

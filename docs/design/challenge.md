@@ -792,6 +792,10 @@ challenge; 5 `js.errors` per run): `Image is not defined` twice (`bl-1404`);
 with a measured caller). Its two `crypto.subtle.digest("SHA-256", …)` calls
 succeed.
 
+> **2026-11-20 (`bl-db8f`):** AES-CBC is built, with the rest of the
+> secret-key half of WebCrypto (identity.md §3.19), so those three rejections
+> are gone.
+
 ### 11.5 A challenge declared at 400 or above (`bl-a7c5`, 2026-11-20)
 
 Decided by Mark, 2026-11-20: **yes** — a declared challenge enters the round

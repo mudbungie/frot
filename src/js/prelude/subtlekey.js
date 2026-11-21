@@ -1,12 +1,12 @@
 // The WebCrypto toolkit under subtle.js (bl-0647): the error table, algorithm
-// normalization, BufferSource and usage handling, base64url, the `CryptoKey`
-// interface, and the two keyed algorithms' rules. Split from subtle.js under the
-// 300-line cap on the seam "what a key IS" / "what the twelve methods DO"; the
-// header there carries the scope, the ruling and the provenance (identity.md
-// §3.19 — every name, order and message here was read off Firefox 153.0esr).
-// Hands subtle.js one non-enumerable `__frot_subtle` object, which that module
-// removes. `[SecureContext]`: on an insecure page neither module defines
-// anything. Runs after crypto.js.
+// normalization, BufferSource and usage handling, base64url and the `CryptoKey`
+// interface. One of three modules — this ("what a key IS"), subtlealg.js ("what
+// each algorithm requires") and subtle.js ("what the twelve methods DO"), split
+// under the 300-line cap; the header of subtle.js carries the scope, the ruling
+// and the provenance (identity.md §3.19 — every name, order and message here
+// was read off Firefox 153.0esr). Hands the other two one non-enumerable
+// `__frot_subtle` object, which subtle.js removes. `[SecureContext]`: on an
+// insecure page none of the three defines anything. Runs after crypto.js.
 (function (g) {
   'use strict';
   if (!g.__frot_secure_context()) return;
@@ -134,69 +134,31 @@
     }
     return s;
   }
-  // The key must be of the named algorithm and carry the usage.
-  function holding(key, where, name, usage) {
-    var s = keyArg(key, where);
-    if (s.algorithm.name !== name || s.usages.indexOf(usage) < 0) throw fail('InvalidAccessError');
+  // Every usage string must be a KeyUsage at all, whatever the algorithm takes.
+  function known(list) {
+    if (list.some(function (u) {
+      return USAGES.indexOf(u) < 0;
+    })) throw fail('SyntaxError');
+  }
+  // The key must carry the usage — judged before the algorithm is even read.
+  function has(s, usage) {
+    if (s.usages.indexOf(usage) < 0) throw fail('InvalidAccessError');
     return s;
   }
-
-  // --- The two keyed algorithms -------------------------------------------------
-  // `params` validates the dictionary (SyntaxError); `imported` judges key bytes
-  // (DataError) and returns `key.algorithm`; `generated` returns [algorithm,
-  // byte count]. `usagesFirst` is the measured order of the usage and data checks.
-  var ALG = {
-    'AES-GCM': {
-      usages: ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey'], use: 'enc', usagesFirst: true,
-      params: function () {},
-      imported: function (p, bytes) {
-        if ([16, 24, 32].indexOf(bytes.length) < 0) throw fail('DataError');
-        return { name: 'AES-GCM', length: bytes.length * 8 };
-      },
-      generated: function (p) {
-        if (p.length === undefined) throw fail('SyntaxError');
-        var bits = Number(p.length);
-        if ([128, 192, 256].indexOf(bits) < 0) throw fail('OperationError');
-        return [{ name: 'AES-GCM', length: bits }, bits / 8];
-      },
-      jwk: function (a) {
-        return 'A' + a.length + 'GCM';
-      },
-    },
-    HMAC: {
-      usages: ['sign', 'verify'], use: 'sig', usagesFirst: false,
-      params: function (p) {
-        return hashName(p.hash);
-      },
-      imported: function (p, bytes, hash) {
-        if (!bytes.length) throw fail('DataError');
-        return { name: 'HMAC', hash: { name: hash }, length: bytes.length * 8 };
-      },
-      generated: function (p, hash) {
-        var bits = p.length === undefined ? HASH[hash][0] : Number(p.length);
-        if (!bits) throw fail('DataError');
-        return [{ name: 'HMAC', hash: { name: hash }, length: bits }, Math.floor(bits / 8)];
-      },
-      jwk: function (a) {
-        return HASH[a.hash.name][1];
-      },
-    },
-  };
-  function keyed(alg) {
-    var n = normalize(alg, KEYED);
-    n.impl = ALG[n.name];
-    if (!n.impl) throw fail('NotSupportedError');
+  // WebIDL `[EnforceRange]` onto 0..max: truncated, and anything outside throws.
+  function enforce(v, max, err) {
+    var n = Math.trunc(Number(v));
+    if (v === undefined || !(n >= 0 && n <= max)) throw fail(err);
     return n;
   }
-
 
   Object.defineProperty(g, '__frot_subtle', {
     configurable: true,
     value: {
-      fail: fail, normalize: normalize, keyed: keyed, isBuffer: isBuffer, copy: copy, buf: buf,
-      sequence: sequence, usageList: usageList, b64url: b64url, unb64url: unb64url,
-      makeKey: makeKey, keyArg: keyArg, holding: holding,
-      HASH: HASH, KEYED: KEYED, FORMATS: FORMATS, ALG: ALG,
+      fail: fail, normalize: normalize, hashName: hashName, isBuffer: isBuffer, copy: copy,
+      buf: buf, sequence: sequence, usageList: usageList, known: known, has: has,
+      enforce: enforce, b64url: b64url, unb64url: unb64url, makeKey: makeKey, keyArg: keyArg,
+      HASH: HASH, KEYED: KEYED, FORMATS: FORMATS,
     },
   });
 })(globalThis);

@@ -138,7 +138,7 @@ fn a_challenge_needing_an_unimplemented_algorithm_stops_honestly() {
     let mut server = mockito::Server::new();
     let gate = challenge(
         &mut server,
-        "crypto.subtle.importKey('raw',unhex(gokuProps.key),'PBKDF2',false,['deriveBits'])\
+        "crypto.subtle.importKey('raw',unhex(gokuProps.key),'Ed25519',false,['verify'])\
          .then(function(){return fetch('/verify',{method:'POST',body:'never'})});",
     );
     let verify = server.mock("POST", "/verify").expect(0).create();

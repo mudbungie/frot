@@ -1,5 +1,5 @@
-//! The WebCrypto primitive syscalls (`bl-0647`, identity.md §3.19/§11) — the
-//! three host operations behind `crypto.subtle`.
+//! The WebCrypto primitive syscalls (`bl-0647`, `bl-db8f`; identity.md
+//! §3.19/§11) — the host operations behind `crypto.subtle`.
 //!
 //! A page *awaits and consumes* what `SubtleCrypto` returns — AWS WAF's
 //! challenge encrypts its answer with it (`challenge.md` §11.4) — so these are
@@ -10,7 +10,8 @@
 //!
 //! Each call takes its bytes as `Uint8Array`s and returns a fresh `Uint8Array`,
 //! or `undefined` when the operation cannot be performed (an algorithm name or
-//! key/nonce size outside [`alg`], or an AES-GCM authentication failure) — which
+//! key/nonce size outside [`alg`] and [`aes`], or a ciphertext that does not
+//! decrypt or authenticate) — which
 //! the prelude turns into the DOMException a browser rejects with. Nothing is
 //! kept between calls: a key is the page's bytes, passed in again each time.
 
@@ -18,6 +19,7 @@ use rquickjs::{Ctx, Function, Object, TypedArray};
 
 use super::Host;
 
+mod aes;
 mod alg;
 
 macro_rules! bind {
@@ -28,8 +30,11 @@ macro_rules! bind {
 
 type Bytes<'js> = TypedArray<'js, u8>;
 
-/// Register `__frot_subtle_digest(hash, data)`, `__frot_subtle_hmac(hash, key,
-/// data)` and `__frot_subtle_gcm(open, key, iv, aad, data)`.
+/// Register the `__frot_subtle_*` table: `digest(hash, data)`, `hmac(hash, key,
+/// data)`, `pbkdf2(hash, key, salt, rounds, len)`, `hkdf(hash, key, salt, info,
+/// len)`, and the AES modes — `cbc(open, key, iv, data)`, `ctr(key, counter,
+/// bits, data)`, `gcm(open, key, iv, aad, tag_len, data)`, `kw(open, key,
+/// data)`. `open` selects decryption; CTR is its own inverse.
 pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, _host: &Host) -> rquickjs::Result<()> {
     bind!(
         ctx,
@@ -48,15 +53,69 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, _host: &Host) -> rquickjs::
     bind!(
         ctx,
         g,
+        "__frot_subtle_pbkdf2",
+        |ctx: Ctx<'js>, hash: String, key: Bytes<'js>, salt: Bytes<'js>, rounds: u32, len: u32| {
+            let made = alg::pbkdf2(&hash, bytes(&key), bytes(&salt), rounds, len as usize);
+            out(ctx, made)
+        }
+    );
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_hkdf",
+        |ctx: Ctx<'js>,
+         hash: String,
+         key: Bytes<'js>,
+         salt: Bytes<'js>,
+         info: Bytes<'js>,
+         len: u32| {
+            let made = alg::hkdf(&hash, bytes(&key), bytes(&salt), bytes(&info), len as usize);
+            out(ctx, made)
+        }
+    );
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_cbc",
+        |ctx: Ctx<'js>, open: bool, key: Bytes<'js>, iv: Bytes<'js>, data: Bytes<'js>| {
+            let run = if open { aes::cbc_open } else { aes::cbc_seal };
+            out(ctx, run(bytes(&key), bytes(&iv), bytes(&data)))
+        }
+    );
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_ctr",
+        |ctx: Ctx<'js>, key: Bytes<'js>, counter: Bytes<'js>, bits: u32, data: Bytes<'js>| {
+            out(
+                ctx,
+                aes::ctr(bytes(&key), bytes(&counter), bits, bytes(&data)),
+            )
+        }
+    );
+    bind!(
+        ctx,
+        g,
         "__frot_subtle_gcm",
         |ctx: Ctx<'js>,
          open: bool,
          key: Bytes<'js>,
          iv: Bytes<'js>,
          aad: Bytes<'js>,
+         tag_len: u32,
          data: Bytes<'js>| {
-            let run = if open { alg::gcm_open } else { alg::gcm_seal };
-            out(ctx, run(bytes(&key), bytes(&iv), bytes(&aad), bytes(&data)))
+            let run = if open { aes::gcm_open } else { aes::gcm_seal };
+            let (key, iv, aad) = (bytes(&key), bytes(&iv), bytes(&aad));
+            out(ctx, run(key, iv, aad, tag_len as usize, bytes(&data)))
+        }
+    );
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_kw",
+        |ctx: Ctx<'js>, open: bool, key: Bytes<'js>, data: Bytes<'js>| {
+            let run = if open { aes::kw_unwrap } else { aes::kw_wrap };
+            out(ctx, run(bytes(&key), bytes(&data)))
         }
     );
     Ok(())

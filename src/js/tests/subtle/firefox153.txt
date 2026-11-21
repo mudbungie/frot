@@ -1,0 +1,544 @@
+# crypto.subtle, call for call, as Firefox 153.0esr answers it (bl-db8f).
+#
+# Every line below "===" is an expression, an arrow, and what its promise settled to,
+# captured from the real binary with the rig and method of identity.md §3.19
+# (Mozilla's linux-x86_64 153.0esr tarball, headless, Marionette, a page served
+# from a loopback address so the context is secure). `src/js/tests/subtle/
+# firefox.rs` evaluates each expression in frot and requires the same answer.
+# Nothing here was produced by frot. Blocks are separated by "---"; the lines
+# before "===" are the block's own JavaScript helpers. The shared helpers
+# (hex, U, unhex, S, show) are in the test.
+---
+var K=U(32,7), IV=U(16,1);
+function cbc(u,ext,n){return S.importKey('raw',U(n||16,7),'AES-CBC',!!ext,u||['encrypt','decrypt'])}
+function ctr(u,ext,n){return S.importKey('raw',U(n||16,7),'AES-CTR',!!ext,u||['encrypt','decrypt'])}
+function kw(u,ext,n){return S.importKey('raw',U(n||16,7),'AES-KW',!!ext,u||['wrapKey','unwrapKey'])}
+===
+S.importKey('raw',U(32),{name:'AES-CBC',length:128},false,['encrypt','decrypt']) => key:secret,false,{"name":"AES-CBC","length":256},encrypt|decrypt
+S.importKey('raw',U(24),'aes-cbc',true,['decrypt','encrypt','wrapKey','unwrapKey']) => key:secret,true,{"name":"AES-CBC","length":192},encrypt|decrypt|wrapKey|unwrapKey
+S.importKey('raw',U(15),'AES-CBC',true,['encrypt']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('raw',U(16),'AES-CBC',true,['sign']) => SyntaxError: An invalid or illegal string was specified
+S.importKey('raw',U(15),'AES-CBC',true,['sign']) => SyntaxError: An invalid or illegal string was specified
+S.importKey('raw',U(16),'AES-CBC',true,[]) => SyntaxError: An invalid or illegal string was specified
+S.generateKey({name:'AES-CBC',length:192},true,['encrypt']) => key:secret,true,{"name":"AES-CBC","length":192},encrypt
+S.generateKey({name:'AES-CBC'},true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+S.generateKey({name:'AES-CBC',length:100},true,['encrypt']) => OperationError: The operation failed for an operation-specific reason
+S.generateKey({name:'AES-CBC',length:128},true,['sign']) => SyntaxError: An invalid or illegal string was specified
+cbc(0,1).then(function(k){return S.exportKey('jwk',k)}) => obj:{"alg":"A128CBC","ext":true,"k":"BwcHBwcHBwcHBwcHBwcHBw","key_ops":["encrypt","decrypt"],"kty":"oct"}
+cbc(0,1,24).then(function(k){return S.exportKey('jwk',k)}) => obj:{"alg":"A192CBC","ext":true,"k":"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH","key_ops":["encrypt","decrypt"],"kty":"oct"}
+cbc(0,1,32).then(function(k){return S.exportKey('raw',k)}) => buf[32]:0707070707070707070707070707070707070707070707070707070707070707
+S.importKey('jwk',{kty:'oct',k:'AAAAAAAAAAAAAAAAAAAAAA',alg:'A128CBC'},'AES-CBC',true,['encrypt']) => key:secret,true,{"name":"AES-CBC","length":128},encrypt
+S.importKey('jwk',{kty:'oct',k:'AAAAAAAAAAAAAAAAAAAAAA',alg:'A128GCM'},'AES-CBC',true,['encrypt']) => DataError: Data provided to an operation does not meet requirements
+cbc().then(function(k){return S.encrypt({name:'AES-CBC',iv:IV},k,U(0))}) => buf[16]:6591860cd6762c29600eb96f84028789
+cbc().then(function(k){return S.encrypt({name:'AES-CBC',iv:IV},k,U(16,2))}) => buf[32]:80fc9f6f43abc739cb90030ab98d999f12c1628213bec0be7a7b7f8bc1f8110f
+cbc().then(function(k){return S.encrypt({name:'AES-CBC',iv:IV},k,U(17,2))}) => buf[32]:80fc9f6f43abc739cb90030ab98d999f0295898b9e131138ea45c3aa56445431
+cbc(0,0,24).then(function(k){return S.encrypt({name:'AES-CBC',iv:IV},k,U(5,2))}) => buf[16]:b9bc4ecc2f62cb3e9ce9e4501267fce3
+cbc(0,0,32).then(function(k){return S.encrypt({name:'AES-CBC',iv:IV},k,U(5,2))}) => buf[16]:ebfc058302f4baf8c20c5916b1ded2a3
+cbc().then(function(k){return S.encrypt({name:'AES-CBC',iv:U(12)},k,U(5))}) => OperationError: The operation failed for an operation-specific reason
+cbc().then(function(k){return S.encrypt({name:'AES-CBC',iv:U(17)},k,U(5))}) => OperationError: The operation failed for an operation-specific reason
+cbc().then(function(k){return S.encrypt({name:'AES-CBC'},k,U(5))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+cbc().then(function(k){return S.encrypt({name:'AES-CBC',iv:'x'},k,U(5))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+cbc().then(function(k){return S.encrypt({name:'AES-CBC',iv:IV.buffer},k,U(5).buffer)}) => buf[16]:1c07e10eaec6da69252357cc1b491745
+cbc().then(function(k){return S.encrypt({name:'AES-GCM',iv:IV},k,U(5))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+cbc(['encrypt']).then(function(k){return S.decrypt({name:'AES-CBC',iv:IV},k,U(16))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+cbc().then(function(k){return S.decrypt({name:'AES-CBC',iv:IV},k,U(16))}) => OperationError: The operation failed for an operation-specific reason
+cbc().then(function(k){return S.decrypt({name:'AES-CBC',iv:IV},k,U(15))}) => OperationError: The operation failed for an operation-specific reason
+cbc().then(function(k){return S.decrypt({name:'AES-CBC',iv:IV},k,U(0))}) => OperationError: The operation failed for an operation-specific reason
+cbc().then(function(k){return S.encrypt({name:'AES-CBC',iv:IV},k,U(20,3)).then(function(c){return S.decrypt({name:'AES-CBC',iv:IV},k,c)})}) => buf[20]:0303030303030303030303030303030303030303
+cbc().then(function(k){return S.decrypt({name:'AES-CBC',iv:U(3)},k,U(16))}) => OperationError: The operation failed for an operation-specific reason
+S.importKey('raw',U(32),{name:'AES-CTR',length:128},true,['encrypt','decrypt','wrapKey','unwrapKey']) => key:secret,true,{"name":"AES-CTR","length":256},encrypt|decrypt|wrapKey|unwrapKey
+S.importKey('raw',U(15),'AES-CTR',true,['encrypt']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('raw',U(16),'AES-CTR',true,['deriveBits']) => SyntaxError: An invalid or illegal string was specified
+S.generateKey({name:'AES-CTR',length:256},false,['decrypt']) => key:secret,false,{"name":"AES-CTR","length":256},decrypt
+ctr(0,1,24).then(function(k){return S.exportKey('jwk',k)}) => obj:{"alg":"A192CTR","ext":true,"k":"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH","key_ops":["encrypt","decrypt"],"kty":"oct"}
+S.importKey('jwk',{kty:'oct',k:'AAAAAAAAAAAAAAAAAAAAAA',alg:'A128CTR'},'AES-CTR',true,['encrypt']) => key:secret,true,{"name":"AES-CTR","length":128},encrypt
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:IV,length:64},k,U(40,2))}) => buf[40]:582dea8132e1da787f2849f5fd41b8c47108f56eaaf983918a55b27506dcc4305c487b8b6041bd5f
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:128},k,U(40,2))}) => buf[40]:2eecf58fb712ddc7be31273f89811d974e81b34b09d3a52e51459a448a4793ad954c8934e3e17091
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:8},k,U(40,2))}) => buf[40]:2eecf58fb712ddc7be31273f89811d974636c08366301e11d5018142cf6dca4643ecf004e0f95d79
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:1},k,U(32,2))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:1},k,U(33,2))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:3},k,U(8*16+1,2))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:5},k,U(40,2))}) => buf[40]:2eecf58fb712ddc7be31273f89811d974636c08366301e11d5018142cf6dca4643ecf004e0f95d79
+ctr(0,0,32).then(function(k){return S.decrypt({name:'AES-CTR',counter:U(16,255),length:12},k,U(40,2))}) => buf[40]:f8b73a02d251b0e00c964b3b0761cd33428cd2bd79a7a63061a253d8479f17f4bba1bd8c11c30abe
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:IV,length:0},k,U(4))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:IV,length:129},k,U(4))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:IV},k,U(4))}) => SyntaxError: An invalid or illegal string was specified
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:IV,length:'64'},k,U(4))}) => buf[4]:5a2fe883
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:IV,length:64.9},k,U(4))}) => buf[4]:5a2fe883
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(15),length:64},k,U(4))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',length:64},k,U(4))}) => SyntaxError: An invalid or illegal string was specified
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:IV,length:64},k,U(0))}) => buf[0]:
+S.importKey('raw',U(16),'AES-KW',true,['wrapKey','unwrapKey']) => key:secret,true,{"name":"AES-KW","length":128},wrapKey|unwrapKey
+S.importKey('raw',U(24),'AES-KW',true,['wrapKey']) => key:secret,true,{"name":"AES-KW","length":192},wrapKey
+S.importKey('raw',U(16),'AES-KW',true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+S.importKey('raw',U(17),'AES-KW',true,['wrapKey']) => DataError: Data provided to an operation does not meet requirements
+S.generateKey({name:'AES-KW',length:128},true,['unwrapKey']) => key:secret,true,{"name":"AES-KW","length":128},unwrapKey
+kw(0,1,32).then(function(k){return S.exportKey('jwk',k)}) => obj:{"alg":"A256KW","ext":true,"k":"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc","key_ops":["wrapKey","unwrapKey"],"kty":"oct"}
+kw().then(function(k){return S.encrypt({name:'AES-KW'},k,U(16))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+kw().then(function(k){return S.encrypt('AES-KW',k,U(16))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+---
+var IV=U(16,1);
+function imp(a,u,ext,n){return S.importKey('raw',U(n||16,7),a,!!ext,u)}
+function ctr(){return imp('AES-CTR',['encrypt','decrypt'])}
+function kw(u,n){return imp('AES-KW',u||['wrapKey','unwrapKey'],1,n)}
+function gcm(u,n){return imp('AES-GCM',u||['encrypt','decrypt','wrapKey','unwrapKey'],1,n)}
+function hm(ext,n){return S.importKey('raw',U(n||32,9),{name:'HMAC',hash:'SHA-256'},ext===undefined?true:ext,['sign','verify'])}
+function C(l,n){return "ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:"+l+"},k,U("+n+",2))})"}
+var G={name:'AES-GCM',iv:U(12)};
+function both(a,b){return Promise.all([a,b])}
+===
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:1},k,U(16,2))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:1},k,U(17,2))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:1},k,U(31,2))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:3},k,U(112,2))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:3},k,U(113,2))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:3},k,U(128,2))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:2},k,U(64,2))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:2},k,U(65,2))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:128},k,U(1,2))}) => buf[1]:2e
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,255),length:127},k,U(40,2))}) => buf[40]:2eecf58fb712ddc7be31273f89811d974e81b34b09d3a52e51459a448a4793ad954c8934e3e17091
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,0),length:1},k,U(32,2))}) => OperationError: The operation failed for an operation-specific reason
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:U(16,0),length:1},k,U(33,2))}) => OperationError: The operation failed for an operation-specific reason
+gcm().then(function(k){return S.encrypt({name:'AES-CBC'},k,U(5))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+gcm().then(function(k){return S.encrypt({name:'AES-GCM'},k,U(5))}) => OperationError: The operation failed for an operation-specific reason
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:'x'},k,U(5))}) => OperationError: The operation failed for an operation-specific reason
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(1)},k,U(5,2))}) => buf[21]:0eccd0548776c25ceec48762a779fb64a1be34da85
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(16,3)},k,U(5,2))}) => buf[21]:9df0e781201d5b5faf15d24682d4879f11a9b3d2ff
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(60,3),additionalData:U(3,1)},k,U(35,2))}) => buf[51]:0a60ab4b973e61e582a7d8f3be9d8960e0ad5a7e40bb123a857147635b61c19298d9902b25531b649155d70d5dec6a3ab8dde9
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12,3),tagLength:32},k,U(5,2))}) => buf[9]:f86538ef02f0e7512d
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12,3),tagLength:64},k,U(5,2))}) => buf[13]:f86538ef02f0e7512de7dcb59b
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12,3),tagLength:96},k,U(5,2))}) => buf[17]:f86538ef02f0e7512de7dcb59b2567a4f5
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12,3),tagLength:104},k,U(5,2))}) => buf[18]:f86538ef02f0e7512de7dcb59b2567a4f51d
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12,3),tagLength:112},k,U(5,2))}) => buf[19]:f86538ef02f0e7512de7dcb59b2567a4f51de5
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12,3),tagLength:120},k,U(5,2))}) => buf[20]:f86538ef02f0e7512de7dcb59b2567a4f51de5ea
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12,3),tagLength:128},k,U(5,2))}) => buf[21]:f86538ef02f0e7512de7dcb59b2567a4f51de5ead3
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12,3),tagLength:40},k,U(5,2))}) => OperationError: The operation failed for an operation-specific reason
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12,3),tagLength:0},k,U(5,2))}) => OperationError: The operation failed for an operation-specific reason
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(7,3),tagLength:32},k,U(5,2)).then(function(c){return S.decrypt({name:'AES-GCM',iv:U(7,3),tagLength:32},k,c)})}) => buf[5]:0202020202
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12,3),tagLength:96},k,U(5,2)).then(function(c){return S.decrypt({name:'AES-GCM',iv:U(12,3),tagLength:104},k,c)})}) => OperationError: The operation failed for an operation-specific reason
+gcm().then(function(k){return S.decrypt({name:'AES-GCM',iv:U(12,3),tagLength:96},k,U(11))}) => OperationError: The operation failed for an operation-specific reason
+gcm().then(function(k){return S.decrypt({name:'AES-GCM',iv:U(12,3),tagLength:96},k,unhex('00000000d37e83b0fd8ce9c0a04bbe2ae5'))}) => OperationError: The operation failed for an operation-specific reason
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12,3),tagLength:96},k,U(0))}) => buf[12]:09d8c8b2a8b05d530a089802
+S.importKey('jwk',U(16),'AES-GCM',true,['encrypt']) => key:secret,true,{"name":"AES-GCM","length":128},encrypt
+S.importKey('jwk',new TextEncoder().encode(JSON.stringify({kty:'oct',k:'AAAAAAAAAAAAAAAAAAAAAA'})),'AES-GCM',true,['encrypt']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('jwk',new TextEncoder().encode(JSON.stringify({kty:'oct',k:'AAAAAAAAAAAAAAAAAAAAAA'})).buffer,'AES-GCM',true,['encrypt']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('jwk',new TextEncoder().encode('nope'),'AES-GCM',true,['encrypt']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('jwk',new TextEncoder().encode('[1]'),'AES-GCM',true,['encrypt']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('raw',{},'AES-GCM',true,['encrypt']) => DataError: Data provided to an operation does not meet requirements
+both(hm(),gcm()).then(function(a){return S.wrapKey('raw',a[0],a[1],G)}) => buf[48]:f59611abbbc6518bb0dac84f85fe30650f63d7e64b3f723cfea3258ab4d1c347b35917386ede3379828dd7a9f2a77c20
+both(hm(),gcm()).then(function(a){return S.wrapKey('jwk',a[0],a[1],G)}) => buf[132]:87bd79ced5ed62a0f180f373bad5154e6312aacd7842094092860ee89fe2e80d90a8d3c1bb6082e80cc1d3ff8b8750677837bc74560703e1396c9f579b2a5664a4748cb5b3a274ac37a17111adf46a6cc496b583709d73bc5a0c9dbfc1f1b5fec937f9162b9c184ea8fe38886b2c0082020b2d7f75a99b560c0523eb6fc63371551c6396
+both(hm(),gcm()).then(function(a){return S.wrapKey('jwk',a[0],a[1],G).then(function(w){return S.decrypt(G,a[1],w)}).then(function(b){return new TextDecoder().decode(b)})}) => string:{"alg":"HS256","ext":true,"k":"CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk","key_ops":["sign","verify"],"kty":"oct"}
+both(hm(),gcm()).then(function(a){return S.wrapKey('spki',a[0],a[1],G)}) => NotSupportedError: Operation is not supported
+both(hm(),gcm()).then(function(a){return S.wrapKey('bogus',a[0],a[1],G)}) => SyntaxError: An invalid or illegal string was specified
+both(hm(false),gcm()).then(function(a){return S.wrapKey('raw',a[0],a[1],G)}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+both(hm(false),gcm(['encrypt'])).then(function(a){return S.wrapKey('raw',a[0],a[1],G)}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+both(hm(),gcm(['encrypt'])).then(function(a){return S.wrapKey('raw',a[0],a[1],G)}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+both(hm(),gcm()).then(function(a){return S.wrapKey('raw',a[0],a[1],'AES-CBC')}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+both(hm(),gcm()).then(function(a){return S.wrapKey('raw',a[0],a[1],'HMAC')}) => NotSupportedError: Operation is not supported
+both(hm(),gcm()).then(function(a){return S.wrapKey('raw',a[0],a[1],'SHA-1')}) => NotSupportedError: Operation is not supported
+both(hm(),gcm()).then(function(a){return S.wrapKey('raw',a[0],a[1],'nope')}) => NotSupportedError: Operation is not supported
+both(hm(),gcm()).then(function(a){return S.wrapKey('bogus',a[0],a[1],'nope')}) => SyntaxError: An invalid or illegal string was specified
+both(hm(false),gcm()).then(function(a){return S.wrapKey('raw',a[0],a[1],'nope')}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+both(hm(),gcm()).then(function(a){return S.wrapKey('raw',a[0],a[1],{name:'AES-GCM'})}) => OperationError: The operation failed for an operation-specific reason
+both(hm(),imp('AES-CBC',['wrapKey'])).then(function(a){return S.wrapKey('raw',a[0],a[1],{name:'AES-CBC',iv:IV})}) => buf[48]:98a634c813ea1a05ffd0f5583a6b5e6eef42039573e3a9e01727151c3dc27187dc84b2f3537c26314f4e371510ae2849
+both(hm(),imp('AES-CTR',['wrapKey'])).then(function(a){return S.wrapKey('jwk',a[0],a[1],{name:'AES-CTR',counter:IV,length:64})}) => buf[116]:210d89ef57c1e258357979c2c96196e41672834e928ff3e6ed7b921c26e4e4710f2133ca3328f51ec292370c719f5fe560fda981eaf87f807c7fb88831143870c09dc17e3fe8f6c5ae75a3c31062bf6c660dad008dcd952db41961c12a46c28f6c5c202eaa16dfa090868e79e0d26ddd1196b4cf
+both(hm(),kw()).then(function(a){return S.wrapKey('raw',a[0],a[1],'AES-KW')}) => buf[40]:d75afdc1acbf231f725baa0aa9b00e3686e7249288ed6f9c256f1f050e3c0a2e499f81a2b664a910
+both(hm(),kw(0,24)).then(function(a){return S.wrapKey('raw',a[0],a[1],'AES-KW')}) => buf[40]:a29ec74ca6edd78b8580c5d2649da3f4eaf401d3ff1b0f0349bbece02822c1cae9c36f4270b70a93
+both(hm(),kw(0,32)).then(function(a){return S.wrapKey('raw',a[0],a[1],{name:'AES-KW'})}) => buf[40]:0b8d5708b6bfa55bde905f4116ae1afa1349b5737c8173eed97770f5c6bb282c637489393a99b897
+both(hm(1,16),kw()).then(function(a){return S.wrapKey('raw',a[0],a[1],'AES-KW')}) => buf[24]:5713e1bd22ea053c8be28f98f15cf8c6ac5b79cb3ccbe160
+both(hm(1,8),kw()).then(function(a){return S.wrapKey('raw',a[0],a[1],'AES-KW')}) => OperationError: The operation failed for an operation-specific reason
+both(hm(1,20),kw()).then(function(a){return S.wrapKey('raw',a[0],a[1],'AES-KW')}) => DataError: Data provided to an operation does not meet requirements
+both(hm(1,9),kw()).then(function(a){return S.wrapKey('raw',a[0],a[1],'AES-KW')}) => DataError: Data provided to an operation does not meet requirements
+both(hm(),kw()).then(function(a){return S.wrapKey('jwk',a[0],a[1],'AES-KW')}) => DataError: Data provided to an operation does not meet requirements
+both(hm(1,31),kw()).then(function(a){return S.wrapKey('jwk',a[0],a[1],'AES-KW')}) => DataError: Data provided to an operation does not meet requirements
+both(hm(1,30),kw()).then(function(a){return S.wrapKey('jwk',a[0],a[1],'AES-KW')}) => DataError: Data provided to an operation does not meet requirements
+both(hm(1,29),kw()).then(function(a){return S.wrapKey('jwk',a[0],a[1],'AES-KW')}) => buf[120]:64ddea8cb9a90814cf7d32c1685165ae5fd3718befdfb8451a2a74ebf1f0b466e2c1997536d544bf6ca0fea36c069d0d5e8fd9684c07f3c2c81455d0a8a47317e191b009f40178d51e52b062a0e44e23c8b947ada66752b0e9b62196a76a824eccdb695a82ec2b73ae15a422fae20163eeb7e6a2f02672e5
+both(hm(1,28),kw()).then(function(a){return S.wrapKey('jwk',a[0],a[1],'AES-KW')}) => DataError: Data provided to an operation does not meet requirements
+both(hm(),kw(['unwrapKey'])).then(function(a){return S.wrapKey('raw',a[0],a[1],'AES-KW')}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+both(hm(),kw()).then(function(a){return S.wrapKey('raw',a[0],a[1],G)}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+---
+function ctr(){return S.importKey('raw',U(16,7),'AES-CTR',false,['encrypt','decrypt'])}
+function maxlen(l,dec){return ctr().then(function(k){var ps=[];for(var n=0;n<=600;n++)(function(n){ps.push(S[dec?'decrypt':'encrypt']({name:'AES-CTR',counter:U(16,9),length:l},k,U(n,2)).then(function(){return n},function(){return -1}))})(n);
+ return Promise.all(ps).then(function(r){var ok=r.filter(function(x){return x>=0});return 'count='+ok.length+' max='+Math.max.apply(null,ok.concat([-1]))+' contiguous='+(ok.length===0||ok.length===Math.max.apply(null,ok)+1)})})}
+===
+maxlen(1) => string:count=1 max=0 contiguous=true
+maxlen(2) => string:count=33 max=32 contiguous=true
+maxlen(3) => string:count=97 max=96 contiguous=true
+maxlen(4) => string:count=225 max=224 contiguous=true
+maxlen(5) => string:count=481 max=480 contiguous=true
+maxlen(5,1) => string:count=481 max=480 contiguous=true
+maxlen(6) => string:count=601 max=600 contiguous=true
+---
+var IV=U(16,1), G={name:'AES-GCM',iv:U(12)}, H={name:'HMAC',hash:'SHA-256'};
+function imp(a,u,ext,n){return S.importKey('raw',U(n||16,7),a,!!ext,u)}
+function gcm(u){return imp('AES-GCM',u||['encrypt','decrypt','wrapKey','unwrapKey'],1)}
+function kw(u,n){return imp('AES-KW',u||['wrapKey','unwrapKey'],1,n)}
+function hm(ext,n){return S.importKey('raw',U(n||32,9),H,ext===undefined?true:ext,['sign','verify'])}
+function both(a,b){return Promise.all([a,b])}
+var W48='f59611abbbc6518bb0dac84f85fe30650f63d7e64b3f723cfea3258ab4d1c347b35917386ede3379828dd7a9f2a77c20';
+var WJ='87bd79ced5ed62a0f180f373bad5154e6312aacd7842094092860ee89fe2e80d90a8d3c1bb6082e80cc1d3ff8b8750677837bc74560703e1396c9f579b2a5664a4748cb5b3a274ac37a17111adf46a6cc496b583709d73bc5a0c9dbfc1f1b5fec937f9162b9c184ea8fe38886b2c0082020b2d7f75a99b560c0523eb6fc63371551c6396';
+var KW40='d75afdc1acbf231f725baa0aa9b00e3686e7249288ed6f9c256f1f050e3c0a2e499f81a2b664a910';
+function un(fmt,w,k,ua,ka,ext,us){return k.then(function(k){return S.unwrapKey(fmt,unhex(w),k,ua,ka,ext,us)})}
+function pb(u,ext,fmt){return S.importKey(fmt||'raw',new TextEncoder().encode('password'),'PBKDF2',!!ext,u||['deriveBits','deriveKey'])}
+function hk(u,ext){return S.importKey('raw',unhex('0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b'),'HKDF',!!ext,u||['deriveBits','deriveKey'])}
+var salt=new TextEncoder().encode('salt');
+function PB(o){return Object.assign({name:'PBKDF2',salt:salt,iterations:1,hash:'SHA-1'},o)}
+function HK(o){return Object.assign({name:'HKDF',salt:unhex('000102030405060708090a0b0c'),info:unhex('f0f1f2f3f4f5f6f7f8f9'),hash:'SHA-256'},o)}
+function db(k,a,l){return k.then(function(k){return S.deriveBits(a,k,l)})}
+function dk(k,a,t,ext,us){return k.then(function(k){return S.deriveKey(a,k,t,ext,us)})}
+function ex(p){return p.then(function(k){return S.exportKey('raw',k).then(function(b){return show(k)+' '+hex(b)})})}
+===
+un('raw',W48,gcm(),G,H,true,['sign']) => key:secret,true,{"name":"HMAC","hash":{"name":"SHA-256"},"length":256},sign
+ex(un('raw',W48,gcm(),G,H,true,['sign'])) => string:key:secret,true,{"name":"HMAC","hash":{"name":"SHA-256"},"length":256},sign 0909090909090909090909090909090909090909090909090909090909090909
+un('jwk',WJ,gcm(),G,H,true,['sign','verify']) => key:secret,true,{"name":"HMAC","hash":{"name":"SHA-256"},"length":256},sign|verify
+un('jwk',WJ,gcm(),G,H,true,['verify']) => key:secret,true,{"name":"HMAC","hash":{"name":"SHA-256"},"length":256},verify
+un('jwk',WJ,gcm(),G,{name:'HMAC',hash:'SHA-1'},true,['verify']) => DataError: Data provided to an operation does not meet requirements
+un('jwk',W48,gcm(),G,H,true,['verify']) => DataError: Data provided to an operation does not meet requirements
+un('raw',W48,gcm(),G,'AES-GCM',false,['encrypt']) => key:secret,false,{"name":"AES-GCM","length":256},encrypt
+un('raw',W48,gcm(),G,'AES-KW',false,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+un('raw',W48,gcm(),G,'PBKDF2',false,['deriveBits']) => NotSupportedError: Operation is not supported
+un('raw',W48,gcm(),G,'HKDF',false,['deriveBits']) => key:secret,false,{"name":"HKDF"},deriveBits
+un('raw',W48,gcm(),G,'HKDF',true,['deriveBits']) => key:secret,true,{"name":"HKDF"},deriveBits
+un('raw',W48,gcm(),G,'nope',false,['deriveBits']) => NotSupportedError: Operation is not supported
+un('raw',W48,gcm(),G,H,true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+un('raw',W48,gcm(),G,H,true,['bogus']) => SyntaxError: An invalid or illegal string was specified
+un('raw',W48,gcm(),G,H,true,[]) => SyntaxError: An invalid or illegal string was specified
+un('bogus',W48,gcm(),G,H,true,['sign']) => NotSupportedError: Operation is not supported
+un('spki',W48,gcm(),G,H,true,['sign']) => NotSupportedError: Operation is not supported
+un('raw',W48,gcm(['wrapKey']),G,H,true,['sign']) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+un('raw',W48,gcm(['wrapKey']),G,H,true,['bogus']) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+un('bogus',W48,gcm(['wrapKey']),G,H,true,['sign']) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+un('bogus',W48,gcm(),G,H,true,['bogus']) => SyntaxError: An invalid or illegal string was specified
+un('bogus',W48,gcm(),G,'nope',true,['sign']) => NotSupportedError: Operation is not supported
+un('raw',W48,gcm(),G,'nope',true,['bogus']) => SyntaxError: An invalid or illegal string was specified
+un('raw',W48,gcm(),'nope',H,true,['sign']) => NotSupportedError: Operation is not supported
+un('raw',W48,gcm(),'nope','nope',true,['sign']) => NotSupportedError: Operation is not supported
+un('raw',W48,gcm(),'AES-CBC',H,true,['sign']) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+un('raw',W48,gcm(),{name:'AES-GCM'},H,true,['sign']) => OperationError: The operation failed for an operation-specific reason
+un('raw',W48,gcm(),{name:'AES-GCM'},H,true,['encrypt']) => OperationError: The operation failed for an operation-specific reason
+un('raw',W48,gcm(),{name:'AES-GCM'},{name:'HMAC'},true,['sign']) => OperationError: The operation failed for an operation-specific reason
+un('raw',W48,gcm(),G,{name:'HMAC'},true,['sign']) => SyntaxError: An invalid or illegal string was specified
+un('raw','00'+W48,gcm(),G,H,true,['sign']) => OperationError: The operation failed for an operation-specific reason
+un('raw',KW40,kw(),'AES-KW',H,true,['sign']) => key:secret,true,{"name":"HMAC","hash":{"name":"SHA-256"},"length":256},sign
+ex(un('raw',KW40,kw(),'AES-KW',H,true,['sign'])) => string:key:secret,true,{"name":"HMAC","hash":{"name":"SHA-256"},"length":256},sign 0909090909090909090909090909090909090909090909090909090909090909
+un('raw',KW40.slice(2)+'00',kw(),'AES-KW',H,true,['sign']) => OperationError: The operation failed for an operation-specific reason
+un('raw',KW40.slice(0,32),kw(),'AES-KW',H,true,['sign']) => OperationError: The operation failed for an operation-specific reason
+un('raw',KW40.slice(0,34),kw(),'AES-KW',H,true,['sign']) => DataError: Data provided to an operation does not meet requirements
+un('raw','',kw(),'AES-KW',H,true,['sign']) => DataError: Data provided to an operation does not meet requirements
+un('raw',KW40,kw(),'AES-KW','AES-CBC',true,['encrypt']) => key:secret,true,{"name":"AES-CBC","length":256},encrypt
+un('raw',KW40,kw(),'AES-KW','AES-KW',true,['wrapKey']) => key:secret,true,{"name":"AES-KW","length":256},wrapKey
+un('raw',KW40,kw(['wrapKey']),'AES-KW',H,true,['sign']) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+un('raw',KW40,kw(),G,H,true,['sign']) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+pb() => key:secret,false,{"name":"PBKDF2"},deriveKey|deriveBits
+pb(0,1) => key:secret,true,{"name":"PBKDF2"},deriveKey|deriveBits
+pb(['deriveBits'],0) => key:secret,false,{"name":"PBKDF2"},deriveBits
+pb(['encrypt']) => SyntaxError: An invalid or illegal string was specified
+pb(['encrypt'],1) => SyntaxError: An invalid or illegal string was specified
+pb([]) => SyntaxError: An invalid or illegal string was specified
+pb(0,0,'jwk') => key:secret,false,{"name":"PBKDF2"},deriveKey|deriveBits
+pb(0,0,'spki') => NotSupportedError: Operation is not supported
+S.importKey('raw',U(0),'PBKDF2',false,['deriveBits']) => key:secret,false,{"name":"PBKDF2"},deriveBits
+S.importKey('jwk',{kty:'oct',k:'AAAA'},'PBKDF2',false,['deriveBits']) => key:secret,false,{"name":"PBKDF2"},deriveBits
+S.generateKey('PBKDF2',false,['deriveBits']) => NotSupportedError: Operation is not supported
+S.generateKey('HKDF',false,['deriveBits']) => NotSupportedError: Operation is not supported
+pb().then(function(k){return S.exportKey('raw',k)}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+db(pb(),PB(),160) => buf[20]:0c60c80f961f0e71f3a9b524af6012062fe037a6
+db(pb(),PB({iterations:2}),160) => buf[20]:ea6c014dc72d6f8ccd1ed92ace1d41f0d8de8957
+db(pb(),PB({iterations:4096,hash:'SHA-256'}),256) => buf[32]:c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a
+db(pb(),PB({hash:'SHA-384'}),8) => buf[1]:c0
+db(pb(),PB({hash:{name:'SHA-512'}}),512+64) => buf[72]:867f70cf1ade02cff3752599a3a53dc4af34c7a669815ae5d513554e1c8cf252c02d470a285a0501bad999bfe943c08f050235d7d68b1da55e63f73b60a57fce7b532e206c2967d4
+db(pb(),PB(),0) => buf[0]:
+db(pb(),PB(),7) => OperationError: The operation failed for an operation-specific reason
+db(pb(),PB(),12) => OperationError: The operation failed for an operation-specific reason
+db(pb(),PB(),null) => OperationError: The operation failed for an operation-specific reason
+db(pb(),PB(),undefined) => OperationError: The operation failed for an operation-specific reason
+db(pb(),PB()) => OperationError: The operation failed for an operation-specific reason
+db(pb(),PB(),'16') => buf[2]:0c60
+db(pb(),PB(),-8) => OperationError: The operation failed for an operation-specific reason
+db(pb(),PB({iterations:0}),8) => OperationError: The operation failed for an operation-specific reason
+db(pb(),PB({iterations:undefined}),8) => SyntaxError: An invalid or illegal string was specified
+db(pb(),PB({salt:undefined}),8) => SyntaxError: An invalid or illegal string was specified
+db(pb(),PB({salt:U(0)}),8) => buf[1]:87
+db(pb(),PB({hash:undefined}),8) => SyntaxError: An invalid or illegal string was specified
+db(pb(),PB({hash:'nope'}),8) => NotSupportedError: Operation is not supported
+db(pb(),PB({hash:'AES-GCM'}),8) => NotSupportedError: Operation is not supported
+db(pb(['deriveKey']),PB(),8) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+db(pb(),HK(),8) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+db(pb(),'PBKDF2',8) => SyntaxError: An invalid or illegal string was specified
+db(pb(),'nope',8) => NotSupportedError: Operation is not supported
+db(gcm(),PB(),8) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+db(gcm(),'nope',8) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+db(pb(['deriveKey']),'nope',8) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+db(S.importKey('raw',U(0),'PBKDF2',false,['deriveBits']),PB(),64) => buf[8]:a33dddc304781855
+dk(pb(),PB(),{name:'AES-GCM',length:128},true,['encrypt']) => key:secret,true,{"name":"AES-GCM","length":128},encrypt
+ex(dk(pb(),PB(),{name:'AES-CBC',length:256},true,['encrypt','decrypt'])) => string:key:secret,true,{"name":"AES-CBC","length":256},encrypt|decrypt 0c60c80f961f0e71f3a9b524af6012062fe037a6e0f0eb94fe8fc46bdc637164
+ex(dk(pb(),PB(),{name:'HMAC',hash:'SHA-256'},true,['sign'])) => string:key:secret,true,{"name":"HMAC","hash":{"name":"SHA-256"},"length":512},sign 0c60c80f961f0e71f3a9b524af6012062fe037a6e0f0eb94fe8fc46bdc637164ac2e7a8e3f9d2e83ace57e0d50e5e1071367c179bc86c767fc3f78ddb561363f
+ex(dk(pb(),PB(),{name:'HMAC',hash:'SHA-1'},true,['sign'])) => string:key:secret,true,{"name":"HMAC","hash":{"name":"SHA-1"},"length":512},sign 0c60c80f961f0e71f3a9b524af6012062fe037a6e0f0eb94fe8fc46bdc637164ac2e7a8e3f9d2e83ace57e0d50e5e1071367c179bc86c767fc3f78ddb561363f
+ex(dk(pb(),PB(),{name:'HMAC',hash:'SHA-256',length:100},true,['sign'])) => OperationError: The operation failed for an operation-specific reason
+ex(dk(pb(),PB(),{name:'AES-KW',length:128},true,['wrapKey'])) => string:key:secret,true,{"name":"AES-KW","length":128},wrapKey 0c60c80f961f0e71f3a9b524af601206
+dk(pb(),PB(),{name:'AES-GCM'},true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),PB(),{name:'AES-GCM',length:100},true,['encrypt']) => OperationError: The operation failed for an operation-specific reason
+dk(pb(),PB(),{name:'AES-GCM',length:128},true,['sign']) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),PB(),{name:'AES-GCM',length:128},true,[]) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),PB(),'HKDF',false,['deriveBits']) => NotSupportedError: Operation is not supported
+dk(pb(),PB(),'PBKDF2',false,['deriveBits']) => NotSupportedError: Operation is not supported
+dk(pb(),PB(),'HKDF',true,['deriveBits']) => NotSupportedError: Operation is not supported
+dk(pb(),PB(),'nope',true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),PB(),'SHA-1',true,['encrypt']) => NotSupportedError: Operation is not supported
+dk(pb(['deriveBits']),PB(),{name:'AES-GCM',length:128},true,['encrypt']) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+dk(pb(['deriveBits']),PB(),'nope',true,['encrypt']) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+dk(pb(),PB({iterations:0}),{name:'AES-GCM',length:128},true,['encrypt']) => OperationError: The operation failed for an operation-specific reason
+dk(pb(),PB({iterations:0}),{name:'AES-GCM',length:128},true,['sign']) => OperationError: The operation failed for an operation-specific reason
+dk(pb(),PB({hash:'nope'}),{name:'AES-GCM',length:128},true,['sign']) => NotSupportedError: Operation is not supported
+dk(pb(),'nope',{name:'AES-GCM',length:128},true,['sign']) => NotSupportedError: Operation is not supported
+dk(pb(),'nope','nope',true,['sign']) => NotSupportedError: Operation is not supported
+dk(pb(),HK(),{name:'AES-GCM',length:128},true,['encrypt']) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+hk() => key:secret,false,{"name":"HKDF"},deriveKey|deriveBits
+hk(0,1) => key:secret,true,{"name":"HKDF"},deriveKey|deriveBits
+hk(['sign']) => SyntaxError: An invalid or illegal string was specified
+S.importKey('raw',U(0),'HKDF',false,['deriveBits']) => key:secret,false,{"name":"HKDF"},deriveBits
+S.importKey('jwk',{kty:'oct',k:'AAAA'},'HKDF',false,['deriveBits']) => key:secret,false,{"name":"HKDF"},deriveBits
+db(hk(),HK(),336) => buf[42]:3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865
+db(hk(),HK({salt:U(0),info:U(0)}),336) => buf[42]:8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d9d201395faa4b61a96c8
+db(hk(),HK({hash:'SHA-1'}),8) => buf[1]:d6
+db(hk(),HK({hash:'SHA-512'}),8*100) => buf[100]:832390086cda71fb47625bb5ceb168e4c8e26a1a16ed34d9fc7fe92c1481579338da362cb8d9f925d7cbcce0dff7098769cf15959867d571c1715450cb530137be3fb62f3cf32b84feba8f1eb1b563e20d9749b8640b8264c4b69b14ad5199115e1d609c
+db(hk(),HK(),255*32*8).then(function(b){return b.byteLength}) => number:8160
+db(hk(),HK(),255*32*8+8) => OperationError: The operation failed for an operation-specific reason
+db(hk(),HK(),0) => buf[0]:
+db(hk(),HK(),7) => OperationError: The operation failed for an operation-specific reason
+db(hk(),HK(),null) => OperationError: The operation failed for an operation-specific reason
+db(hk(),HK()) => OperationError: The operation failed for an operation-specific reason
+db(hk(),HK({salt:undefined}),8) => TypeError: The operation could not be performed.
+db(hk(),HK({info:undefined}),8) => TypeError: The operation could not be performed.
+db(hk(),HK({hash:undefined}),8) => TypeError: The operation could not be performed.
+db(hk(),HK({info:'x'}),8) => TypeError: The operation could not be performed.
+db(hk(),PB(),8) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+db(S.importKey('raw',U(0),'HKDF',false,['deriveBits']),HK(),64) => buf[8]:4dd449ba1911c57d
+ex(dk(hk(),HK(),{name:'AES-CTR',length:192},true,['encrypt'])) => string:key:secret,true,{"name":"AES-CTR","length":192},encrypt 3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c
+ex(dk(hk(),HK(),{name:'HMAC',hash:'SHA-512'},true,['verify'])) => string:key:secret,true,{"name":"HMAC","hash":{"name":"SHA-512"},"length":1024},verify 3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865b4b0a85a993b89b9b65683d60f0106d28fff039d0b6f3408900c0f2a9d4463de83622056be50a881bebf2b983ab43e069912f0a57582fcb18ca7a7fe40a33c766c829812af327c32e126589d3c64f419ddfff9d8c787
+dk(hk(),HK(),'HKDF',false,['deriveKey']) => NotSupportedError: Operation is not supported
+dk(hk(),HK(),'PBKDF2',false,['deriveKey']) => NotSupportedError: Operation is not supported
+---
+var IV=U(16,1), G={name:'AES-GCM',iv:U(12)}, H={name:'HMAC',hash:'SHA-256'};
+function imp(a,u,ext,n){return S.importKey('raw',U(n||16,7),a,!!ext,u)}
+function gcm(u){return imp('AES-GCM',u||['encrypt','decrypt','wrapKey','unwrapKey'],1)}
+function kw(u,n){return imp('AES-KW',u||['wrapKey','unwrapKey'],1,n)}
+function hm(ext,n){return S.importKey('raw',U(n||32,9),H,ext===undefined?true:ext,['sign','verify'])}
+function both(a,b){return Promise.all([a,b])}
+var W48='f59611abbbc6518bb0dac84f85fe30650f63d7e64b3f723cfea3258ab4d1c347b35917386ede3379828dd7a9f2a77c20';
+var WJ='87bd79ced5ed62a0f180f373bad5154e6312aacd7842094092860ee89fe2e80d90a8d3c1bb6082e80cc1d3ff8b8750677837bc74560703e1396c9f579b2a5664a4748cb5b3a274ac37a17111adf46a6cc496b583709d73bc5a0c9dbfc1f1b5fec937f9162b9c184ea8fe38886b2c0082020b2d7f75a99b560c0523eb6fc63371551c6396';
+var KW40='d75afdc1acbf231f725baa0aa9b00e3686e7249288ed6f9c256f1f050e3c0a2e499f81a2b664a910';
+function un(fmt,w,k,ua,ka,ext,us){return k.then(function(k){return S.unwrapKey(fmt,unhex(w),k,ua,ka,ext,us)})}
+function pb(u,ext,fmt){return S.importKey(fmt||'raw',new TextEncoder().encode('password'),'PBKDF2',!!ext,u||['deriveBits','deriveKey'])}
+function hk(u,ext){return S.importKey('raw',unhex('0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b'),'HKDF',!!ext,u||['deriveBits','deriveKey'])}
+var salt=new TextEncoder().encode('salt');
+function PB(o){return Object.assign({name:'PBKDF2',salt:salt,iterations:1,hash:'SHA-1'},o)}
+function HK(o){return Object.assign({name:'HKDF',salt:unhex('000102030405060708090a0b0c'),info:unhex('f0f1f2f3f4f5f6f7f8f9'),hash:'SHA-256'},o)}
+function db(k,a,l){return k.then(function(k){return S.deriveBits(a,k,l)})}
+function dk(k,a,t,ext,us){return k.then(function(k){return S.deriveKey(a,k,t,ext,us)})}
+function ex(p){return p.then(function(k){return S.exportKey('raw',k).then(function(b){return show(k)+' '+hex(b)})})}
+function big(n){return db(pb(),PB(),n).then(function(b){return b.byteLength})}
+var J={kty:'oct',k:'AAAAAAAAAAAAAAAAAAAAAA'};
+===
+S.importKey('raw',J,'AES-GCM',true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+S.importKey('raw',J,'AES-GCM',true,['sign']) => SyntaxError: An invalid or illegal string was specified
+S.importKey('raw',{kty:'oct',k:'AAAA'},'AES-GCM',true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+S.importKey('raw',J,H,true,['sign']) => SyntaxError: An invalid or illegal string was specified
+S.importKey('raw',J,'PBKDF2',false,['deriveBits']) => SyntaxError: An invalid or illegal string was specified
+S.importKey('raw',{},'PBKDF2',false,['deriveBits']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('raw',{},'HKDF',false,['deriveBits']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('raw',{},H,false,['sign']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('jwk',U(20),H,true,['sign']) => key:secret,true,{"name":"HMAC","hash":{"name":"SHA-256"},"length":160},sign
+S.importKey('jwk',U(0),H,true,['sign']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('spki',U(16),'AES-GCM',true,['encrypt']) => NotSupportedError: Operation is not supported
+S.importKey('spki',J,'AES-GCM',true,['encrypt']) => NotSupportedError: Operation is not supported
+S.importKey('pkcs8',U(16),H,true,['sign']) => NotSupportedError: Operation is not supported
+S.importKey('bogus',U(16),'PBKDF2',true,['deriveBits']) => SyntaxError: An invalid or illegal string was specified
+S.importKey('pkcs8',U(16),'HKDF',true,['deriveBits']) => NotSupportedError: Operation is not supported
+S.importKey('raw',U(16),'PBKDF2',true,['deriveBits']).then(function(k){return S.exportKey('raw',k)}) => buf[16]:00000000000000000000000000000000
+S.importKey('raw',U(16),'HKDF',true,['deriveBits']).then(function(k){return S.exportKey('raw',k)}) => NotSupportedError: Operation is not supported
+S.importKey('raw',U(16),'HKDF',true,['deriveBits']).then(function(k){return S.exportKey('jwk',k)}) => NotSupportedError: Operation is not supported
+S.importKey('raw',U(16),'PBKDF2',true,['deriveBits']).then(function(k){return S.exportKey('jwk',k)}) => obj:{"ext":true,"k":"AAAAAAAAAAAAAAAAAAAAAA","key_ops":["deriveBits"],"kty":"oct"}
+big(8*65536) => OperationError: The operation failed for an operation-specific reason
+big(8*1048576) => OperationError: The operation failed for an operation-specific reason
+big(4294967288) => OperationError: The operation failed for an operation-specific reason
+big(4294967296) => number:0
+big(4294967304) => number:1
+big(1e12) => OperationError: The operation failed for an operation-specific reason
+big(2147483648) => OperationError: The operation failed for an operation-specific reason
+big(8.9) => number:1
+big(15.9) => OperationError: The operation failed for an operation-specific reason
+big('x') => number:0
+big({}) => number:0
+big(NaN) => number:0
+db(hk(),HK(),4294967304) => buf[1]:3c
+db(hk(),HK(),8.5) => buf[1]:3c
+db(pb(),PB({iterations:1.9}),8) => buf[1]:0c
+db(pb(),PB({iterations:-1}),8) => SyntaxError: An invalid or illegal string was specified
+db(pb(),PB({iterations:'2'}),160) => buf[20]:ea6c014dc72d6f8ccd1ed92ace1d41f0d8de8957
+db(pb(),PB({iterations:4294967297}),160) => SyntaxError: An invalid or illegal string was specified
+db(pb(),PB({salt:'x'}),8) => SyntaxError: An invalid or illegal string was specified
+db(pb(),PB({salt:null}),8) => SyntaxError: An invalid or illegal string was specified
+db(pb(),PB({hash:null}),8) => NotSupportedError: Operation is not supported
+db(pb(),PB({hash:5}),8) => NotSupportedError: Operation is not supported
+db(pb(),PB({hash:undefined,salt:'x'}),8) => SyntaxError: An invalid or illegal string was specified
+db(pb(),PB({iterations:0}),7) => OperationError: The operation failed for an operation-specific reason
+db(pb(),PB({hash:'nope'}),7) => OperationError: The operation failed for an operation-specific reason
+db(pb(),PB({hash:'nope',iterations:0}),8) => NotSupportedError: Operation is not supported
+db(hk(),HK({hash:'nope'}),8) => NotSupportedError: Operation is not supported
+db(hk(),HK({hash:'nope'}),7) => OperationError: The operation failed for an operation-specific reason
+db(hk(),HK({salt:null}),8) => TypeError: The operation could not be performed.
+db(pb(),PB(),8,9) => buf[1]:0c
+S.deriveBits(PB()) => TypeError: SubtleCrypto.deriveBits: At least 2 arguments required, but only 1 passed
+S.deriveBits(PB(),{}) => TypeError: SubtleCrypto.deriveBits: Argument 2 does not implement interface CryptoKey.
+S.deriveBits(PB(),{},8) => TypeError: SubtleCrypto.deriveBits: Argument 2 does not implement interface CryptoKey.
+S.deriveKey(PB(),{},'AES-GCM',true,['encrypt']) => TypeError: SubtleCrypto.deriveKey: Argument 2 does not implement interface CryptoKey.
+dk(pb(),PB(),{name:'AES-GCM',length:128},true,7) => TypeError: SubtleCrypto.deriveKey: Argument 5 can't be converted to a sequence.
+dk(pb(),PB(),{name:'AES-GCM',length:128},true,['bogus']) => SyntaxError: An invalid or illegal string was specified
+dk(pb(['deriveBits']),PB(),{name:'AES-GCM',length:128},true,['bogus']) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+dk(pb(),'nope',{name:'AES-GCM',length:128},true,['bogus']) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),PB({hash:'nope'}),'nope',true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),PB({iterations:0}),'nope',true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),PB({iterations:0}),{name:'AES-GCM'},true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),PB({salt:undefined}),{name:'AES-GCM'},true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),HK(),{name:'AES-GCM'},true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),HK(),'nope',true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),PB(),{name:'HMAC'},true,['sign']) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),PB(),{name:'HMAC',hash:'nope'},true,['sign']) => SyntaxError: An invalid or illegal string was specified
+ex(dk(pb(),PB(),{name:'HMAC',hash:'SHA-384',length:16},true,['sign'])) => string:key:secret,true,{"name":"HMAC","hash":{"name":"SHA-384"},"length":16},sign 0c60
+dk(pb(),PB(),{name:'HMAC',hash:'SHA-384',length:0},true,['sign']) => DataError: Data provided to an operation does not meet requirements
+dk(pb(),PB(),{name:'AES-GCM',length:'128'},true,['encrypt']) => key:secret,true,{"name":"AES-GCM","length":128},encrypt
+dk(pb(),PB(),'AES-GCM',true,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),PB(),{name:'AES-GCM',length:128},false,['encrypt']) => key:secret,false,{"name":"AES-GCM","length":128},encrypt
+both(hm(false),gcm()).then(function(a){return S.wrapKey('bogus',a[0],a[1],G)}) => SyntaxError: An invalid or illegal string was specified
+both(hm(),gcm(['encrypt'])).then(function(a){return S.wrapKey('bogus',a[0],a[1],G)}) => SyntaxError: An invalid or illegal string was specified
+both(hm(),gcm(['encrypt'])).then(function(a){return S.wrapKey('raw',a[0],a[1],'nope')}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+both(hm(),gcm()).then(function(a){return S.wrapKey('spki',a[0],a[1],{name:'AES-GCM'})}) => NotSupportedError: Operation is not supported
+both(hm(),gcm()).then(function(a){return S.wrapKey('spki',a[0],a[1],'AES-CBC')}) => NotSupportedError: Operation is not supported
+both(pb(0,1),gcm()).then(function(a){return S.wrapKey('raw',a[0],a[1],G)}) => buf[24]:8cfe6bd1c5a02ae68b3f76cd1c544984d6353e77dc9fc79b
+both(hk(0,1),gcm()).then(function(a){return S.wrapKey('raw',a[0],a[1],G)}) => buf[38]:f79413a9b9c45389b2d8ca4d87fc32670d61d5e4493db2161dfe713f026a7470c1b58d35d193
+both(hk(0,1),gcm()).then(function(a){return S.wrapKey('jwk',a[0],a[1],G)}) => buf[114]:87bd7ddac6ed62f6cba6a46aae9c1b562429a99c0e750c46bbe95bf0f19bbd3d8d80eef1a648bfd811e9eecf96af6d06057e9d527e3326d21b25ef4fe82579559c69a3bd87b01cc344ae364fe6e96a57f28db6d20f8b0af55d1cd8ebc1b2f4fc8e38160e84fe36c7fc2509558de11344f900
+both(gcm(),gcm()).then(function(a){return S.wrapKey('raw',a[0],a[0],G)}) => buf[32]:fb981fa5b5c85f85bed4c6418bf03e6b16d289f9cd560db9ee17465deb694776
+un('bogus',W48,gcm(),{name:'AES-GCM'},H,true,['sign']) => OperationError: The operation failed for an operation-specific reason
+un('bogus','00'+W48,gcm(),G,H,true,['sign']) => OperationError: The operation failed for an operation-specific reason
+un('raw',W48,gcm(),G,{name:'HMAC',hash:'nope'},true,['sign']) => SyntaxError: An invalid or illegal string was specified
+un('raw',W48,gcm(),{name:'AES-GCM'},'nope',true,['sign']) => NotSupportedError: Operation is not supported
+un('raw',W48,gcm(),'nope','PBKDF2',true,['sign']) => NotSupportedError: Operation is not supported
+un('raw',W48,gcm(),'HMAC',H,true,['sign']) => NotSupportedError: Operation is not supported
+un('raw',W48,gcm(),'SHA-1',H,true,['sign']) => NotSupportedError: Operation is not supported
+un('raw',W48,gcm(),G,'SHA-1',true,['sign']) => NotSupportedError: Operation is not supported
+un('raw',W48,gcm(),G,'AES-GCM',true,['sign']) => SyntaxError: An invalid or illegal string was specified
+un('raw',W48,gcm(),G,{name:'AES-CBC',length:128},true,['decrypt']) => key:secret,true,{"name":"AES-CBC","length":256},decrypt
+un('raw',W48,gcm(),G,H,true,7) => TypeError: SubtleCrypto.unwrapKey: Argument 7 can't be converted to a sequence.
+S.unwrapKey('raw',7,{},G,H,true,['sign']) => TypeError: SubtleCrypto.unwrapKey: Argument 2 could not be converted to any of: ArrayBufferView, ArrayBuffer.
+S.unwrapKey('raw',U(1),{},G,H,true,['sign']) => TypeError: SubtleCrypto.unwrapKey: Argument 3 does not implement interface CryptoKey.
+S.wrapKey('raw',{},{},G) => TypeError: SubtleCrypto.wrapKey: Argument 2 does not implement interface CryptoKey.
+gcm().then(function(k){return S.wrapKey('raw',k,{},G)}) => TypeError: SubtleCrypto.wrapKey: Argument 3 does not implement interface CryptoKey.
+both(hm(1,29),kw()).then(function(a){return S.wrapKey('jwk',a[0],a[1],'AES-KW').then(function(w){return S.unwrapKey('jwk',w,a[1],'AES-KW',H,false,['verify'])})}) => key:secret,false,{"name":"HMAC","hash":{"name":"SHA-256"},"length":232},verify
+S.exportKey('raw',{}) => TypeError: SubtleCrypto.exportKey: Argument 2 does not implement interface CryptoKey.
+S.exportKey('bogus',{}) => TypeError: SubtleCrypto.exportKey: Argument 2 does not implement interface CryptoKey.
+hm().then(function(k){return S.sign('HMAC',k,U(3))}) => buf[32]:b959fcb815f120bc6a114462ba8332599cf4ddfdce4a9e66b14830e5f5cdaeae
+hm().then(function(k){return S.sign('AES-CBC',k,U(3))}) => NotSupportedError: Operation is not supported
+gcm().then(function(k){return S.sign('AES-GCM',k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+gcm().then(function(k){return S.sign('HMAC',k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+hm().then(function(k){return S.encrypt('HMAC',k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+hm().then(function(k){return S.encrypt(G,k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+gcm().then(function(k){return S.encrypt('PBKDF2',k,U(3))}) => NotSupportedError: Operation is not supported
+gcm().then(function(k){return S.encrypt('ECDSA',k,U(3))}) => NotSupportedError: Operation is not supported
+gcm().then(function(k){return S.encrypt('RSA-OAEP',k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+gcm().then(function(k){return S.sign('ECDSA',k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+gcm().then(function(k){return S.sign('PBKDF2',k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+gcm().then(function(k){return S.sign('AES-CBC',k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+S.digest('PBKDF2',U(3)) => NotSupportedError: Operation is not supported
+---
+var IV=U(16,1), G={name:'AES-GCM',iv:U(12)}, H={name:'HMAC',hash:'SHA-256'};
+function imp(a,u,ext,n){return S.importKey('raw',U(n||16,7),a,!!ext,u)}
+function gcm(u){return imp('AES-GCM',u||['encrypt','decrypt','wrapKey','unwrapKey'],1)}
+function kw(u,n){return imp('AES-KW',u||['wrapKey','unwrapKey'],1,n)}
+function hm(ext,n){return S.importKey('raw',U(n||32,9),H,ext===undefined?true:ext,['sign','verify'])}
+function both(a,b){return Promise.all([a,b])}
+var W48='f59611abbbc6518bb0dac84f85fe30650f63d7e64b3f723cfea3258ab4d1c347b35917386ede3379828dd7a9f2a77c20';
+var WJ='87bd79ced5ed62a0f180f373bad5154e6312aacd7842094092860ee89fe2e80d90a8d3c1bb6082e80cc1d3ff8b8750677837bc74560703e1396c9f579b2a5664a4748cb5b3a274ac37a17111adf46a6cc496b583709d73bc5a0c9dbfc1f1b5fec937f9162b9c184ea8fe38886b2c0082020b2d7f75a99b560c0523eb6fc63371551c6396';
+var KW40='d75afdc1acbf231f725baa0aa9b00e3686e7249288ed6f9c256f1f050e3c0a2e499f81a2b664a910';
+function un(fmt,w,k,ua,ka,ext,us){return k.then(function(k){return S.unwrapKey(fmt,unhex(w),k,ua,ka,ext,us)})}
+function pb(u,ext,fmt){return S.importKey(fmt||'raw',new TextEncoder().encode('password'),'PBKDF2',!!ext,u||['deriveBits','deriveKey'])}
+function hk(u,ext){return S.importKey('raw',unhex('0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b'),'HKDF',!!ext,u||['deriveBits','deriveKey'])}
+var salt=new TextEncoder().encode('salt');
+function PB(o){return Object.assign({name:'PBKDF2',salt:salt,iterations:1,hash:'SHA-1'},o)}
+function HK(o){return Object.assign({name:'HKDF',salt:unhex('000102030405060708090a0b0c'),info:unhex('f0f1f2f3f4f5f6f7f8f9'),hash:'SHA-256'},o)}
+function db(k,a,l){return k.then(function(k){return S.deriveBits(a,k,l)})}
+function dk(k,a,t,ext,us){return k.then(function(k){return S.deriveKey(a,k,t,ext,us)})}
+function ex(p){return p.then(function(k){return S.exportKey('raw',k).then(function(b){return show(k)+' '+hex(b)})})}
+function big(n,h){return db(pb(),PB({hash:h||'SHA-1'}),n).then(function(b){return b.byteLength})}
+function maxpb(h){var lo=0,hi=8*65536;function step(){if(hi-lo<=8)return lo;var m=Math.floor((lo+hi)/16)*8;return big(m,h).then(function(){lo=m},function(){hi=m}).then(step)}return Promise.resolve().then(step)}
+===
+maxpb('SHA-1') => number:2048
+maxpb('SHA-256') => number:2048
+maxpb('SHA-512') => number:2048
+gcm(['decrypt']).then(function(k){return S.encrypt('nope',k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+gcm(['decrypt']).then(function(k){return S.encrypt('SHA-1',k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+gcm(['encrypt']).then(function(k){return S.encrypt('nope',k,U(3))}) => NotSupportedError: Operation is not supported
+gcm(['encrypt']).then(function(k){return S.encrypt('AES-KW',k,U(3))}) => NotSupportedError: Operation is not supported
+gcm(['encrypt']).then(function(k){return S.encrypt('HKDF',k,U(3))}) => NotSupportedError: Operation is not supported
+S.importKey('raw',U(32),H,true,['verify']).then(function(k){return S.sign('nope',k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+S.importKey('raw',U(32),H,true,['sign']).then(function(k){return S.sign('nope',k,U(3))}) => NotSupportedError: Operation is not supported
+S.importKey('raw',U(32),H,true,['sign']).then(function(k){return S.sign('AES-GCM',k,U(3))}) => NotSupportedError: Operation is not supported
+S.importKey('raw',U(32),H,true,['sign']).then(function(k){return S.verify('nope',k,U(3),U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+S.importKey('raw',U(32),H,true,['sign']).then(function(k){return S.verify('HMAC',k,U(3),U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+db(pb(),PB({salt:undefined}),7) => SyntaxError: An invalid or illegal string was specified
+db(hk(),HK({salt:undefined}),7) => TypeError: The operation could not be performed.
+db(pb(),'PBKDF2',7) => SyntaxError: An invalid or illegal string was specified
+dk(pb(),PB(),'ECDSA',true,['sign']) => NotSupportedError: Operation is not supported
+dk(pb(),PB(),{name:'ECDH',namedCurve:'P-256'},true,['deriveBits']) => NotSupportedError: Operation is not supported
+dk(pb(),PB(),'RSA-OAEP',true,['encrypt']) => NotSupportedError: Operation is not supported
+S.importKey('raw',7,'PBKDF2',false,['deriveBits']) => TypeError: SubtleCrypto.importKey: Argument 2 is not an object.
+S.importKey('raw',U(4),'PBKDF2',false,['sign']) => SyntaxError: An invalid or illegal string was specified
+S.importKey('raw',U(4),'pbkdf2',false,['deriveKey']) => key:secret,false,{"name":"PBKDF2"},deriveKey
+S.generateKey('PBKDF2',false,['sign']) => NotSupportedError: Operation is not supported
+S.generateKey('PBKDF2',false,[]) => NotSupportedError: Operation is not supported
+S.generateKey({name:'HMAC'},false,[]) => SyntaxError: An invalid or illegal string was specified
+S.generateKey({name:'AES-GCM'},false,[]) => SyntaxError: An invalid or illegal string was specified
+S.generateKey({name:'AES-GCM',length:128},false,[]) => SyntaxError: An invalid or illegal string was specified
+S.generateKey({name:'AES-GCM',length:1},false,[]) => OperationError: The operation failed for an operation-specific reason
+S.importKey('raw',U(16),'HKDF',false,['deriveBits']).then(function(k){return S.exportKey('raw',k)}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+S.importKey('raw',U(16),'HKDF',true,['deriveBits']).then(function(k){return S.exportKey('spki',k)}) => NotSupportedError: Operation is not supported
+S.importKey('raw',U(16),'PBKDF2',true,['deriveBits']).then(function(k){return S.exportKey('spki',k)}) => NotSupportedError: Operation is not supported
+S.importKey('jwk',{kty:'oct',k:'AAAA',alg:'A128GCM'},'PBKDF2',false,['deriveBits']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('jwk',{kty:'oct',k:'AAAA',use:'sig'},'PBKDF2',false,['deriveBits']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('jwk',{kty:'oct',k:'AAAA',use:'enc'},'HKDF',false,['deriveBits']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('jwk',{kty:'oct',k:'AAAA',key_ops:[]},'HKDF',false,['deriveBits']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('jwk',{kty:'oct',k:'AAAAAAAAAAAAAAAAAAAAAA',use:'sig'},'AES-KW',false,['wrapKey']) => DataError: Data provided to an operation does not meet requirements
+S.importKey('jwk',{kty:'oct',k:'AAAAAAAAAAAAAAAAAAAAAA',use:'enc'},'AES-KW',false,['wrapKey']) => key:secret,false,{"name":"AES-KW","length":128},wrapKey
+both(hm(),imp('AES-CBC',['wrapKey'])).then(function(a){return S.wrapKey('raw',a[0],a[1],{name:'AES-CBC'})}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+both(hm(),imp('AES-CBC',['wrapKey'])).then(function(a){return S.wrapKey('raw',a[0],a[1],{name:'AES-CBC',iv:U(3)})}) => OperationError: The operation failed for an operation-specific reason
+both(hm(),imp('AES-CTR',['wrapKey'])).then(function(a){return S.wrapKey('raw',a[0],a[1],{name:'AES-CTR',counter:IV})}) => SyntaxError: An invalid or illegal string was specified
+imp('AES-CBC',['encrypt']).then(function(k){return S.encrypt({name:'AES-CBC',iv:null},k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+imp('AES-CTR',['encrypt']).then(function(k){return S.encrypt({name:'AES-CTR',counter:'x',length:8},k,U(3))}) => SyntaxError: An invalid or illegal string was specified
+imp('AES-CTR',['encrypt']).then(function(k){return S.encrypt({name:'AES-CTR',counter:IV,length:-1},k,U(3))}) => SyntaxError: An invalid or illegal string was specified
+imp('AES-CTR',['encrypt']).then(function(k){return S.encrypt({name:'AES-CTR',counter:IV,length:300},k,U(3))}) => SyntaxError: An invalid or illegal string was specified
+imp('AES-CTR',['encrypt']).then(function(k){return S.encrypt({name:'AES-CTR',counter:IV,length:256+64},k,U(3))}) => SyntaxError: An invalid or illegal string was specified
+imp('AES-CTR',['encrypt']).then(function(k){return S.encrypt('AES-CTR',k,U(3))}) => SyntaxError: An invalid or illegal string was specified
+imp('AES-CBC',['encrypt']).then(function(k){return S.encrypt('AES-CBC',k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+gcm().then(function(k){return S.encrypt('AES-GCM',k,U(3))}) => OperationError: The operation failed for an operation-specific reason
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12),tagLength:128.5},k,U(3))}) => buf[19]:fc9f189df2f30c21ffe5c94e1b363082d0729c
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12),tagLength:-1},k,U(3))}) => OperationError: The operation failed for an operation-specific reason
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12),tagLength:null},k,U(3))}) => OperationError: The operation failed for an operation-specific reason
+gcm().then(function(k){return S.encrypt({name:'AES-GCM',iv:U(12),tagLength:256+128},k,U(3))}) => OperationError: The operation failed for an operation-specific reason
+---
+function ctr(){return S.importKey('raw',U(16,7),'AES-CTR',false,['encrypt','decrypt'])}
+function C(c,l,n){return "ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('"+c+"'),length:"+l+"},k,U("+n+",2))})"}
+===
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('000000000000000000000000000000ff'),length:5},k,U(40,2))}) => buf[40]:72723efdc6ac8b76a7b966e29a268fe44e81b34b09d3a52e51459a448a4793ad954c8934e3e17091
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('0000000000000000000000000000001f'),length:5},k,U(40,2))}) => buf[40]:f7acddccca83d75a20933fd3d53fd1a982bff88aa404140305e2485f6ecade11971cf24d1ada54d4
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('0000000000000000000000000000ffff'),length:12},k,U(40,2))}) => buf[40]:7e70a972f0740cded89ef23bbb87b1f44e81b34b09d3a52e51459a448a4793ad954c8934e3e17091
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('00000000000000000000000000000fff'),length:12},k,U(40,2))}) => buf[40]:8ba5fb93971f6953eb405bdea2ebe743ab96e69d22853d9f14eb9e9d9a7f49768c775346d394dd2b
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('0000000000000000000000000000ffff'),length:16},k,U(40,2))}) => buf[40]:7e70a972f0740cded89ef23bbb87b1f44e81b34b09d3a52e51459a448a4793ad954c8934e3e17091
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('000000000000000000000000ffffffff'),length:31},k,U(40,2))}) => buf[40]:632e522527315ffcb7b309864ed14d154e81b34b09d3a52e51459a448a4793ad954c8934e3e17091
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('000000000000000000000000ffffffff'),length:25},k,U(40,2))}) => buf[40]:632e522527315ffcb7b309864ed14d154e81b34b09d3a52e51459a448a4793ad954c8934e3e17091
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('ffffffffffffffffffffffffffffffff'),length:121},k,U(40,2))}) => buf[40]:2eecf58fb712ddc7be31273f89811d974e81b34b09d3a52e51459a448a4793ad954c8934e3e17091
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('00ffffffffffffffffffffffffffffff'),length:120},k,U(40,2))}) => buf[40]:7558fb7a692963c8578ac55f843616a14e81b34b09d3a52e51459a448a4793ad954c8934e3e17091
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('00ffffffffffffffffffffffffffffff'),length:121},k,U(40,2))}) => buf[40]:7558fb7a692963c8578ac55f843616a15614a14796a3f00201f736492da960c2c0a615202005c0ef
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('007fffffffffffffffffffffffffffff'),length:127},k,U(40,2))}) => buf[40]:7de6adaa9b1f6076a9e5b76e8327d6c40773df69b3cbf6cf7ed8f332c39d456c46760f81e778bf9d
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('000000000000000000000000000000ff'),length:2},k,U(30,2))}) => buf[30]:72723efdc6ac8b76a7b966e29a268fe44e81b34b09d3a52e51459a448a47
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('000000000000000000000000000000fe'),length:9},k,U(60,2))}) => buf[60]:536369b2b2826283915f9798d296b24272723efdc6ac8b76a7b966e29a268fe4758115af46b83ab3dc16cb049c09596b0032368d99b30d6b34d0b3b0
+ctr().then(function(k){return S.encrypt({name:'AES-CTR',counter:unhex('0000000000000000000000000000fffe'),length:9},k,U(60,2))}) => buf[60]:45c0ffe0ecb9f4bda2d83547909ca7f27e70a972f0740cded89ef23bbb87b1f44e81b34b09d3a52e51459a448a4793ad954c8934e3e17091281ace4e
