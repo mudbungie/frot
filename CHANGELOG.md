@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: a `<table>` with no `<caption>` is named from its `summary`
+  attribute**, as in Chrome. `aria-label` and a caption outrank it; it
+  outranks `title`. [bl-2b09]
+
 - **`Image` and `HTMLImageElement` exist under `--js`.** `new Image()` is an
   `<img>` element outside the tree; `new Image(w, h)` sets its `width` and
   `height`. frot still fetches no images: assigning `src` sends no request (a

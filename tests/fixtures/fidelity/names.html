@@ -36,5 +36,12 @@
 <svg width="20" height="20"><svg><title>inner graphic</title><rect width="5" height="5"></rect></svg></svg>
 <p><a href="/deep"><svg width="20" height="20"><g><title>deep</title><text>tx</text></g></svg></a></p>
 <p><a href="/desc"><svg width="20" height="20"><g><desc>gd</desc><text>w</text></g></svg></a></p>
+
+<h2>A table without a caption is named from its summary</h2>
+<table summary="summary names"><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table summary="loses to caption"><caption>caption wins</caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table summary="loses to label" aria-label="label wins"><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table summary="beats title" title="title loses"><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table summary="grid summary" role="grid"><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
 </body>
 </html>

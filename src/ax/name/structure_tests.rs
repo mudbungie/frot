@@ -272,3 +272,24 @@ fn a_label_and_a_reference_space_their_blocks_too() {
     let reference = "<button aria-labelledby=r>zz</button><div id=r>ra<div>rb</div>rc</div>";
     assert_eq!(name(reference, "button"), Some("ra rb rc".into()));
 }
+
+/// `bl-2b09`, Chrome 158: a table without a caption is named by `summary`.
+#[test]
+fn a_table_is_named_from_its_summary_when_it_has_no_caption() {
+    let rows = "<tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr>";
+    for (open, want) in [
+        ("<table summary=SUM>", Some("SUM")),
+        ("<table summary=SUM><caption>CAP</caption>", Some("CAP")),
+        ("<table summary=SUM><caption></caption>", None),
+        ("<table summary=SUM aria-label=AL>", Some("AL")),
+        ("<table summary=SUM title=TT>", Some("SUM")),
+        ("<table summary=''>", None),
+        ("<table summary=SUM role=grid>", Some("SUM")),
+        ("<table>", None),
+    ] {
+        let html = format!("{open}{rows}</table>");
+        assert_eq!(name(&html, "table").as_deref(), want, "{open}");
+    }
+    let html = "<div role=table summary=S><div role=row><span role=cell>x</span></div></div>";
+    assert_eq!(name(html, "div"), None);
+}

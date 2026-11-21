@@ -11,7 +11,8 @@
 //!    - other form controls (`<input>`, `<textarea>`, `<select>`) — the matching
 //!      `<label for=…>` or the wrapping `<label>` text content
 //!    - `<table>` — its first `<caption>` child, read as a descendant
-//!      ([`contents::descendant_name`])
+//!      ([`contents::descendant_name`]); with no caption, its `summary`
+//!      attribute ([`summary`])
 //!    - `<svg>` and every SVG part (`<g>`, a shape, `<use>`) — its `<title>`
 //!      child ([`contents::svg_title`])
 //!    - `<optgroup>` and `<option>` — the `label` content attribute
@@ -104,13 +105,23 @@ fn native_name(
         "input" => input_name(doc, id, el, styles),
         "textarea" | "select" => control_label_text(doc, id, el, styles),
         "fieldset" => fieldset_legend_text(doc, id, styles),
-        "table" => table_caption_text(doc, id, styles),
+        "table" => table_caption_text(doc, id, styles).or_else(|| summary(el)),
         n if super::role::svg_titled(n) => contents::svg_title(doc, id),
         "optgroup" => label_attr(el),
         "option" => label_attr(el).or_else(|| Some(contents_text(doc, id, styles))),
         _ if names_from_contents(doc, id) => Some(contents_text(doc, id, styles)),
         _ => None,
     }
+}
+
+/// A `<table>`'s `summary` attribute: its name when it has no `<caption>`
+/// child. Measured in Chrome 158 (`bl-2b09`): `aria-label` and a caption
+/// outrank it, it outranks `title`, and a caption that is present but empty
+/// still shuts it out (`<table summary=S><caption></caption>` is named "").
+/// It is the `<table>` element's, whatever its role — `role=grid` reads it,
+/// a `<div role=table summary=S>` does not.
+fn summary(el: &crate::dom::Element) -> Option<String> {
+    el.attr("summary").map(str::to_string)
 }
 
 /// The `label` content attribute of `<optgroup>`/`<option>` — an HTML-AAM name
