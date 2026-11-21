@@ -12,7 +12,8 @@ declared challenge of 11 was passed (`rounds:1, passed:true`); 4 further runs
 of 15 got a different, undeclared response (`bl-eed9`). **Since 2026-11-20
 (`bl-a7c5`) a vendor-declared challenge enters the round trip at any status** —
 Cloudflare's is a 403 — and the first Cloudflare measurement is a null with a
-named wall (§11.5). Living authority for this path; `identity.md` §10/§14,
+named wall (§11.5). The undeclared response is Akamai's interstitial, captured
+2026-11-20 (§11.6). Living authority for this path; `identity.md` §10/§14,
 `js.md` §6/§11, `needs.md` §1/§3/§5 and `VISION.md` carry dated in-place notes
 pointing here.
 
@@ -755,7 +756,7 @@ change.
   IP/ASN reputation (`identity.md` §14 item 2). Other egresses are unmeasured.
 - **It is not 5 of 5.** One run got a 200 that declared nothing and had no
   text. The round trip never saw it — no declaration, no round — and frot said
-  `needs:["js"]`. What that response is, is unmeasured (`bl-eed9`).
+  `needs:["js"]`. What that response is, is unmeasured (`bl-eed9`). *(Measured 2026-11-20, §11.6.)*
 - **The delivered page is a real but partial impression**: `js.errors` is 6–8
   (Amazon's own scripts hit APIs frot lacks, and its telemetry hits the
   network budget), and the text is 2.4–4.7 kB.
@@ -775,7 +776,7 @@ way: **every one of the 11 declared challenges was passed** (`rounds:1,
 passed:true`, real home-page text), and the 4 misses are a response that
 declares nothing, runs two scripts cleanly and has no text — frot answers
 `needs:["js"]` and takes no round, which is the design for an undeclared page
-(§6). What that page is, and whether a browser gets it too, is `bl-eed9`.
+(§6). What that page is, and whether a browser gets it too, is `bl-eed9`. *(Answered 2026-11-20: Akamai's interstitial — §11.6.)*
 
 **§8's controls, re-run once each on the final tree** — unchanged from §11.3:
 reddit `needs:["human"]`, `challenge:{declared:"retry-after", rounds:0,
@@ -873,3 +874,62 @@ decision, not a fix: `bl-cc4c`.
 **Nothing was raised, clicked or solved**, and no vendor-specific code was
 added: the one code change beyond the status rule is a general EventTarget
 correction.
+
+### 11.6 The undeclared 200 on Amazon, captured (`bl-eed9`, 2026-11-20)
+
+Captured with a throwaway build that saves each navigation's response, from
+the machine the session ran on. Runs: 8 plain GETs of `www.amazon.com/` (all 8
+the declared 202), then 6 × `frot https://www.amazon.com/ --js --js-errors
+--out text` — **5 passed** the declared challenge (`ok`, 200, `rounds:1,
+passed:true`, 2.4–2.9 kB of text, `js:{scripts:~105, errors:5}`) and **1 got
+the undeclared 200**, which is the one captured.
+
+**What it is: Akamai Bot Manager's interstitial.** Amazon answers from two
+CDNs. Most requests reach CloudFront and get AWS WAF's declared 202; some
+reach an Akamai edge and get this:
+
+- **Headers:** `200`, `server: AkamaiGHost`, `content-type: text/html`,
+  `cache-control: no-cache, no-store, must-revalidate`; it sets one cookie
+  (`ak_bmsc`). No `retry-after`, no vendor action header — **nothing declares
+  it.**
+- **Body** (2,159 bytes), in document order:
+  1. `<meta http-equiv="refresh" content="5; URL='/?bm-verify=<token>'">` — a
+     five-second refresh, the no-script fallback.
+  2. An inline script: `var i = <a number>; var j = i + Number("6540" +
+     "16078");`. That one addition is the whole "proof of work".
+  3. An `<iframe>` of a tracking gif.
+  4. An inline script that sends a **synchronous XHR**, `POST
+     /_sec/verify?provider=interstitial`, `Content-Type: application/json`,
+     body `{"bm-verify": <token>, "pow": j}`, and on `loadend` reads the JSON
+     answer: `reload: true` → `window.location.replace(<its own URL with any
+     bm-verify parameter removed>)`; a `location` field →
+     `location.replace(that)`; anything else → `location.reload()`.
+
+**What a browser does with it, unattended:** runs the script, POSTs, is
+answered `{"reload": true}`, and replaces the location with its own URL — a
+reload — which returns the real page. No person is involved.
+
+**What frot does with it (traced), in order:**
+
+1. GET → the 200 above. Nothing declares a challenge, so §11.1 does not apply.
+2. The five-second refresh is not followed — only a zero-delay refresh is a
+   redirect (§6).
+3. Both scripts run cleanly (`js:{scripts:2, errors:0, settled:true}`). The
+   POST goes out on the existing page-initiated POST path and is answered
+   `200`, `{"reload": true}`.
+4. The script calls `location.replace` with the caller's own URL. That is a
+   script-chosen navigation, a no-op by design (§6).
+5. The document has no text: `needs:["js"]`, no `challenge` block, one
+   navigation.
+
+**Not measured:** whether the verify response sets a cookie — that is, whether
+the request frot would re-send had changed (§4.1's test).
+
+**Verdict on the two candidate fixes.** It is *not* a second spelling of a
+declaration: no header says anything, and recognising it by `server:
+AkamaiGHost` or by its body would be the vendor/body-copy classifier §6 and
+`needs.md` §5 refuse — so nothing was added to `needs::challenge`. What would
+resolve it is honoring the script's own request to reload the caller's URL.
+That moves the boundary in §6 and is Mark's call, filed with this evidence as
+`bl-99b7`. Until then frot's answer for this response is unchanged and stated
+plainly: one Amazon run in four or so ends `needs:["js"]` under `--js`.

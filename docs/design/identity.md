@@ -1126,7 +1126,8 @@ cookie. Filed one ball per gap: `bl-0647` (`crypto.subtle`, the hard stop),
 >
 > **Final tally 2026-11-17 (`bl-78c5`, `challenge.md` §11.4):** 15 `--js` runs
 > since the first pass — every one of the 11 declared challenges passed; 4
-> runs got an undeclared 200 with no text (`bl-eed9`). The challenge Amazon
+> runs got an undeclared 200 with no text (`bl-eed9`). *(2026-11-20: that 200 is
+> Akamai Bot Manager's interstitial, `challenge.md` §11.6.)* The challenge Amazon
 > serves is a 1 KiB padding upload, not a proof-of-work. Controls unchanged:
 > reddit honest stop, g2 and stackoverflow 403, no false positive.
 
