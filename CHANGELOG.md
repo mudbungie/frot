@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: `title` no longer names a `term`.** An empty `<dt title=T>`,
+  `<dfn title=T>` or `role=term` is `term` with no name, as in Chrome; other
+  roles still fall back to `title`. [bl-0794]
+
 - **`--out ax`: `role=form` and `role=region` stand only on a named
   element**, as in Chrome. Unnamed, the next `role` token applies, else the
   element's implicit role: `<div role=region>` is generic,

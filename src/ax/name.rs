@@ -21,7 +21,8 @@
 //!      §2F recursion, [`contents`]), but *only* when the element's role is
 //!      name-from-contents (see [`NAME_FROM_CONTENTS`]); containers (list,
 //!      paragraph, nav, a plain table's row, …) yield no native name
-//! 4. `title` — last, and only where the node's own name is at stake. `title`
+//! 4. `title` — last, only where the node's own name is at stake, and never
+//!    for a `term` ([`title_names`]). `title`
 //!    is positional (`contents/walk.rs`): a `<label>`/`<legend>` and every node
 //!    inside an `aria-labelledby` reference read it too, a descendant read for
 //!    its contribution does not.
@@ -62,10 +63,16 @@ pub fn accessible_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> O
             return Some(t);
         }
     }
-    if let Some(label) = trimmed_attr(el, "title") {
-        return Some(label);
-    }
-    None
+    trimmed_attr(el, "title").filter(|_| title_names(doc, id))
+}
+
+/// Whether `title` is a name source for the node at all. It is not for a
+/// `term`: measured in Chrome 158 (`bl-0794`), `<dt title=T></dt>`,
+/// `<dfn title=T></dfn>` and `<span role=term title=T></span>` are all
+/// `term ""`, while an empty heading, link, button, tab, grid row or cell
+/// with a `title` is named by it. `aria-label` still names a term.
+fn title_names(doc: &Document, id: NodeId) -> bool {
+    crate::ax::role(doc, id) != Some("term")
 }
 
 fn trimmed_attr(el: &crate::dom::Element, name: &str) -> Option<String> {

@@ -545,8 +545,9 @@ stamp each fail.
 `flex`, `svg`, `forms` (forms and links), `article` (landmarks, an external
 stylesheet), `script` (a deterministic DOM build with a timer; `--css --js`).
 Added since (2026-11-20, Chrome 158): `select` (select modes, `bl-2932`) and
-`names` (accessible-name and role edge cases, one section per ball, from
-`bl-fb69` on).
+`names` (accessible-name and role edge cases, one section per ball:
+`bl-fb69` separators, `bl-07bd` SVG, `bl-2b09` table summary, `bl-fe88` empty
+caption, `bl-c5a6` unnamed form/region roles, `bl-0794` titled term).
 
 **What the first recording found.** 51 ledger rows over 10 pages × 5 channels.
 `links` and `forms`: zero deltas. `text`: zero deltas outside the two

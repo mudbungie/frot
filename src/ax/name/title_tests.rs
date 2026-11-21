@@ -243,3 +243,38 @@ fn hidden_still_decides_before_title() {
         Some("fb".into())
     );
 }
+
+/// `bl-0794`, Chrome 158: `title` never names a `term`, though it names the
+/// other name-from-contents roles when their contents are empty.
+#[test]
+fn title_does_not_name_a_term() {
+    for (html, tag) in [
+        ("<dl><dt title=TT></dt><dd>d</dd></dl>", "dt"),
+        ("<dl><dt title=TT> </dt></dl>", "dt"),
+        ("<dl><dt title=TT><img alt=''></dt></dl>", "dt"),
+        ("<dfn title=DT></dfn>", "dfn"),
+        ("<span role=term title=RT></span>", "span"),
+    ] {
+        assert_eq!(name(html, tag), None, "{html}");
+    }
+    for (html, tag, want) in [
+        ("<dl><dt title=TT>term2</dt></dl>", "dt", "term2"),
+        ("<dl><dt aria-label=AL title=TT></dt></dl>", "dt", "AL"),
+        ("<h4 title=HT></h4>", "h4", "HT"),
+        ("<a href=x title=LT></a>", "a", "LT"),
+        ("<button title=BT></button>", "button", "BT"),
+        ("<div role=tab title=TBT></div>", "div", "TBT"),
+        (
+            "<table role=grid><tr title=RT><td></td></tr></table>",
+            "tr",
+            "RT",
+        ),
+        (
+            "<table><tr><td title=TDT></td><th>h</th></tr></table>",
+            "td",
+            "TDT",
+        ),
+    ] {
+        assert_eq!(name(html, tag).as_deref(), Some(want), "{html}");
+    }
+}
