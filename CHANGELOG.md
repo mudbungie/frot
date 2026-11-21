@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **A bot challenge declared at an error status now gets the same treatment as
+  any other declared challenge.** A response with status 400 or above that
+  carries `cf-mitigated: challenge` or `x-amzn-waf-action: challenge` —
+  Cloudflare serves its challenge as a 403 — was `status:"error"`,
+  `http.403`, exit 1. It is now `needs:["js"]` without `--js`, and with `--js`
+  frot runs the challenge page's script and re-requests once if it changed the
+  request, exactly as below 400; `http.status` still reports the 403 and the
+  envelope carries the `challenge` block. A 4xx/5xx that declares no challenge
+  (including a 429/503 with `retry-after`) is unchanged. Measured: this does
+  **not** yet get a Cloudflare-challenged page — its script needs an iframe
+  window frot does not have. [bl-a7c5]
+
+- **`addEventListener` / `removeEventListener` / `dispatchEvent` called with
+  no receiver act on the window under `--js`**, as in a browser; they threw.
+  [bl-a7c5]
+
 - **`--out bboxes` gives a collapsed `<select>`'s options no box.** A select
   is a list box when it has `multiple` (unless `size=1`) or `size` of 2 or
   more; otherwise it is a drop-down, and nothing inside it is laid out — as

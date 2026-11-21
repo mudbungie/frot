@@ -23,6 +23,7 @@ mod iterator;
 mod net;
 mod netbudget;
 mod persona_gold;
+mod receiver;
 mod reflect;
 mod scriptmode;
 mod subtle;

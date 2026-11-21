@@ -89,6 +89,11 @@ only when **the server itself declares the response is not the resource**:
 - **`cf-mitigated: challenge`** — Cloudflare's documented marker for a
   challenge response, honored at any status < 400 (at ≥ 400 the existing
   error flip already reports honestly).
+  > **Superseded 2026-11-20 (`bl-a7c5`).** A vendor declaration
+  > (`cf-mitigated: challenge`, `x-amzn-waf-action: challenge`) is honored at
+  > **any** status — Cloudflare serves its challenge at 403, and a browser runs
+  > it regardless. `Retry-After` still declares only below 400. The rule and
+  > every verdict corner: `challenge.md` §11.5.
 - **`x-amzn-waf-action: challenge`** (added `bl-7e34`, 2026-07-22) — AWS
   WAF's documented marker, the same declaration in a different vendor's
   spelling. Measured on `www.amazon.com/`: HTTP **202** +
@@ -161,7 +166,10 @@ Why `needs:["human"]` and not `error.kind:"http.challenge"`:
   was 200.
 - The honest statement is "this recipe cannot render this page" — the
   `needs` contract verbatim. A challenge arriving at ≥ 400 keeps its
-  existing honest spelling, `error.kind:"http.<code>"`.
+  existing honest spelling, `error.kind:"http.<code>"`. *(Superseded
+  2026-11-20, `bl-a7c5`: a vendor-declared challenge at ≥ 400 is a `needs`
+  verdict like any other declared challenge, with the status in `http.status`;
+  only an undeclared ≥ 400 is `http.<code>`.)*
 
 Accepted residuals, stated rather than papered over:
 

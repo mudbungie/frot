@@ -9,7 +9,10 @@ Amazon's page — a null, recorded in §11.3. §11.4 is the run-by-run history o
 closing the gaps that null named, and it ends in a pass: **measured
 2026-11-17, frot gets Amazon's page through the declared challenge** — every
 declared challenge of 11 was passed (`rounds:1, passed:true`); 4 further runs
-of 15 got a different, undeclared response (`bl-eed9`). Living authority for this path; `identity.md` §10/§14,
+of 15 got a different, undeclared response (`bl-eed9`). **Since 2026-11-20
+(`bl-a7c5`) a vendor-declared challenge enters the round trip at any status** —
+Cloudflare's is a 403 — and the first Cloudflare measurement is a null with a
+named wall (§11.5). Living authority for this path; `identity.md` §10/§14,
 `js.md` §6/§11, `needs.md` §1/§3/§5 and `VISION.md` carry dated in-place notes
 pointing here.
 
@@ -265,7 +268,9 @@ navigate(url)                       # GET, as today
 ```
 
 Note the challenge page is now **parsed and run**, where today `run.rs` returns
-pre-parse. The `>= 400` error flip beside it is untouched.
+pre-parse. The `>= 400` error flip beside it is untouched. *(2026-11-20,
+`bl-a7c5`: no longer untouched — a vendor-declared challenge is consulted
+first, at any status; see the note below and §11.5.)*
 
 > **As built 2026-11-17 (`bl-15ff`).** The sequence is built as drawn
 > (`src/run.rs`, `navigate`), with these additions the drawing left open:
@@ -275,6 +280,14 @@ pre-parse. The `>= 400` error flip beside it is untouched.
 >   challenge at **403** (measured, §11.3), so `cf-mitigated: challenge` never
 >   enters this sequence on that target. Whether it should is Mark's call —
 >   `bl-a7c5`.
+>   **Superseded 2026-11-20 (`bl-a7c5`, Mark: yes).** A browser runs a
+>   challenge page whatever its status, so a **vendor declaration**
+>   (`cf-mitigated: challenge`, `x-amzn-waf-action: challenge`) enters this
+>   sequence at any status, and the sequence is otherwise unchanged. A status
+>   ≥ 400 that declares nothing is exactly the `http.<code>` error it was.
+>   `retry-after` still declares only below 400: beside a 429 or a 503 it is
+>   the header's ordinary meaning (a rate limit, an outage), not a stand-in
+>   page. The whole rule and its corners: §11.5.
 > - **The `js` block.** On an honest stop it is the challenge document's run
 >   (so `stopped:"budget"` is visible); when the round is spent and the answer
 >   is still a challenge, the second challenge document is **not** run and the
@@ -576,10 +589,12 @@ by the sibling-6 capstone **before** the sibling-3 loop assumes them:
 
 1. frot GETs the caller's URL, following redirects and zero-delay refreshes as
    always.
-2. If the response is below 400 and carries `retry-after`, `cf-mitigated:
-   challenge` or `x-amzn-waf-action: challenge`, a challenge was declared, and
+2. If the response carries `cf-mitigated: challenge` or `x-amzn-waf-action:
+   challenge` (at any status — `bl-a7c5`, §11.5), or is below 400 and carries
+   `retry-after`, a challenge was declared, and
    the envelope will carry a `challenge` block whatever happens next. Otherwise
-   nothing below applies and the invocation is exactly what it was before.
+   nothing below applies and the invocation is exactly what it was before —
+   including the `http.<code>` error for a status of 400 or above.
 3. Without `--js`: stop, `needs:["js"]`.
 4. With `--js`: note the request a re-issue would send, parse the challenge
    document, and run its scripts in the ordinary sandbox under the ordinary
@@ -775,3 +790,86 @@ challenge; 5 `js.errors` per run): `Image is not defined` twice (`bl-1404`);
 `NotSupportedError` three times (`bl-db8f` — the first unimplemented algorithm
 with a measured caller). Its two `crypto.subtle.digest("SHA-256", …)` calls
 succeed.
+
+### 11.5 A challenge declared at 400 or above (`bl-a7c5`, 2026-11-20)
+
+Decided by Mark, 2026-11-20: **yes** — a declared challenge enters the round
+trip whatever its status. A browser does not read the status before running
+the page; Cloudflare's managed challenge is a **403** + `cf-mitigated:
+challenge`, and until this ball that was `error{http.403}` with no script run.
+
+**The rule, in the order it happens.**
+
+1. frot GETs the caller's URL.
+2. It asks whether the response declares a challenge (`needs::challenge`, the
+   one place the rule lives): `cf-mitigated: challenge` or `x-amzn-waf-action:
+   challenge` declare **at any status**; `retry-after` declares **only below
+   400**. Beside a 429 or a 503, `retry-after` is the header's ordinary meaning
+   — a rate limit, an outage — and such a response is the error it says it is.
+3. Declares nothing and the status is 400 or above: `error{http.<code>}`,
+   before parsing, no script run, no `challenge` block — byte for byte what it
+   was before this ball.
+4. Declares a challenge: §11.1 from step 3 on, unchanged. The `http` block
+   reports the response as it was, so the status is never lost.
+
+**Every verdict corner** (each pinned in `src/run/roundtrip_status_tests.rs`;
+the examples are a 403 + `cf-mitigated: challenge`):
+
+| what happened | envelope | exit |
+|---|---|---|
+| no `--js` | `needs:["js"]`, `http.status 403` with the declaring header, `challenge:{declared:"cf-mitigated", rounds:0, passed:false}`, no `js` block, one request | 0 |
+| `--js`, the scripts changed nothing | `needs:["human"]`, `http.status 403`, `challenge:{rounds:0, passed:false}`, the `js` block of that run, one request | 0 |
+| `--js`, re-issue is still a declared challenge | `needs:["human"]`, `http.status 403`, `challenge:{rounds:1, passed:false}`, the `js` block of the first run (the second challenge is not run), two requests | 0 |
+| `--js`, re-issue is the page | `ok`, `http.status 200`, `challenge:{rounds:1, passed:true}` | 0 |
+| `--js`, re-issue is a 403 that declares nothing | `error{http.403}`, `challenge:{rounds:1, passed:true}` — the challenge was passed, then the server refused (§5.1) | 1 |
+| a 403 / 429 / 503 that declares nothing, `--js` or not — `retry-after` beside it, or `cf-mitigated: block` | `error{http.<code>}`, no `challenge` block, no script run, one request — **byte-identical** to before | 1 |
+
+**What changed for a caller.** One thing: a response at 400 or above that
+carries a vendor's challenge declaration was `status:"error"` (exit 1) and is
+now `status:"needs"` (exit 0) or, when the round is passed, `ok`. The honest
+http fact rides in `http.status`. No field was added, renamed or removed.
+
+**Measured 2026-11-20**, release build of the `bl-a7c5` tree, from the machine
+the session ran on (not verified to be the §3 reference egress).
+`frot https://stackoverflow.com/questions/1732348 --js --js-errors --out text`:
+
+| run | result |
+|---|---|
+| ×1, before the fix below | **not passed.** `needs:["human"]`, `http.status 403`, `challenge:{declared:"cf-mitigated", rounds:1, passed:false}`, `js:{scripts:2, errors:2}` — the script threw on its first act |
+| ×2, the final tree | **not passed.** Same envelope, `js:{scripts:2, errors:1, settled:true}` — identical both runs |
+| ×1, no `--js` | `needs:["js"]`, `http.status 403`, `challenge:{declared:"cf-mitigated", rounds:0, passed:false}` |
+| g2, reddit (controls, ×1 each) | unchanged: g2 `error{http.403}`, no `challenge` block; reddit `needs:["human"]`, `challenge:{declared:"retry-after", rounds:0, passed:false}` |
+
+No other `cf-mitigated` target is named in these documents, so none was run.
+
+**Cloudflare: failed, and exactly where.** The round trip now runs — the 403
+is parsed, its inline script and the 650 kB challenge-platform script it loads
+both execute — and the script cannot finish in frot's JS environment. It is a
+virtualised interpreter, so it was traced (seven runs of a throwaway build
+that logs absent-property reads, requests, cookie writes and caught throws),
+not read. In order:
+
+| step | what the script did | frot | ball |
+|---|---|---|---|
+| 1 | called `addEventListener(…)` with no receiver (strict code, `this === undefined`) | **threw** — fixed here: a receiverless call on the EventTarget trio is a call on the window, as in a browser (`src/js/prelude/events.js`) | this one |
+| 2 | created an `<iframe>`, read its `contentWindow` and `contentDocument` | both absent | `bl-54ac` |
+| 3 | `new PerformanceObserver(…)` | absent → `TypeError: not a function`, the run's one counted error | `bl-b129` |
+| 4 | *(traced build only, with step 3 stubbed)* `observe({entryTypes:["resource","navigation"]})`; read `navigator.gpu` and `RTCPeerConnection` (absent); created a second iframe and called its `contentWindow.eval` | **the hard stop**: `cannot read property 'eval' of undefined` — it wants a second global to evaluate code in | `bl-54ac` |
+| 5 | built an interstitial UI (headings, an image, a link) | which UI — an error notice or a widget wanting a click — was not determined | — |
+
+It made **no `fetch`, no XHR, no POST and no `document.cookie` write.** So
+whether Cloudflare's challenge ends in an unattended pass or in an interactive
+widget is **unmeasured** — frot does not get far enough to be asked. If it is
+a widget, that is the refused side (§6) and `needs:["human"]` stays the answer.
+
+**Why `rounds` is 1 when nothing was solved.** The second navigation was
+earned by a cookie the *server* set on the response to the page's `<script
+src>` — it reached the jar, so "the request frot would now send" (§4.1)
+differed. The rule held to its letter; a browser would not have re-navigated.
+The cost is one extra GET, answered by the same challenge, and the verdict is
+still honest. Whether a subresource response's cookie should count is a
+decision, not a fix: `bl-cc4c`.
+
+**Nothing was raised, clicked or solved**, and no vendor-specific code was
+added: the one code change beyond the status rule is a general EventTarget
+correction.

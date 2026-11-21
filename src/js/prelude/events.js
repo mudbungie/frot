@@ -119,15 +119,25 @@
   // interface every masqueraded one inherits (Worker, SharedWorker, MessagePort,
   // PermissionStatus, Notification, IDBRequest) instead of each flattening three
   // copies of its own onto itself.
+  //
+  // A call with no receiver is a call on the window (`bl-a7c5`): strict code
+  // that writes a bare `addEventListener('message', f)`, or calls the function
+  // through a variable, passes `this === undefined`, and WebIDL resolves that
+  // to the global for an operation the global object inherits. Cloudflare's
+  // challenge script does exactly this as its first act; throwing there
+  // (`undefined` is no WeakMap key) ended it before it began.
+  function receiver(o) {
+    return o == null ? g : o;
+  }
   g.EventTarget = function EventTarget() {};
   g.EventTarget.prototype.addEventListener = function (type, fn) {
-    add(etKey(this), String(type), fn);
+    add(etKey(receiver(this)), String(type), fn);
   };
   g.EventTarget.prototype.removeEventListener = function (type, fn) {
-    remove(etKey(this), String(type), fn);
+    remove(etKey(receiver(this)), String(type), fn);
   };
   g.EventTarget.prototype.dispatchEvent = function (ev) {
-    fire(etKey(this), ev, this);
+    fire(etKey(receiver(this)), ev, receiver(this));
     return !(ev && ev.defaultPrevented);
   };
   Object.defineProperty(g.EventTarget, Symbol.hasInstance, {

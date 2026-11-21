@@ -1107,6 +1107,8 @@ cookie. Filed one ball per gap: `bl-0647` (`crypto.subtle`, the hard stop),
 4. **stackoverflow is back to a Cloudflare 403** (it returned 200 in §3.6/§3.8)
    and carries `cf-mitigated: challenge`. At 403 it is the error path by design,
    so the round trip does not run for it; whether it should is `bl-a7c5`.
+   *(2026-11-20, `bl-a7c5`: it now does — a vendor-declared challenge enters
+   the round trip at any status; measured, not passed, `challenge.md` §11.5.)*
 5. **No false positive.** No page that declares nothing gained a `challenge`
    block or a second request.
 

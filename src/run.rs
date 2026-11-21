@@ -57,19 +57,20 @@ fn navigate(args: &cli::Args, bounds: Bounds, challenge: &mut Option<ChallengeIn
             .status
             .map(|code| HttpInfo::new(code, &fetched.headers));
         let url = UrlBlock::resolved(&args.url, &fetched.final_url);
-        let refused = fetched.status.filter(|&c| c >= 400);
         // A server-declared deferral (needs.md §3: Retry-After on a success
         // response, `cf-mitigated: challenge`, `x-amzn-waf-action: challenge`)
-        // means the real page was never served. Consulted only below 400 —
-        // above it the error flip already reports honestly.
-        let declared = needs::challenge(&fetched.headers).filter(|_| refused.is_none());
+        // means the real page was never served — at whatever status the
+        // vendor chose to say so (Cloudflare's is 403, `bl-a7c5`).
+        let declared = needs::challenge(fetched.status, &fetched.headers);
         // After a round, any response that is not a declared challenge is the
         // challenge passed — whatever that response then turns out to be.
         challenge
             .iter_mut()
             .for_each(|c| c.passed = declared.is_none());
-        // A server error (status >= 400) is not an impression: flip to an
-        // error envelope before parsing, still carrying the http block.
+        // A server error (status >= 400) that declares no challenge is not an
+        // impression: flip to an error envelope before parsing, still
+        // carrying the http block.
+        let refused = fetched.status.filter(|&c| c >= 400 && declared.is_none());
         if let Some(code) = refused {
             let error = ErrorInfo::new(
                 format!("http.{code}"),
@@ -178,6 +179,9 @@ mod challenge_tests;
 
 #[cfg(test)]
 mod roundtrip_tests;
+
+#[cfg(test)]
+mod roundtrip_status_tests;
 
 #[cfg(test)]
 mod roundtrip_guard_tests;

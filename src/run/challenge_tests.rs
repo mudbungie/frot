@@ -6,9 +6,10 @@
 //! script that does not change the request ends in `needs:["human"]` — the
 //! round trip that follows a script that *does* is pinned in
 //! `roundtrip_tests.rs` (`docs/design/challenge.md`). A defence that refuses
-//! with a status of 400 or above keeps `error{http.<code>}`, distinguishable from a genuine failure by
-//! the surfaced markers. These are the offline pins
-//! for the live corpus in `identity.md` §3.7/§3.9 — the field evidence is
+//! with a status of 400 or above and declares no challenge keeps
+//! `error{http.<code>}`, distinguishable from a genuine failure by the surfaced
+//! markers; one that declares a challenge there is `roundtrip_status_tests.rs`.
+//! These are the offline pins for the live corpus in `identity.md` §3.7/§3.9 — the field evidence is
 //! dated and unrepeatable, the classification it established is not.
 
 use super::*;
