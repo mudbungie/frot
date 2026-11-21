@@ -20,7 +20,9 @@ pub enum Why {
     /// declared model. The reason, with its source.
     Residual(&'static str),
     /// frot differs from the browser and the question is filed: the ball. The
-    /// row pins the divergence until that ball lands.
+    /// row pins the divergence until that ball lands. A ledger with no defect
+    /// row is the healthy state, so the variant may stand unconstructed.
+    #[allow(dead_code)]
     Defect(&'static str),
 }
 
@@ -65,7 +67,6 @@ const CLOSED_DETAILS: Why = Why::Residual(
      channel over-reports paint. frot's omission is the painted truth — the same body is absent \
      from Chrome's own innerText and AX tree (measured 2026-11-18, Chrome 156).",
 );
-const FLEX_ORDER: Why = Why::Defect("bl-7430");
 
 pub const LEDGER: &[Row] = &[
     // text — generated content and control values `innerText` cannot see.
@@ -83,11 +84,4 @@ pub const LEDGER: &[Row] = &[
     row("structure", "bboxes", "+ 36 option", COLLAPSED_SELECT),
     row("disclosure", "bboxes", "- 8 p", CLOSED_DETAILS),
     row("disclosure", "bboxes", "- 9 a", CLOSED_DETAILS),
-    // ax — open divergences, one ball each.
-    row("flex", "ax", "- link \"source first\"", FLEX_ORDER),
-    row("flex", "ax", "+ link \"source first\"", FLEX_ORDER),
-    row("flex", "ax", "- button \"one\"", FLEX_ORDER),
-    row("flex", "ax", "- button \"two\"", FLEX_ORDER),
-    row("flex", "ax", "+ button \"two\"", FLEX_ORDER),
-    row("flex", "ax", "+ button \"one\"", FLEX_ORDER),
 ];

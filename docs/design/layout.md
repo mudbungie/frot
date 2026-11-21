@@ -47,8 +47,8 @@ impl Layout {
   child sequence during `compute` into a `NodeId`-keyed side table that
   `child_order(id)` reads (§5). `Layout` retains no `doc`/`styles`, so the
   sequence is computed at layout time rather than re-derived per query. For any
-  non-flex id (no stored order) `child_order` returns an empty `Vec` — the AX
-  refinement (§5) calls it only for `Flex`/`InlineFlex` nodes.
+  non-flex id (no stored order) `child_order` returns an empty `Vec` —
+  `bboxes` (§5) calls it only for `Flex`/`InlineFlex` nodes.
 
 Layout is a pure function of its inputs, like every other view/capability:
 
@@ -197,13 +197,13 @@ built from the same `keeps`, and every child traversal goes through one:
 
 ```
 views::text::emit           ────► Document::painted_children ─► unpainted
-ax::tree::ordered_children  ─┐
+ax::tree::build             ─┐
                              ├───► Document::ax_children     ─► concealed
 ax::name::contents          ─┘
 ```
 
-`ordered_children` keeps only what it alone knows — flex reading order. The
-predicates stay for the compound gates that glue this fact to a cascade fact
+(Until 2026-11-20 the AX walk also reordered flex children; `bl-7430` removed
+that, §5.) The predicates stay for the compound gates that glue this fact to a cascade fact
 (`layout::renders`, `needs::not_rendered`, `css::cascade::conceal`), which are
 not traversals and cannot forget a child they never iterate.
 
@@ -325,8 +325,7 @@ it is skipped entirely." There is no `--layout` flag. Mechanically, `run.rs`
 | View | Builds layout? |
 |---|---|
 | `bboxes` | **always** — its output *is* geometry |
-| `ax` | **only under `--css`** — see below |
-| `dom`, `text`, `links`, `forms`, `meta` | never |
+| `ax`, `dom`, `text`, `links`, `forms`, `meta` | never |
 
 - **`bboxes`** always forces layout, computing a `Styles` first from whatever
   sheets are available (author + external under `--css`; UA-implicit + inline
@@ -334,18 +333,16 @@ it is skipped entirely." There is no `--layout` flag. Mechanically, `run.rs`
   `--css`: geometry needs `display`, and `display` comes from the cascade. This
   also replaces the Phase-2.5 stub (bl-957a) that returns a usage error for
   `bboxes` until Phase 3 lands.
-- **`ax` under `--css`** forces layout because CSS is Phase 3's *only* source of
-  source-order ↔ reading-order divergence (flex `order`, `flex-direction:
-  *-reverse`; floats/absolute are coerced to flow, §6, so they never reorder).
-  Without `--css` no reorder is possible, source order is already correct, and
-  layout is skipped — honest, and zero change to today's `ax` path.
+- **`ax` never builds layout** (superseded 2026-11-20, `bl-7430`). As first
+  built, `ax` under `--css` forced layout so flex `order`/`*-reverse` could
+  reorder AX children. Chrome's AX tree does not do that (§5), so the trigger
+  is gone and `bboxes` is the only view that pays for layout.
 - **JS reading geometry** (`offsetWidth`, …) is the third trigger named by
   VISION; it is **Phase 4**, out of scope here, noted so the mechanism composes:
-  when JS forces a `Layout`, whatever view follows (e.g. `ax`) refines against
-  it for free.
+  JS geometry gets its own `Layout`; no view inherits it.
 
-`build_payload` gains an `Option<&Layout>` alongside `Option<&Styles>`; views
-stay pure functions of their inputs. No view knows *why* layout ran.
+`build_payload` builds the `Layout` inside its `bboxes` arm; every view stays a
+pure function of `(doc, styles?)`.
 
 ## 4. Viewport convention
 
@@ -361,26 +358,25 @@ stay pure functions of their inputs. No view knows *why* layout ran.
   the layout capability, deletable without touching the core (severability). See
   OQ-2 for when a width flag would be justified.
 
-## 5. AX reading-order refinement
+## 5. Reading order — `bboxes` only; `ax` stays in DOM order
 
-Today `ax::build` emits children in `entry.children` (source) order. Refinement:
-when a `Layout` is present, a **flex container** emits its children in flex
-reading order; every other container is unaffected (block/inline flow order ==
-source order, and non-goals are coerced to flow).
+**Superseded 2026-11-20 (`bl-7430`, Mark's ruling: match Chrome).** This
+section first specified an *AX reading-order refinement*: under `--css`, a flex
+container emitted its AX children in visual order. Measured against Chrome 156
+(`getFullAXTree`, fixture `flex.html`): with `order:2`/`order:1` the links stay
+"source first", "source second"; under `flex-direction: row-reverse` the
+buttons stay one/two/three. Chrome's AX tree is in DOM order whatever flex
+does, so frot's is too, in both recipes, and `ax::ax_tree` takes no `Layout`.
 
-- `ax::ax_tree`/`build` gain `layout: Option<&Layout>`. For a node whose
-  computed display is `Flex`/`InlineFlex`, iterate `layout.child_order(id)`
-  instead of `entry.children`. When `layout` is `None`, source order — the
-  current behavior, bit-for-bit.
+What remains is the reorder primitive and its one consumer:
+
 - **`child_order` rule** (the whole reorder surface in P3): sort a flex
   container's in-flow children by `(order value, source index)`; if
   `flex-direction` is `row-reverse`/`column-reverse`, reverse the result.
-- **What changes in the `ax` view once layout has run:** children of flex
-  containers appear in visual reading order instead of markup order. Nesting,
-  roles, names, and levels are untouched — nodes are reordered among siblings,
-  never moved across containers. So `--css --out ax` on a `order:`-shuffled or
-  `row-reverse` toolbar reads in the order a user/AT would traverse it; without
-  `--css`, and on all non-flex pages, output is identical to Phase 2.
+- **`--out bboxes`** walks a flex container's children in `child_order`, so its
+  array is in visual reading order (§7). The fidelity oracle compares only
+  which elements paint on that channel, not their order (`fidelity.md` §3.1),
+  so this is frot's declared model, not a Chrome-measured fact.
 
 ## 6. Non-goals and the honesty story
 
@@ -534,6 +530,7 @@ epic bl-2a9e + this design bl-6077).
 7. **AX reading-order refinement** — thread `Option<&Layout>` through
    `ax::ax_tree`/`build`; flex containers emit `child_order`; `run.rs` builds
    `Layout` for `ax` when `--css` is set. Unchanged when layout absent.
+   (Built, then removed 2026-11-20 by `bl-7430`: §5.)
    *Dep: 5 + 1.*
 8. **Docs/README fidelity pass** — mark Phase 3 landed; document the `bboxes`
    shape, the 1280 viewport constant, and the approximation/non-goal contract in
@@ -542,10 +539,7 @@ epic bl-2a9e + this design bl-6077).
 ## 9. Open questions (with recommended defaults)
 
 - **OQ-1 — gate `ax`-triggers-layout on "page actually has a flex container"?**
-  Recommended: **no.** Compute layout under `--css` unconditionally; the reorder
-  is a no-op when no flex exists, and detecting flex first means computing
-  display anyway. Over-triggering is a perf nuance, not a correctness/interface
-  issue.
+  Moot since 2026-11-20: `ax` no longer triggers layout at all (§5, `bl-7430`).
 - **OQ-2 — ever add a viewport-width flag?** Recommended: **no**, until a
   concrete multi-width need (e.g. responsive-breakpoint testing) is filed. Ship
   the 1280 constant; a flag then is a justified capability, not speculative

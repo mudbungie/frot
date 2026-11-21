@@ -45,18 +45,7 @@ pub(super) fn impression(
             .with_http(http)
             .with_js(js);
     }
-    // Layout is on-demand (`layout.md` §3): `bboxes` always needs
-    // geometry, and `ax` forces layout under `--css` — flex
-    // `order`/`*-reverse` is the sole source-order↔reading-order
-    // divergence (§3), so without `--css` no reorder is possible and
-    // layout is skipped. Both paths have a `Styles` here (`bboxes`
-    // always, `ax` because `--css` built one), so layout is built iff
-    // the view demands it.
-    let wants_layout = args.out == View::Bboxes || (args.out == View::Ax && args.css);
-    let layout = wants_layout
-        .then(|| styles.as_ref().map(|s| build_layout(s, &doc)))
-        .flatten();
-    let payload = build_payload(args.out, &doc, fetched, styles.as_ref(), layout.as_ref());
+    let payload = build_payload(args.out, &doc, fetched, styles.as_ref());
     Envelope::ok(url, args.out, payload)
         .with_http(http)
         .with_js(js)
@@ -126,18 +115,11 @@ fn compute_styles(
     }
 }
 
-/// Compute the layout table for a view that demands geometry, at the fixed
-/// 1280px viewport (`layout.md` §4).
-fn build_layout(styles: &crate::css::Styles, doc: &Document) -> crate::layout::Layout {
-    crate::layout::compute(doc, styles, crate::layout::VIEWPORT_WIDTH)
-}
-
 fn build_payload(
     view: View,
     doc: &Document,
     fetched: &FetchResult,
     styles: Option<&crate::css::Styles>,
-    layout: Option<&crate::layout::Layout>,
 ) -> Value {
     let page_url = fetched.final_url.as_str();
     match view {
@@ -146,13 +128,14 @@ fn build_payload(
         View::Links => views::links::links(doc, page_url),
         View::Forms => views::forms::forms(doc, page_url),
         View::Meta => views::meta::meta(doc, page_url),
-        View::Ax => ax::ax_tree(doc, styles, layout),
-        // `bboxes` always builds both (`compute_styles`/`build_layout` above).
+        View::Ax => ax::ax_tree(doc, styles),
+        // Layout is on-demand (`layout.md` §3) and `bboxes` is the one view
+        // whose output is geometry, so it is built here, at the fixed 1280px
+        // viewport (§4). `compute_styles` always gives `bboxes` a `Styles`.
         View::Bboxes => {
-            let (layout, styles) = layout
-                .zip(styles)
-                .expect("bboxes always builds a layout and styles");
-            views::bboxes::bboxes(doc, layout, styles)
+            let styles = styles.expect("bboxes always builds styles");
+            let layout = crate::layout::compute(doc, styles, crate::layout::VIEWPORT_WIDTH);
+            views::bboxes::bboxes(doc, &layout, styles)
         }
     }
 }

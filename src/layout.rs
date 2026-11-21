@@ -106,8 +106,8 @@ impl Layout {
     /// (design §5): its rendered element children sorted by `(order, source
     /// index)`, reversed for a `row-reverse`/`column-reverse` `flex-direction`.
     ///
-    /// Defined only for a flex container (`Display::Flex`/`InlineFlex`); the AX
-    /// refinement (3.7) calls it only for such nodes. For **any other id** — a
+    /// Defined only for a flex container (`Display::Flex`/`InlineFlex`); `bboxes`
+    /// calls it only for such nodes. For **any other id** — a
     /// non-flex element, a `display:none`/non-element/document node — it returns
     /// an empty `Vec` (no stored order).
     pub fn child_order(&self, id: NodeId) -> Vec<NodeId> {

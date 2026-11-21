@@ -550,7 +550,7 @@ has since landed and taken its rows out of the ledger) —
 | `bl-8ad7` (fixed) | `<dt>` (`term`) has no name; Chrome names it from contents |
 | `bl-0a0a` (fixed) | an inline `<svg>` is not named from its `<title>` |
 | `bl-2a3c` (fixed) | an unnamed `<form>` is omitted; Chrome exposes `form ""` |
-| `bl-7430` | flex `order`/`row-reverse` reorder AX children (`layout.md` §5); Chrome's AX tree stays in DOM order |
+| `bl-7430` (fixed) | flex `order`/`row-reverse` reorder AX children (`layout.md` §5); Chrome's AX tree stays in DOM order |
 
 Two residuals joined the founding ones, both the channel's blindness rather
 than frot's: `innerText` omits a `<textarea>`'s painted default value, and

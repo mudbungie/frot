@@ -1,13 +1,13 @@
 use super::*;
 
 fn tree(html: &str) -> Value {
-    ax_tree(&Document::parse(html), None, None)
+    ax_tree(&Document::parse(html), None)
 }
 
 fn tree_css(html: &str) -> Value {
     let doc = Document::parse(html);
     let s = crate::css::compute(&doc);
-    ax_tree(&doc, Some(&s), None)
+    ax_tree(&doc, Some(&s))
 }
 
 fn find_first<'a>(v: &'a Value, role: &str) -> Option<&'a Value> {

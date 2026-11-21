@@ -5,7 +5,7 @@
 use super::*;
 
 fn tree(html: &str) -> Value {
-    ax_tree(&Document::parse(html), None, None)
+    ax_tree(&Document::parse(html), None)
 }
 
 fn count_role(v: &Value, role: &str) -> usize {

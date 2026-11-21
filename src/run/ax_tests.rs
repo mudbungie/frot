@@ -1,7 +1,6 @@
-//! `--css --out ax` end-to-end: a flex container's children surface in visual
-//! reading order (the 3.7 refinement), driven by the layout `run.rs` builds for
-//! `ax` only under `--css`. Without `--css` no layout is built, so the flex
-//! `<style>` is inert and source order stands — the pre-Phase-3 behaviour.
+//! `--out ax` end-to-end: children surface in DOM order with or without
+//! `--css`. Chrome's AX tree does not follow flex `order`/`*-reverse`
+//! (measured, Chrome 156, `bl-7430`), so the view builds no layout.
 
 use super::*;
 
@@ -49,19 +48,10 @@ const FLEX_NAV: &str = "<style>nav{display:flex;flex-direction:row-reverse}</sty
      <nav><a href=\"/1\">A</a><a href=\"/2\">B</a></nav>";
 
 #[test]
-fn ax_without_css_keeps_source_order() {
-    // No `--css`: no layout is built, the flex `<style>` is inert, links read in
-    // markup order.
-    let v = serve_ax(FLEX_NAV, &["--out", "ax"]);
-    assert_eq!(v["view"], "ax");
-    assert_eq!(link_names(&v), vec!["A", "B"]);
-}
-
-#[test]
-fn ax_with_css_reorders_flex_children() {
-    // `--css` builds the layout for `ax`; the row-reverse nav emits its links in
-    // reversed reading order.
-    let v = serve_ax(FLEX_NAV, &["--css", "--out", "ax"]);
-    assert_eq!(v["view"], "ax");
-    assert_eq!(link_names(&v), vec!["B", "A"]);
+fn ax_keeps_dom_order_in_a_reversed_flex_row() {
+    for args in [&["--out", "ax"][..], &["--css", "--out", "ax"]] {
+        let v = serve_ax(FLEX_NAV, args);
+        assert_eq!(v["view"], "ax");
+        assert_eq!(link_names(&v), vec!["A", "B"]);
+    }
 }

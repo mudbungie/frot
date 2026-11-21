@@ -35,56 +35,24 @@
 //! genuine data table nested inside a layout table keeps its own structure.
 
 use crate::ax;
-use crate::css::{Display, Styles, Visibility};
+use crate::css::{Styles, Visibility};
 use crate::dom::{Document, Element, NodeId, NodeKind};
-use crate::layout::Layout;
 use serde_json::{json, Value};
 
 const SKIP_TAGS: &[&str] = &["script", "style", "template", "noscript"];
 
-pub fn ax_tree(doc: &Document, styles: Option<&Styles>, layout: Option<&Layout>) -> Value {
+/// Children are emitted in DOM order, always: Chrome's AX tree does not follow
+/// flex `order` or `*-reverse` (measured, Chrome 156; `layout.md` §5), so the
+/// view needs no layout.
+pub fn ax_tree(doc: &Document, styles: Option<&Styles>) -> Value {
     let mut nodes = Vec::new();
     for &root in doc.roots() {
-        nodes.extend(build(doc, root, styles, layout, false));
+        nodes.extend(build(doc, root, styles, false));
     }
     Value::Array(nodes)
 }
 
-/// The child `NodeId`s of `id` in AX emission order: [`Document::ax_children`]
-/// decides *which* children exist — the accessor `ax::name::contents` descends
-/// through too, so nothing cut from the tree can still name it (`bl-0aaf`) —
-/// and this decides their order.
-///
-/// Under a computed `Layout`, a flex container
-/// (`Display::Flex`/`InlineFlex`) emits its children in flex reading order —
-/// [`Layout::child_order`], the single reorder primitive from subtask 3.5
-/// (`layout.md` §5). Every other node, and *every* node when `layout` is `None`
-/// (no `--css`), keeps source order, so `ax` without layout is bit-for-bit
-/// unchanged. Reordering stays within a container: children are resequenced
-/// among siblings, never moved across containers. `child_order` needs no
-/// concealment filter of its own — it reads the render tree, which
-/// `layout::renders` already built without the unpainted nodes.
-fn ordered_children(
-    doc: &Document,
-    id: NodeId,
-    styles: Option<&Styles>,
-    layout: Option<&Layout>,
-) -> Vec<NodeId> {
-    match (layout, styles) {
-        (Some(l), Some(s)) if matches!(s.display(id), Display::Flex | Display::InlineFlex) => {
-            l.child_order(id)
-        }
-        _ => doc.ax_children(id).collect(),
-    }
-}
-
-fn build(
-    doc: &Document,
-    id: NodeId,
-    styles: Option<&Styles>,
-    layout: Option<&Layout>,
-    in_layout_table: bool,
-) -> Vec<Value> {
+fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: bool) -> Vec<Value> {
     let entry = doc.node(id);
     let NodeKind::Element(el) = &entry.kind else {
         return Vec::new();
@@ -110,8 +78,11 @@ fn build(
         in_layout_table
     };
     let mut children = Vec::new();
-    for c in ordered_children(doc, id, styles, layout) {
-        children.extend(build(doc, c, styles, layout, layout_table));
+    // `Document::ax_children` decides which children exist — the accessor
+    // `ax::name::contents` descends through too, so nothing cut from the tree
+    // can still name it (`bl-0aaf`).
+    for c in doc.ax_children(id) {
+        children.extend(build(doc, c, styles, layout_table));
     }
     if styles.is_some_and(|s| s.visibility(id) == Visibility::Hidden) {
         // `visibility:hidden` removes this element's own node but a
@@ -186,9 +157,6 @@ fn has_header_cell(doc: &Document, id: NodeId) -> bool {
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod order_tests;
 
 #[cfg(test)]
 mod hidden_tests;

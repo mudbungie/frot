@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--css --out ax` no longer reorders flex children.** The AX tree is in DOM
+  order in every recipe, as Chrome's is: flex `order` and
+  `flex-direction: *-reverse` do not move AX nodes (measured, Chrome 156).
+  `--out ax` builds no layout any more. `--out bboxes` keeps its visual
+  reading order. [bl-7430]
+
 - **`Blob`, `URL.createObjectURL` and `URL.revokeObjectURL` exist under
   `--js`.** A `Blob` is real bytes with `size`, `type`, `slice`, `text`,
   `arrayBuffer` and `bytes`. A blob: URL is minted but cannot be loaded (no
