@@ -1,11 +1,13 @@
 //! Selector AST, specificity, and matching.
 //!
 //! Supported: `*`, type, `.class`, `#id`, `[attr]`, `[attr=val]`, compound
-//! sequences, the descendant (whitespace) and child (`>`) combinators, and the
-//! `::before` / `::after` pseudo-elements (legacy single-colon spelling too).
-//! Any other pseudo (`:hover`, `:nth-child(...)`, `::first-line`, …) parses
-//! into a [`Simple::Unsupported`] marker so the whole compound fails to
-//! match — a rule we cannot evaluate must never hide or reveal content.
+//! sequences, the descendant (whitespace) and child (`>`) combinators, the
+//! logical pseudo-classes `:is()` / `:where()` / `:not()` over complex
+//! selector lists ([`super::pseudo`]), and the `::before` / `::after`
+//! pseudo-elements (legacy single-colon spelling too). Any other pseudo
+//! (`:hover`, `:nth-child(...)`, `::first-line`, …) parses into a
+//! [`Simple::Unsupported`] marker so the whole compound fails to match — a
+//! rule we cannot evaluate must never apply.
 
 use crate::dom::Element;
 
@@ -27,7 +29,18 @@ pub enum Simple {
     Type(String),
     Class(String),
     Id(String),
-    Attr { name: String, val: Option<String> },
+    Attr {
+        name: String,
+        val: Option<String>,
+    },
+    /// `:is(…)`: matches when any argument does; as specific as its most
+    /// specific argument.
+    Is(Vec<Selector>),
+    /// `:where(…)`: `:is(…)` with zero specificity.
+    Where(Vec<Selector>),
+    /// `:not(…)`: matches when no argument does; as specific as its most
+    /// specific argument. Every argument is [`Selector::evaluable`].
+    Not(Vec<Selector>),
     Unsupported,
 }
 
@@ -54,6 +67,25 @@ impl Selector {
         self.parts.last().and_then(|(_, c)| c.pseudo)
     }
 
+    /// Whether any compound carries a pseudo-element. (An argument of a
+    /// logical pseudo-class never does — [`super::pseudo`] refuses it.)
+    pub fn pseudo_element(&self) -> bool {
+        self.parts.iter().any(|(_, c)| c.pseudo.is_some())
+    }
+
+    /// Whether the engine can answer this selector: no
+    /// [`Simple::Unsupported`] marker at any depth.
+    pub fn evaluable(&self) -> bool {
+        let simples = self.parts.iter().flat_map(|(_, c)| &c.simples);
+        simples.into_iter().all(|s| match s {
+            Simple::Unsupported => false,
+            Simple::Is(list) | Simple::Where(list) | Simple::Not(list) => {
+                list.iter().all(Selector::evaluable)
+            }
+            _ => true,
+        })
+    }
+
     pub fn specificity(&self) -> Specificity {
         let mut s = Specificity::default();
         for (_, c) in &self.parts {
@@ -62,7 +94,12 @@ impl Selector {
                     Simple::Id(_) => s.0 += 1,
                     Simple::Class(_) | Simple::Attr { .. } => s.1 += 1,
                     Simple::Type(_) => s.2 += 1,
-                    Simple::Universal | Simple::Unsupported => {}
+                    Simple::Is(list) | Simple::Not(list) => {
+                        let most = list.iter().map(Selector::specificity).max();
+                        let Specificity(a, b, c) = most.unwrap_or_default();
+                        s = Specificity(s.0 + a, s.1 + b, s.2 + c);
+                    }
+                    Simple::Universal | Simple::Where(_) | Simple::Unsupported => {}
                 }
             }
             if c.pseudo.is_some() {
@@ -79,8 +116,11 @@ fn class_list(el: &Element) -> Vec<&str> {
         .unwrap_or_default()
 }
 
-fn compound_matches(c: &Compound, el: &Element) -> bool {
+fn compound_matches(c: &Compound, el: &Element, ancestors: &[&Element]) -> bool {
+    let any = |list: &[Selector]| list.iter().any(|s| matches(s, el, ancestors));
     c.simples.iter().all(|s| match s {
+        Simple::Is(list) | Simple::Where(list) => any(list),
+        Simple::Not(list) => !any(list),
         Simple::Universal => true,
         Simple::Unsupported => false,
         Simple::Type(t) => el.name == *t,
@@ -107,7 +147,7 @@ fn matches_at(
     el: &Element,
     ancestors: &[&Element],
 ) -> bool {
-    if !compound_matches(&parts[i].1, el) {
+    if !compound_matches(&parts[i].1, el, ancestors) {
         return false;
     }
     if i == 0 {

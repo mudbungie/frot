@@ -1,7 +1,8 @@
 //! Selector-list parsing into the [`super::selector`] AST.
 
 use super::escape::Quoting;
-use super::selector::{Combinator, Compound, Pseudo, Selector, Simple};
+use super::pseudo::{parse_pseudo, PseudoTok};
+use super::selector::{Combinator, Compound, Selector, Simple};
 
 /// Split a selector list on top-level commas (commas inside `[]`, `()`, or
 /// quotes stay), parse each, and drop any that fail to parse.
@@ -14,30 +15,23 @@ pub fn parse_selector_list(s: &str) -> Vec<Selector> {
 
 /// Parse a selector list for `querySelector` (js.md §3). Unlike
 /// [`parse_selector_list`], which silently drops unparseable selectors, this
-/// returns `None` if **any** selector fails to parse or is unqueryable — a
-/// compound carrying an unsupported simple (`:hover`, `:nth-child(…)`) or a
-/// pseudo-element (`::before` matches no real element). The caller turns `None`
-/// into a thrown, counted error rather than a silent empty match.
+/// returns `None` if **any** selector fails to parse or is unqueryable — one
+/// carrying an unsupported simple at any depth (`:hover`, `:nth-child(…)`,
+/// `:is(:hover)`) or a pseudo-element (`::before` matches no real element).
+/// The caller turns `None` into a thrown, counted error rather than a silent
+/// empty match.
 pub fn parse_query(list: &str) -> Option<Vec<Selector>> {
     // `split_top` always yields at least one part; an unparseable one returns
     // via `?`, so a normal exit means every part parsed and `out` is non-empty.
     let mut out = Vec::new();
     for part in split_top(list, ',') {
         let sel = parse_selector(part.trim())?;
-        if !is_queryable(&sel) {
+        if sel.pseudo_element() || !sel.evaluable() {
             return None;
         }
         out.push(sel);
     }
     Some(out)
-}
-
-/// A selector is queryable iff no compound carries a pseudo-element or an
-/// [`Simple::Unsupported`] marker.
-fn is_queryable(sel: &Selector) -> bool {
-    sel.parts.iter().all(|(_, c)| {
-        c.pseudo.is_none() && !c.simples.iter().any(|s| matches!(s, Simple::Unsupported))
-    })
 }
 
 /// Split on `sep` at bracket/paren depth 0 and outside quotes — string
@@ -74,7 +68,7 @@ enum Tok {
     Child,
 }
 
-fn parse_selector(s: &str) -> Option<Selector> {
+pub(super) fn parse_selector(s: &str) -> Option<Selector> {
     let mut parts: Vec<(Combinator, Compound)> = Vec::new();
     let mut comb = Combinator::Descendant;
     for tok in tokenize_combinators(s) {
@@ -173,7 +167,7 @@ fn parse_compound(s: &str) -> Option<Compound> {
                 let (p, n) = parse_pseudo(&b, i);
                 match p {
                     PseudoTok::Element(pe) => pseudo = Some(pe),
-                    PseudoTok::Unsupported => simples.push(Simple::Unsupported),
+                    PseudoTok::Class(simple) => simples.push(simple),
                 }
                 i = n;
             }
@@ -193,7 +187,7 @@ fn parse_compound(s: &str) -> Option<Compound> {
     Some(Compound { simples, pseudo })
 }
 
-fn ident(b: &[char], start: usize) -> (String, usize) {
+pub(super) fn ident(b: &[char], start: usize) -> (String, usize) {
     let mut i = start;
     while i < b.len() && (b[i].is_alphanumeric() || b[i] == '-' || b[i] == '_') {
         i += 1;
@@ -243,44 +237,6 @@ fn skip_ws(b: &[char], mut i: usize) -> usize {
         i += 1;
     }
     i
-}
-
-enum PseudoTok {
-    Element(Pseudo),
-    Unsupported,
-}
-
-fn parse_pseudo(b: &[char], start: usize) -> (PseudoTok, usize) {
-    let mut i = start + 1;
-    if i < b.len() && b[i] == ':' {
-        i += 1;
-    }
-    let (name, mut n) = ident(b, i);
-    if n < b.len() && b[n] == '(' {
-        // Consume a balanced functional argument, e.g. `:nth-child(2n+1)`.
-        let mut depth = 0u32;
-        while n < b.len() {
-            match b[n] {
-                '(' => depth += 1,
-                ')' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        n += 1;
-                        break;
-                    }
-                }
-                _ => {}
-            }
-            n += 1;
-        }
-        return (PseudoTok::Unsupported, n);
-    }
-    let tok = match name.to_ascii_lowercase().as_str() {
-        "before" => PseudoTok::Element(Pseudo::Before),
-        "after" => PseudoTok::Element(Pseudo::After),
-        _ => PseudoTok::Unsupported,
-    };
-    (tok, n)
 }
 
 #[cfg(test)]

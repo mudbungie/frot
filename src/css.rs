@@ -17,6 +17,7 @@ mod import;
 mod index;
 pub mod media;
 mod parse;
+mod pseudo;
 mod query;
 mod selector;
 mod selparse;

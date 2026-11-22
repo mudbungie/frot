@@ -47,9 +47,30 @@ fetches them).
 `@font-face`, … — is skipped with its whole body.
 
 **Selectors.** `*`, type, `.class`, `#id`, `[attr]`, `[attr=value]`,
-compounds of those, the descendant (space) and child (`>`) combinators, and
-`::before` / `::after`. Any other pseudo-class, pseudo-element, combinator or
-attribute operator makes its selector never match.
+compounds of those, the descendant (space) and child (`>`) combinators,
+`:is()` / `:where()` / `:not()` (below), and `::before` / `::after`. Any other
+pseudo-class, pseudo-element, combinator or attribute operator makes its
+selector never match.
+
+**`:is()`, `:where()`, `:not()`** (`bl-011e`; `src/css/pseudo.rs`). Each takes
+a comma-separated list of complex selectors (`:not(.a > .b, #c)`), nests, and
+may stand in any compound. Specificity is the spec's: `:is()` and `:not()`
+count as their most specific argument, `:where()` counts zero. Three limits,
+each of which makes the rule never apply rather than apply wrongly:
+
+- The list is not parsed forgivingly. One argument that does not parse, or
+  that carries a pseudo-element, voids the whole pseudo-class (a browser
+  drops just that argument of `:is()` / `:where()`).
+- `:not()` over anything the engine cannot answer — `:not(:hover)`,
+  `:not(:is(a, :focus))` — never matches. Reading `:hover` as "false" is
+  safe; reading its negation as "true" would apply rules a browser does not.
+- Inside `:is()` / `:where()` an unsupported argument never matches; the
+  other arguments still do (`:is(:hover, .open)` matches `.open`).
+
+JS `querySelector` / `querySelectorAll` / `matches` / `closest` share this
+grammar through `css::query_all`: the three pseudo-classes are accepted, and a
+selector holding an unsupported piece at any depth (`p:is(:hover)`) throws
+`SyntaxError` as before.
 
 **Properties.** `display`, `visibility` (inherited), `content` on
 `::before`/`::after`, `flex-direction` and `order`.
@@ -308,6 +329,8 @@ raised as suspects for "over-hiding":
   was the one doing the hiding. When an applied rule hides and a skipped rule
   *reveals* — `.label{display:none}` then `.label:not([hidden]){display:inline}`
   (Bootstrap's docs header) — under-application leaves the content hidden.
+  `:is()` / `:where()` / `:not()` are supported since `bl-011e`; the hazard
+  remains for every selector still listed as unsupported above.
   The same went for a skipped `@import` whose sheet reveals, until `bl-3aef`
   taught the gather to follow imports.
 - Cascade tie-break (`cascade.rs::winner`, keyed

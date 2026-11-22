@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--css` and `querySelector` understand `:is()`, `:where()` and `:not()`**,
+  over lists of complex selectors, nested, with the spec's specificity
+  (`:where()` zero; `:is()`/`:not()` their most specific argument). Before, a
+  rule using one never applied — and when that rule was the one *revealing*
+  content (`.label{display:none}` `.label:not([hidden]){display:inline}`,
+  Bootstrap's docs header) the content was wrongly hidden. A `:not()` over
+  something frot cannot evaluate (`:not(:hover)`) still never matches, and
+  `querySelector` still throws on it. [bl-011e]
+
 - **`--out ax`: a table or list the author gave another role takes its
   parts' roles with it**, as in Chrome. Under `<table role=presentation>` (or
   `none`, `group`, any role but `table`/`grid`/`treegrid`) a `<thead>`,

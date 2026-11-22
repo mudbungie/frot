@@ -44,8 +44,6 @@ const fn row(fixture: &'static str, channel: &'static str, delta: &'static str, 
 }
 
 const HIDDEN_OPTION: Why = Why::Defect("bl-240d");
-/// `:not()` / `:is()` are unsupported.
-const NEGATION: Why = Why::Defect("bl-011e");
 /// The sibling combinators are unsupported.
 const SIBLING: Why = Why::Defect("bl-6363");
 /// `:first-child` / `:last-child` are unsupported.
@@ -65,10 +63,6 @@ pub const LEDGER: &[Row] = &[
     // Open divergences, one ball per root cause.
     row("select", "text", "- h2", HIDDEN_OPTION),
     // text
-    row("reach", "text", "- Shown", NEGATION),
-    row("reach", "text", "- by", NEGATION),
-    row("reach", "text", "- a", NEGATION),
-    row("reach", "text", "- negation.", NEGATION),
     row("reach", "text", "- §", SIBLING),
     row("reach", "text", "- (one", STRUCTURAL),
     row("reach", "text", "+ one", STRUCTURAL),
@@ -84,8 +78,6 @@ pub const LEDGER: &[Row] = &[
     row("reach", "text", "- tip", ABSOLUTE),
     row("reach", "text", "- after.", ABSOLUTE),
     row("reach", "text", "+ Beforetipafter.", ABSOLUTE),
-    row("saved/bootstrap-forms", "text", "- Search", NEGATION),
-    row("saved/bootstrap-forms", "text", "- docs…", NEGATION),
     row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),
@@ -165,6 +157,4 @@ pub const LEDGER: &[Row] = &[
         STRUCTURAL,
     ),
     // bboxes
-    row("reach", "bboxes", "- 10 span", NEGATION),
-    row("saved/bootstrap-forms", "bboxes", "- 111 span", NEGATION),
 ];

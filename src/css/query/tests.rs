@@ -82,3 +82,32 @@ fn text_nodes_between_elements_are_skipped_not_matched() {
     let hits = query_all(&doc, None, "li").unwrap();
     assert_eq!(ids_to_tags(&doc, &hits), vec!["li", "li"]);
 }
+
+#[test]
+fn logical_pseudo_classes_are_queryable() {
+    let doc = Document::parse("<p class='x'>a</p><p hidden>b</p><i>c</i><b>d</b>");
+    let texts = |list: &str| -> Vec<String> {
+        let hits = query_all(&doc, None, list).unwrap();
+        hits.iter().map(|&i| doc.text_content(i)).collect()
+    };
+    assert_eq!(texts("p:not([hidden])"), ["a"]);
+    assert_eq!(texts(":is(i, b)"), ["c", "d"]);
+    assert_eq!(texts(":where(p):not(.x)"), ["b"]);
+}
+
+#[test]
+fn an_unsupported_selector_inside_a_logical_pseudo_class_is_an_error() {
+    let doc = Document::parse("<p>a</p>");
+    for bad in [
+        "p:is(:hover)",
+        ":where(p, :focus)",
+        "p:not(:hover)",
+        ":is(p::before)",
+    ] {
+        assert_eq!(
+            query_all(&doc, None, bad),
+            Err(UnsupportedSelector),
+            "{bad}"
+        );
+    }
+}

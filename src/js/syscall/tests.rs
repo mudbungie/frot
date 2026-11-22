@@ -116,6 +116,12 @@ fn query_scopes_document_and_element_and_rejects_unsupported() {
     assert_eq!(s.eval("__frot_query_doc('p').length").unwrap(), "2");
     s.eval("globalThis.r = __frot_query_doc('#r')[0]").unwrap();
     assert_eq!(s.eval("__frot_query(r, 'p').length").unwrap(), "1");
+    // The logical pseudo-classes come through the one selector authority.
+    assert_eq!(
+        s.eval("__frot_query_doc('p:not(#r p), :is(div, i)').length")
+            .unwrap(),
+        "2"
+    );
     // Both query entrypoints throw a SyntaxError naming the selector.
     match s.eval("__frot_query(r, 'p:hover')").unwrap_err() {
         EvalError::Exception(m) => assert!(m.contains("unsupported selector: p:hover"), "{m}"),
