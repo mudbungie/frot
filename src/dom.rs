@@ -61,6 +61,9 @@ impl Element {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeKind {
+    /// The document itself: the one node with no parent whose children are the
+    /// document's top-level nodes. Always [`Document::ROOT`], never elsewhere.
+    Document,
     Element(Element),
     Text(String),
     Comment(String),
@@ -80,48 +83,69 @@ pub enum WalkEvent {
     Exit(NodeId),
 }
 
-#[derive(Debug, Default, Clone)]
+/// The arena. Node [`Document::ROOT`] is the document node; every other entry
+/// is reachable from it or detached (parentless). The document's top-level
+/// nodes are that node's children — one list, so "the roots" and "the
+/// document's children" cannot drift (`bl-196a`).
+#[derive(Debug, Clone)]
 pub struct Document {
     nodes: Vec<NodeEntry>,
-    roots: Vec<NodeId>,
     /// Bumped by every §2 mutation op (see [`mutate`]). Per-generation
     /// `Styles`/`Layout` caches downstream invalidate when it changes; a freshly
     /// parsed document sits at generation 0.
     generation: u64,
 }
 
+/// The empty document: the document node alone.
+impl Default for Document {
+    fn default() -> Self {
+        Document {
+            nodes: vec![NodeEntry {
+                kind: NodeKind::Document,
+                children: Vec::new(),
+                parent: None,
+            }],
+            generation: 0,
+        }
+    }
+}
+
 impl Document {
+    /// The document node's id. It is entry 0 of every arena, so a view that
+    /// walks [`Document::roots`] never meets it and a parent chain ends on it.
+    pub const ROOT: NodeId = 0;
+
     pub fn parse(html: &str) -> Self {
         let rc = html5ever::parse_document(RcDom::default(), Default::default()).one(html);
         let mut doc = Document::default();
         let handles: Vec<_> = rc.document.children.borrow().iter().cloned().collect();
         for h in handles {
-            let id = doc.absorb(&h, None);
-            doc.roots.push(id);
+            let id = doc.absorb(&h, Some(Self::ROOT));
+            doc.nodes[Self::ROOT as usize].children.push(id);
         }
         doc
     }
 
+    /// The document's top-level nodes: the document node's children.
     pub fn roots(&self) -> &[NodeId] {
-        &self.roots
+        &self.nodes[Self::ROOT as usize].children
     }
 
     pub fn node(&self, id: NodeId) -> &NodeEntry {
         &self.nodes[id as usize]
     }
 
+    /// The arena's size, the document node included — the length every
+    /// `NodeId`-keyed side table is built to.
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.nodes.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
     }
 
     pub fn walk(&self, start: Option<NodeId>, f: &mut dyn FnMut(WalkEvent, &NodeEntry)) {
         let starts: Vec<NodeId> = match start {
             Some(id) => vec![id],
-            None => self.roots.clone(),
+            None => self.roots().to_vec(),
         };
         for id in starts {
             self.walk_node(id, f);
@@ -215,6 +239,7 @@ fn node_data_to_kind(data: &NodeData) -> NodeKind {
 }
 
 mod conceal;
+mod hierarchy;
 mod mutate;
 mod select;
 

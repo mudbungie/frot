@@ -126,7 +126,7 @@ fn first_and_last_child_count_element_siblings_only() {
          <ol><li id=only>x</li></ol>",
     );
     let hit = |s: &str, id: &str| {
-        let t = crate::css::query_all(&doc, None, &format!("#{id}")).unwrap()[0];
+        let t = crate::css::query_all(&doc, Document::ROOT, &format!("#{id}")).unwrap()[0];
         matches(&sel(s), &doc, t)
     };
     assert!(hit("li:first-child", "a"));

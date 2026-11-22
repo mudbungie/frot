@@ -39,8 +39,10 @@ fn rect_is_the_box_or_all_zero_for_box_less_nodes() {
     let s = bare(
         "<html><body><div id='a'>hi</div><div id='b' style='display:none'>x</div></body></html>",
     );
-    s.eval("globalThis.a = __frot_query_doc('#a')[0]").unwrap();
-    s.eval("globalThis.b = __frot_query_doc('#b')[0]").unwrap();
+    s.eval("globalThis.a = __frot_query(__frot_document, '#a')[0]")
+        .unwrap();
+    s.eval("globalThis.b = __frot_query(__frot_document, '#b')[0]")
+        .unwrap();
     assert_eq!(
         s.eval("JSON.stringify(__frot_rect(a))").unwrap(),
         "[0,0,1280,20]"
@@ -83,7 +85,8 @@ fn computed_display_covers_all_seven_keywords() {
         "inline-flex",
     ];
     for (i, kw) in want.iter().enumerate() {
-        let js = format!("__frot_computed_style(__frot_query_doc('#d{i}')[0], 'display')");
+        let js =
+            format!("__frot_computed_style(__frot_query(__frot_document, '#d{i}')[0], 'display')");
         assert_eq!(&s.eval(&js).unwrap(), kw);
     }
 }
@@ -105,7 +108,7 @@ fn computed_visibility_order_flex_direction_and_unknown() {
     );
     let cs = |sel: &str, prop: &str| {
         s.eval(&format!(
-            "__frot_computed_style(__frot_query_doc('{sel}')[0], '{prop}')"
+            "__frot_computed_style(__frot_query(__frot_document, '{sel}')[0], '{prop}')"
         ))
         .unwrap()
     };
@@ -126,7 +129,8 @@ fn computed_visibility_order_flex_direction_and_unknown() {
 #[test]
 fn cache_reuses_within_a_generation_and_invalidates_on_mutation() {
     let s = bare("<html><body><div id='a'>hi</div></body></html>");
-    s.eval("globalThis.a = __frot_query_doc('#a')[0]").unwrap();
+    s.eval("globalThis.a = __frot_query(__frot_document, '#a')[0]")
+        .unwrap();
     // First query computes (cache: None); second reuses (fresh hit).
     assert_eq!(
         s.eval("JSON.stringify(__frot_rect(a))").unwrap(),
@@ -152,7 +156,8 @@ fn style_source_selects_bare_or_authored_cascade() {
     let html = "<html><head><style>#a{display:none}</style></head><body><div id='a'>hi</div></body></html>";
     // Bare ignores the <style> block: #a still renders.
     let b = bare(html);
-    b.eval("globalThis.a = __frot_query_doc('#a')[0]").unwrap();
+    b.eval("globalThis.a = __frot_query(__frot_document, '#a')[0]")
+        .unwrap();
     assert_eq!(
         b.eval("__frot_computed_style(a, 'display')").unwrap(),
         "block"
@@ -163,7 +168,8 @@ fn style_source_selects_bare_or_authored_cascade() {
     );
     // Authored applies the document's own <style>: #a is display:none.
     let a = authored(html, Vec::new());
-    a.eval("globalThis.a = __frot_query_doc('#a')[0]").unwrap();
+    a.eval("globalThis.a = __frot_query(__frot_document, '#a')[0]")
+        .unwrap();
     assert_eq!(
         a.eval("__frot_computed_style(a, 'display')").unwrap(),
         "none"
@@ -173,7 +179,8 @@ fn style_source_selects_bare_or_authored_cascade() {
         "<html><body><div id='a'>hi</div></body></html>",
         vec!["#a{display:none}".into()],
     );
-    e.eval("globalThis.a = __frot_query_doc('#a')[0]").unwrap();
+    e.eval("globalThis.a = __frot_query(__frot_document, '#a')[0]")
+        .unwrap();
     assert_eq!(
         e.eval("__frot_computed_style(a, 'display')").unwrap(),
         "none"
@@ -192,8 +199,10 @@ fn generated_content_has_geometry_that_tracks_attribute_changes() {
          <body><p><span id='i'></span><span id='j' data-x='ab'></span></p></body></html>",
         Vec::new(),
     );
-    s.eval("globalThis.i = __frot_query_doc('#i')[0]").unwrap();
-    s.eval("globalThis.j = __frot_query_doc('#j')[0]").unwrap();
+    s.eval("globalThis.i = __frot_query(__frot_document, '#i')[0]")
+        .unwrap();
+    s.eval("globalThis.j = __frot_query(__frot_document, '#j')[0]")
+        .unwrap();
     // One glyph (8px) then the two-glyph attr string, one 8px gap between them.
     assert_eq!(
         s.eval("JSON.stringify(__frot_rect(i))").unwrap(),

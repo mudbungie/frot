@@ -1518,9 +1518,9 @@ over `src/dom`, `src/js/syscall.rs`, `src/views`, `src/ax`, `src/layout`,
 `src/css` and `src/needs`; about 16 prelude files define members on the flat
 prototype and are touched by step 3 (`elem2.js` 24 definitions, `canvas.js`
 12, `elem.js` 9, `webgl.js` 6, and smaller). Step 1 must also decide whether
-the document entry is index 0 — every `NodeId` then shifts by one, which
-matters wherever a view prints an id — or a reserved id outside `nodes`; that
-is recorded here when it is made.
+the document entry is index 0 or a reserved id outside `nodes`; that decision
+is recorded under *Step 1 landed* below. (The sizing proved pessimistic: five
+exhaustive matches needed an arm, and no view prints a `NodeId`.)
 
 **Step 3 landed (`bl-78cb`, 2026-11-21).** The capture is
 `tests/fixtures/js/dom-interfaces.json` — 82 interfaces (the chain above plus
@@ -1573,7 +1573,66 @@ that does not implement interface Node.`, `Node.appendChild: Argument 1 is not
 an object.`), where frot's are the engine's; a doctype's `nodeName`
 (`html` on the binary, `#doctype` in frot — the arena keeps no doctype name).
 
-**Until step 4 lands** the document rows of the first table stand.
+**Step 1 landed (`bl-196a`, 2026-11-21).** The document is entry 0 of every
+arena (`Document::ROOT`, `NodeKind::Document`).
+
+- **Index 0, not a reserved id.** "Node 0 is the document" is a constant, so
+  nothing stores where the document is; a reserved id outside `nodes` would
+  need a branch in `node()` and in every `NodeId`-keyed side table. Every
+  other id shifts by one, which costs nothing: no view prints a `NodeId`
+  (`views/bboxes.rs` numbers elements by its own walk), and the fidelity suite
+  is byte-identical.
+- **One list.** `roots()` *is* the document node's children; the `roots`
+  field is gone, and with it the "parentless means root" branch in `unlink`
+  and in the selector matcher's sibling lookup. A node with no parent is now
+  only ever a detached one.
+- **The views do not meet the node.** They walk from `roots()`, so the
+  document node is never entered; the `dom` view is defined as the document
+  node's serialization (its children, no wrapper). A parent chain now ends on
+  it, and every chain reader in `src/ax`, `src/layout`, `src/dom/conceal.rs`
+  and `src/css` asks for an element by tag, which it is not.
+- **Syscalls.** `__frot_document` is the id; `__frot_roots` and
+  `__frot_query_doc` are deleted (`__frot_children(doc)`, `__frot_query(doc,
+  sel)`). A query walks down from its scope node, so a subtree in no document
+  is queried like any other; `__frot_matches(id, sel)` asks the selector
+  matcher about one element where it stands, which is what `element.matches`
+  is. The MutationObserver's `'doc'` sentinel is gone: the document registers
+  under its id and is found by the same parent-chain walk as any ancestor.
+- **The tree refuses what a browser's does** (`src/dom/hierarchy.rs`). Read off
+  the binary — each is a `HierarchyRequestError` whose message is `Node.<method>: `
+  plus:
+
+  | attempt | message after the method name |
+  |---|---|
+  | a child under a text node, a comment, a doctype | `Cannot add children to a Text` / `a Comment` / `a DocumentType` |
+  | a node under itself or its own descendant (the document under anything connected) | `The new child is an ancestor of the parent` |
+  | the document under a detached element | `May not add a Document as a child` |
+  | a doctype under an element | `Cannot insert a DocumentType as a child of an Element` |
+  | text under the document | `Cannot insert a Text as a child of a Document` |
+  | a second element under the document — **the one already there included** (`document.appendChild(document.documentElement)` throws) | `Cannot have more than one Element child of a Document` |
+  | a second doctype, likewise | `Cannot have more than one DocumentType child of a Document` |
+  | an element before the doctype | `Cannot insert a root element before the doctype` |
+  | a doctype after the element | `Cannot have a DocumentType node after the root element` |
+  | `replaceChild`: the same rules with the replaced child set aside (`replaceChild(newHtml, html)` succeeds; `replaceChild(text, html)` gives the text row) | |
+
+  A comment may sit anywhere among the document's children. The rule in the
+  second row is also what keeps the arena a tree: before it, `el.appendChild(
+  anAncestor)` built a cycle and the next walk did not end. Still a mercy, not
+  the binary's `NotFoundError`: a reference sibling that is not a child of the
+  parent appends (`src/dom/mutate.rs`).
+- **Also read, and now true of frot:** `el.outerHTML = …` on an element in no
+  tree is a no-op, and on the document's child throws
+  `NoModificationAllowedError: Modifications are not allowed for this document`;
+  `detached.matches('div')` and `detached.querySelector(…)` answer from the
+  detached subtree (frot answered `false`/`null`: it searched the document).
+
+What a page sees from step 1 alone: `html.parentNode === document` (was
+`null`), `html.previousSibling` is the doctype, `getRootNode()` of a connected
+node is the document by walking, the refusals above, and the two detached
+answers. `html.parentElement` stays `null`.
+
+**Until step 4 lands** the document rows of the first table stand: `document`
+is still a hand-built object, adopted as node 0's wrapper.
 
 ## 4. The one profile
 

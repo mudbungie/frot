@@ -24,13 +24,23 @@ fn sess(html: &str) -> Session {
 fn reads_expose_kind_tag_attr_text_and_links() {
     let s = sess("<!DOCTYPE html><html><body><p id='x' class='a b'>hi</p><!--c--></body></html>");
     // roots are the doctype then <html>; kind labels every node variant.
-    assert_eq!(s.eval("__frot_kind(__frot_roots()[0])").unwrap(), "doctype");
-    // a root has no parent.
     assert_eq!(
-        s.eval("String(__frot_parent(__frot_roots()[0]))").unwrap(),
-        "undefined"
+        s.eval("__frot_kind(__frot_children(__frot_document)[0])")
+            .unwrap(),
+        "doctype"
     );
-    s.eval("globalThis.p = __frot_query_doc('p')[0]").unwrap();
+    // A root's parent is the document node, which has none (`bl-196a`).
+    assert_eq!(
+        s.eval(
+            "[__frot_parent(__frot_children(__frot_document)[0])===__frot_document,\
+             __frot_kind(__frot_document),String(__frot_parent(__frot_document)),\
+             String(__frot_tag(__frot_document)),__frot_text(__frot_document)].join()"
+        )
+        .unwrap(),
+        "true,document,undefined,undefined,hi"
+    );
+    s.eval("globalThis.p = __frot_query(__frot_document, 'p')[0]")
+        .unwrap();
     assert_eq!(s.eval("__frot_kind(p)").unwrap(), "element");
     assert_eq!(s.eval("__frot_tag(p)").unwrap(), "p");
     assert_eq!(s.eval("__frot_attr(p, 'id')").unwrap(), "x");
@@ -52,7 +62,7 @@ fn reads_expose_kind_tag_attr_text_and_links() {
         "text"
     );
     // body's children are the element then the comment (the `comment` arm).
-    s.eval("globalThis.body = __frot_query_doc('body')[0]")
+    s.eval("globalThis.body = __frot_query(__frot_document, 'body')[0]")
         .unwrap();
     assert_eq!(
         s.eval("JSON.stringify(__frot_children(body).map(__frot_kind))")
@@ -80,7 +90,7 @@ fn reads_expose_kind_tag_attr_text_and_links() {
 #[test]
 fn mutations_build_relink_and_detach_nodes() {
     let s = sess("<html><body></body></html>");
-    s.eval("globalThis.body = __frot_query_doc('body')[0]")
+    s.eval("globalThis.body = __frot_query(__frot_document, 'body')[0]")
         .unwrap();
     // create_element lowercases; set_attr + insert_child splice it in.
     s.eval("globalThis.d = __frot_create_element('DIV')")
@@ -106,6 +116,19 @@ fn mutations_build_relink_and_detach_nodes() {
     s.eval("f.forEach((id) => __frot_insert_child(d, id, null))")
         .unwrap();
     assert_eq!(s.eval("__frot_text(d)").unwrap(), "ab");
+    // A refused insertion answers its reason and moves nothing; so does the
+    // question `replaceChild` asks first.
+    assert_eq!(
+        s.eval(
+            "[String(__frot_insert_child(d, body, null)),__frot_insert_child(t, d, null),\
+                String(__frot_parent(body)===__frot_parent(d)),\
+                __frot_replace_refusal(__frot_document, t, __frot_parent(body)),\
+                String(__frot_replace_refusal(body, t, d))].join('|')"
+        )
+        .unwrap(),
+        "The new child is an ancestor of the parent|Cannot add children to a Text|false|\
+         Cannot insert a Text as a child of a Document|undefined"
+    );
     // Mutations are visible on the one shared document.
     assert_eq!(s.document().find_by_tag("span").len(), 2);
 }
@@ -113,12 +136,16 @@ fn mutations_build_relink_and_detach_nodes() {
 #[test]
 fn query_scopes_document_and_element_and_rejects_unsupported() {
     let s = sess("<html><body><div id='r'><p>a</p></div><p>b</p></body></html>");
-    assert_eq!(s.eval("__frot_query_doc('p').length").unwrap(), "2");
-    s.eval("globalThis.r = __frot_query_doc('#r')[0]").unwrap();
+    assert_eq!(
+        s.eval("__frot_query(__frot_document, 'p').length").unwrap(),
+        "2"
+    );
+    s.eval("globalThis.r = __frot_query(__frot_document, '#r')[0]")
+        .unwrap();
     assert_eq!(s.eval("__frot_query(r, 'p').length").unwrap(), "1");
     // The logical pseudo-classes come through the one selector authority.
     assert_eq!(
-        s.eval("__frot_query_doc('p:not(#r p), :is(div, i)').length")
+        s.eval("__frot_query(__frot_document, 'p:not(#r p), :is(div, i)').length")
             .unwrap(),
         "2"
     );
@@ -128,7 +155,8 @@ fn query_scopes_document_and_element_and_rejects_unsupported() {
         e => panic!("expected exception, got {e:?}"),
     }
     assert!(matches!(
-        s.eval("__frot_query_doc(':bogus')").unwrap_err(),
+        s.eval("__frot_query(__frot_document, ':bogus')")
+            .unwrap_err(),
         EvalError::Exception(_)
     ));
 }

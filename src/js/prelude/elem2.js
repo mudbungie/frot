@@ -58,9 +58,7 @@
       return null;
     },
     matches: function matches(sel) {
-      var p = g.__frot_parent(slots(this).id);
-      var hits = p === null || p === undefined ? g.__frot_query_doc(sel) : g.__frot_query(p, sel);
-      return hits.indexOf(slots(this).id) >= 0;
+      return g.__frot_matches(slots(this).id, sel);
     },
     // getElementsBy* return an HTMLCollection (the spec-named interface, built
     // by dom.js's one collection maker over the same selector hits qSA finds).

@@ -284,13 +284,11 @@ fn a_closed_details_offers_the_ax_walks_its_summary_alone() {
 
 #[test]
 fn a_parent_with_no_tag_hides_nothing() {
-    // `insert_child` is deliberately permissive (`dom::mutate`), so a text node
-    // can end up a parent. It has no tag to withhold by, and it is no closed
-    // `<details>`, so the child is neither unpainted nor concealed.
-    let mut doc = Document::parse("<p>t</p>");
-    let text = doc.node(first_element(&doc, "p")).children[0];
-    let child = doc.create_element("b");
-    doc.insert_child(text, child, None);
-    assert!(!doc.unpainted(child) && !doc.concealed(child));
-    assert_eq!(ax_child_tags(&doc, text), ["b"]);
+    // The document node is the one parent that is not an element. It has no
+    // tag to withhold by, and it is no closed `<details>`, so its child is
+    // neither unpainted nor concealed.
+    let doc = Document::parse("<p>t</p>");
+    let html = doc.roots()[0];
+    assert!(!doc.unpainted(html) && !doc.concealed(html));
+    assert_eq!(ax_child_tags(&doc, Document::ROOT), ["html"]);
 }

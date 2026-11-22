@@ -90,14 +90,14 @@
     },
     set: function (html) {
       var parent = g.__frot_parent(slots(this).id);
-      // A root has no parent to replace it within. Browsers reach the Document
-      // node here and swap the documentElement; the arena has no document node
-      // (js.md §2), so frot throws the spec's error for a parentless element
-      // rather than pretending — loud, not silent.
-      if (parent === null || parent === undefined) {
+      // An element in no tree has nothing to be replaced within: a no-op. The
+      // document's own child cannot be replaced this way (both measured on
+      // Firefox 153.0esr).
+      if (parent === null || parent === undefined) return;
+      if (parent === g.__frot_document) {
         throw g.__frot_domerror(
           'NoModificationAllowedError',
-          'An attempt was made to modify an object where modifications are not allowed'
+          'Modifications are not allowed for this document'
         );
       }
       var ids = g.__frot_fragment(String(html));

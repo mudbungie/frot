@@ -6,15 +6,20 @@
 //! - comment  → `{"type": "comment", "value": "..."}`
 //! - doctype  → `{"type": "doctype"}`
 //!
-//! The top-level value is an array of root nodes. We do not synthesize a
-//! `document` wrapper — callers see the same roots `Document::roots()` exposes.
+//! The top-level value is an array of root nodes: the document node serializes
+//! as its children, with no `document` wrapper — callers see the same roots
+//! `Document::roots()` exposes.
 
 use crate::dom::{Document, NodeId, NodeKind};
 use serde_json::{json, Value};
 
 pub fn dom_json(doc: &Document) -> Value {
-    let roots: Vec<Value> = doc.roots().iter().map(|&id| node_json(doc, id)).collect();
-    Value::Array(roots)
+    node_json(doc, Document::ROOT)
+}
+
+fn children_json(doc: &Document, id: NodeId) -> Value {
+    let kids = &doc.node(id).children;
+    Value::Array(kids.iter().map(|&c| node_json(doc, c)).collect())
 }
 
 fn node_json(doc: &Document, id: NodeId) -> Value {
@@ -25,17 +30,17 @@ fn node_json(doc: &Document, id: NodeId) -> Value {
             for a in &el.attrs {
                 attrs.insert(a.name.clone(), Value::String(a.value.clone()));
             }
-            let children: Vec<Value> = entry.children.iter().map(|&c| node_json(doc, c)).collect();
             json!({
                 "type": "element",
                 "name": el.name,
                 "attrs": Value::Object(attrs),
-                "children": children,
+                "children": children_json(doc, id),
             })
         }
         NodeKind::Text(t) => json!({ "type": "text", "value": t }),
         NodeKind::Comment(c) => json!({ "type": "comment", "value": c }),
         NodeKind::Doctype => json!({ "type": "doctype" }),
+        NodeKind::Document => children_json(doc, id),
     }
 }
 

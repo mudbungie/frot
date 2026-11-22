@@ -31,31 +31,36 @@
     var j = ids.indexOf(slots(n).id) + step;
     return j >= 0 && j < ids.length ? wrap(ids[j]) : null;
   }
+  // An insertion the tree cannot hold: the arena says why, in Firefox's words
+  // (src/dom/hierarchy.rs), and nothing has moved.
+  function refuse(op, why) {
+    if (why) throw g.__frot_domerror('HierarchyRequestError', 'Node.' + op + ': ' + why);
+  }
   // A DocumentFragment (nodeType 11) drains its batched children into the
   // target; every other node a script can hold is a real arena node, and the
   // reference sibling goes through as a node id, never an index (bl-ae88).
-  function insert(parent, child, ref) {
+  function insert(op, parent, child, ref) {
     if (child && child.nodeType === 11) slots(child).drain(parent, ref);
-    else g.__frot_insert_child(slots(parent).id, slots(child).id, ref ? slots(ref).id : null);
+    else refuse(op, g.__frot_insert_child(slots(parent).id, slots(child).id, ref ? slots(ref).id : null));
     return child;
   }
 
   g.__frot_ifaceops(Node.prototype, {
-    // No shadow DOM (js.md §11): the root is the document for a connected node
-    // and the subtree top for a detached one.
+    // No shadow DOM (js.md §11): the root is the top of the parent chain — the
+    // document for a connected node, the subtree top for a detached one.
     getRootNode: function getRootNode() {
       var top = this;
       while (top.parentNode) top = top.parentNode;
-      return g.__frot_roots().indexOf(slots(top).id) < 0 ? top : g.document;
+      return top;
     },
     hasChildNodes: function hasChildNodes() {
       return kids(this).length > 0;
     },
     insertBefore: function insertBefore(child, ref) {
-      return insert(this, child, ref);
+      return insert('insertBefore', this, child, ref);
     },
     appendChild: function appendChild(child) {
-      return insert(this, child, null);
+      return insert('appendChild', this, child, null);
     },
     // Replacement is one operation (DOM §4.2.3): the reference is `child`'s
     // NEXT sibling, taken before the removal, so replacing a node with itself
@@ -69,8 +74,12 @@
           'Node.replaceChild: Child to be replaced is not a child of this node'
         );
       }
-      g.__frot_detach(slots(child).id);
-      insert(this, node, i + 1 < ids.length ? wrap(ids[i + 1]) : null);
+      // Judged with `child` set aside, before anything is removed.
+      if (node && node.nodeType !== 11) {
+        refuse('replaceChild', g.__frot_replace_refusal(slots(this).id, slots(node).id, ids[i]));
+      }
+      g.__frot_detach(ids[i]);
+      insert('replaceChild', this, node, i + 1 < ids.length ? wrap(ids[i + 1]) : null);
       return child;
     },
     removeChild: function removeChild(child) {

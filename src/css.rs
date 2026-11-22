@@ -26,7 +26,7 @@ use crate::dom::NodeId;
 
 pub use cascade::{compute, compute_bare, compute_with};
 pub use import::imports;
-pub use query::{query_all, UnsupportedSelector};
+pub use query::{matches_any, query_all, UnsupportedSelector};
 
 // This module publishes a table, not a traversal. Every consumer that needs
 // "the text of this subtree as rendered" walks the arena itself and asks

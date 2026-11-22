@@ -26,10 +26,10 @@
     return g.__frot_wrap(g.__frot_create_comment(String(text)));
   };
   g.document.getElementsByTagName = function (tag) {
-    return g.__frot_elems(g.__frot_query_doc(String(tag)));
+    return g.__frot_elems(g.__frot_query(g.__frot_document, String(tag)));
   };
   g.document.getElementsByClassName = function (cls) {
-    return g.__frot_elems(g.__frot_query_doc('.' + String(cls).trim().split(/\s+/).join('.')));
+    return g.__frot_elems(g.__frot_query(g.__frot_document, '.' + String(cls).trim().split(/\s+/).join('.')));
   };
   // document.scripts (bl-c296): AWS WAF's challenge walks it looking for its own
   // integration script, and threw on `undefined.length` (challenge.md §11.4). On
@@ -39,7 +39,7 @@
   // Firefox's is one live object (`document.scripts === document.scripts`).
   Object.defineProperty(g.document, 'scripts', {
     get: function () {
-      return g.__frot_elems(g.__frot_query_doc('script'));
+      return g.__frot_elems(g.__frot_query(g.__frot_document, 'script'));
     },
     enumerable: true,
     configurable: true,

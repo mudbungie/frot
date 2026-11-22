@@ -24,14 +24,11 @@
     attr: g.__frot_attr,
     text: g.__frot_text,
     kind: g.__frot_kind,
-    roots: g.__frot_roots,
   };
 
-  // Registrations: target key -> [{mo, options}]. Keys are arena NodeIds; the
-  // document (not an arena node) registers under the 'doc' sentinel and is
-  // matched for any CONNECTED node's mutation via subtree — a childList
-  // mutation's target is always a real parent node, so document-as-target
-  // never occurs and the sentinel needs no walk entry of its own. `active` is
+  // Registrations: target key -> [{mo, options}]. Keys are arena NodeIds — the
+  // document's included (bl-196a): it is the node every connected parent chain
+  // ends on, so it is matched like any other ancestor. `active` is
   // the total registration count: the zero-cost fast path for the (common)
   // page that never constructs an observer.
   var registry = Object.create(null);
@@ -78,22 +75,15 @@
 
   // Collect the observers interested in a mutation of `type` at node `id`:
   // walk the parent chain once (the target itself, then ancestors needing
-  // subtree), then the document sentinel if the chain topped out at a
-  // connected root. Dedupes by observer, OR-folding whether any matching
+  // subtree). Dedupes by observer, OR-folding whether any matching
   // registration wants oldValue (spec: one record per interested observer).
   function interested(id, type, attrName) {
     var out = [];
-    var top = id;
     var isTarget = true;
     for (var n = id; n !== null && n !== undefined; n = raw.parent(n)) {
-      top = n;
       var regs = registry[n];
       if (regs) collect(regs, isTarget, type, attrName, out);
       isTarget = false;
-    }
-    var doc = registry.doc;
-    if (doc && doc.length && raw.roots().indexOf(top) >= 0) {
-      collect(doc, false, type, attrName, out);
     }
     return out;
   }
@@ -217,7 +207,9 @@
       rlist = interested(oldParent, 'childList', null);
       if (rlist.length) removal = childRecord(oldParent, child, false);
     }
-    raw.insert(parent, child, before);
+    // A refused insertion is no mutation: hand the reason on.
+    var why = raw.insert(parent, child, before);
+    if (why) return why;
     if (removal) for (var i = 0; i < rlist.length; i++) enqueue(rlist[i].mo, removal);
     var alist = interested(parent, 'childList', null);
     if (alist.length) {

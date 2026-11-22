@@ -12,7 +12,7 @@
 use rquickjs::{Ctx, Exception, Function};
 
 use super::engine::Engine;
-use crate::css::query_all;
+use crate::css::{matches_any, query_all};
 use crate::dom::{Document, NodeKind};
 
 mod cookie;
@@ -99,10 +99,9 @@ fn bind<'js>(ctx: &Ctx<'js>, host: &Host) -> rquickjs::Result<()> {
 /// Node-query syscalls: kind/tag/attr/text and the structural links.
 fn reads<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquickjs::Result<()> {
     let doc = &h.doc;
-    bind!(ctx, g, "__frot_roots", {
-        let d = doc.clone();
-        move || d.borrow().roots().to_vec()
-    });
+    // The document node's id: the receiver every document-level read and
+    // write names, so the document needs no syscall of its own (`bl-196a`).
+    g.set("__frot_document", Document::ROOT)?;
     bind!(ctx, g, "__frot_kind", {
         let d = doc.clone();
         move |id: u32| kind_label(&d.borrow(), id)
@@ -183,9 +182,16 @@ fn mutations<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquick
     });
     bind!(ctx, g, "__frot_insert_child", {
         let d = doc.clone();
+        // Answers the reason for a refused insertion, `undefined` when done.
         move |parent: u32, child: u32, before: Option<u32>| {
-            d.borrow_mut().insert_child(parent, child, before)
+            d.borrow_mut().insert_child(parent, child, before).err()
         }
+    });
+    // Why `child` may not take the place of `old` under `parent` — asked by
+    // `replaceChild` before it removes anything.
+    bind!(ctx, g, "__frot_replace_refusal", {
+        let d = doc.clone();
+        move |parent: u32, child: u32, old: u32| d.borrow().refusal(parent, child, None, Some(old))
     });
     bind!(ctx, g, "__frot_detach", {
         let d = doc.clone();
@@ -198,8 +204,8 @@ fn mutations<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquick
     Ok(())
 }
 
-/// `querySelector(All)` (routed through `css::query`, unsupported selectors
-/// throw) and console capture.
+/// `querySelector(All)` and `matches` (routed through `css::query`,
+/// unsupported selectors throw) and console capture.
 fn query_and_console<'js>(
     ctx: &Ctx<'js>,
     g: &rquickjs::Object<'js>,
@@ -209,13 +215,13 @@ fn query_and_console<'js>(
     bind!(ctx, g, "__frot_query", {
         let d = doc.clone();
         move |ctx: Ctx<'js>, id: u32, sel: String| -> rquickjs::Result<Vec<u32>> {
-            query_all(&d.borrow(), Some(id), &sel).map_err(|_| bad_selector(&ctx, &sel))
+            query_all(&d.borrow(), id, &sel).map_err(|_| bad_selector(&ctx, &sel))
         }
     });
-    bind!(ctx, g, "__frot_query_doc", {
+    bind!(ctx, g, "__frot_matches", {
         let d = doc.clone();
-        move |ctx: Ctx<'js>, sel: String| -> rquickjs::Result<Vec<u32>> {
-            query_all(&d.borrow(), None, &sel).map_err(|_| bad_selector(&ctx, &sel))
+        move |ctx: Ctx<'js>, id: u32, sel: String| -> rquickjs::Result<bool> {
+            matches_any(&d.borrow(), id, &sel).map_err(|_| bad_selector(&ctx, &sel))
         }
     });
     bind!(ctx, g, "__frot_console", {
@@ -267,6 +273,7 @@ fn geometry<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquickj
 
 fn kind_label(doc: &Document, id: u32) -> &'static str {
     match doc.node(id).kind {
+        NodeKind::Document => "document",
         NodeKind::Element(_) => "element",
         NodeKind::Text(_) => "text",
         NodeKind::Comment(_) => "comment",

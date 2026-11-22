@@ -15,42 +15,38 @@ use crate::dom::{Document, NodeId};
 #[derive(Debug, PartialEq, Eq)]
 pub struct UnsupportedSelector;
 
-/// Elements matching `list`, in document order. `root` scopes the result:
-/// `None` matches over the whole document (every element); `Some(id)` matches
-/// only strict descendants of `id` (as `element.querySelectorAll` does).
-/// A selector is matched against the element where it stands in the document,
-/// so combinators reaching above or beside `root` still resolve.
+/// Elements matching `list` among the strict descendants of `root`, in tree
+/// order: `root` is the document node for a whole-document query, an element
+/// for `element.querySelectorAll`. A selector is matched against the element
+/// where it stands in its tree, so combinators reaching above or beside
+/// `root` still resolve — and a subtree that is in no document is queried like
+/// any other.
 pub fn query_all(
     doc: &Document,
-    root: Option<NodeId>,
+    root: NodeId,
     list: &str,
 ) -> Result<Vec<NodeId>, UnsupportedSelector> {
     let sels = parse_query(list).ok_or(UnsupportedSelector)?;
     let mut out = Vec::new();
-    for &r in doc.roots() {
-        walk(doc, r, root, root.is_none(), &sels, &mut out);
-    }
+    walk(doc, root, &sels, &mut out);
     Ok(out)
 }
 
-/// Recurse `id`'s subtree. `collecting` says whether nodes at this depth are in
-/// scope: it flips true at `root`'s children (`Some` scope) or is true
-/// throughout (`None` scope, whole-document query). Only an element matches
-/// ([`matches`]), and only elements carry children.
-fn walk(
-    doc: &Document,
-    id: NodeId,
-    root: Option<NodeId>,
-    collecting: bool,
-    sels: &[Selector],
-    out: &mut Vec<NodeId>,
-) {
-    if collecting && sels.iter().any(|s| matches(s, doc, id)) {
-        out.push(id);
-    }
-    let child_collecting = collecting || root == Some(id);
+/// Whether the node `id` itself matches `list` where it stands
+/// (`element.matches`), in a document or out of one.
+pub fn matches_any(doc: &Document, id: NodeId, list: &str) -> Result<bool, UnsupportedSelector> {
+    let sels = parse_query(list).ok_or(UnsupportedSelector)?;
+    Ok(sels.iter().any(|s| matches(s, doc, id)))
+}
+
+/// Collect the matches below `id`. Only an element matches ([`matches`]), and
+/// only the document and elements carry children.
+fn walk(doc: &Document, id: NodeId, sels: &[Selector], out: &mut Vec<NodeId>) {
     for &c in &doc.node(id).children {
-        walk(doc, c, root, child_collecting, sels, out);
+        if sels.iter().any(|s| matches(s, doc, c)) {
+            out.push(c);
+        }
+        walk(doc, c, sels, out);
     }
 }
 

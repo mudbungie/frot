@@ -126,15 +126,17 @@ fn setting_outer_html_replaces_the_element_where_it_stood() {
         .unwrap(),
         "<b>y</b>"
     );
-    // No parent, nowhere to be replaced: the spec's error, thrown — never the
-    // silence a getter-only property gave a sloppy script.
+    // An element in no tree has nowhere to be replaced: a no-op, as measured on
+    // Firefox 153.0esr. The document's own child refuses, with its message.
     assert_eq!(
         s.eval(
             "var d = document.createElement('div');\
-             try { d.outerHTML = '<p></p>'; 'no throw' } catch (e) { e.name }"
+             d.outerHTML = '<p></p>';\
+             try { document.documentElement.outerHTML = '<p></p>'; d.tagName }\
+             catch (e) { d.tagName + '|' + e.name + ': ' + e.message }"
         )
         .unwrap(),
-        "NoModificationAllowedError"
+        "DIV|NoModificationAllowedError: Modifications are not allowed for this document"
     );
 }
 

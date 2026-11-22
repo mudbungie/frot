@@ -17,7 +17,7 @@ impl Document {
         self.generation
     }
 
-    /// Append a detached element node (no parent, not a root) and return its id.
+    /// Append a detached element node (no parent) and return its id.
     pub fn create_element(&mut self, name: &str) -> NodeId {
         self.append_node(NodeKind::Element(Element {
             name: name.to_ascii_lowercase(),
@@ -88,7 +88,19 @@ impl Document {
     /// of `parent` appends, which is the one deliberate mercy — a browser throws
     /// `NotFoundError`, but a misplaced node still yields an impression where a
     /// thrown exception kills the script that was building one.
-    pub fn insert_child(&mut self, parent: NodeId, child: NodeId, before: Option<NodeId>) {
+    ///
+    /// An insertion the tree cannot hold is refused before anything moves, and
+    /// the reason returned ([`Document::refusal`]): that is what keeps the
+    /// arena a tree and the document's children a document's.
+    pub fn insert_child(
+        &mut self,
+        parent: NodeId,
+        child: NodeId,
+        before: Option<NodeId>,
+    ) -> Result<(), String> {
+        if let Some(why) = self.refusal(parent, child, before, None) {
+            return Err(why);
+        }
         let kids = &self.nodes[parent as usize].children;
         let before = match before {
             Some(r) if r == child => kids
@@ -105,9 +117,10 @@ impl Document {
             .unwrap_or(kids.len());
         kids.insert(at, child);
         self.generation += 1;
+        Ok(())
     }
 
-    /// Unlink a node from its parent (or the root list). The entry stays in the
+    /// Unlink a node from its parent. The entry stays in the
     /// arena; its subtree becomes unreachable by `walk`.
     pub fn detach(&mut self, id: NodeId) {
         self.unlink(id);
@@ -143,12 +156,12 @@ impl Document {
         id
     }
 
-    /// Remove `id` from wherever it is currently linked (parent's children, or
-    /// the root list when it has no parent) without touching the generation.
+    /// Remove `id` from its parent's children, if it has a parent, without
+    /// touching the generation. A top-level node's parent is the document node,
+    /// so it needs no case of its own.
     fn unlink(&mut self, id: NodeId) {
-        match self.nodes[id as usize].parent.take() {
-            Some(p) => self.nodes[p as usize].children.retain(|&c| c != id),
-            None => self.roots.retain(|&r| r != id),
+        if let Some(p) = self.nodes[id as usize].parent.take() {
+            self.nodes[p as usize].children.retain(|&c| c != id);
         }
     }
 }

@@ -219,9 +219,15 @@
     writable: true,
   });
 
+  // The document is arena node `__frot_document` (bl-196a): its children are
+  // the top-level nodes and a top-level node's parent is it, so the generic
+  // syscalls answer for it by id. Its object is still built by hand here
+  // (bl-9f79 makes it a wrapper like any other); adopting it as that id's
+  // wrapper is what makes `html.parentNode === document`.
+  var DOC = g.__frot_document;
   var document = {
     get documentElement() {
-      var roots = g.__frot_roots();
+      var roots = g.__frot_children(DOC);
       var first = null;
       for (var i = 0; i < roots.length; i++) {
         if (g.__frot_kind(roots[i]) !== 'element') continue;
@@ -270,11 +276,11 @@
       return wrap(g.__frot_create_text(String(text)));
     },
     querySelector: function (sel) {
-      var hits = g.__frot_query_doc(sel);
+      var hits = g.__frot_query(DOC, sel);
       return hits.length ? wrap(hits[0]) : null;
     },
     querySelectorAll: function (sel) {
-      return wrapAll(g.__frot_query_doc(sel));
+      return wrapAll(g.__frot_query(DOC, sel));
     },
     getElementById: function (id) {
       return this.querySelector('#' + id);
@@ -289,5 +295,5 @@
     },
   };
 
-  g.document = document;
+  g.document = adopt(document, DOC);
 })(globalThis);

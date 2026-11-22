@@ -193,7 +193,7 @@ fn emit(
                 state.push_text(t);
             }
         }
-        NodeKind::Comment(_) | NodeKind::Doctype => {}
+        NodeKind::Comment(_) | NodeKind::Doctype | NodeKind::Document => {}
     }
 }
 

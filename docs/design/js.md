@@ -94,11 +94,20 @@ say so." This section says so, with rules that keep the damage contained:
   wrapper is made at the first read and found again, which is what makes
   `el === el` true and keeps a property a page sets on a node. Its prototype
   is the interface Firefox gives that kind of node (identity.md §3.21).
+- **The document is node 0 of the arena** (`Document::ROOT`, `bl-196a`). Its
+  children are the top-level nodes — `roots()` is that list, not a second one
+  — and a top-level node's parent is it, so no read or write needs a
+  "document" case: a syscall is handed its id. A node with no parent is a
+  detached one. The views walk from `roots()` and never enter it.
 - **Mutation is append + relink.** `Document` gains mutation ops:
   `create_element`, `create_text`, `set_attr` / `remove_attr`, `set_text`,
   `insert_child` (positioned by a *reference sibling*, as `insertBefore` is —
   never by an index, which the relink's own unlink would invalidate, bl-ae88;
-  `None` appends), `detach`. The arena `Vec` is
+  `None` appends), `detach`. `insert_child` refuses, before it moves anything,
+  an insertion the tree cannot hold — a node under its own descendant, a
+  second element under the document, a child under a text node — and returns
+  the reason (`src/dom/hierarchy.rs`; the rules and messages are measured,
+  identity.md §3.21). The arena `Vec` is
   append-only; `detach` unlinks a node from its parent, the entry stays in the
   arena. **`NodeId`s are stable forever**, so `NodeId`-keyed side tables stay
   parallel and detached subtrees are simply never reached by `walk`.

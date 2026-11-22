@@ -159,18 +159,17 @@ fn ancestors(doc: &Document, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
         .filter(|&p| element(doc, p).is_some())
 }
 
-/// The nodes on either side of `id` among its parent's children (or among
-/// the roots), in document order. A node that is in neither list — one a
-/// script created and has not inserted — has no siblings.
+/// The nodes on either side of `id` among its parent's children, in document
+/// order. A top-level node's parent is the document node; a node with no
+/// parent — one a script created and has not inserted — has no siblings.
 fn sides(doc: &Document, id: NodeId) -> (&[NodeId], &[NodeId]) {
-    let family = match doc.node(id).parent {
-        Some(p) => &doc.node(p).children[..],
-        None => doc.roots(),
-    };
-    match family.iter().position(|&s| s == id) {
-        Some(at) => (&family[..at], &family[at + 1..]),
-        None => (&[], &[]),
-    }
+    let parent = doc.node(id).parent;
+    let family = parent.map_or(&[][..], |p| &doc.node(p).children[..]);
+    let mut halves = family.split(|&s| s == id);
+    (
+        halves.next().unwrap_or_default(),
+        halves.next().unwrap_or_default(),
+    )
 }
 
 /// The element siblings before `id`, nearest first. Text and comments between

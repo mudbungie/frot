@@ -14,6 +14,7 @@ use crate::fetch::FetchSession;
 mod blob;
 mod clock;
 mod currentscript;
+mod docnode;
 mod domiface;
 mod encoding;
 mod envgold;

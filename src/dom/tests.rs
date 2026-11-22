@@ -17,7 +17,10 @@ fn element_of(doc: &Document, id: NodeId) -> Element {
 #[test]
 fn parse_empty_string_yields_implicit_html_skeleton() {
     let doc = Document::parse("");
-    assert!(!doc.is_empty(), "parser injects <html>/<head>/<body>");
+    assert!(
+        !doc.roots().is_empty(),
+        "parser injects <html>/<head>/<body>"
+    );
     assert!(!doc.find_by_tag("html").is_empty());
     assert!(!doc.find_by_tag("head").is_empty());
     assert!(!doc.find_by_tag("body").is_empty());
@@ -153,7 +156,6 @@ fn nodekind_equality_works() {
 #[test]
 fn empty_document_walk_is_noop() {
     let doc = Document::default();
-    assert!(doc.is_empty());
     assert!(doc.roots().is_empty());
     let mut hits = 0;
     doc.walk(None, &mut |_, _| hits += 1);
@@ -161,9 +163,24 @@ fn empty_document_walk_is_noop() {
 }
 
 #[test]
-fn document_default_is_empty() {
+fn the_default_document_is_the_document_node_alone() {
     let doc: Document = Default::default();
-    assert_eq!(doc.len(), 0);
+    assert_eq!(doc.len(), 1);
+    assert_eq!(doc.node(Document::ROOT).kind, NodeKind::Document);
+    assert_eq!(doc.node(Document::ROOT).parent, None);
+}
+
+/// The document is an arena node (`bl-196a`): its children are the roots, each
+/// root's parent is it, and a walk from it reaches the whole tree.
+#[test]
+fn the_document_node_owns_the_roots() {
+    let doc = Document::parse("<!doctype html><html><body>hi</body></html>");
+    assert_eq!(doc.roots(), doc.node(Document::ROOT).children.as_slice());
+    assert_eq!(doc.roots().len(), 2);
+    for &root in doc.roots() {
+        assert_eq!(doc.node(root).parent, Some(Document::ROOT));
+    }
+    assert_eq!(doc.text_content(Document::ROOT), "hi");
 }
 
 #[test]

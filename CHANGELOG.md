@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--js`: the document is a node of the tree.** `html.parentNode` is the
+  document (it was `null`), and the tree refuses what a browser's does, with
+  Firefox's `HierarchyRequestError` messages: a node appended under its own
+  descendant (which used to build a cycle), a second element under the
+  document, a child under a text node. `el.matches()` and `querySelector` now
+  answer for an element that is in no document; `outerHTML` on such an element
+  is a no-op. `--out dom` and every other view are unchanged. [bl-196a]
+
 - **The fidelity oracle reads a fourth saved real page** (dev-tree only;
   nothing shipped changes): a Python docs page with its six Sphinx
   stylesheets, one of them reached only through `@import`. It matches Chrome

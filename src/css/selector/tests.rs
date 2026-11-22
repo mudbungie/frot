@@ -6,7 +6,7 @@ use crate::dom::Document;
 /// Whether `selector` matches the element with `id="t"` in `html`.
 fn hit(selector: &str, html: &str) -> bool {
     let doc = Document::parse(html);
-    let t = query_all(&doc, None, "#t").unwrap()[0];
+    let t = query_all(&doc, Document::ROOT, "#t").unwrap()[0];
     matches(&sel(selector), &doc, t)
 }
 

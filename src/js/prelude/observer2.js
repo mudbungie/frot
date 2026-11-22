@@ -9,11 +9,9 @@
   var slots = g.__frot_slots;
   var brand = g.__frot_brand;
   var hook = g.__frot_mo_hook;
-  // Registration key: the document observes under the 'doc' sentinel (matched
-  // for connected subtrees); a Node wrapper under its NodeId. A fake node
-  // (elem2.js comment/fragment, node id -1) registers and simply never matches.
+  // Registration key: a node's NodeId, the document's included. A staging
+  // fragment (doc.js, a negative id) registers and simply never matches.
   function keyOf(target) {
-    if (target === g.document) return 'doc';
     if (target && typeof slots(target).id === 'number') return slots(target).id;
     throw new TypeError('MutationObserver.observe: Argument 1 does not implement interface Node.');
   }
