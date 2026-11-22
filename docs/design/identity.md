@@ -1045,9 +1045,9 @@ rule, and this is its one measured exception; it was added, not flattened away.
   absent.
 - **`DocumentFragment`'s parent is `Node.prototype`** on the binary, and
   `appendChild`/`insertBefore`/`removeChild`/`childNodes`/`firstChild` come from
-  there. frot's fragment is a staging object *outside* the arena, so those five
-  stay on `DocumentFragment.prototype` and the parent is `EventTarget` — which is
-  where the listener trio genuinely comes from. Same host change as `Document`.
+  there. frot's fragment was a staging object *outside* the arena, so those five
+  sat on `DocumentFragment.prototype` under `EventTarget`. *Closed by `bl-de06`
+  (§3.21): the fragment is an arena node and inherits `Node.prototype`.*
 - **A populated `Storage`'s key order.** Its keys are own properties on the
   binary (asserted), but the binary answered in neither insertion nor sorted
   order — its internal hash order, which a deterministic tool cannot reproduce
@@ -1647,6 +1647,34 @@ What a page sees from step 1 alone: `html.parentNode === document` (was
 `null`), `html.previousSibling` is the doctype, `getRootNode()` of a connected
 node is the document by walking, the refusals above, and the two detached
 answers. `html.parentElement` stays `null`.
+
+**Step 2 landed (`bl-de06`, 2026-11-21).** A fragment is an arena node
+(`NodeKind::Fragment`): parentless, never a child. `insert_child` given one
+moves its children, in order, to where it was aimed and leaves it empty — the
+DOM's own "insert", one rule in `src/dom/mutate.rs` in place of the prelude's
+`drain` and its two `nodeType === 11` branches. `parse_fragment` returns one
+fragment, so `innerHTML`/`outerHTML` are one insertion each. The step-4 half of
+the fragment's shape landed here too, because the wrapper could not stay
+hand-written once the node was real.
+
+| question | Firefox 153.0esr | frot before | frot now |
+|---|---|---|---|
+| `Object.getPrototypeOf(DocumentFragment.prototype)` | `Node.prototype` | `EventTarget.prototype` | `Node.prototype` |
+| `DocumentFragment.prototype` own members | `getElementById, prepend, append, replaceChildren, moveBefore, querySelector, querySelectorAll, children, firstElementChild, lastElementChild, childElementCount, constructor` | nine hand-written (`appendChild`…`firstChild`) | `getElementById, prepend, append, querySelector, querySelectorAll, children, constructor` |
+| `new DocumentFragment().parentNode` / `.nodeValue` / `.textContent` / `.isConnected` | `null` / `null` / `''` / `false` | `undefined` ×4 | as measured |
+| a child appended to a fragment: `.parentNode`, `.getRootNode()` | the fragment ×2 | `null`, itself | the fragment ×2 |
+| `frag.querySelector`, `frag.getElementById`, `frag.cloneNode(true)`, `frag.textContent = 'x'`, `frag.contains(kid)` | work | absent (`not a function`) | work |
+| `el.appendChild(frag)` | returns `frag`, now empty; the children are `el`'s | same | same, moved by the arena |
+| `fragB.appendChild(fragA)` | `fragB` gains `fragA`'s children | `fragA` itself was pushed into `fragB`'s list | as measured |
+| `Element.prototype.append === DocumentFragment.prototype.append` | `false` | — | `false` |
+| `frag.appendChild(frag)`, `kid.appendChild(itsFragment)` | `…The new child is an ancestor of the parent` | no error | as measured |
+| `frag.appendChild(doctype)` | `…Cannot insert a DocumentType as a child of a DocumentFragment` | no error | as measured |
+| a fragment into the document: holding text; holding an element when the document has one, or two elements | `…Cannot insert a Text as a child of a Document`; `…Cannot have more than one Element child of a Document` | — | the same, from `src/dom/hierarchy.rs`, which asks the rules of the fragment's children |
+
+A MutationObserver sees a fragment insertion as one record for the run of
+nodes moved (and one removal on the fragment, if it is observed), as the DOM
+specifies; that order between two observers is frot's first-queued order and
+was not read off the binary. The staging fragment's negative ids are gone.
 
 **Until step 4 lands** the document rows of the first table stand: `document`
 is still a hand-built object, adopted as node 0's wrapper.
@@ -2516,7 +2544,7 @@ Permanently out of reach, by design or by constraint:
 | **`requestIdleCallback` `timeout`** | Built on the virtual clock (`bl-b584`, §3.20): an idle callback runs once every timer due at that instant has run. The idle period therefore always arrives, so `didTimeout` is always `false` and a `timeout` option is accepted and unused — where a busy real page can report `true`. A coherent value a real Firefox also produces, not a fabricated one. |
 | **`FileReader`** | Built 2026-11-20 (`bl-8c46`, §3.20) over `Blob`, with `ProgressEvent`. Residual: `readAsText` decodes **UTF-8 only** — a legacy `encoding` argument, a `charset` in the blob's type or a UTF-16 byte-order mark is ignored, where Firefox honours each (the same gap as the `TextDecoder` row); `error` never fires (an in-memory read cannot fail); no `File`. |
 | **`Image` / `<img>` loading** | `Image` and `HTMLImageElement` exist (`bl-1404`, §3.20). **An image never arrives** — a pinned choice: no request is sent for any `<img>` (so no beacon), neither `load` nor `error` fires, `complete` stays `false` once a `src` is set, the natural size is 0. A real Firefox holds that state only until the response; a page awaiting the image waits out the run. No `data:` image loading, no `decode()`, no IMG-specific properties beyond `src`/`width`/`height`/`complete`/`naturalWidth`/`naturalHeight`/`currentSrc`. Whether images should fail instead (what a Firefox with images blocked does, measured) or beacons be sent: `bl-91a4`. |
-| **DOM interface members** | The node interfaces are real and linked as on the binary (`bl-78cb`, §3.21): `EventTarget ← Node ← Element ← HTMLElement ← HTML<Tag>Element` (all 71), `Node ← CharacterData ← Text`/`Comment`, `Node ← DocumentType`; a node has one wrapper. Residual: each prototype holds the **subset** frot implements (27 of `Element.prototype`'s 144, 9 of `HTMLElement.prototype`'s 138; most `HTML<Tag>Element` prototypes hold only `constructor`), always in the binary's order and on the binary's interface. Elements have no namespace: `svg` alone is `SVGElement` (no `SVGSVGElement`/`SVGGraphicsElement`), every other foreign element is typed by its tag as if HTML. A call on the wrong receiver or with a non-node argument throws the engine's error, not WebIDL's. `input.type` reflects the attribute (`''` when absent, where the binary answers `text`); a doctype's `nodeName` is `#doctype`. `document` and `DocumentFragment` are still hand-shaped — `bl-9f79`, `bl-de06`. |
+| **DOM interface members** | The node interfaces are real and linked as on the binary (`bl-78cb`, §3.21): `EventTarget ← Node ← Element ← HTMLElement ← HTML<Tag>Element` (all 71), `Node ← CharacterData ← Text`/`Comment`, `Node ← DocumentType`; a node has one wrapper. Residual: each prototype holds the **subset** frot implements (27 of `Element.prototype`'s 144, 9 of `HTMLElement.prototype`'s 138; most `HTML<Tag>Element` prototypes hold only `constructor`), always in the binary's order and on the binary's interface. Elements have no namespace: `svg` alone is `SVGElement` (no `SVGSVGElement`/`SVGGraphicsElement`), every other foreign element is typed by its tag as if HTML. A call on the wrong receiver or with a non-node argument throws the engine's error, not WebIDL's. `input.type` reflects the attribute (`''` when absent, where the binary answers `text`); a doctype's `nodeName` is `#doctype`. `document` is still hand-shaped — `bl-9f79`. |
 | **`Blob` / blob: URLs** | `Blob`, `URL.createObjectURL` and `revokeObjectURL` are real (`bl-78c5`, §3.20). Residual: no `Blob.prototype.stream` (no `ReadableStream`); a blob: URL cannot be loaded — `fetch`/XHR of one is a network error where Firefox answers 200, and a Blob-URL `Worker` never runs (the Worker row above); no `File`; a `FormData` holding a `Blob` cannot be POSTed. Each is a refusal or an absence, never a wrong value. |
 | **`Intl` beyond `DateTimeFormat.resolvedOptions()`** | Residual. quickjs-ng ships without `Intl`; frot provides the low-entropy locale/timezone subset a page reads (`DateTimeFormat` + `resolvedOptions`, `timeZone` pinned UTC). `NumberFormat`/`Collator`/`RelativeTimeFormat`/real locale-aware formatting are unbuilt — a filed gap, not a permanent non-goal. |
 | **`__frot_*` syscall names enumerable on `globalThis`** | Residual. `Function.prototype.toString` no longer leaks their source or the name (`bl-3926` branding), but the syscall **names** are still enumerable globals (`Object.getOwnPropertyNames(window)`). Making them non-enumerable touches every `bind!` site and is tracked as a separate concern. |

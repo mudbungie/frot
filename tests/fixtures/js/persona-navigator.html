@@ -1049,12 +1049,14 @@
 
   var frag = document.createDocumentFragment();
   shape('DocumentFragment', DocumentFragment.prototype,
-    'appendChild,insertBefore,removeChild,nodeType,nodeName,ownerDocument,childNodes,firstChild,constructor');
+    'getElementById,prepend,append,querySelector,querySelectorAll,children,constructor');
   ownsNothing('DocumentFragment', frag);
   eq('iface:frag-tag', Object.prototype.toString.call(frag), '[object DocumentFragment]');
   eq('iface:frag-nodeType', frag.nodeType, 11);
   ok('iface:frag-eventtarget', frag instanceof EventTarget);
   ok('iface:frag-instanceof', frag instanceof DocumentFragment);
+  ok('iface:frag-node', frag instanceof Node && frag.parentNode === null
+    && Object.getPrototypeOf(DocumentFragment.prototype) === Node.prototype);
 
   // `constructor` is LAST on every one of them (identity.md §3.15) — the
   // registry's single seal, not per-call-site discipline. Asserted here as a

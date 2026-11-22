@@ -1,7 +1,8 @@
 // The members of Element the frameworks lean on (js.md §3), split from elem.js
 // to stay under the 300-line source cap: attributes, selectors and collections
 // (querySelector/getElementsBy*/matches/closest), the ParentNode/ChildNode
-// mixin, namespaced attributes, and the form-control reflections on the
+// mixins (ParentNode on DocumentFragment too), namespaced attributes, and the
+// form-control reflections on the
 // HTML<Tag>Element interfaces that own them (bl-78cb). Loads after elem.js
 // (needs its one reflection maker).
 (function (g) {
@@ -69,20 +70,6 @@
       return g.__frot_elems(query(this, '.' + String(cls).trim().split(/\s+/).join('.')));
     },
     remove: remove,
-    prepend: function prepend() {
-      var ref = this.firstChild;
-      for (var i = 0; i < arguments.length; i++) this.insertBefore(toNode(arguments[i]), ref);
-    },
-    append: function append() {
-      for (var i = 0; i < arguments.length; i++) this.appendChild(toNode(arguments[i]));
-    },
-    querySelector: function querySelector(sel) {
-      var hits = query(this, sel);
-      return hits.length ? wrap(hits[0]) : null;
-    },
-    querySelectorAll: function querySelectorAll(sel) {
-      return g.__frot_nodelist(query(this, sel));
-    },
   });
   // ChildNode is mixed into CharacterData and DocumentType too (measured).
   g.__frot_ifaceops(g.CharacterData.prototype, { remove: remove });
@@ -92,14 +79,45 @@
     tagName: function () {
       return g.__frot_tag(slots(this).id).toUpperCase();
     },
-    children: function () {
-      return g.__frot_elems(
-        g.__frot_children(slots(this).id).filter(function (id) {
-          return g.__frot_kind(id) === 'element';
-        })
-      );
-    },
   });
+
+  // ParentNode: each interface that mixes it in owns its own copies (measured:
+  // `Element.prototype.append !== DocumentFragment.prototype.append`), and a
+  // fragment has `getElementById` where an element has none.
+  function parentNode(P, byId) {
+    g.__frot_ifaceops(P, byId ? {
+      getElementById: function getElementById(id) {
+        return this.querySelector('#' + id);
+      },
+    } : {});
+    g.__frot_ifaceops(P, {
+      prepend: function prepend() {
+        var ref = this.firstChild;
+        for (var i = 0; i < arguments.length; i++) this.insertBefore(toNode(arguments[i]), ref);
+      },
+      append: function append() {
+        for (var i = 0; i < arguments.length; i++) this.appendChild(toNode(arguments[i]));
+      },
+      querySelector: function querySelector(sel) {
+        var hits = query(this, sel);
+        return hits.length ? wrap(hits[0]) : null;
+      },
+      querySelectorAll: function querySelectorAll(sel) {
+        return g.__frot_nodelist(query(this, sel));
+      },
+    });
+    g.__frot_ifaceattrs(P, {
+      children: function () {
+        return g.__frot_elems(
+          g.__frot_children(slots(this).id).filter(function (id) {
+            return g.__frot_kind(id) === 'element';
+          })
+        );
+      },
+    });
+  }
+  parentNode(proto, false);
+  parentNode(g.DocumentFragment.prototype, true);
 
   // The form-control reflections frameworks/jQuery read off cloned nodes, each
   // on the interfaces Firefox 153.0esr defines that name on (bl-78cb; a `<div>`

@@ -70,8 +70,7 @@
     },
     set: function (html) {
       g.__frot_clear(this);
-      var ids = g.__frot_fragment(String(html));
-      for (var i = 0; i < ids.length; i++) g.__frot_insert_child(slots(this).id, ids[i], null);
+      g.__frot_insert_child(slots(this).id, g.__frot_fragment(String(html)), null);
     },
   });
 
@@ -100,8 +99,7 @@
           'Modifications are not allowed for this document'
         );
       }
-      var ids = g.__frot_fragment(String(html));
-      for (var i = 0; i < ids.length; i++) g.__frot_insert_child(parent, ids[i], slots(this).id);
+      g.__frot_insert_child(parent, g.__frot_fragment(String(html)), slots(this).id);
       g.__frot_detach(slots(this).id);
     },
   });

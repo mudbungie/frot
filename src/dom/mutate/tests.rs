@@ -229,30 +229,42 @@ fn detach_of_a_parentless_orphan_is_a_no_op_relink() {
 }
 
 #[test]
-fn parse_fragment_absorbs_detached_top_level_nodes() {
+fn parse_fragment_returns_a_fragment_holding_the_parsed_nodes() {
     let mut doc = Document::parse("<body></body>");
-    let ids = doc.parse_fragment("<p>hi</p><span>yo</span>");
+    let frag = doc.parse_fragment("<p>hi</p><span>yo</span>");
+    assert_eq!(doc.node(frag).kind, NodeKind::Fragment);
+    assert_eq!(doc.node(frag).parent, None);
+    let ids = doc.node(frag).children.clone();
     assert_eq!(ids.len(), 2);
-    for &id in &ids {
-        assert_eq!(
-            doc.node(id).parent,
-            None,
-            "top-level fragment nodes are detached"
-        );
-        assert!(!doc.roots().contains(&id));
-    }
+    assert_eq!(doc.node(ids[0]).parent, Some(frag));
     assert_eq!(el_name(&doc, ids[0]), "p");
     assert_eq!(el_name(&doc, ids[1]), "span");
+    assert!(doc.find_by_tag("p").is_empty(), "in no document yet");
 }
 
+/// DOM "insert": a fragment is never linked. Its children move, in order, to
+/// where it was aimed, and it is left empty (`bl-de06`).
 #[test]
-fn absorbed_fragment_becomes_reachable_once_spliced_in() {
-    let mut doc = Document::parse("<body></body>");
+fn inserting_a_fragment_moves_its_children_in_its_place() {
+    let mut doc = Document::parse("<body><u></u></body>");
     let body = doc.find_by_tag("body")[0];
-    let ids = doc.parse_fragment("<p>deep <b>text</b></p>");
-    doc.insert_child(body, ids[0], None).unwrap();
-    assert_eq!(doc.find_by_tag("p").len(), 1);
-    assert_eq!(doc.text_content(body), "deep text");
+    let u = doc.find_by_tag("u")[0];
+    let frag = doc.parse_fragment("<p>deep <b>text</b></p>x<i></i>");
+    let ids = doc.node(frag).children.clone();
+    doc.insert_child(body, frag, Some(u)).unwrap();
+    assert_eq!(doc.node(body).children, [ids[0], ids[1], ids[2], u]);
+    assert!(ids.iter().all(|&id| doc.node(id).parent == Some(body)));
+    assert!(doc.node(frag).children.is_empty());
+    assert_eq!(doc.node(frag).parent, None);
+    assert_eq!(doc.text_content(body), "deep textx");
+    // An empty fragment inserts nothing; a fragment takes another's children.
+    doc.insert_child(body, frag, None).unwrap();
+    assert_eq!(doc.node(body).children.len(), 4);
+    let other = doc.create_fragment();
+    doc.insert_child(frag, ids[2], None).unwrap();
+    doc.insert_child(other, frag, None).unwrap();
+    assert_eq!(doc.node(other).children, [ids[2]]);
+    assert_eq!(doc.text_content(other), "");
 }
 
 #[test]

@@ -1,5 +1,5 @@
-// DOM facade — the node interface chain, the one wrapper per arena node, the
-// collections and the document, over the syscalls. A wrapper is a thin object
+// DOM facade — the node interface chain, the one wrapper per arena node and
+// the collections, over the syscalls (the document's members are in doc.js). A wrapper is a thin object
 // around an integer NodeId, which lives in brand.js's instance-state WeakMap
 // rather than on the wrapper (bl-3bdc: a real element owns no properties at
 // all); the arena is the one source of truth (js.md §2), so every read/write
@@ -19,8 +19,9 @@
   // --- The interface chain (bl-78cb, identity.md §3.21) ----------------------
   // One prototype per node kind, linked as on the binary: EventTarget <- Node <-
   // Element <- HTMLElement <- HTML<Tag>Element, Node <- CharacterData <- Text |
-  // Comment, Node <- DocumentType. Each is a real interface (`new` throws
-  // "Illegal constructor."; Text and Comment construct, as Firefox's do), so
+  // Comment, Node <- DocumentType | DocumentFragment. Each is a real interface
+  // (`new` throws "Illegal constructor."; Text, Comment and DocumentFragment
+  // construct, as Firefox's do), so
   // `instanceof` is the engine's own prototype walk and a text node has no
   // element member to find. Members are added by the modules that implement
   // them, each on the interface the binary puts it on. events.js links Node
@@ -32,17 +33,18 @@
   var Element = sub('Element', Node);
   var HTMLElement = sub('HTMLElement', Element);
   var CharacterData = sub('CharacterData', Node);
-  // `new Text(data)` / `new Comment(data)` make the same detached arena node
-  // `createTextNode` / `createComment` do; the constructed object IS its wrapper.
-  function charData(name, create) {
-    return sub(name, CharacterData, function (inst, args) {
+  // `new Text(data)`, `new Comment(data)` and `new DocumentFragment()` make the
+  // detached arena node `document.create*` does; the object IS its wrapper.
+  function made(name, parent, create) {
+    return sub(name, parent, function (inst, args) {
       adopt(inst, g[create](args.length ? String(args[0]) : ''));
-    });
+    }).prototype;
   }
   var KIND = {
-    text: charData('Text', '__frot_create_text').prototype,
-    comment: charData('Comment', '__frot_create_comment').prototype,
+    text: made('Text', CharacterData, '__frot_create_text'),
+    comment: made('Comment', CharacterData, '__frot_create_comment'),
     doctype: sub('DocumentType', Node).prototype,
+    'document-fragment': made('DocumentFragment', Node, '__frot_create_fragment'),
   };
 
   // Which interface a tag's element implements — read off Firefox 153.0esr by
@@ -221,79 +223,8 @@
 
   // The document is arena node `__frot_document` (bl-196a): its children are
   // the top-level nodes and a top-level node's parent is it, so the generic
-  // syscalls answer for it by id. Its object is still built by hand here
-  // (bl-9f79 makes it a wrapper like any other); adopting it as that id's
-  // wrapper is what makes `html.parentNode === document`.
-  var DOC = g.__frot_document;
-  var document = {
-    get documentElement() {
-      var roots = g.__frot_children(DOC);
-      var first = null;
-      for (var i = 0; i < roots.length; i++) {
-        if (g.__frot_kind(roots[i]) !== 'element') continue;
-        if (first === null) first = roots[i];
-        if (g.__frot_tag(roots[i]) === 'html') return wrap(roots[i]);
-      }
-      return wrap(first);
-    },
-    // "The body element" is the first body **or frameset** in the document
-    // (HTML §3.1.5) — the two the setter below accepts, so the pair is one rule
-    // read one way and written the other.
-    get body() {
-      return this.querySelector('body, frameset');
-    },
-    // Writable, as in a browser (HTML "the body element"): the assignment
-    // REPLACES the current body — it is `replaceChild` under a type rule, not a
-    // stored field, so the arena stays the one home for which element that is.
-    // A value that is not a body/frameset throws HierarchyRequestError; getter-
-    // only turned both the swap and the type error into silence (bl-273b).
-    set body(el) {
-      var tag = el && el.tagName;
-      if (tag !== 'BODY' && tag !== 'FRAMESET') {
-        throw g.__frot_domerror(
-          'HierarchyRequestError',
-          'Document.body: The new body must be either a body or frameset element'
-        );
-      }
-      var old = this.body;
-      if (old) old.parentNode.replaceChild(el, old);
-      else this.documentElement.appendChild(el);
-    },
-    get head() {
-      return this.querySelector('head');
-    },
-    createElement: function (tag) {
-      return wrap(g.__frot_create_element(String(tag)));
-    },
-    // Namespaced creation (bl-3a36): React/Vue create every SVG/MathML element
-    // through createElementNS — absent, any icon-bearing app dies in commit.
-    // The arena stores local names only (the parser's foreign-content handling
-    // does the same), so the namespace argument is honestly dropped.
-    createElementNS: function (_ns, tag) {
-      return wrap(g.__frot_create_element(String(tag)));
-    },
-    createTextNode: function (text) {
-      return wrap(g.__frot_create_text(String(text)));
-    },
-    querySelector: function (sel) {
-      var hits = g.__frot_query(DOC, sel);
-      return hits.length ? wrap(hits[0]) : null;
-    },
-    querySelectorAll: function (sel) {
-      return wrapAll(g.__frot_query(DOC, sel));
-    },
-    getElementById: function (id) {
-      return this.querySelector('#' + id);
-    },
-    // The classic script executing right now (js.md §4.1), `null` between
-    // scripts and during module evaluation. Turbopack/Next chunks derive their
-    // own URL from it (bl-a19d), so its absence took every Next site dark. A
-    // getter over the host's cell, not a stored field: the host owns the fact,
-    // so a script that throws cannot strand a stale one here.
-    get currentScript() {
-      return wrap(g.__frot_current_script());
-    },
-  };
-
-  g.document = adopt(document, DOC);
+  // syscalls answer for it by id. Its object is still built by hand (doc.js
+  // gives it its members; bl-9f79 makes it a wrapper like any other); adopting
+  // it as that id's wrapper is what makes `html.parentNode === document`.
+  g.document = adopt({}, g.__frot_document);
 })(globalThis);

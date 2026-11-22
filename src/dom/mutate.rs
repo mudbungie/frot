@@ -109,15 +109,28 @@ impl Document {
                 .and_then(|at| kids.get(at + 1).copied()),
             r => r,
         };
-        self.unlink(child);
-        self.nodes[child as usize].parent = Some(parent);
-        let kids = &mut self.nodes[parent as usize].children;
-        let at = before
-            .and_then(|r| kids.iter().position(|&c| c == r))
-            .unwrap_or(kids.len());
-        kids.insert(at, child);
+        // DOM "insert": a fragment is never linked — its children move, in
+        // order, to where it was aimed, and it is left empty.
+        let moved = match self.nodes[child as usize].kind {
+            NodeKind::Fragment => self.nodes[child as usize].children.clone(),
+            _ => vec![child],
+        };
+        for node in moved {
+            self.unlink(node);
+            self.nodes[node as usize].parent = Some(parent);
+            let kids = &mut self.nodes[parent as usize].children;
+            let at = before
+                .and_then(|r| kids.iter().position(|&c| c == r))
+                .unwrap_or(kids.len());
+            kids.insert(at, node);
+        }
         self.generation += 1;
         Ok(())
+    }
+
+    /// Append an empty, detached fragment and return its id.
+    pub fn create_fragment(&mut self) -> NodeId {
+        self.append_node(NodeKind::Fragment)
     }
 
     /// Unlink a node from its parent. The entry stays in the
@@ -127,11 +140,12 @@ impl Document {
         self.generation += 1;
     }
 
-    /// Parse an `innerHTML` fragment into the arena, returning the detached
-    /// top-level node ids for the caller to splice in via [`insert_child`].
+    /// Parse an `innerHTML` fragment into the arena, returning the fragment
+    /// that holds the parsed nodes, for the caller to splice in with one
+    /// [`insert_child`].
     ///
     /// [`insert_child`]: Document::insert_child
-    pub fn parse_fragment(&mut self, html: &str) -> Vec<NodeId> {
+    pub fn parse_fragment(&mut self, html: &str) -> NodeId {
         let ctx = QualName::new(None, ns!(html), local_name!("body"));
         let rc =
             html5ever::parse_fragment(RcDom::default(), Default::default(), ctx, vec![], false)
@@ -140,9 +154,12 @@ impl Document {
         // (`#document > <html> > fragment nodes`); absorb the wrapper's children.
         let wrapper = rc.document.children.borrow()[0].clone();
         let kids: Vec<_> = wrapper.children.borrow().iter().cloned().collect();
-        let ids = kids.iter().map(|k| self.absorb(k, None)).collect();
-        self.generation += 1;
-        ids
+        let fragment = self.create_fragment();
+        for k in &kids {
+            let id = self.absorb(k, Some(fragment));
+            self.nodes[fragment as usize].children.push(id);
+        }
+        fragment
     }
 
     fn append_node(&mut self, kind: NodeKind) -> NodeId {

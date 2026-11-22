@@ -109,12 +109,24 @@ fn mutations_build_relink_and_detach_nodes() {
     assert_eq!(s.eval("String(__frot_attr(d, 'id'))").unwrap(), "undefined");
     s.eval("__frot_detach(t)").unwrap();
     assert_eq!(s.eval("__frot_text(d)").unwrap(), "");
-    // fragment parsing returns detached top-level ids to splice in.
+    // Fragment parsing returns one fragment node holding the parsed nodes;
+    // inserting it moves them and leaves it (and a created one) empty.
     s.eval("globalThis.f = __frot_fragment('<span>a</span><span>b</span>')")
         .unwrap();
-    assert_eq!(s.eval("f.length").unwrap(), "2");
-    s.eval("f.forEach((id) => __frot_insert_child(d, id, null))")
-        .unwrap();
+    assert_eq!(
+        s.eval("[__frot_kind(f),__frot_children(f).length,__frot_text(f)].join()")
+            .unwrap(),
+        "document-fragment,2,ab"
+    );
+    s.eval("__frot_insert_child(d, f, null)").unwrap();
+    assert_eq!(
+        s.eval(
+            "[__frot_children(f).length,__frot_children(__frot_create_fragment()).length,\
+             __frot_insert_child(__frot_document, f, null)].join()"
+        )
+        .unwrap(),
+        "0,0,"
+    );
     assert_eq!(s.eval("__frot_text(d)").unwrap(), "ab");
     // A refused insertion answers its reason and moves nothing; so does the
     // question `replaceChild` asks first.

@@ -107,7 +107,9 @@ say so." This section says so, with rules that keep the damage contained:
   an insertion the tree cannot hold — a node under its own descendant, a
   second element under the document, a child under a text node — and returns
   the reason (`src/dom/hierarchy.rs`; the rules and messages are measured,
-  identity.md §3.21). The arena `Vec` is
+  identity.md §3.21). A **fragment** is an arena node too (`bl-de06`): a
+  parentless holder that is never linked — inserting one moves its children —
+  and `parse_fragment` returns one. The arena `Vec` is
   append-only; `detach` unlinks a node from its parent, the entry stays in the
   arena. **`NodeId`s are stable forever**, so `NodeId`-keyed side tables stay
   parallel and detached subtrees are simply never reached by `walk`.
@@ -288,8 +290,8 @@ Consequences of the repo's hard rules:
   (`HTMLInputElement`/`HTMLTextAreaElement`/`HTMLSelectElement`) carrying the
   same reflection descriptors as the nodes (Radix-style libraries call
   `getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set`); and a
-  **constructible** `new DocumentFragment()` returning the real staging
-  fragment with `ownerDocument`/`insertBefore`/`removeChild` (React portals
+  **constructible** `new DocumentFragment()` returning a real fragment
+  (an arena node since `bl-de06`) with `ownerDocument`/`insertBefore`/`removeChild` (React portals
   into fresh fragments and reaches the document through the container) — an
   **EventTarget** like every node (bl-e81b, §7: React listens on every portal
   container, and a missing `addEventListener` mid-render corrupts React's
@@ -869,7 +871,7 @@ that, a page walking any of them read frot's implementation instead.
   another provider's value out of react-router's LocationContext — the
   nested-Router invariant was the corruption's symptom, three causes
   downstream of the divergence. The surface, Firefox 140esr's base contract:
-  the staging fragment and every node inherit `EventTarget.prototype`'s trio
+  a fragment and every node inherit `EventTarget.prototype`'s trio
   (one listener registry in `events.js`, keyed by the target object);
   **`EventTarget`** is a global, constructable interface whose own
   `instanceof` also matches by the trio's shape, so `window` and `document`

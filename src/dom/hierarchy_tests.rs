@@ -132,3 +132,50 @@ fn a_replacement_is_judged_without_the_node_it_replaces() {
     );
     assert!(matches!(doc.node(DOC).kind, NodeKind::Document));
 }
+
+/// A fragment takes children, and inserting one is judged by what it holds
+/// (`bl-de06`): its children are what the parent would gain.
+#[test]
+fn a_fragment_is_judged_by_its_children() {
+    let (mut doc, doctype, html, body) = page();
+    let frag = doc.create_fragment();
+    let (a, b) = (doc.create_element("a"), doc.create_element("b"));
+    assert_eq!(doc.insert_child(frag, a, None), Ok(()));
+    assert_eq!(
+        doc.insert_child(frag, doctype, None),
+        Err("Cannot insert a DocumentType as a child of a DocumentFragment".into())
+    );
+    assert_eq!(
+        doc.insert_child(frag, DOC, None),
+        Err("May not add a Document as a child".into())
+    );
+    let ancestor = Err("The new child is an ancestor of the parent".to_string());
+    assert_eq!(doc.insert_child(frag, frag, None), ancestor);
+    assert_eq!(doc.insert_child(a, frag, None), ancestor);
+    // Into a document: one element at most, counted with what is there.
+    let one_el = Err("Cannot have more than one Element child of a Document".to_string());
+    assert_eq!(doc.insert_child(DOC, frag, None), one_el);
+    assert_eq!(doc.refusal(DOC, frag, None, Some(html)), None);
+    doc.detach(html);
+    assert_eq!(
+        doc.insert_child(DOC, frag, Some(doctype)),
+        Err("Cannot insert a root element before the doctype".into())
+    );
+    doc.insert_child(frag, b, None).unwrap();
+    assert_eq!(doc.insert_child(DOC, frag, None), one_el);
+    doc.detach(b);
+    let text = doc.create_text("t");
+    doc.insert_child(frag, text, None).unwrap();
+    assert_eq!(
+        doc.insert_child(DOC, frag, None),
+        Err("Cannot insert a Text as a child of a Document".into())
+    );
+    // Under an element a fragment of anything goes, and so does an empty one
+    // or one of comments under the document.
+    assert_eq!(doc.insert_child(body, frag, None), Ok(()));
+    let comment = doc.create_comment("c");
+    doc.insert_child(frag, comment, None).unwrap();
+    assert_eq!(doc.insert_child(DOC, frag, None), Ok(()));
+    assert_eq!(doc.insert_child(DOC, frag, None), Ok(()));
+    assert_eq!(doc.roots(), [doctype, comment]);
+}

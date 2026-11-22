@@ -168,6 +168,10 @@ fn mutations<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquick
         let d = doc.clone();
         move |text: String| d.borrow_mut().create_comment(&text)
     });
+    bind!(ctx, g, "__frot_create_fragment", {
+        let d = doc.clone();
+        move || d.borrow_mut().create_fragment()
+    });
     bind!(ctx, g, "__frot_set_attr", {
         let d = doc.clone();
         move |id: u32, name: String, value: String| d.borrow_mut().set_attr(id, &name, &value)
@@ -274,6 +278,7 @@ fn geometry<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquickj
 fn kind_label(doc: &Document, id: u32) -> &'static str {
     match doc.node(id).kind {
         NodeKind::Document => "document",
+        NodeKind::Fragment => "document-fragment",
         NodeKind::Element(_) => "element",
         NodeKind::Text(_) => "text",
         NodeKind::Comment(_) => "comment",

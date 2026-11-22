@@ -11,7 +11,7 @@
   var slots = g.__frot_slots;
   var wrap = g.__frot_wrap;
   var Node = g.Node;
-  var TYPE = { element: 1, text: 3, comment: 8, doctype: 10 };
+  var TYPE = { element: 1, text: 3, comment: 8, doctype: 10, 'document-fragment': 11 };
 
   function kindOf(n) {
     return g.__frot_kind(slots(n).id);
@@ -36,12 +36,11 @@
   function refuse(op, why) {
     if (why) throw g.__frot_domerror('HierarchyRequestError', 'Node.' + op + ': ' + why);
   }
-  // A DocumentFragment (nodeType 11) drains its batched children into the
-  // target; every other node a script can hold is a real arena node, and the
-  // reference sibling goes through as a node id, never an index (bl-ae88).
+  // Every node a script can hold is an arena node — a fragment included, whose
+  // children the arena moves in its place — and the reference sibling goes
+  // through as a node id, never an index (bl-ae88).
   function insert(op, parent, child, ref) {
-    if (child && child.nodeType === 11) slots(child).drain(parent, ref);
-    else refuse(op, g.__frot_insert_child(slots(parent).id, slots(child).id, ref ? slots(ref).id : null));
+    refuse(op, g.__frot_insert_child(slots(parent).id, slots(child).id, ref ? slots(ref).id : null));
     return child;
   }
 
@@ -75,9 +74,7 @@
         );
       }
       // Judged with `child` set aside, before anything is removed.
-      if (node && node.nodeType !== 11) {
-        refuse('replaceChild', g.__frot_replace_refusal(slots(this).id, slots(node).id, ids[i]));
-      }
+      refuse('replaceChild', g.__frot_replace_refusal(slots(this).id, slots(node).id, ids[i]));
       g.__frot_detach(ids[i]);
       insert('replaceChild', this, node, i + 1 < ids.length ? wrap(ids[i + 1]) : null);
       return child;
@@ -86,15 +83,18 @@
       g.__frot_detach(slots(child).id);
       return child;
     },
-    // Faithful clone: an element's attributes are copied and, when deep, its
-    // children — jQuery's support detection and its clone-based fragment
-    // builder depend on fidelity a serialize round trip would blur.
+    // Faithful clone: a node of the same kind, an element's attributes, and,
+    // when deep, its children — jQuery's support detection and its clone-based
+    // fragment builder depend on fidelity a serialize round trip would blur.
     cloneNode: function cloneNode(deep) {
       var id = slots(this).id;
       var kind = g.__frot_kind(id);
-      if (kind === 'comment') return wrap(g.__frot_create_comment(g.__frot_text(id)));
-      if (kind !== 'element') return wrap(g.__frot_create_text(kind === 'text' ? g.__frot_text(id) : ''));
-      var copy = wrap(g.__frot_create_element(g.__frot_tag(id)));
+      var copy = wrap(
+        kind === 'element' ? g.__frot_create_element(g.__frot_tag(id))
+          : kind === 'document-fragment' ? g.__frot_create_fragment()
+            : kind === 'comment' ? g.__frot_create_comment(g.__frot_text(id))
+              : g.__frot_create_text(kind === 'text' ? g.__frot_text(id) : '')
+      );
       g.__frot_attrs(id).forEach(function (a) {
         g.__frot_set_attr(slots(copy).id, a[0], a[1]);
       });

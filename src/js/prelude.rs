@@ -84,12 +84,8 @@ pub const SOURCE: &str = concat!(
     // only brand.js and dom.js.
     include_str!("prelude/events.js"),
     "\n",
-    // doc.js (bl-6da7): the `document` object's own breadth and the
-    // DocumentFragment it hands out, split off elem2.js on the seam that file
-    // already named. AFTER events.js, because the staging fragment is an
-    // EventTarget and inherits that interface (bl-643d); elem2.js's
-    // appendChild/insertBefore drain a fragment through the `drain` slot doc.js
-    // sets, and both are loaded before any page script can build one.
+    // doc.js (bl-6da7): the `document` object's members, split off elem2.js
+    // on the seam that file already named.
     include_str!("prelude/doc.js"),
     "\n",
     // The identity surface (bl-3972), derived from __frot_env_profile: after

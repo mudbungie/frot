@@ -64,6 +64,9 @@ pub enum NodeKind {
     /// The document itself: the one node with no parent whose children are the
     /// document's top-level nodes. Always [`Document::ROOT`], never elsewhere.
     Document,
+    /// A document fragment: a parentless holder of nodes. It is never a child
+    /// — inserting one moves its children instead ([`Document::insert_child`]).
+    Fragment,
     Element(Element),
     Text(String),
     Comment(String),

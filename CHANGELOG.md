@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--js`: a `DocumentFragment` is a real node.** It inherits `Node`, so
+  `querySelector`, `getElementById`, `cloneNode`, `contains` and `textContent`
+  work on it (they were absent), a node appended to it has it as `parentNode`,
+  and appending one fragment to another moves the children. Inserting a
+  fragment is one operation in the tree, and is refused with Firefox's message
+  when its contents do not fit (text or a second element into the document, a
+  fragment into itself). [bl-de06]
+
 - **`--out ax`: a `<style>` or `<script>` inside an element is no longer
   read into its name.** The text of `<script>`, `<style>`, `<template>` and
   `<noscript>` never contributes to an accessible name, as in Chrome — also

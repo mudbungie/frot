@@ -53,6 +53,7 @@
     HTMLElement: 'focus blur style offsetTop offsetLeft offsetWidth offsetHeight dataset',
     SVGElement: 'focus blur style dataset',
     CharacterData: 'remove data length',
+    DocumentFragment: 'getElementById prepend append querySelector querySelectorAll children',
     HTMLLinkElement: 'disabled href rel relList type',
     HTMLLIElement: 'value type',
     HTMLParamElement: 'value type',

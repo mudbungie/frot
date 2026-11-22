@@ -135,16 +135,18 @@
     st.oldValue = null;
     return r;
   }
-  // A childList record for `child` under `parent`; for a removal this runs
-  // BEFORE the arena detach, so the child's true siblings are still readable.
-  function childRecord(parentId, childId, added) {
+  // A childList record for the run of siblings `ids` under `parent`; for a
+  // removal this runs BEFORE the arena unlinks them, so their true neighbours
+  // are still readable.
+  function childRecord(parentId, ids, added) {
     var r = mkRecord('childList', parentId);
     var kids = raw.children(parentId);
-    var at = kids.indexOf(childId);
+    var at = kids.indexOf(ids[0]);
+    var end = at + ids.length;
     var st = slots(r);
-    st[added ? 'addedNodes' : 'removedNodes'] = g.__frot_nodelist([childId]);
+    st[added ? 'addedNodes' : 'removedNodes'] = g.__frot_nodelist(ids);
     st.previousSibling = at > 0 ? g.__frot_wrap(kids[at - 1]) : null;
-    st.nextSibling = at >= 0 && at + 1 < kids.length ? g.__frot_wrap(kids[at + 1]) : null;
+    st.nextSibling = at >= 0 && end < kids.length ? g.__frot_wrap(kids[end]) : null;
     return r;
   }
 
@@ -197,23 +199,27 @@
   });
   seam('__frot_insert_child', function (parent, child, before) {
     if (active === 0) return raw.insert(parent, child, before);
-    // The arena auto-unlinks on insert (§2), so inserting an already-parented
-    // node is honestly a MOVE: a removal record for the old parent (siblings
-    // captured pre-unlink), then the addition — the spec's two records.
-    var oldParent = raw.parent(child);
-    var rlist = null;
+    // What moves, and from where: a fragment's children leave the fragment
+    // (bl-de06); any other node leaves its parent, if it has one. The arena
+    // unlinks on insert (§2), so an already-parented node is honestly a MOVE:
+    // a removal record for the old parent (neighbours captured pre-unlink),
+    // then the addition — the spec's two records.
+    var whole = raw.kind(child) === 'document-fragment';
+    var moved = whole ? raw.children(child) : [child];
+    var from = whole ? child : raw.parent(child);
+    var rlist = [];
     var removal = null;
-    if (oldParent !== null && oldParent !== undefined) {
-      rlist = interested(oldParent, 'childList', null);
-      if (rlist.length) removal = childRecord(oldParent, child, false);
+    if (moved.length && from !== null && from !== undefined) {
+      rlist = interested(from, 'childList', null);
+      if (rlist.length) removal = childRecord(from, moved, false);
     }
     // A refused insertion is no mutation: hand the reason on.
     var why = raw.insert(parent, child, before);
-    if (why) return why;
-    if (removal) for (var i = 0; i < rlist.length; i++) enqueue(rlist[i].mo, removal);
+    if (why || !moved.length) return why;
+    for (var i = 0; removal && i < rlist.length; i++) enqueue(rlist[i].mo, removal);
     var alist = interested(parent, 'childList', null);
     if (alist.length) {
-      var added = childRecord(parent, child, true);
+      var added = childRecord(parent, moved, true);
       for (var j = 0; j < alist.length; j++) enqueue(alist[j].mo, added);
     }
   });
@@ -222,7 +228,7 @@
     var parent = raw.parent(id);
     if (parent === null || parent === undefined) return raw.detach(id); // already detached: no mutation
     var list = interested(parent, 'childList', null);
-    var rec = list.length ? childRecord(parent, id, false) : null;
+    var rec = list.length ? childRecord(parent, [id], false) : null;
     raw.detach(id);
     if (rec) for (var i = 0; i < list.length; i++) enqueue(list[i].mo, rec);
   });

@@ -13,9 +13,8 @@ const MEASURED: &str = include_str!("../../../tests/fixtures/js/dom-interfaces.j
 
 /// Interfaces frot still shapes by hand; each is closed by the ball named.
 const PENDING: &[&str] = &[
-    "DocumentFragment", // bl-de06, bl-9f79
-    "Document",         // bl-9f79
-    "HTMLDocument",     // bl-9f79
+    "Document",     // bl-9f79
+    "HTMLDocument", // bl-9f79
 ];
 
 /// frot's view of one interface, in the fixture's own encoding.
@@ -69,7 +68,7 @@ fn every_interface_is_a_subset_of_the_binarys_in_its_order() {
         }
         built += 1;
     }
-    assert_eq!(built, 79);
+    assert_eq!(built, 80);
     // And frot builds no HTML interface the binary lacks.
     let extra = s
         .eval(

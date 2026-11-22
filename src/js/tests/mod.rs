@@ -21,6 +21,7 @@ mod envgold;
 mod evloop;
 mod facade;
 mod filereader;
+mod fragment;
 mod idle;
 mod image;
 mod iterator;

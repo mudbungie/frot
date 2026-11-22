@@ -9,8 +9,8 @@
   var slots = g.__frot_slots;
   var brand = g.__frot_brand;
   var hook = g.__frot_mo_hook;
-  // Registration key: a node's NodeId, the document's included. A staging
-  // fragment (doc.js, a negative id) registers and simply never matches.
+  // Registration key: a node's NodeId, the document's and a fragment's
+  // included.
   function keyOf(target) {
     if (target && typeof slots(target).id === 'number') return slots(target).id;
     throw new TypeError('MutationObserver.observe: Argument 1 does not implement interface Node.');
