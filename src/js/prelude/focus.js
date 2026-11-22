@@ -8,7 +8,7 @@
 // Page-driven, never host-driven: frot dispatches only DOMContentLoaded/load
 // (js.md §11 — no interaction), so nothing here focuses anything by itself; a page
 // script calling focus() is the page acting, exactly like dispatchEvent. The
-// state is one wrapper handle (wrappers cache no arena state, §2). Focusability
+// state is one wrapper (a node has one wrapper, dom.js). Focusability
 // follows Firefox: form controls (input except type=hidden, textarea, select,
 // button) unless disabled, a/area with href, and anything carrying tabindex or
 // contenteditable; focus() on anything else is the browser's silent no-op.
@@ -17,8 +17,6 @@
 // after events.js (needs Node.dispatchEvent).
 (function (g) {
   'use strict';
-  var slots = g.__frot_slots;
-  var proto = g.Node.prototype;
   var active = null; // the focused element's wrapper, or null (=> body)
 
   function focusable(el) {
@@ -40,16 +38,21 @@
       return active || g.document.body;
     },
   });
-  proto.focus = function focus() {
-    if (!focusable(this) || (active && slots(active).id === slots(this).id)) return;
-    var prev = active;
-    active = this;
-    if (prev) emit(prev, 'blur'); // blur the loser first, as browsers order it
-    emit(this, 'focus');
-  };
-  proto.blur = function blur() {
-    if (!active || slots(active).id !== slots(this).id) return;
-    active = null;
-    emit(this, 'blur');
-  };
+  // On HTMLElement.prototype and, separately, SVGElement.prototype (measured).
+  [g.HTMLElement.prototype, g.SVGElement.prototype].forEach(function (proto) {
+    g.__frot_ifaceops(proto, {
+      focus: function focus() {
+        if (!focusable(this) || active === this) return;
+        var prev = active;
+        active = this;
+        if (prev) emit(prev, 'blur'); // blur the loser first, as browsers order it
+        emit(this, 'focus');
+      },
+      blur: function blur() {
+        if (active !== this) return;
+        active = null;
+        emit(this, 'blur');
+      },
+    });
+  });
 })(globalThis);

@@ -135,7 +135,7 @@
     var r = Object.create(MutationRecord.prototype);
     var st = slots(r);
     st.type = type;
-    st.target = new g.Node(targetId);
+    st.target = g.__frot_wrap(targetId);
     st.addedNodes = g.__frot_nodelist([]);
     st.removedNodes = g.__frot_nodelist([]);
     st.previousSibling = null;
@@ -153,8 +153,8 @@
     var at = kids.indexOf(childId);
     var st = slots(r);
     st[added ? 'addedNodes' : 'removedNodes'] = g.__frot_nodelist([childId]);
-    st.previousSibling = at > 0 ? new g.Node(kids[at - 1]) : null;
-    st.nextSibling = at >= 0 && at + 1 < kids.length ? new g.Node(kids[at + 1]) : null;
+    st.previousSibling = at > 0 ? g.__frot_wrap(kids[at - 1]) : null;
+    st.nextSibling = at >= 0 && at + 1 < kids.length ? g.__frot_wrap(kids[at + 1]) : null;
     return r;
   }
 

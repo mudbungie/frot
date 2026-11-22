@@ -181,8 +181,8 @@ fn put_forwards_style_and_class_list_write_through_to_the_attribute() {
         .unwrap(),
         ""
     );
-    // relList is the third member of the family, and where a browser has no
-    // such accessor at all (a plain div) there is nothing to forward to.
+    // relList is the third member of the family. A plain div has no such
+    // accessor in a browser, so the assignment there is an ordinary property.
     assert_eq!(
         s.eval(
             "var l = document.createElement('link'); l.relList = 'stylesheet';\
@@ -190,7 +190,7 @@ fn put_forwards_style_and_class_list_write_through_to_the_attribute() {
              l.getAttribute('rel') + '|' + String(d.relList)"
         )
         .unwrap(),
-        "stylesheet|undefined"
+        "stylesheet|x"
     );
 }
 

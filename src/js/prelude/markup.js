@@ -11,12 +11,12 @@
 // `&`/`<` in text handed back as live markup. Serialization follows WHATWG HTML
 // §13.3 ("HTML fragment serialization algorithm"), verified against Chrome 139.
 //
-// Loads after dom.js (it extends the Node prototype dom.js defines) and before
+// Loads after dom.js (it extends the Element prototype dom.js defines) and before
 // anything that reads markup.
 (function (g) {
   'use strict';
   var slots = g.__frot_slots;
-  var proto = g.Node.prototype;
+  var proto = g.Element.prototype;
 
   // §13.3 "escaping a string": `&` and U+00A0 always, plus `<`/`>` (the 2023
   // mXSS amendment — Chrome 139 serializes an attribute value `<` as `&lt;`);

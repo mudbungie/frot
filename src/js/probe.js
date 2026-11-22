@@ -83,12 +83,10 @@
   // getParameter / debug-renderer strings are unreachable behind the null context,
   // so getContext(type) is the correct WebGL probe. Behaviour preserved: still
   // returns the original (now a 2D context for '2d', still null for webgl).
-  if (g.Node) {
-    var realGetContext = g.Node.prototype.getContext;
-    g.Node.prototype.getContext = function (type) {
-      if (this.tagName === 'CANVAS') {
-        record('canvas.getContext(' + String(type == null ? '' : type).toLowerCase() + ')');
-      }
+  if (g.HTMLCanvasElement) {
+    var realGetContext = g.HTMLCanvasElement.prototype.getContext;
+    g.HTMLCanvasElement.prototype.getContext = function (type) {
+      record('canvas.getContext(' + String(type == null ? '' : type).toLowerCase() + ')');
       return realGetContext.apply(this, arguments);
     };
   }

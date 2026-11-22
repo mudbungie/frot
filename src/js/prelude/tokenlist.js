@@ -14,10 +14,10 @@
 // default-on `manifest`/`modulepreload` prefs; dom/base/Element.cpp
 // `sAnchorAndFormRelValues`), ASCII case-insensitively; an attribute with no
 // supported-token definition (`class`) throws the coherent TypeError. Loads
-// after elem2.js (extends the Node prototype dom.js built).
+// after elem2.js (extends the Element prototype dom.js built).
 (function (g) {
   'use strict';
-  var proto = g.Node.prototype;
+  var proto = g.Element.prototype;
   var A = Array.prototype;
   // The backing element/attribute/supported-token set live in brand.js's one
   // instance-state WeakMap: a real Gecko `classList` owns no properties, and the
@@ -170,16 +170,13 @@
       return makeList(this, 'class', null);
     }, 'value')
   );
-  // relList only where Firefox has it — link, and a/area/form (which share one
-  // Gecko table); elsewhere it stays undefined so feature detection is honest.
-  Object.defineProperty(
-    proto,
+  // relList only on the interfaces Firefox has it on — link, and a/area/form
+  // (which share one Gecko table); no other element has the member at all.
+  g.__frot_tagdef(
+    'Area Form Anchor Link',
     'relList',
     g.__frot_forwards(function () {
-      var t = this.tagName;
-      if (t === 'LINK') return makeList(this, 'rel', LINK_REL);
-      if (t === 'A' || t === 'AREA' || t === 'FORM') return makeList(this, 'rel', ANCHOR_REL);
-      return undefined;
+      return makeList(this, 'rel', this.tagName === 'LINK' ? LINK_REL : ANCHOR_REL);
     }, 'value')
   );
 })(globalThis);

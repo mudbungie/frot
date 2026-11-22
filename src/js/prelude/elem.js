@@ -1,49 +1,16 @@
-// Element/Node property breadth the frameworks exercise (js.md §3): the
-// `instanceof` interface constructors, the `style` facade, text `nodeValue`,
-// `ownerDocument`, writable `className`, and `dataset`. Layered on
-// dom.js's handle-based Node (no cached state — every read/write is a fresh
-// syscall against the one arena, js.md §2). Loads after dom.js; the Node methods
-// and document breadth are in elem2.js (kept split under the 300-line cap).
+// Element property breadth the frameworks exercise (js.md §3): the `style`
+// facade, the reflected attributes (`id`, `className`, and the tag-specific
+// `rel`/`href`/`src`), and `dataset`, each on the interface the binary puts it
+// on (bl-78cb). No cached state — every read/write is a fresh syscall against
+// the one arena, js.md §2. Loads after dom.js; the Element methods are in
+// elem2.js (kept split under the 300-line cap).
 (function (g) {
   'use strict';
-  var slots = g.__frot_slots;
-  var Node = g.Node;
-  var proto = Node.prototype;
-
-  // --- DOM interface constructors: frameworks feature-test with `instanceof`
-  // (ReactDOM: `node instanceof HTMLElement`). Our nodes are all `Node`; each
-  // interface is a constructor whose `Symbol.hasInstance` matches by nodeType/
-  // tag, so `instanceof` answers without a class hierarchy. Absent interfaces
-  // (iframe/input/...) simply never match — honest, never throwing.
-  function iface(pred) {
-    var f = function () {};
-    Object.defineProperty(f, Symbol.hasInstance, {
-      value: function (o) {
-        return !!o && typeof o === 'object' && pred(o);
-      },
-    });
-    return f;
-  }
-  var byType = function (t) {
-    return function (o) {
-      return o.nodeType === t;
-    };
-  };
-  var byTag = function (tag) {
-    return function (o) {
-      return o.nodeType === 1 && o.tagName === tag;
-    };
-  };
-  g.Element = iface(byType(1));
-  g.HTMLElement = iface(byType(1));
-  g.SVGElement = iface(byTag('SVG'));
-  g.Text = iface(byType(3));
-  g.Comment = iface(byType(8));
-  g.DocumentFragment = iface(byType(11));
-  g.HTMLIFrameElement = iface(byTag('IFRAME'));
-  g.HTMLInputElement = iface(byTag('INPUT'));
-  g.HTMLTextAreaElement = iface(byTag('TEXTAREA'));
-  g.HTMLSelectElement = iface(byTag('SELECT'));
+  var proto = g.Element.prototype;
+  var tagdef = g.__frot_tagdef;
+  // `style`, `dataset`, `focus` and `blur` are on HTMLElement.prototype and,
+  // separately, on SVGElement.prototype — not on Element (measured).
+  var STYLED = [g.HTMLElement.prototype, g.SVGElement.prototype];
 
   // --- inline style, backed by the `style` attribute (single source of truth) -
   // A CSSStyleDeclaration-like Proxy so `'display' in el.style` feature-detects
@@ -169,41 +136,14 @@
     configurable: true,
     writable: true,
   });
-  Object.defineProperty(
-    proto,
-    'style',
-    putForwards(function () {
-      return styleFor(this);
-    }, 'cssText')
-  );
-
-  // --- text nodeValue: element textContent already sets/reads; a text node's
-  // value is the same arena text (frameworks patch text via `node.nodeValue`).
-  Object.defineProperty(proto, 'nodeValue', {
-    configurable: true,
-    get: function () {
-      return this.nodeType === 1 ? null : this.textContent;
-    },
-    set: function (v) {
-      if (this.nodeType !== 1) g.__frot_set_text(slots(this).id, String(v));
-    },
-  });
-  Object.defineProperty(proto, 'data', {
-    configurable: true,
-    get: function () {
-      return this.textContent;
-    },
-    set: function (v) {
-      g.__frot_set_text(slots(this).id, String(v));
-    },
-  });
-
-  // ownerDocument: the one document (no frames, js.md §11).
-  Object.defineProperty(proto, 'ownerDocument', {
-    configurable: true,
-    get: function () {
-      return g.document;
-    },
+  STYLED.forEach(function (P) {
+    Object.defineProperty(
+      P,
+      'style',
+      putForwards(function () {
+        return styleFor(this);
+      }, 'cssText')
+    );
   });
 
   // --- Reflected attributes ARE accessors (bl-d313) -------------------------
@@ -243,7 +183,7 @@
   // `a.href` the same way.
   Object.defineProperty(proto, 'id', reflectString('id'));
   Object.defineProperty(proto, 'className', reflectString('class'));
-  Object.defineProperty(proto, 'rel', reflectString('rel'));
+  tagdef('Area Form Anchor Link', 'rel', reflectString('rel'));
 
   // classList lives in tokenlist.js: every token list the DOM exposes is a
   // spec-named DOMTokenList built by that one maker (bl-3a36).
@@ -269,11 +209,11 @@
       },
     };
   }
-  Object.defineProperty(proto, 'href', reflectUrl('href'));
-  Object.defineProperty(proto, 'src', reflectUrl('src'));
+  tagdef('Area Base Anchor Link', 'href', reflectUrl('href'));
+  tagdef('Image Media Track Script IFrame Embed Frame Input Source', 'src', reflectUrl('src'));
 
   // --- dataset: data-* reflection ------------------------------------------
-  Object.defineProperty(proto, 'dataset', {
+  var dataset = {
     configurable: true,
     get: function () {
       var el = this;
@@ -292,5 +232,8 @@
         },
       });
     },
+  };
+  STYLED.forEach(function (P) {
+    Object.defineProperty(P, 'dataset', dataset);
   });
 })(globalThis);

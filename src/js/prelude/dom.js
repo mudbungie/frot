@@ -1,8 +1,11 @@
-// DOM facade — handle-based Node/Element and the document, over the syscalls.
-// A wrapper is a thin object around an integer NodeId, which lives in brand.js's
-// instance-state WeakMap rather than on the wrapper (bl-3bdc: a real element
-// owns no properties at all); the arena is the one source of truth (js.md §2),
-// so every read/write is a fresh syscall and wrappers hold no cached state.
+// DOM facade — the node interface chain, the one wrapper per arena node, the
+// collections and the document, over the syscalls. A wrapper is a thin object
+// around an integer NodeId, which lives in brand.js's instance-state WeakMap
+// rather than on the wrapper (bl-3bdc: a real element owns no properties at
+// all); the arena is the one source of truth (js.md §2), so every read/write
+// is a fresh syscall and wrappers hold no cached arena state. The members of
+// Node are in node.js; Element's are in elem.js, elem2.js and the modules that
+// implement them.
 (function (g) {
   'use strict';
   // A node wrapper's arena id, like every other instance's backing state, lives
@@ -11,9 +14,108 @@
   // (bl-3bdc, identity.md §3.16).
   var slots = g.__frot_slots;
 
-  function wrap(id) {
-    return id === null || id === undefined ? null : new Node(id);
+  var iface = g.__frot_iface;
+
+  // --- The interface chain (bl-78cb, identity.md §3.21) ----------------------
+  // One prototype per node kind, linked as on the binary: EventTarget <- Node <-
+  // Element <- HTMLElement <- HTML<Tag>Element, Node <- CharacterData <- Text |
+  // Comment, Node <- DocumentType. Each is a real interface (`new` throws
+  // "Illegal constructor."; Text and Comment construct, as Firefox's do), so
+  // `instanceof` is the engine's own prototype walk and a text node has no
+  // element member to find. Members are added by the modules that implement
+  // them, each on the interface the binary puts it on. events.js links Node
+  // under EventTarget, which it defines.
+  function sub(name, parent, body) {
+    return g.__frot_extends(iface(name, null, body), parent);
   }
+  var Node = iface('Node');
+  var Element = sub('Element', Node);
+  var HTMLElement = sub('HTMLElement', Element);
+  var CharacterData = sub('CharacterData', Node);
+  // `new Text(data)` / `new Comment(data)` make the same detached arena node
+  // `createTextNode` / `createComment` do; the constructed object IS its wrapper.
+  function charData(name, create) {
+    return sub(name, CharacterData, function (inst, args) {
+      adopt(inst, g[create](args.length ? String(args[0]) : ''));
+    });
+  }
+  var KIND = {
+    text: charData('Text', '__frot_create_text').prototype,
+    comment: charData('Comment', '__frot_create_comment').prototype,
+    doctype: sub('DocumentType', Node).prototype,
+  };
+
+  // Which interface a tag's element implements — read off Firefox 153.0esr by
+  // `Object.getPrototypeOf(document.createElement(tag))` for each tag (never
+  // from the specification). The '' row is the tags that are plain HTMLElement;
+  // a tag in no row is HTMLUnknownElement, and one with a hyphen (a custom
+  // element name) is plain HTMLElement. The arena keeps local names only, so an
+  // element's namespace is unknown: `svg` alone is SVGElement (identity.md §11).
+  var TAGS = {
+    '': 'section article nav header footer main b i em strong code noscript summary dt dd small sub sup u s ' +
+      'abbr cite dfn kbd mark ruby rt rp samp var wbr bdi bdo address aside figure figcaption hgroup search ' +
+      'strike tt big acronym nobr noembed noframes plaintext image rb rtc basefont center',
+    Html: 'html', Head: 'head', Body: 'body', Div: 'div', Span: 'span', Paragraph: 'p', Anchor: 'a',
+    Image: 'img', Canvas: 'canvas', Input: 'input', Script: 'script', Form: 'form', TextArea: 'textarea',
+    Select: 'select', IFrame: 'iframe', Link: 'link', Style: 'style', Button: 'button', Option: 'option',
+    Label: 'label', Meta: 'meta', Title: 'title', Template: 'template', Area: 'area', UList: 'ul',
+    OList: 'ol', LI: 'li', Table: 'table', TableRow: 'tr', TableCell: 'td th',
+    TableSection: 'thead tbody tfoot', TableCaption: 'caption', TableCol: 'col colgroup',
+    Heading: 'h1 h2 h3 h4 h5 h6', BR: 'br', HR: 'hr', Pre: 'pre xmp listing', Media: '', Video: 'video',
+    Audio: 'audio', Source: 'source', Picture: 'picture', Base: 'base', Details: 'details',
+    Dialog: 'dialog', FieldSet: 'fieldset', Legend: 'legend', Object: 'object', Embed: 'embed',
+    Map: 'map', DList: 'dl', Quote: 'blockquote q', Mod: 'ins del', Time: 'time', Data: 'data',
+    Output: 'output', Progress: 'progress', Meter: 'meter', OptGroup: 'optgroup', DataList: 'datalist',
+    Slot: 'slot', Font: 'font', Marquee: 'marquee', FrameSet: 'frameset', Frame: 'frame', Menu: 'menu',
+    Param: 'param', Track: 'track', Directory: 'dir', Unknown: '',
+  };
+  var byTag = Object.create(null);
+  Object.keys(TAGS).forEach(function (n) {
+    var parent = n === 'Video' || n === 'Audio' ? g.HTMLMediaElement : HTMLElement;
+    var C = n ? sub('HTML' + n + 'Element', parent) : HTMLElement;
+    TAGS[n].split(' ').forEach(function (tag) {
+      byTag[tag] = C.prototype;
+    });
+  });
+  byTag.svg = sub('SVGElement', Element).prototype;
+  delete byTag[''];
+
+  // --- One wrapper per node (bl-78cb) ----------------------------------------
+  // The arena is append-only and a node's kind never changes, so the wrapper of
+  // an id is made once and found again: `el === el`, a property a page sets on
+  // a node is still there at the next read, and the prototype is chosen once
+  // rather than at every access. A wrapper still holds no arena state — only
+  // its id, in brand.js's store.
+  var wrappers = [];
+  function adopt(w, id) {
+    slots(w).id = id;
+    wrappers[id] = w;
+    return w;
+  }
+  function wrap(id) {
+    if (id === null || id === undefined) return null;
+    var w = wrappers[id];
+    if (w !== undefined) return w;
+    var tag = g.__frot_tag(id);
+    var proto =
+      tag == null
+        ? KIND[g.__frot_kind(id)]
+        : byTag[tag] || (tag.indexOf('-') < 0 ? g.HTMLUnknownElement : HTMLElement).prototype;
+    return adopt(Object.create(proto), id);
+  }
+  // Define one member on each named HTML<Name>Element prototype: the home of
+  // every tag-specific member (`value`, `href`, `getContext`...), which the
+  // binary puts on those interfaces and on no shared one.
+  function tagdef(names, key, desc) {
+    desc.enumerable = true;
+    desc.configurable = true;
+    names.split(' ').forEach(function (n) {
+      Object.defineProperty(g['HTML' + n + 'Element'].prototype, key, desc);
+    });
+  }
+  [['__frot_wrap', wrap], ['__frot_tagdef', tagdef]].forEach(function (p) {
+    Object.defineProperty(g, p[0], { value: g.__frot_brand(p[1], p[0]), configurable: true, writable: true });
+  });
 
   // --- DOM collections: one maker, two spec-named interfaces (bl-e5c3) -------
   // The invariant that dissolves the collection zoo: every collection a DOM
@@ -103,104 +205,6 @@
     writable: true,
   });
 
-  class Node {
-    constructor(id) {
-      slots(this).id = id;
-    }
-    get nodeType() {
-      var k = g.__frot_kind(slots(this).id);
-      return k === 'element' ? 1 : k === 'text' ? 3 : k === 'comment' ? 8 : 10;
-    }
-    get nodeName() {
-      return this.tagName || '#' + g.__frot_kind(slots(this).id);
-    }
-    get tagName() {
-      var t = g.__frot_tag(slots(this).id);
-      return t ? t.toUpperCase() : undefined;
-    }
-    get parentNode() {
-      return wrap(g.__frot_parent(slots(this).id));
-    }
-    get childNodes() {
-      return wrapAll(g.__frot_children(slots(this).id));
-    }
-    get children() {
-      return g.__frot_elems(
-        g.__frot_children(slots(this).id).filter(function (id) {
-          return g.__frot_kind(id) === 'element';
-        })
-      );
-    }
-    get firstChild() {
-      var kids = g.__frot_children(slots(this).id);
-      return kids.length ? wrap(kids[0]) : null;
-    }
-    get textContent() {
-      return g.__frot_text(slots(this).id);
-    }
-    set textContent(value) {
-      clear(this);
-      g.__frot_insert_child(slots(this).id, g.__frot_create_text(String(value)), null);
-    }
-    getAttribute(name) {
-      // The arena stores attribute names ASCII-lowercased (the parser and
-      // set_attr both normalize), so reads normalize too — SVG's camelCase
-      // (viewBox) round-trips instead of silently missing (bl-3a36).
-      var v = g.__frot_attr(slots(this).id, String(name).toLowerCase());
-      return v === null || v === undefined ? null : v;
-    }
-    setAttribute(name, value) {
-      g.__frot_set_attr(slots(this).id, name, String(value));
-    }
-    removeAttribute(name) {
-      g.__frot_remove_attr(slots(this).id, name);
-    }
-    hasAttribute(name) {
-      return this.getAttribute(name) !== null;
-    }
-    appendChild(child) {
-      g.__frot_insert_child(slots(this).id, slots(child).id, null);
-      return child;
-    }
-    insertBefore(child, ref) {
-      // The reference sibling goes through as a node id: the arena resolves the
-      // slot after the move unlinks `child`, so a same-parent move (or a ref
-      // that is `child` itself) needs no index arithmetic here (bl-ae88).
-      g.__frot_insert_child(slots(this).id, slots(child).id, ref ? slots(ref).id : null);
-      return child;
-    }
-    removeChild(child) {
-      g.__frot_detach(slots(child).id);
-      return child;
-    }
-    // Replacement is one operation, and the DOM already names it (§4.2.3): the
-    // reference is `child`'s NEXT sibling, taken *before* the removal. Naming a
-    // sibling instead of an index (bl-ae88) is what makes replacing a node with
-    // itself — which `document.body = document.body` is — the general path with
-    // its own successor as the reference, not a special case.
-    replaceChild(node, child) {
-      var kids = g.__frot_children(slots(this).id);
-      var at = kids.indexOf(slots(child).id);
-      if (at < 0) {
-        throw g.__frot_domerror(
-          'NotFoundError',
-          'Node.replaceChild: Child to be replaced is not a child of this node'
-        );
-      }
-      var ref = at + 1 < kids.length ? kids[at + 1] : null;
-      g.__frot_detach(slots(child).id);
-      g.__frot_insert_child(slots(this).id, slots(node).id, ref);
-      return child;
-    }
-    querySelector(sel) {
-      var hits = g.__frot_query(slots(this).id, sel);
-      return hits.length ? wrap(hits[0]) : null;
-    }
-    querySelectorAll(sel) {
-      return wrapAll(g.__frot_query(slots(this).id, sel));
-    }
-  }
-
   // Detach every child of `node`. A module-local function published on the same
   // non-enumerable seam as `__frot_elems`, NOT a `_clear` method on
   // `Node.prototype`: a page reads that prototype's own-property list, and
@@ -285,6 +289,5 @@
     },
   };
 
-  g.Node = Node;
   g.document = document;
 })(globalThis);

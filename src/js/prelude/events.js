@@ -15,9 +15,8 @@
   'use strict';
   var slots = g.__frot_slots;
 
-  // The one registry. Listeners key by TARGET so the stateless Node wrappers
-  // (fresh per syscall) never hold them, and so window/document/nodes/fragments/
-  // XHR/every masqueraded interface share one implementation.
+  // The one registry. Listeners key by TARGET, so window/document/nodes/
+  // fragments/XHR/every masqueraded interface share one implementation.
   var reg = Object.create(null);
   function bucket(key, type) {
     var t = reg[key] || (reg[key] = Object.create(null));
@@ -112,7 +111,7 @@
   // a ReferenceError while the name is absent. Instances ride the one registry;
   // `instanceof` matches by the trio's shape, so every event-bearing surface
   // (window, document, nodes, fragments, XHR, …) answers true without a class
-  // hierarchy — the elem.js hasInstance pattern.
+  // hierarchy. Nodes inherit it for real (bl-78cb).
   //
   // The trio lives ON THE PROTOTYPE, where Firefox's does: measured on 153.0esr
   // (`bl-6438`, identity.md §3.14) `Object.getPrototypeOf(Worker.prototype)
@@ -142,8 +141,15 @@
     fire(etKey(receiver(this)), ev, receiver(this));
     return !(ev && ev.defaultPrevented);
   };
+  Object.defineProperty(g.EventTarget.prototype, Symbol.toStringTag, {
+    value: 'EventTarget',
+    configurable: true,
+  });
   Object.defineProperty(g.EventTarget, Symbol.hasInstance, {
+    // The shape test is EventTarget's own answer; an interface that inherits
+    // it (Node and everything under it) answers by its prototype chain.
     value: function (o) {
+      if (this !== g.EventTarget) return Function.prototype[Symbol.hasInstance].call(this, o);
       return !!o && (typeof o === 'object' || typeof o === 'function') && typeof o.addEventListener === 'function';
     },
   });
@@ -160,16 +166,9 @@
   });
   etKeys.set(g, 'window');
   etKeys.set(g.document, 'document');
-  g.Node.prototype.addEventListener = function (type, fn) {
-    add('n' + slots(this).id, String(type), fn);
-  };
-  g.Node.prototype.removeEventListener = function (type, fn) {
-    remove('n' + slots(this).id, String(type), fn);
-  };
-  g.Node.prototype.dispatchEvent = function (ev) {
-    fire('n' + slots(this).id, ev, this);
-    return !(ev && ev.defaultPrevented);
-  };
+  // Every node is an EventTarget by inheritance (bl-78cb): a node has one
+  // wrapper, so its listeners key by that object like any other target's.
+  g.__frot_extends(g.Node, g.EventTarget);
 
   // The registry's dispatch, for the host lifecycle in loop.js: the only caller
   // outside this file, and the reason `fire` is not simply private. Non-enumerable

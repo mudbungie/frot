@@ -222,14 +222,22 @@
   // all 41 Gecko interface prototypes read in `bl-706b` list `constructor` last
   // (identity.md §3.15); a JS function's prototype is born owning it first.
   function sealInterfaces(extra) {
-    built.concat(extra || []).forEach(function (Ctor) {
+    return built.concat(extra || []).filter(function (Ctor) {
       var proto = Ctor && Ctor.prototype;
-      if (!proto) return;
+      if (!proto) return false;
       delete proto.constructor;
-      Object.defineProperty(proto, 'constructor', {
+      return Object.defineProperty(proto, 'constructor', {
         value: Ctor, writable: true, enumerable: false, configurable: true,
       });
     });
+  }
+
+  // `Child` inherits `Parent` the way one WebIDL interface inherits another:
+  // prototype under prototype AND interface object under interface object
+  // (measured: `Object.getPrototypeOf(Node) === EventTarget`).
+  function extend(Child, Parent) {
+    Object.setPrototypeOf(Child.prototype, Parent.prototype);
+    return Object.setPrototypeOf(Child, Parent);
   }
 
   // A DOMException-shaped error: quickjs has no DOMException, so a plain Error
@@ -272,6 +280,7 @@
     ['__frot_domerror', domError],
     ['__frot_onevent', onEvent],
     ['__frot_iface_seal', sealInterfaces],
+    ['__frot_extends', extend],
     ['__frot_ifaceattrs', attrs],
     ['__frot_ifaceops', ops],
     ['__frot_slots', slots],

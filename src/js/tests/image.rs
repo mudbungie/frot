@@ -89,8 +89,8 @@ fn new_image_is_a_detached_img_element() {
     }
 }
 
-/// The members an `<img>` has are `undefined` on other elements, and the canvas
-/// keeps its own `width`/`height`.
+/// The members an `<img>` has live on `HTMLImageElement.prototype`, so no other
+/// element has them, and the canvas keeps its own `width`/`height`.
 #[test]
 fn the_image_members_belong_to_img_alone() {
     let s = sess("<html><body><p id=p></p></body></html>");
@@ -111,7 +111,7 @@ fn the_image_members_belong_to_img_alone() {
         ),
         (
             "['complete','naturalWidth','width'].map(function(k){var d=Object\
-             .getOwnPropertyDescriptor(Node.prototype,k);return d.get.name+'|'+String(d.get)\
+             .getOwnPropertyDescriptor(HTMLImageElement.prototype,k);return d.get.name+'|'+String(d.get)\
              .indexOf('native code')})",
             "get complete|27,get naturalWidth|31,get width|24",
         ),

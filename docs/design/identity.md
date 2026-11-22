@@ -1522,9 +1522,58 @@ the document entry is index 0 — every `NodeId` then shifts by one, which
 matters wherever a view prints an id — or a reserved id outside `nodes`; that
 is recorded here when it is made.
 
-**Until step 4 lands** the residual is exactly the frot column above, and
-`Image`'s and `<canvas>`'s members stay on the one `Node.prototype` behind a
-tag check (`image.js`, `canvaselem.js`) — step 3 moves them.
+**Step 3 landed (`bl-78cb`, 2026-11-21).** The capture is
+`tests/fixtures/js/dom-interfaces.json` — 82 interfaces (the chain above plus
+all 71 `HTML*Element`), each with its parent, the parent of its interface
+object and its prototype's own members in order with descriptor shape; and the
+interface `document.createElement(tag)` yields for 144 tags. Same rig. One test
+(`src/js/tests/domiface.rs`) holds frot to it: every member frot defines on an
+interface is one the binary defines there, with the same shape, in the
+binary's order.
+
+| question | Firefox 153.0esr | frot before | frot now |
+|---|---|---|---|
+| `Object.getOwnPropertyNames(Node.prototype).length` | 48 | 75 | 41 — the 48 less `normalize`, `isEqualNode`, `compareDocumentPosition`, `lookupPrefix`, `lookupNamespaceURI`, `isDefaultNamespace`, `baseURI` |
+| …`Element.prototype` / `HTMLElement.prototype` / `CharacterData.prototype` | 144 / 138 / 14 | 1 / 1 / absent | 27 / 9 / 4 |
+| `HTMLElement.prototype → Element.prototype → Node.prototype → EventTarget.prototype`; `Object.getPrototypeOf(Node) === EventTarget` | holds | no | holds |
+| a text node's prototype; `typeof textNode.getAttribute` | `Text.prototype`; `undefined` | `Node.prototype`; `function` | `Text.prototype`; `undefined` |
+| `String(document.createElement('p'))` | `[object HTMLParagraphElement]` | `[object Object]` | `[object HTMLParagraphElement]` |
+| `typeof div.value`, `typeof div.getContext`, `typeof div.href` | `undefined` ×3 | `string`, `function`, `string` | `undefined` ×3 |
+| `document.body === document.body`; a property set on a node, read back | `true`; kept | `false`; lost | `true`; kept |
+| `new Text('a').data`; `new Node()`, `new HTMLDivElement()` | `a`; `TypeError: Illegal constructor.` | not constructors | as measured |
+| `select.type`, `textarea.type`, `fieldset.type`, `output.type` (read-only) | `select-one` / `select-multiple`, `textarea`, `fieldset`, `output` | the `type` attribute, writable | as measured |
+| `Node.TEXT_NODE` descriptor | value 3, enumerable, not writable, not configurable; on `Node` and `Node.prototype` | absent | as measured |
+| `el.textContent = null` / `= ''` | no child left | a text node `"null"` / an empty text node | no child left |
+| `comment.cloneNode().nodeType` | 8 | 3 | 8 |
+
+Decided with the capture in hand:
+
+- **The tag-keyed interfaces are real prototypes, all 71**, not predicates.
+  A member such as `value`, `href`, `src`, `type`, `disabled`, `getContext` or
+  `naturalWidth` exists on a handful of `HTML<Tag>Element` prototypes and on no
+  shared one, so the only place to put it without inventing a member on
+  `HTMLElement.prototype` is the interface the binary names. `wrap(id)` picks
+  the prototype from the tag by one table (`dom.js`), measured per tag.
+- **One wrapper per node.** frot made a new wrapper at every read, so `el ===
+  el` was false and a property a page set on a node was gone at the next read.
+  The arena is append-only and a node's kind never changes, so the wrapper of an
+  id is made once and kept; that is also what makes choosing a prototype free
+  after the first read. Listeners key by that object, so `Node.prototype` no
+  longer carries its own listener trio — it inherits `EventTarget`'s.
+- **Order is one pass.** The members of `Element.prototype` are implemented in
+  nine modules; the final sweep (`nativebrand.js`) puts each prototype in the
+  measured order, rather than threading a definition order through the files.
+
+Not closed by step 3, each a row in §11: the members frot does not implement;
+element namespaces (the arena keeps local names, so `svg` alone is `SVGElement`
+— where the binary's HTML-namespace `createElement('svg')` is
+`HTMLUnknownElement` — and an `<a>` inside an `<svg>` is `HTMLAnchorElement`);
+the WebIDL receiver and argument errors (`'get nodeType' called on an object
+that does not implement interface Node.`, `Node.appendChild: Argument 1 is not
+an object.`), where frot's are the engine's; a doctype's `nodeName`
+(`html` on the binary, `#doctype` in frot — the arena keeps no doctype name).
+
+**Until step 4 lands** the document rows of the first table stand.
 
 ## 4. The one profile
 
@@ -2391,6 +2440,7 @@ Permanently out of reach, by design or by constraint:
 | **`requestIdleCallback` `timeout`** | Built on the virtual clock (`bl-b584`, §3.20): an idle callback runs once every timer due at that instant has run. The idle period therefore always arrives, so `didTimeout` is always `false` and a `timeout` option is accepted and unused — where a busy real page can report `true`. A coherent value a real Firefox also produces, not a fabricated one. |
 | **`FileReader`** | Built 2026-11-20 (`bl-8c46`, §3.20) over `Blob`, with `ProgressEvent`. Residual: `readAsText` decodes **UTF-8 only** — a legacy `encoding` argument, a `charset` in the blob's type or a UTF-16 byte-order mark is ignored, where Firefox honours each (the same gap as the `TextDecoder` row); `error` never fires (an in-memory read cannot fail); no `File`. |
 | **`Image` / `<img>` loading** | `Image` and `HTMLImageElement` exist (`bl-1404`, §3.20). **An image never arrives** — a pinned choice: no request is sent for any `<img>` (so no beacon), neither `load` nor `error` fires, `complete` stays `false` once a `src` is set, the natural size is 0. A real Firefox holds that state only until the response; a page awaiting the image waits out the run. No `data:` image loading, no `decode()`, no IMG-specific properties beyond `src`/`width`/`height`/`complete`/`naturalWidth`/`naturalHeight`/`currentSrc`. Whether images should fail instead (what a Firefox with images blocked does, measured) or beacons be sent: `bl-91a4`. |
+| **DOM interface members** | The node interfaces are real and linked as on the binary (`bl-78cb`, §3.21): `EventTarget ← Node ← Element ← HTMLElement ← HTML<Tag>Element` (all 71), `Node ← CharacterData ← Text`/`Comment`, `Node ← DocumentType`; a node has one wrapper. Residual: each prototype holds the **subset** frot implements (27 of `Element.prototype`'s 144, 9 of `HTMLElement.prototype`'s 138; most `HTML<Tag>Element` prototypes hold only `constructor`), always in the binary's order and on the binary's interface. Elements have no namespace: `svg` alone is `SVGElement` (no `SVGSVGElement`/`SVGGraphicsElement`), every other foreign element is typed by its tag as if HTML. A call on the wrong receiver or with a non-node argument throws the engine's error, not WebIDL's. `input.type` reflects the attribute (`''` when absent, where the binary answers `text`); a doctype's `nodeName` is `#doctype`. `document` and `DocumentFragment` are still hand-shaped — `bl-9f79`, `bl-de06`. |
 | **`Blob` / blob: URLs** | `Blob`, `URL.createObjectURL` and `revokeObjectURL` are real (`bl-78c5`, §3.20). Residual: no `Blob.prototype.stream` (no `ReadableStream`); a blob: URL cannot be loaded — `fetch`/XHR of one is a network error where Firefox answers 200, and a Blob-URL `Worker` never runs (the Worker row above); no `File`; a `FormData` holding a `Blob` cannot be POSTed. Each is a refusal or an absence, never a wrong value. |
 | **`Intl` beyond `DateTimeFormat.resolvedOptions()`** | Residual. quickjs-ng ships without `Intl`; frot provides the low-entropy locale/timezone subset a page reads (`DateTimeFormat` + `resolvedOptions`, `timeZone` pinned UTC). `NumberFormat`/`Collator`/`RelativeTimeFormat`/real locale-aware formatting are unbuilt — a filed gap, not a permanent non-goal. |
 | **`__frot_*` syscall names enumerable on `globalThis`** | Residual. `Function.prototype.toString` no longer leaks their source or the name (`bl-3926` branding), but the syscall **names** are still enumerable globals (`Object.getOwnPropertyNames(window)`). Making them non-enumerable touches every `bind!` site and is tracked as a separate concern. |

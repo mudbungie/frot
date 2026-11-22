@@ -188,8 +188,6 @@
   // --- canvas element bridge -------------------------------------------------
   // width/height reflection lives here; the getContext/toDataURL surface is in
   // canvaselem.js (size cap) and reaches the two factories exported at the end.
-  var Node = g.Node;
-
   // A canvas dimension reflected from its content attribute (SSOT), default 300×150
   // per the HTML spec. Shared by the reflection getters and both factories.
   function dim(canvas, name, dflt) {
@@ -198,16 +196,14 @@
     return isFinite(n) && n >= 0 ? n : dflt;
   }
 
-  // width/height are tag-guarded accessors on Node.prototype — the same shared-
-  // prototype shape residual getContext had (identity.md §11). Resizing resets the bitmap.
+  // width/height are accessors on HTMLCanvasElement.prototype (bl-78cb).
+  // Resizing resets the bitmap.
   function reflect(name, dflt) {
-    Object.defineProperty(Node.prototype, name, {
-      configurable: true,
+    g.__frot_tagdef('Canvas', name, {
       get: brand(function () {
-        return this.tagName === 'CANVAS' ? dim(this, name, dflt) : undefined;
+        return dim(this, name, dflt);
       }, 'get ' + name),
       set: brand(function (v) {
-        if (this.tagName !== 'CANVAS') return;
         this.setAttribute(name, String(v >>> 0));
         var ctx = slots(this).ctx2d;
         if (ctx) {

@@ -242,17 +242,17 @@
   eq('elem:removeAttributeNS', svgEl.getAttribute('viewBox'), null);
   // getRootNode: no shadow DOM, so connected == document, detached == subtree top.
   check('elem:getRootNode.connected', document.body.getRootNode() === document);
-  check('elem:getRootNode.detached', svgEl.getRootNode()._id === svgEl._id);
+  check('elem:getRootNode.detached', svgEl.getRootNode() === svgEl);
   // Sibling traversal + closest, live over the arena.
   var sibA = document.createElement('i');
   var sibB = document.createElement('b');
   document.body.appendChild(sibA);
   document.body.appendChild(sibB);
-  check('elem:nextSibling', sibA.nextSibling._id === sibB._id && sibB.nextSibling === null);
-  check('elem:previousSibling', sibB.previousSibling._id === sibA._id);
+  check('elem:nextSibling', sibA.nextSibling === sibB && sibB.nextSibling === null);
+  check('elem:previousSibling', sibB.previousSibling === sibA);
   sibA.setAttribute('class', 'sib-a');
-  check('elem:closest', sibA.closest('.sib-a')._id === sibA._id
-    && sibA.closest('body')._id === document.body._id && sibA.closest('.absent') === null);
+  check('elem:closest', sibA.closest('.sib-a') === sibA
+    && sibA.closest('body') === document.body && sibA.closest('.absent') === null);
   // ParentNode/ChildNode mixin: append takes nodes or strings; remove detaches.
   sibA.append(document.createElement('u'), 'tail');
   eq('elem:append', sibA.innerHTML, '<u></u>tail');
@@ -335,29 +335,29 @@
   // move, page-driven only (the host never focuses anything, §11). React's
   // commit phase runs `autoFocus && el.focus()` on mount; without this the
   // field trial's TodoMVC root unmounted with one "not a function" report.
-  check('focus:activeElement.init', document.activeElement._id === document.body._id);
+  check('focus:activeElement.init', document.activeElement === document.body);
   var focusInput = document.createElement('input');
   document.body.appendChild(focusInput);
   var focusEvents = [];
   focusInput.addEventListener('focus', function () { focusEvents.push('focus'); });
   focusInput.addEventListener('blur', function () { focusEvents.push('blur'); });
   focusInput.focus();
-  check('focus:activeElement.moved', document.activeElement._id === focusInput._id);
+  check('focus:activeElement.moved', document.activeElement === focusInput);
   var focusDiv = document.createElement('div');
   document.body.appendChild(focusDiv);
   focusDiv.focus(); // unfocusable: Firefox's silent no-op — activeElement holds
-  check('focus:unfocusable.noop', document.activeElement._id === focusInput._id);
+  check('focus:unfocusable.noop', document.activeElement === focusInput);
   focusInput.blur();
-  check('focus:blur.restores', document.activeElement._id === document.body._id);
+  check('focus:blur.restores', document.activeElement === document.body);
   eq('focus:events', focusEvents.join(','), 'focus,blur');
   var focusHidden = document.createElement('input');
   focusHidden.setAttribute('type', 'hidden');
   document.body.appendChild(focusHidden);
   focusHidden.focus();
-  check('focus:hidden.noop', document.activeElement._id === document.body._id);
+  check('focus:hidden.noop', document.activeElement === document.body);
   focusDiv.setAttribute('tabindex', '0');
   focusDiv.focus(); // tabindex makes anything focusable
-  check('focus:tabindex.focusable', document.activeElement._id === focusDiv._id);
+  check('focus:tabindex.focusable', document.activeElement === focusDiv);
   focusDiv.blur();
   document.body.removeChild(focusInput);
   document.body.removeChild(focusDiv);
@@ -397,14 +397,14 @@
       if (!MO.first) {
         var r = records[0];
         MO.first = Object.prototype.toString.call(r) === '[object MutationRecord]'
-          && r.target._id === host._id
+          && r.target === host
           && r.addedNodes instanceof NodeList && r.addedNodes.length === 1
           && r.removedNodes.length === 0
           && r.previousSibling === null && r.nextSibling === null;
         MO.attr = records[1].attributeName === 'data-x' && records[1].oldValue === null;
         MO.attrOld = records[2].attributeName === 'data-x' && records[2].oldValue === 'a';
         MO.charOld = records[4].type === 'characterData' && records[4].oldValue === 'hi';
-        MO.removed = records[5].removedNodes[0]._id === records[0].addedNodes[0]._id;
+        MO.removed = records[5].removedNodes[0] === records[0].addedNodes[0];
       }
     });
     mo.observe(host, { childList: true, subtree: true, attributeOldValue: true, characterDataOldValue: true });
@@ -442,10 +442,10 @@
     host3.appendChild(b3);
     var mo3 = new MutationObserver(function (records) {
       MO.move = records.length === 2
-        && records[0].type === 'childList' && records[0].target._id === host3._id
-        && records[0].removedNodes[0]._id === a3._id
-        && records[1].target._id === b3._id
-        && records[1].addedNodes[0]._id === a3._id;
+        && records[0].type === 'childList' && records[0].target === host3
+        && records[0].removedNodes[0] === a3
+        && records[1].target === b3
+        && records[1].addedNodes[0] === a3;
       mo3.disconnect();
     });
     mo3.observe(host3, { childList: true, subtree: true });
@@ -493,7 +493,7 @@
     var io = new IntersectionObserver(function (entries, self) {
       var e0 = entries[0];
       VO.io = entries.length === 1 && self === io
-        && e0.target._id === ioTarget._id
+        && e0.target === ioTarget
         && e0.isIntersecting === true
         && e0.intersectionRatio === 1
         && e0.rootBounds.width === 1280
@@ -522,7 +522,7 @@
     var ro = new ResizeObserver(function (entries) {
       var e0 = entries[0];
       VO.ro = entries.length === 1
-        && e0.target._id === ioTarget._id
+        && e0.target === ioTarget
         && e0.contentRect.width === 1280
         && e0.contentRect.x === 0
         && e0.borderBoxSize[0].inlineSize === 1280

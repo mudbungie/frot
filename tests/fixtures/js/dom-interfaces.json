@@ -1,0 +1,561 @@
+{
+"_source": "Firefox 153.0esr (BuildID 20260716160951), read over Marionette in the content window: identity.md \u00a73.21. members are own property names in order, each with its descriptor code (g getter, s setter, f function value, v other value, e enumerable, c configurable, w writable). tags maps a tag to the interface of document.createElement(tag).",
+"interfaces": {
+"EventTarget": {
+"parent": null,
+"ctorParent": null,
+"members": "addEventListener:fecw removeEventListener:fecw dispatchEvent:fecw constructor:fcw"
+},
+"Node": {
+"parent": "EventTarget",
+"ctorParent": "EventTarget",
+"members": "getRootNode:fecw hasChildNodes:fecw insertBefore:fecw appendChild:fecw replaceChild:fecw removeChild:fecw normalize:fecw cloneNode:fecw isSameNode:fecw isEqualNode:fecw compareDocumentPosition:fecw contains:fecw lookupPrefix:fecw lookupNamespaceURI:fecw isDefaultNamespace:fecw nodeType:gec nodeName:gec baseURI:gec isConnected:gec ownerDocument:gec parentNode:gec parentElement:gec childNodes:gec firstChild:gec lastChild:gec previousSibling:gec nextSibling:gec nodeValue:gsec textContent:gsec ELEMENT_NODE:ve ATTRIBUTE_NODE:ve TEXT_NODE:ve CDATA_SECTION_NODE:ve ENTITY_REFERENCE_NODE:ve ENTITY_NODE:ve PROCESSING_INSTRUCTION_NODE:ve COMMENT_NODE:ve DOCUMENT_NODE:ve DOCUMENT_TYPE_NODE:ve DOCUMENT_FRAGMENT_NODE:ve NOTATION_NODE:ve DOCUMENT_POSITION_DISCONNECTED:ve DOCUMENT_POSITION_PRECEDING:ve DOCUMENT_POSITION_FOLLOWING:ve DOCUMENT_POSITION_CONTAINS:ve DOCUMENT_POSITION_CONTAINED_BY:ve DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC:ve constructor:fcw"
+},
+"Element": {
+"parent": "Node",
+"ctorParent": "Node",
+"members": "getAttributeNames:fecw getAttribute:fecw getAttributeNS:fecw toggleAttribute:fecw setAttribute:fecw setAttributeNS:fecw removeAttribute:fecw removeAttributeNS:fecw hasAttribute:fecw hasAttributeNS:fecw hasAttributes:fecw closest:fecw matches:fecw webkitMatchesSelector:fecw getElementsByTagName:fecw getElementsByTagNameNS:fecw getElementsByClassName:fecw insertAdjacentElement:fecw insertAdjacentText:fecw mozMatchesSelector:fecw setPointerCapture:fecw releasePointerCapture:fecw hasPointerCapture:fecw setCapture:fecw releaseCapture:fecw getAttributeNode:fecw setAttributeNode:fecw removeAttributeNode:fecw getAttributeNodeNS:fecw setAttributeNodeNS:fecw getClientRects:fecw getBoundingClientRect:fecw checkVisibility:fecw scrollIntoView:fecw scroll:fecw scrollTo:fecw scrollBy:fecw insertAdjacentHTML:fecw attachShadow:fecw requestFullscreen:fecw mozRequestFullScreen:fecw requestPointerLock:fecw setHTML:fecw setHTMLUnsafe:fecw getHTML:fecw ariaNotify:fecw animate:fecw getAnimations:fecw before:fecw after:fecw replaceWith:fecw remove:fecw prepend:fecw append:fecw replaceChildren:fecw moveBefore:fecw querySelector:fecw querySelectorAll:fecw namespaceURI:gec prefix:gec localName:gec tagName:gec id:gsec className:gsec classList:gsec part:gsec attributes:gec scrollTop:gsec scrollLeft:gsec scrollWidth:gec scrollHeight:gec clientTop:gec clientLeft:gec clientWidth:gec clientHeight:gec scrollTopMax:gec scrollLeftMax:gec currentCSSZoom:gec innerHTML:gsec outerHTML:gsec shadowRoot:gec assignedSlot:gec slot:gsec onfullscreenchange:gsec onfullscreenerror:gsec ariaActiveDescendantElement:gsec role:gsec ariaAtomic:gsec ariaAutoComplete:gsec ariaBrailleLabel:gsec ariaBrailleRoleDescription:gsec ariaBusy:gsec ariaChecked:gsec ariaColCount:gsec ariaColIndex:gsec ariaColIndexText:gsec ariaColSpan:gsec ariaControlsElements:gsec ariaCurrent:gsec ariaDescribedByElements:gsec ariaDescription:gsec ariaDetailsElements:gsec ariaDisabled:gsec ariaErrorMessageElements:gsec ariaExpanded:gsec ariaFlowToElements:gsec ariaHasPopup:gsec ariaHidden:gsec ariaInvalid:gsec ariaKeyShortcuts:gsec ariaLabel:gsec ariaLabelledByElements:gsec ariaLevel:gsec ariaLive:gsec ariaModal:gsec ariaMultiLine:gsec ariaMultiSelectable:gsec ariaOrientation:gsec ariaOwnsElements:gsec ariaPlaceholder:gsec ariaPosInSet:gsec ariaPressed:gsec ariaReadOnly:gsec ariaRelevant:gsec ariaRequired:gsec ariaRoleDescription:gsec ariaRowCount:gsec ariaRowIndex:gsec ariaRowIndexText:gsec ariaRowSpan:gsec ariaSelected:gsec ariaSetSize:gsec ariaSort:gsec ariaValueMax:gsec ariaValueMin:gsec ariaValueNow:gsec ariaValueText:gsec previousElementSibling:gec nextElementSibling:gec children:gec firstElementChild:gec lastElementChild:gec childElementCount:gec constructor:fcw"
+},
+"HTMLElement": {
+"parent": "Element",
+"ctorParent": "Element",
+"members": "click:fecw attachInternals:fecw showPopover:fecw hidePopover:fecw togglePopover:fecw focus:fecw blur:fecw title:gsec lang:gsec translate:gsec dir:gsec innerText:gsec outerText:gsec hidden:gsec inert:gsec accessKey:gsec accessKeyLabel:gec draggable:gsec contentEditable:gsec isContentEditable:gec popover:gsec spellcheck:gsec inputMode:gsec enterKeyHint:gsec autocapitalize:gsec autocorrect:gsec nonce:gsec style:gsec offsetParent:gec offsetTop:gec offsetLeft:gec offsetWidth:gec offsetHeight:gec onabort:gsec onblur:gsec onfocus:gsec oncancel:gsec onauxclick:gsec onbeforeinput:gsec onbeforematch:gsec onbeforetoggle:gsec oncanplay:gsec oncanplaythrough:gsec onchange:gsec onclick:gsec onclose:gsec oncontentvisibilityautostatechange:gsec oncontextlost:gsec oncontextmenu:gsec oncommand:gsec oncontextrestored:gsec oncopy:gsec oncuechange:gsec oncut:gsec ondblclick:gsec ondrag:gsec ondragend:gsec ondragenter:gsec ondragexit:gsec ondragleave:gsec ondragover:gsec ondragstart:gsec ondrop:gsec ondurationchange:gsec onemptied:gsec onended:gsec onformdata:gsec oninput:gsec oninvalid:gsec onkeydown:gsec onkeypress:gsec onkeyup:gsec onload:gsec onloadeddata:gsec onloadedmetadata:gsec onloadstart:gsec onmousedown:gsec onmouseenter:gsec onmouseleave:gsec onmousemove:gsec onmouseout:gsec onmouseover:gsec onmouseup:gsec onwheel:gsec onpaste:gsec onpause:gsec onplay:gsec onplaying:gsec onprogress:gsec onratechange:gsec onreset:gsec onresize:gsec onscroll:gsec onscrollend:gsec onsecuritypolicyviolation:gsec onseeked:gsec onseeking:gsec onselect:gsec onslotchange:gsec onstalled:gsec onsubmit:gsec onsuspend:gsec ontimeupdate:gsec onvolumechange:gsec onwaiting:gsec onselectstart:gsec onselectionchange:gsec ontoggle:gsec onpointercancel:gsec onpointerdown:gsec onpointerup:gsec onpointermove:gsec onpointerout:gsec onpointerover:gsec onpointerenter:gsec onpointerleave:gsec onpointerrawupdate:gsec ongotpointercapture:gsec onlostpointercapture:gsec onmozfullscreenchange:gsec onmozfullscreenerror:gsec onanimationcancel:gsec onanimationend:gsec onanimationiteration:gsec onanimationstart:gsec ontransitioncancel:gsec ontransitionend:gsec ontransitionrun:gsec ontransitionstart:gsec onwebkitanimationend:gsec onwebkitanimationiteration:gsec onwebkitanimationstart:gsec onwebkittransitionend:gsec dataset:gec autofocus:gsec tabIndex:gsec onerror:gsec constructor:fcw"
+},
+"SVGElement": {
+"parent": "Element",
+"ctorParent": "Element",
+"members": "focus:fecw blur:fecw id:gsec className:gec ownerSVGElement:gec viewportElement:gec nonce:gsec style:gsec onabort:gsec onblur:gsec onfocus:gsec oncancel:gsec onauxclick:gsec onbeforeinput:gsec onbeforematch:gsec onbeforetoggle:gsec oncanplay:gsec oncanplaythrough:gsec onchange:gsec onclick:gsec onclose:gsec oncontentvisibilityautostatechange:gsec oncontextlost:gsec oncontextmenu:gsec oncommand:gsec oncontextrestored:gsec oncopy:gsec oncuechange:gsec oncut:gsec ondblclick:gsec ondrag:gsec ondragend:gsec ondragenter:gsec ondragexit:gsec ondragleave:gsec ondragover:gsec ondragstart:gsec ondrop:gsec ondurationchange:gsec onemptied:gsec onended:gsec onformdata:gsec oninput:gsec oninvalid:gsec onkeydown:gsec onkeypress:gsec onkeyup:gsec onload:gsec onloadeddata:gsec onloadedmetadata:gsec onloadstart:gsec onmousedown:gsec onmouseenter:gsec onmouseleave:gsec onmousemove:gsec onmouseout:gsec onmouseover:gsec onmouseup:gsec onwheel:gsec onpaste:gsec onpause:gsec onplay:gsec onplaying:gsec onprogress:gsec onratechange:gsec onreset:gsec onresize:gsec onscroll:gsec onscrollend:gsec onsecuritypolicyviolation:gsec onseeked:gsec onseeking:gsec onselect:gsec onslotchange:gsec onstalled:gsec onsubmit:gsec onsuspend:gsec ontimeupdate:gsec onvolumechange:gsec onwaiting:gsec onselectstart:gsec onselectionchange:gsec ontoggle:gsec onpointercancel:gsec onpointerdown:gsec onpointerup:gsec onpointermove:gsec onpointerout:gsec onpointerover:gsec onpointerenter:gsec onpointerleave:gsec onpointerrawupdate:gsec ongotpointercapture:gsec onlostpointercapture:gsec onmozfullscreenchange:gsec onmozfullscreenerror:gsec onanimationcancel:gsec onanimationend:gsec onanimationiteration:gsec onanimationstart:gsec ontransitioncancel:gsec ontransitionend:gsec ontransitionrun:gsec ontransitionstart:gsec onwebkitanimationend:gsec onwebkitanimationiteration:gsec onwebkitanimationstart:gsec onwebkittransitionend:gsec dataset:gec autofocus:gsec tabIndex:gsec onerror:gsec constructor:fcw"
+},
+"CharacterData": {
+"parent": "Node",
+"ctorParent": "Node",
+"members": "substringData:fecw appendData:fecw insertData:fecw deleteData:fecw replaceData:fecw before:fecw after:fecw replaceWith:fecw remove:fecw data:gsec length:gec previousElementSibling:gec nextElementSibling:gec constructor:fcw"
+},
+"Text": {
+"parent": "CharacterData",
+"ctorParent": "CharacterData",
+"members": "splitText:fecw wholeText:gec assignedSlot:gec constructor:fcw"
+},
+"Comment": {
+"parent": "CharacterData",
+"ctorParent": "CharacterData",
+"members": "constructor:fcw"
+},
+"DocumentType": {
+"parent": "Node",
+"ctorParent": "Node",
+"members": "before:fecw after:fecw replaceWith:fecw remove:fecw name:gec publicId:gec systemId:gec constructor:fcw"
+},
+"DocumentFragment": {
+"parent": "Node",
+"ctorParent": "Node",
+"members": "getElementById:fecw prepend:fecw append:fecw replaceChildren:fecw moveBefore:fecw querySelector:fecw querySelectorAll:fecw children:gec firstElementChild:gec lastElementChild:gec childElementCount:gec constructor:fcw"
+},
+"Document": {
+"parent": "Node",
+"ctorParent": "Node",
+"members": "getElementsByTagName:fecw getElementsByTagNameNS:fecw getElementsByClassName:fecw createElement:fecw createElementNS:fecw createDocumentFragment:fecw createTextNode:fecw createComment:fecw createProcessingInstruction:fecw importNode:fecw adoptNode:fecw createEvent:fecw createRange:fecw createNodeIterator:fecw createTreeWalker:fecw createCDATASection:fecw createAttribute:fecw createAttributeNS:fecw getElementsByName:fecw open:fecw close:fecw write:fecw writeln:fecw hasFocus:fecw execCommand:fecw queryCommandEnabled:fecw queryCommandIndeterm:fecw queryCommandState:fecw queryCommandSupported:fecw queryCommandValue:fecw releaseCapture:fecw mozSetImageElement:fecw clear:fecw captureEvents:fecw releaseEvents:fecw exitFullscreen:fecw mozCancelFullScreen:fecw exitPictureInPicture:fecw exitPointerLock:fecw enableStyleSheetsForSet:fecw caretPositionFromPoint:fecw caretRangeFromPoint:fecw getSelection:fecw hasStorageAccess:fecw requestStorageAccess:fecw startViewTransition:fecw ariaNotify:fecw elementFromPoint:fecw elementsFromPoint:fecw getAnimations:fecw getElementById:fecw prepend:fecw append:fecw replaceChildren:fecw moveBefore:fecw querySelector:fecw querySelectorAll:fecw createExpression:fecw createNSResolver:fecw evaluate:fecw implementation:gec URL:gec documentURI:gec compatMode:gec characterSet:gec charset:gec inputEncoding:gec contentType:gec doctype:gec documentElement:gec domain:gsec referrer:gec cookie:gsec lastModified:gec readyState:gec title:gsec dir:gsec body:gsec head:gec images:gec embeds:gec plugins:gec links:gec forms:gec scripts:gec defaultView:gec designMode:gsec onreadystatechange:gsec currentScript:gec fgColor:gsec linkColor:gsec vlinkColor:gsec alinkColor:gsec bgColor:gsec anchors:gec applets:gec all:gec fullscreen:gsec mozFullScreen:gec fullscreenEnabled:gsec mozFullScreenEnabled:gec onfullscreenchange:gsec onfullscreenerror:gsec pictureInPictureEnabled:gec onpointerlockchange:gsec onpointerlockerror:gsec hidden:gec visibilityState:gec onvisibilitychange:gsec selectedStyleSheetSet:gsec lastStyleSheetSet:gec preferredStyleSheetSet:gec styleSheetSets:gec scrollingElement:gec timeline:gec rootElement:gec fragmentDirective:gec activeViewTransition:gec activeElement:gec styleSheets:gec pointerLockElement:gec fullscreenElement:gsec mozFullScreenElement:gec pictureInPictureElement:gec adoptedStyleSheets:gsec fonts:gec onabort:gsec onblur:gsec onfocus:gsec oncancel:gsec onauxclick:gsec onbeforeinput:gsec onbeforematch:gsec onbeforetoggle:gsec oncanplay:gsec oncanplaythrough:gsec onchange:gsec onclick:gsec onclose:gsec oncontentvisibilityautostatechange:gsec oncontextlost:gsec oncontextmenu:gsec oncommand:gsec oncontextrestored:gsec oncopy:gsec oncuechange:gsec oncut:gsec ondblclick:gsec ondrag:gsec ondragend:gsec ondragenter:gsec ondragexit:gsec ondragleave:gsec ondragover:gsec ondragstart:gsec ondrop:gsec ondurationchange:gsec onemptied:gsec onended:gsec onformdata:gsec oninput:gsec oninvalid:gsec onkeydown:gsec onkeypress:gsec onkeyup:gsec onload:gsec onloadeddata:gsec onloadedmetadata:gsec onloadstart:gsec onmousedown:gsec onmouseenter:gsec onmouseleave:gsec onmousemove:gsec onmouseout:gsec onmouseover:gsec onmouseup:gsec onwheel:gsec onpaste:gsec onpause:gsec onplay:gsec onplaying:gsec onprogress:gsec onratechange:gsec onreset:gsec onresize:gsec onscroll:gsec onscrollend:gsec onsecuritypolicyviolation:gsec onseeked:gsec onseeking:gsec onselect:gsec onslotchange:gsec onstalled:gsec onsubmit:gsec onsuspend:gsec ontimeupdate:gsec onvolumechange:gsec onwaiting:gsec onselectstart:gsec onselectionchange:gsec ontoggle:gsec onpointercancel:gsec onpointerdown:gsec onpointerup:gsec onpointermove:gsec onpointerout:gsec onpointerover:gsec onpointerenter:gsec onpointerleave:gsec onpointerrawupdate:gsec ongotpointercapture:gsec onlostpointercapture:gsec onmozfullscreenchange:gsec onmozfullscreenerror:gsec onanimationcancel:gsec onanimationend:gsec onanimationiteration:gsec onanimationstart:gsec ontransitioncancel:gsec ontransitionend:gsec ontransitionrun:gsec ontransitionstart:gsec onwebkitanimationend:gsec onwebkitanimationiteration:gsec onwebkitanimationstart:gsec onwebkittransitionend:gsec onerror:gsec children:gec firstElementChild:gec lastElementChild:gec childElementCount:gec constructor:fcw"
+},
+"HTMLDocument": {
+"parent": "Document",
+"ctorParent": "Document",
+"members": "constructor:fcw"
+},
+"HTMLAnchorElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "toString:fecw download:gsec ping:gsec rel:gsec referrerPolicy:gsec relList:gsec text:gsec coords:gsec charset:gsec name:gsec rev:gsec shape:gsec href:gsec target:gsec origin:gec protocol:gsec username:gsec password:gsec host:gsec hostname:gsec port:gsec pathname:gsec search:gsec hash:gsec hreflang:gsec type:gsec constructor:fcw"
+},
+"HTMLAreaElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "toString:fecw alt:gsec coords:gsec shape:gsec download:gsec ping:gsec rel:gsec referrerPolicy:gsec relList:gsec noHref:gsec href:gsec target:gsec origin:gec protocol:gsec username:gsec password:gsec host:gsec hostname:gsec port:gsec pathname:gsec search:gsec hash:gsec hreflang:gsec type:gsec constructor:fcw"
+},
+"HTMLAudioElement": {
+"parent": "HTMLMediaElement",
+"ctorParent": "HTMLMediaElement",
+"members": "constructor:fcw"
+},
+"HTMLBRElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "clear:gsec constructor:fcw"
+},
+"HTMLBaseElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "href:gsec target:gsec constructor:fcw"
+},
+"HTMLBodyElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "text:gsec link:gsec vLink:gsec aLink:gsec bgColor:gsec background:gsec onafterprint:gsec onbeforeprint:gsec onbeforeunload:gsec onhashchange:gsec onlanguagechange:gsec onmessage:gsec onmessageerror:gsec onoffline:gsec ononline:gsec onpagehide:gsec onpageshow:gsec onpopstate:gsec onrejectionhandled:gsec onstorage:gsec onunhandledrejection:gsec onunload:gsec ongamepadconnected:gsec ongamepaddisconnected:gsec constructor:fcw"
+},
+"HTMLButtonElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "checkValidity:fecw reportValidity:fecw setCustomValidity:fecw disabled:gsec form:gec formAction:gsec formEnctype:gsec formMethod:gsec formNoValidate:gsec formTarget:gsec name:gsec type:gsec value:gsec willValidate:gec validity:gec validationMessage:gec labels:gec commandForElement:gsec command:gsec popoverTargetElement:gsec popoverTargetAction:gsec constructor:fcw"
+},
+"HTMLCanvasElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "getContext:fecw toDataURL:fecw toBlob:fecw captureStream:fecw transferControlToOffscreen:fecw width:gsec height:gsec mozOpaque:gsec mozPrintCallback:gsec constructor:fcw"
+},
+"HTMLDListElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "compact:gsec constructor:fcw"
+},
+"HTMLDataElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "value:gsec constructor:fcw"
+},
+"HTMLDataListElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "options:gec constructor:fcw"
+},
+"HTMLDetailsElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "name:gsec open:gsec constructor:fcw"
+},
+"HTMLDialogElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "show:fecw showModal:fecw close:fecw requestClose:fecw closedBy:gsec open:gsec returnValue:gsec constructor:fcw"
+},
+"HTMLDirectoryElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "compact:gsec constructor:fcw"
+},
+"HTMLDivElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "align:gsec constructor:fcw"
+},
+"HTMLEmbedElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "getSVGDocument:fecw src:gsec type:gsec width:gsec height:gsec align:gsec name:gsec constructor:fcw"
+},
+"HTMLFieldSetElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "checkValidity:fecw reportValidity:fecw setCustomValidity:fecw disabled:gsec form:gec name:gsec type:gec elements:gec willValidate:gec validity:gec validationMessage:gec constructor:fcw"
+},
+"HTMLFontElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "color:gsec face:gsec size:gsec constructor:fcw"
+},
+"HTMLFormElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "submit:fecw requestSubmit:fecw reset:fecw checkValidity:fecw reportValidity:fecw acceptCharset:gsec action:gsec autocomplete:gsec enctype:gsec encoding:gsec method:gsec name:gsec noValidate:gsec target:gsec rel:gsec relList:gsec elements:gec length:gec constructor:fcw"
+},
+"HTMLFrameElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "name:gsec scrolling:gsec src:gsec frameBorder:gsec longDesc:gsec noResize:gsec contentDocument:gec contentWindow:gec marginHeight:gsec marginWidth:gsec constructor:fcw"
+},
+"HTMLFrameSetElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "cols:gsec rows:gsec onafterprint:gsec onbeforeprint:gsec onbeforeunload:gsec onhashchange:gsec onlanguagechange:gsec onmessage:gsec onmessageerror:gsec onoffline:gsec ononline:gsec onpagehide:gsec onpageshow:gsec onpopstate:gsec onrejectionhandled:gsec onstorage:gsec onunhandledrejection:gsec onunload:gsec ongamepadconnected:gsec ongamepaddisconnected:gsec constructor:fcw"
+},
+"HTMLHRElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "align:gsec color:gsec noShade:gsec size:gsec width:gsec constructor:fcw"
+},
+"HTMLHeadElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "constructor:fcw"
+},
+"HTMLHeadingElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "align:gsec constructor:fcw"
+},
+"HTMLHtmlElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "version:gsec constructor:fcw"
+},
+"HTMLIFrameElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "getSVGDocument:fecw src:gsec srcdoc:gsec name:gsec sandbox:gsec allowFullscreen:gsec width:gsec height:gsec referrerPolicy:gsec loading:gsec contentDocument:gec contentWindow:gec align:gsec scrolling:gsec frameBorder:gsec longDesc:gsec marginHeight:gsec marginWidth:gsec allow:gsec constructor:fcw"
+},
+"HTMLImageElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "decode:fecw alt:gsec src:gsec srcset:gsec crossOrigin:gsec useMap:gsec referrerPolicy:gsec isMap:gsec width:gsec height:gsec decoding:gsec loading:gsec fetchPriority:gsec naturalWidth:gec naturalHeight:gec complete:gec name:gsec align:gsec hspace:gsec vspace:gsec longDesc:gsec border:gsec sizes:gsec currentSrc:gec lowsrc:gsec x:gec y:gec constructor:fcw"
+},
+"HTMLInputElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "stepUp:fecw stepDown:fecw checkValidity:fecw reportValidity:fecw setCustomValidity:fecw select:fecw setRangeText:fecw setSelectionRange:fecw showPicker:fecw accept:gsec alt:gsec autocomplete:gsec defaultChecked:gsec checked:gsec colorSpace:gsec dirName:gsec disabled:gsec form:gec files:gsec formAction:gsec formEnctype:gsec formMethod:gsec formNoValidate:gsec formTarget:gsec height:gsec indeterminate:gsec list:gec max:gsec maxLength:gsec min:gsec minLength:gsec multiple:gsec name:gsec pattern:gsec placeholder:gsec readOnly:gsec required:gsec size:gsec src:gsec step:gsec type:gsec defaultValue:gsec value:gsec valueAsDate:gsec valueAsNumber:gsec width:gsec willValidate:gec validity:gec validationMessage:gec labels:gec selectionStart:gsec selectionEnd:gsec selectionDirection:gsec align:gsec useMap:gsec textLength:gec webkitEntries:gec webkitdirectory:gsec popoverTargetElement:gsec popoverTargetAction:gsec constructor:fcw"
+},
+"HTMLLIElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "value:gsec type:gsec constructor:fcw"
+},
+"HTMLLabelElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "form:gec htmlFor:gsec control:gec constructor:fcw"
+},
+"HTMLLegendElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "form:gec align:gsec constructor:fcw"
+},
+"HTMLLinkElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "disabled:gsec href:gsec crossOrigin:gsec rel:gsec relList:gsec media:gsec hreflang:gsec type:gsec referrerPolicy:gsec sizes:gsec imageSrcset:gsec imageSizes:gsec fetchPriority:gsec charset:gsec rev:gsec target:gsec integrity:gsec as:gsec sheet:gec constructor:fcw"
+},
+"HTMLMapElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "name:gsec areas:gec constructor:fcw"
+},
+"HTMLMarqueeElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "start:fecw stop:fecw behavior:gsec bgColor:gsec direction:gsec height:gsec hspace:gsec loop:gsec scrollAmount:gsec scrollDelay:gsec trueSpeed:gsec vspace:gsec width:gsec constructor:fcw"
+},
+"HTMLMediaElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "load:fecw canPlayType:fecw fastSeek:fecw play:fecw pause:fecw addTextTrack:fecw mozGetMetadata:fecw setMediaKeys:fecw setSinkId:fecw captureStream:fecw mozCaptureStream:fecw mozCaptureStreamUntilEnded:fecw error:gec src:gsec currentSrc:gec crossOrigin:gsec networkState:gec preload:gsec buffered:gec readyState:gec seeking:gec currentTime:gsec duration:gec paused:gec defaultPlaybackRate:gsec playbackRate:gsec played:gec seekable:gec ended:gec autoplay:gsec loop:gsec controls:gsec volume:gsec muted:gsec defaultMuted:gsec textTracks:gec srcObject:gsec preservesPitch:gsec mozFragmentEnd:gec mediaKeys:gec onencrypted:gsec onwaitingforkey:gsec sinkId:gec mozAudioCaptured:gec NETWORK_EMPTY:ve NETWORK_IDLE:ve NETWORK_LOADING:ve NETWORK_NO_SOURCE:ve HAVE_NOTHING:ve HAVE_METADATA:ve HAVE_CURRENT_DATA:ve HAVE_FUTURE_DATA:ve HAVE_ENOUGH_DATA:ve constructor:fcw"
+},
+"HTMLMenuElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "compact:gsec constructor:fcw"
+},
+"HTMLMetaElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "name:gsec httpEquiv:gsec content:gsec media:gsec scheme:gsec constructor:fcw"
+},
+"HTMLMeterElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "value:gsec min:gsec max:gsec low:gsec high:gsec optimum:gsec labels:gec constructor:fcw"
+},
+"HTMLModElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "cite:gsec dateTime:gsec constructor:fcw"
+},
+"HTMLOListElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "reversed:gsec start:gsec type:gsec compact:gsec constructor:fcw"
+},
+"HTMLObjectElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "checkValidity:fecw reportValidity:fecw setCustomValidity:fecw getSVGDocument:fecw data:gsec type:gsec name:gsec useMap:gsec form:gec width:gsec height:gsec contentDocument:gec contentWindow:gec willValidate:gec validity:gec validationMessage:gec align:gsec archive:gsec code:gsec declare:gsec hspace:gsec standby:gsec vspace:gsec codeBase:gsec codeType:gsec border:gsec constructor:fcw"
+},
+"HTMLOptGroupElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "disabled:gsec label:gsec constructor:fcw"
+},
+"HTMLOptionElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "disabled:gsec form:gec label:gsec defaultSelected:gsec selected:gsec value:gsec text:gsec index:gec constructor:fcw"
+},
+"HTMLOutputElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "checkValidity:fecw reportValidity:fecw setCustomValidity:fecw htmlFor:gsec form:gec name:gsec type:gec defaultValue:gsec value:gsec willValidate:gec validity:gec validationMessage:gec labels:gec constructor:fcw"
+},
+"HTMLParagraphElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "align:gsec constructor:fcw"
+},
+"HTMLParamElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "name:gsec value:gsec type:gsec valueType:gsec constructor:fcw"
+},
+"HTMLPictureElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "constructor:fcw"
+},
+"HTMLPreElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "width:gsec constructor:fcw"
+},
+"HTMLProgressElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "value:gsec max:gsec position:gec labels:gec constructor:fcw"
+},
+"HTMLQuoteElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "cite:gsec constructor:fcw"
+},
+"HTMLScriptElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "src:gsec type:gsec noModule:gsec charset:gsec async:gsec defer:gsec crossOrigin:gsec referrerPolicy:gsec text:gsec fetchPriority:gsec event:gsec htmlFor:gsec integrity:gsec innerText:gsec textContent:gsec constructor:fcw"
+},
+"HTMLSelectElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "item:fecw namedItem:fecw add:fecw remove:fecw checkValidity:fecw reportValidity:fecw setCustomValidity:fecw showPicker:fecw autocomplete:gsec disabled:gsec form:gec multiple:gsec name:gsec required:gsec size:gsec type:gec options:gec length:gsec selectedOptions:gec selectedIndex:gsec value:gsec willValidate:gec validity:gec validationMessage:gec labels:gec constructor:fcw"
+},
+"HTMLSlotElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "assignedNodes:fecw assignedElements:fecw assign:fecw name:gsec constructor:fcw"
+},
+"HTMLSourceElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "src:gsec type:gsec srcset:gsec sizes:gsec media:gsec width:gsec height:gsec constructor:fcw"
+},
+"HTMLSpanElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "constructor:fcw"
+},
+"HTMLStyleElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "disabled:gsec media:gsec type:gsec sheet:gec constructor:fcw"
+},
+"HTMLTableCaptionElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "align:gsec constructor:fcw"
+},
+"HTMLTableCellElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "colSpan:gsec rowSpan:gsec headers:gsec cellIndex:gec abbr:gsec scope:gsec align:gsec axis:gsec height:gsec width:gsec ch:gsec chOff:gsec noWrap:gsec vAlign:gsec bgColor:gsec constructor:fcw"
+},
+"HTMLTableColElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "span:gsec align:gsec ch:gsec chOff:gsec vAlign:gsec width:gsec constructor:fcw"
+},
+"HTMLTableElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "createCaption:fecw deleteCaption:fecw createTHead:fecw deleteTHead:fecw createTFoot:fecw deleteTFoot:fecw createTBody:fecw insertRow:fecw deleteRow:fecw caption:gsec tHead:gsec tFoot:gsec tBodies:gec rows:gec align:gsec border:gsec frame:gsec rules:gsec summary:gsec width:gsec bgColor:gsec cellPadding:gsec cellSpacing:gsec constructor:fcw"
+},
+"HTMLTableRowElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "insertCell:fecw deleteCell:fecw rowIndex:gec sectionRowIndex:gec cells:gec align:gsec ch:gsec chOff:gsec vAlign:gsec bgColor:gsec constructor:fcw"
+},
+"HTMLTableSectionElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "insertRow:fecw deleteRow:fecw rows:gec align:gsec ch:gsec chOff:gsec vAlign:gsec constructor:fcw"
+},
+"HTMLTemplateElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "content:gec shadowRootMode:gsec shadowRootDelegatesFocus:gsec shadowRootClonable:gsec shadowRootSerializable:gsec shadowRootSlotAssignment:gsec constructor:fcw"
+},
+"HTMLTextAreaElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "checkValidity:fecw reportValidity:fecw setCustomValidity:fecw select:fecw setRangeText:fecw setSelectionRange:fecw autocomplete:gsec cols:gsec dirName:gsec disabled:gsec form:gec maxLength:gsec minLength:gsec name:gsec placeholder:gsec readOnly:gsec required:gsec rows:gsec wrap:gsec type:gec defaultValue:gsec value:gsec textLength:gec willValidate:gec validity:gec validationMessage:gec labels:gec selectionStart:gsec selectionEnd:gsec selectionDirection:gsec constructor:fcw"
+},
+"HTMLTimeElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "dateTime:gsec constructor:fcw"
+},
+"HTMLTitleElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "text:gsec constructor:fcw"
+},
+"HTMLTrackElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "kind:gsec src:gsec srclang:gsec label:gsec default:gsec readyState:gec track:gec NONE:ve LOADING:ve LOADED:ve ERROR:ve constructor:fcw"
+},
+"HTMLUListElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "compact:gsec type:gsec constructor:fcw"
+},
+"HTMLUnknownElement": {
+"parent": "HTMLElement",
+"ctorParent": "HTMLElement",
+"members": "constructor:fcw"
+},
+"HTMLVideoElement": {
+"parent": "HTMLMediaElement",
+"ctorParent": "HTMLMediaElement",
+"members": "getVideoPlaybackQuality:fecw requestPictureInPicture:fecw requestVideoFrameCallback:fecw cancelVideoFrameCallback:fecw width:gsec height:gsec videoWidth:gec videoHeight:gec poster:gsec mozParsedFrames:gec mozDecodedFrames:gec mozPresentedFrames:gec mozPaintedFrames:gec mozFrameDelay:gec mozHasAudio:gec onenterpictureinpicture:gsec onleavepictureinpicture:gsec disablePictureInPicture:gsec constructor:fcw"
+}
+},
+"tags": {
+"html": "HTMLHtmlElement",
+"head": "HTMLHeadElement",
+"body": "HTMLBodyElement",
+"div": "HTMLDivElement",
+"span": "HTMLSpanElement",
+"p": "HTMLParagraphElement",
+"a": "HTMLAnchorElement",
+"img": "HTMLImageElement",
+"canvas": "HTMLCanvasElement",
+"input": "HTMLInputElement",
+"script": "HTMLScriptElement",
+"form": "HTMLFormElement",
+"textarea": "HTMLTextAreaElement",
+"select": "HTMLSelectElement",
+"iframe": "HTMLIFrameElement",
+"link": "HTMLLinkElement",
+"style": "HTMLStyleElement",
+"button": "HTMLButtonElement",
+"option": "HTMLOptionElement",
+"label": "HTMLLabelElement",
+"meta": "HTMLMetaElement",
+"title": "HTMLTitleElement",
+"template": "HTMLTemplateElement",
+"area": "HTMLAreaElement",
+"ul": "HTMLUListElement",
+"ol": "HTMLOListElement",
+"li": "HTMLLIElement",
+"table": "HTMLTableElement",
+"tr": "HTMLTableRowElement",
+"td": "HTMLTableCellElement",
+"th": "HTMLTableCellElement",
+"thead": "HTMLTableSectionElement",
+"tbody": "HTMLTableSectionElement",
+"tfoot": "HTMLTableSectionElement",
+"h1": "HTMLHeadingElement",
+"h2": "HTMLHeadingElement",
+"h3": "HTMLHeadingElement",
+"h4": "HTMLHeadingElement",
+"h5": "HTMLHeadingElement",
+"h6": "HTMLHeadingElement",
+"section": "HTMLElement",
+"article": "HTMLElement",
+"nav": "HTMLElement",
+"header": "HTMLElement",
+"footer": "HTMLElement",
+"main": "HTMLElement",
+"br": "HTMLBRElement",
+"hr": "HTMLHRElement",
+"pre": "HTMLPreElement",
+"b": "HTMLElement",
+"i": "HTMLElement",
+"em": "HTMLElement",
+"strong": "HTMLElement",
+"code": "HTMLElement",
+"video": "HTMLVideoElement",
+"audio": "HTMLAudioElement",
+"source": "HTMLSourceElement",
+"picture": "HTMLPictureElement",
+"svg": "HTMLUnknownElement",
+"noscript": "HTMLElement",
+"base": "HTMLBaseElement",
+"details": "HTMLDetailsElement",
+"summary": "HTMLElement",
+"dialog": "HTMLDialogElement",
+"fieldset": "HTMLFieldSetElement",
+"legend": "HTMLLegendElement",
+"object": "HTMLObjectElement",
+"embed": "HTMLEmbedElement",
+"map": "HTMLMapElement",
+"dl": "HTMLDListElement",
+"dt": "HTMLElement",
+"dd": "HTMLElement",
+"blockquote": "HTMLQuoteElement",
+"q": "HTMLQuoteElement",
+"ins": "HTMLModElement",
+"del": "HTMLModElement",
+"time": "HTMLTimeElement",
+"data": "HTMLDataElement",
+"output": "HTMLOutputElement",
+"progress": "HTMLProgressElement",
+"meter": "HTMLMeterElement",
+"optgroup": "HTMLOptGroupElement",
+"datalist": "HTMLDataListElement",
+"caption": "HTMLTableCaptionElement",
+"col": "HTMLTableColElement",
+"colgroup": "HTMLTableColElement",
+"slot": "HTMLSlotElement",
+"font": "HTMLFontElement",
+"center": "HTMLElement",
+"marquee": "HTMLMarqueeElement",
+"frameset": "HTMLFrameSetElement",
+"frame": "HTMLFrameElement",
+"small": "HTMLElement",
+"sub": "HTMLElement",
+"sup": "HTMLElement",
+"u": "HTMLElement",
+"s": "HTMLElement",
+"abbr": "HTMLElement",
+"cite": "HTMLElement",
+"dfn": "HTMLElement",
+"kbd": "HTMLElement",
+"mark": "HTMLElement",
+"ruby": "HTMLElement",
+"rt": "HTMLElement",
+"rp": "HTMLElement",
+"samp": "HTMLElement",
+"var": "HTMLElement",
+"wbr": "HTMLElement",
+"bdi": "HTMLElement",
+"bdo": "HTMLElement",
+"address": "HTMLElement",
+"aside": "HTMLElement",
+"figure": "HTMLElement",
+"figcaption": "HTMLElement",
+"hgroup": "HTMLElement",
+"search": "HTMLElement",
+"menu": "HTMLMenuElement",
+"param": "HTMLParamElement",
+"track": "HTMLTrackElement",
+"strike": "HTMLElement",
+"tt": "HTMLElement",
+"big": "HTMLElement",
+"acronym": "HTMLElement",
+"dir": "HTMLDirectoryElement",
+"nobr": "HTMLElement",
+"noembed": "HTMLElement",
+"noframes": "HTMLElement",
+"plaintext": "HTMLElement",
+"xmp": "HTMLPreElement",
+"listing": "HTMLPreElement",
+"image": "HTMLElement",
+"blink": "HTMLUnknownElement",
+"bgsound": "HTMLUnknownElement",
+"keygen": "HTMLUnknownElement",
+"rb": "HTMLElement",
+"rtc": "HTMLElement",
+"basefont": "HTMLElement",
+"applet": "HTMLUnknownElement",
+"isindex": "HTMLUnknownElement",
+"multicol": "HTMLUnknownElement",
+"nextid": "HTMLUnknownElement",
+"spacer": "HTMLUnknownElement",
+"foo": "HTMLUnknownElement",
+"my-el": "HTMLElement"
+}
+}

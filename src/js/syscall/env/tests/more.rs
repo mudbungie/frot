@@ -205,7 +205,7 @@ fn absent_apis_stay_undefined_and_window_aliases_the_global() {
         "[object WebGLRenderingContext]"
     );
     assert_eq!(
-        s.eval("String(document.createElement('div').getContext('2d'))")
+        s.eval("typeof document.createElement('div').getContext")
             .unwrap(),
         "undefined"
     );

@@ -419,9 +419,9 @@
   native('canvas:fillText', cx.fillText);
   native('canvas:getImageData', cx.getImageData);
   // A canvas binds ONE context type (bl-f624): this one is 2D, so getContext('webgl')
-  // now returns null by exclusivity. A non-canvas element gets undefined.
+  // now returns null by exclusivity. A non-canvas element has no getContext.
   eq('canvas:webgl-excluded', String(cv.getContext('webgl')), 'null');
-  eq('canvas:div-getContext', document.createElement('div').getContext('2d'), undefined);
+  eq('canvas:div-getContext', typeof document.createElement('div').getContext, 'undefined');
   // Draw a standard fingerprint sequence, then read it back two ways.
   cx.textBaseline = 'top';
   cx.font = '14px sans-serif';

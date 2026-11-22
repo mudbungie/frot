@@ -10,11 +10,10 @@
   'use strict';
   var slots = g.__frot_slots;
   var iface = g.__frot_iface;
-  var Node = g.Node;
 
   // `new DocumentFragment()` is real (bl-3a36): Radix-style libraries portal
   // into a fresh fragment (`createPortal(children, new DocumentFragment())`),
-  // and React checks the container's nodeType — elem.js's hasInstance-only stub
+  // and React checks the container's nodeType — a hasInstance-only stub
   // constructed a plain object and the app died with React #299. The constructor
   // and createDocumentFragment() build the same staging fragment.
   g.document.createDocumentFragment = function () {
@@ -24,7 +23,7 @@
   // navigate from them (parentNode/nextSibling) to place later content — a
   // fake here strands every such patch (Vue RouterView/v-if), a silent dead app.
   g.document.createComment = function (text) {
-    return new Node(g.__frot_create_comment(String(text)));
+    return g.__frot_wrap(g.__frot_create_comment(String(text)));
   };
   g.document.getElementsByTagName = function (tag) {
     return g.__frot_elems(g.__frot_query_doc(String(tag)));

@@ -59,8 +59,12 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/dom.js"),
     "\n",
+    // node.js right after dom.js: the members of Node and CharacterData, on
+    // the interfaces dom.js builds (bl-78cb).
+    include_str!("prelude/node.js"),
+    "\n",
     // markup.js after dom.js: it owns the HTML-string <-> arena direction pair
-    // (`innerHTML`/`outerHTML`) over the Node prototype dom.js defines (bl-273b).
+    // (`innerHTML`/`outerHTML`) over the Element prototype dom.js defines (bl-273b).
     include_str!("prelude/markup.js"),
     "\n",
     include_str!("prelude/elem.js"),
@@ -68,7 +72,7 @@ pub const SOURCE: &str = concat!(
     include_str!("prelude/elem2.js"),
     "\n",
     // DOMTokenList (bl-3a36): classList/relList as the spec-named interface —
-    // after elem2.js (extends the same Node prototype), before anything reads
+    // after elem2.js (extends the same Element prototype), before anything reads
     // classList.
     include_str!("prelude/tokenlist.js"),
     "\n",
@@ -196,9 +200,8 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/canvaselem.js"),
     "\n",
-    // Image / HTMLImageElement (bl-1404): an <img> in no tree, and the tag-keyed
-    // interface. After canvas.js — it shares `width`/`height` on Node.prototype
-    // with the canvas element and defers to it for every other tag.
+    // Image (bl-1404): an <img> in no tree, and the members of
+    // HTMLImageElement.prototype.
     include_str!("prelude/image.js"),
     "\n",
     // WebGL fingerprint (bl-f624): a coherent, deterministic simulation. webglpix.js

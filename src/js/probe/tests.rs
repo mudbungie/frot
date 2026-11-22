@@ -169,9 +169,10 @@ fn recording_preserves_frots_real_values() {
             .unwrap(),
         "[object WebGLRenderingContext]"
     );
-    // A non-CANVAS element's getContext stays undefined (the else arm).
+    // The wrapper sits on HTMLCanvasElement.prototype, so no other element
+    // gains a getContext from it.
     assert_eq!(
-        s.eval("String(document.createElement('div').getContext('2d'))")
+        s.eval("typeof document.createElement('div').getContext")
             .unwrap(),
         "undefined"
     );

@@ -68,20 +68,14 @@
   var VH = g.__frot_viewport_height();
   g.innerWidth = g.outerWidth = VW;
   g.innerHeight = g.outerHeight = VH;
-  if (g.Node) {
-    Object.defineProperty(g.Node.prototype, 'clientWidth', {
-      get: function () {
-        var de = g.document.documentElement;
-        return de && slots(this).id === slots(de).id ? VW : this.offsetWidth;
-      },
-    });
-    Object.defineProperty(g.Node.prototype, 'clientHeight', {
-      get: function () {
-        var de = g.document.documentElement;
-        return de && slots(this).id === slots(de).id ? VH : this.offsetHeight;
-      },
-    });
-  }
+  g.__frot_ifaceattrs(g.Element.prototype, {
+    clientWidth: function () {
+      return this === g.document.documentElement ? VW : g.__frot_rect(slots(this).id)[2];
+    },
+    clientHeight: function () {
+      return this === g.document.documentElement ? VH : g.__frot_rect(slots(this).id)[3];
+    },
+  });
 
   // canvas `getContext`/`toDataURL` are the 2D-fingerprint masquerade, owned by
   // canvas.js (bl-05e6): getContext('2d') returns a branded, deterministic

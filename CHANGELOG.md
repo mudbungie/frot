@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--js`: DOM nodes have the interfaces a browser gives them.** An element
+  is an `HTMLDivElement` / `HTMLInputElement` / … (all 71 HTML interfaces, by
+  tag) under `HTMLElement`, `Element`, `Node` and `EventTarget`; a text node is
+  a `Text` under `CharacterData`. Each member sits on the interface Firefox 153
+  puts it on, so a text node has no `getAttribute` and a `<div>` no `value`,
+  `href` or `getContext`. A node now has one JS object: `el === el` holds and a
+  property a script sets on a node is still there at the next read. New on
+  `Node`: `hasChildNodes`, `isSameNode`, `isConnected`, `parentElement` and the
+  node-type constants; `new Text()` and `new Comment()` construct.
+  `el.textContent = null` or `''` leaves no child. [bl-78cb]
+
 - **`--css` and `querySelector` understand `:first-child` and
   `:last-child`.** List separators drawn with them come out as in a browser:
   `li::after { content: " ·" }` `li:last-child::after { content: none }` no

@@ -1,7 +1,7 @@
 // Geometry facade (js.md §8) — getBoundingClientRect / offset* / getComputedStyle
 // layered over the two geometry syscalls. Both route into the host's
 // per-generation Styles+Layout cache; wrappers cache nothing. Augments the
-// Node prototype from dom.js, so this module loads after it.
+// Element prototypes from dom.js, so this module loads after it.
 //
 // The two objects it hands back are real interfaces (bl-643d): a rect was a
 // plain object literal owning eight numbers, and a computed style owned its one
@@ -25,7 +25,8 @@
     return g.__frot_rect(id);
   }
 
-  var P = g.Node.prototype;
+  var P = g.Element.prototype;
+  var H = g.HTMLElement.prototype;
 
   // --- DOMRect ---------------------------------------------------------------
   // Measured: `DOMRectReadOnly.prototype` carries `toJSON`, then x, y, width,
@@ -88,10 +89,7 @@
       return box(slots(this).id)[index];
     };
   }
-  Object.defineProperty(P, 'offsetLeft', { get: offset(0) });
-  Object.defineProperty(P, 'offsetTop', { get: offset(1) });
-  Object.defineProperty(P, 'offsetWidth', { get: offset(2) });
-  Object.defineProperty(P, 'offsetHeight', { get: offset(3) });
+  attrs(H, { offsetTop: offset(1), offsetLeft: offset(0), offsetWidth: offset(2), offsetHeight: offset(3) });
 
   // --- getComputedStyle ------------------------------------------------------
   // Two interfaces, as on the binary: `CSSStyleDeclaration` holds the generic

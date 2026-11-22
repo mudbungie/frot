@@ -88,7 +88,12 @@ say so." This section says so, with rules that keep the damage contained:
 - **The arena stays the one document.** JS never holds a copy of the DOM; it
   holds opaque integer handles (`NodeId`s). Every read and write goes through
   the syscall layer (§3) to the arena. Two representations of one fact would
-  drift; there is one representation.
+  drift; there is one representation. The JS object a page holds for a node
+  — its *wrapper* — carries only that id, and each node has exactly one
+  (`bl-78cb`): ids are stable forever and a node's kind never changes, so the
+  wrapper is made at the first read and found again, which is what makes
+  `el === el` true and keeps a property a page sets on a node. Its prototype
+  is the interface Firefox gives that kind of node (identity.md §3.21).
 - **Mutation is append + relink.** `Document` gains mutation ops:
   `create_element`, `create_text`, `set_attr` / `remove_attr`, `set_text`,
   `insert_child` (positioned by a *reference sibling*, as `insertBefore` is —
@@ -855,11 +860,11 @@ that, a page walking any of them read frot's implementation instead.
   another provider's value out of react-router's LocationContext — the
   nested-Router invariant was the corruption's symptom, three causes
   downstream of the divergence. The surface, Firefox 140esr's base contract:
-  the staging fragment carries Node's own EventTarget trio (one loop.js
-  listener registry, keyed by a unique negative `_id` no arena node can
-  carry); **`EventTarget`** is a global, constructable interface whose
-  `instanceof` matches by the trio's shape, so every event-bearing surface
-  answers true without a class hierarchy; and
+  the staging fragment and every node inherit `EventTarget.prototype`'s trio
+  (one listener registry in `events.js`, keyed by the target object);
+  **`EventTarget`** is a global, constructable interface whose own
+  `instanceof` also matches by the trio's shape, so `window` and `document`
+  answer true without inheriting it; and
   **`AbortController`/`AbortSignal`** (`prelude/abort.js`:
   `abort`/`reason`/`onabort`/`throwIfAborted`, statics
   `abort`/`timeout`/`any`, timeout on the §5 virtual clock) exist with real
