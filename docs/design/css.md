@@ -255,6 +255,12 @@ raised as suspects for "over-hiding":
   only cause *under*-application (a rule that would have changed `display`
   never runs), which leaves the UA-implicit display standing — visible. It
   cannot force a hide.
+  **Corrected 2026-11-21 (`bl-011e`, `bl-3aef`; found by the fidelity oracle
+  on saved real pages):** that holds only when the rule that failed to apply
+  was the one doing the hiding. When an applied rule hides and a skipped rule
+  *reveals* — `.label{display:none}` then `.label:not([hidden]){display:inline}`
+  (Bootstrap's docs header) — under-application leaves the content hidden.
+  The same goes for a skipped `@import` whose sheet reveals.
 - Cascade tie-break (`cascade.rs::winner`, keyed
   `(important, inline, specificity, order)`, highest wins) matches the real
   CSS cascade order faithfully: importance first, inline-vs-selector second at

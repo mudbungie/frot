@@ -112,6 +112,9 @@ coordinate) and must then be equal. Every remaining difference is a row in
 `tests/fidelity/ledger.rs`, either a reasoned residual or an open defect by
 ball id, and a row whose difference disappears fails too.
 
+Real pages live in `tests/fixtures/fidelity/saved/`, each with its stylesheets
+in a directory of its own name and its licence in `tests/fixtures/NOTICE.md`.
+
 To add a page: write `tests/fixtures/fidelity/<name>.html` (self-contained —
 the recorder refuses a page that asks for bytes outside that directory), run
 `make fidelity-record`, then `cargo test --test fidelity` and disposition each

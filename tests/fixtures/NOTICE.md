@@ -6,13 +6,14 @@ library or the binary, and excluded from the published crate
 (`Cargo.toml: exclude = ["tests/fixtures/"]`). They are redistributed here under
 their own upstream licenses, which are reproduced verbatim in `licenses/`.
 
-Two populations, two rules.
+Three populations, three rules.
 
 | Directory | What it holds | Rule |
 | --- | --- | --- |
 | `needs/` | Shells and content pages for the `needs-js` heuristic | **Synthetic.** Hand-authored by this project, no third-party content — see `needs/README.md`. |
 | `js/` | Real framework distributions and real deployed bundles | **Verbatim third-party.** Licensed below. |
 | `fidelity/` | Pages for the fidelity oracle, and a browser's recorded answers about them | **Synthetic.** Hand-authored by this project; each `.json` beside a page is what a named Chrome version answered about that page (`scripts/fidelity-record`) — measurements of our own markup, no third-party content. |
+| `fidelity/saved/` | Real pages saved for the fidelity oracle, with their stylesheets, and the recorded answers about them | **Third-party, saved with the listed edits.** Licensed in §4 below. |
 
 `js/` is verbatim on purpose: the golden field-trial suite replays the exact
 bytes that broke frot (`js/VERSIONS.md` pins every file by source URL, retrieval
@@ -91,6 +92,50 @@ App code: **MIT** — © 2025 Innei
 | `needs/*.html` | Hand-authored here (`needs/README.md`) | frot's own `MIT OR Apache-2.0` |
 | `fidelity/*.html`, `fidelity/*.css` | Hand-authored here, one page per defect class (`docs/design/fidelity.md` §4) | frot's own `MIT OR Apache-2.0` |
 | `fidelity/*.json` | **DERIVED** — recorded from the pages above by `scripts/fidelity-record`; the stamp in each names the Chrome version and date | frot's own `MIT OR Apache-2.0` |
+| `fidelity/saved/*.json` | **DERIVED** — recorded the same way from the saved real pages of §4 | the licence of the page each one sits beside (§4) |
+
+## 4. Saved real pages (`fidelity/saved/`)
+
+Real pages, saved once so that frot and Chrome read the same bytes with no
+network (`docs/design/fidelity.md` §4). Each was chosen because every byte kept
+is under a licence that allows redistribution with attribution and nothing
+more. All three were retrieved on 2026-11-21. The sha256 of every saved file is
+in the `stamp.bytes` of the capture beside the page, and `tests/fidelity.rs`
+re-hashes them.
+
+**Edits made to every page**, and nothing else — no element is removed except
+`<script>`, no text is changed:
+
+- every `<script>` element is removed (the pages are compared without `--js`);
+- each stylesheet `href` points at the saved copy in the page's own directory,
+  and `integrity`/`crossorigin` are dropped from that `<link>`;
+- no image, icon or font is redistributed: every `<img src>`, every
+  `<link rel=icon|apple-touch-icon|mask-icon|manifest|preconnect>` `href`, and
+  every non-`data:` `url()` in a stylesheet or `<style>` is replaced by one
+  empty inline SVG (`data:image/svg+xml,…`), and `srcset` is removed. The
+  elements, their `alt` text and their sizes stay.
+
+| Fixture | Source | Licence and attribution | Further edits |
+| --- | --- | --- | --- |
+| `fidelity/saved/go-getting-started.html` | `https://go.dev/doc/tutorial/getting-started` | **CC BY 4.0**, `licenses/CC-BY-4.0.txt` — © The Go Authors. go.dev: "Except as noted, the contents of this site are licensed under the Creative Commons Attribution 4.0 License, and code is licensed under a BSD license." | the `<link>` to the Google Fonts "Material Icons" stylesheet is removed (not ours to copy) |
+| `fidelity/saved/go-getting-started/styles.css` | `https://go.dev/css/styles.css` | **BSD-3-Clause** — © The Go Authors ([golang/website](https://github.com/golang/website)), `licenses/go-website.LICENSE` | 9 `url()` image references replaced as above; otherwise verbatim |
+| `fidelity/saved/bootstrap-forms.html` | `https://getbootstrap.com/docs/5.3/forms/overview/` (v5.3.9) | **CC BY 3.0**, `licenses/CC-BY-3.0.txt` — © The Bootstrap Authors. Page footer: "Code licensed MIT, docs CC BY 3.0." | none beyond the common edits |
+| `fidelity/saved/bootstrap-forms/bootstrap.min.css` | `https://getbootstrap.com/docs/5.3/dist/css/bootstrap.min.css` (v5.3.9) | **MIT** — © 2011-2026 The Bootstrap Authors ([twbs/bootstrap](https://github.com/twbs/bootstrap)), `licenses/bootstrap-5.3.LICENSE`; banner preserved | none — verbatim (its images are already `data:` URIs) |
+| `fidelity/saved/bootstrap-forms/docs.css` | `https://getbootstrap.com/docs/5.3/assets/_slug_.ZhhCqGDD.css` | **CC BY 3.0**, `licenses/CC-BY-3.0.txt` — © 2011-2026 The Bootstrap Authors; banner preserved | none — verbatim; renamed |
+| `fidelity/saved/wikipedia-brass-rubbing.html` | English Wikipedia, "Brass rubbing", revision 1308487280 — `https://en.wikipedia.org/w/index.php?title=Brass_rubbing&oldid=1308487280` (fetched as `action=render`, legacy parser) | **CC BY-SA 4.0**, `licenses/CC-BY-SA-4.0.txt` — Wikipedia contributors; authors are listed at `https://en.wikipedia.org/w/index.php?title=Brass_rubbing&action=history`. This modified copy is offered under the same licence. | the rendered article body is wrapped in a minimal document (`<!doctype>`, `<title>`, and a `<base>` at the article's URL so its protocol-relative links resolve as they do on the site). The site skin and its stylesheet (MediaWiki, GPL-2.0-or-later) are **not** included; the article's own inline TemplateStyles are |
+
+The `.json` beside each saved page is derived (§3), and it quotes the page:
+it reproduces the page's text and structure as Chrome reported them, so it is
+offered under that page's licence, not frot's.
+
+Pages tried and left out, so nobody repeats the work blind: a Python docs page
+(PSF-2.0; clean licence, but its Sphinx stylesheet is one `@import`, which frot
+skips — about 100 divergences from that one cause) and a W3C Recommendation
+under the permissive W3C Software and Document License (about 270 divergences
+from four stylesheet features frot lacks). Both are filed to come back when
+those land. MDN and the full Wikipedia skin were not tried: their site
+stylesheets are MPL-2.0 and GPL-2.0-or-later, which ask for more than
+attribution.
 
 ---
 

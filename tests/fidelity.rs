@@ -39,14 +39,20 @@ fn corpus() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fidelity")
 }
 
-/// The stems of the corpus files with extension `ext`, sorted.
+/// The corpus files with extension `ext`, as paths below the corpus with the
+/// extension dropped, sorted: the authored pages at the top, the saved real
+/// pages in `saved/` (`fidelity.md` §4).
 fn stems(ext: &str) -> Vec<String> {
-    let mut names: Vec<String> = fs::read_dir(corpus())
-        .expect("the fidelity corpus directory")
-        .map(|e| e.expect("dir entry").path())
-        .filter(|p| p.extension().is_some_and(|e| e == ext))
-        .map(|p| p.file_stem().expect("stem").to_string_lossy().into_owned())
-        .collect();
+    let mut names = Vec::new();
+    for dir in ["", "saved/"] {
+        for entry in fs::read_dir(corpus().join(dir)).expect("a fidelity corpus directory") {
+            let path = entry.expect("dir entry").path();
+            if path.extension().is_some_and(|e| e == ext) {
+                let stem = path.file_stem().expect("stem").to_string_lossy();
+                names.push(format!("{dir}{stem}"));
+            }
+        }
+    }
     names.sort();
     names
 }

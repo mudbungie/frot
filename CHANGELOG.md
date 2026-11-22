@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The fidelity oracle now reads three saved real pages** (dev-tree only;
+  nothing shipped changes): a go.dev tutorial, a Bootstrap docs page and a
+  Wikipedia article, each with its stylesheets, licensed in
+  `tests/fixtures/NOTICE.md`. The Go page matches Chrome on every channel;
+  the other two surfaced ten divergences, each filed and pinned in the
+  ledger. [bl-5334]
+
 - **`FileReader` and `ProgressEvent` exist under `--js`.** A `FileReader`
   reads a `Blob` as a data URL, text, an `ArrayBuffer` or a binary string, and
   fires `loadstart`, `progress`, `load` and `loadend` (or `abort`) in the order

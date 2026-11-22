@@ -44,8 +44,99 @@ const fn row(fixture: &'static str, channel: &'static str, delta: &'static str, 
 }
 
 const HIDDEN_OPTION: Why = Why::Defect("bl-240d");
+/// `@import` is skipped.
+const IMPORT: Why = Why::Defect("bl-3aef");
+/// `:not()` / `:is()` are unsupported.
+const NEGATION: Why = Why::Defect("bl-011e");
+/// The sibling combinators are unsupported.
+const SIBLING: Why = Why::Defect("bl-6363");
+/// `:first-child` / `:last-child` are unsupported.
+const STRUCTURAL: Why = Why::Defect("bl-e987");
+/// `text-transform` is not applied.
+const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
+/// An absolutely positioned box fuses with its neighbours.
+const ABSOLUTE: Why = Why::Defect("bl-346e");
+/// DPUB-ARIA roles are ignored.
+const DPUB_ROLE: Why = Why::Defect("bl-fc83");
+/// A `role=presentation` table keeps its rows and cells.
+const PRESENTATION_TABLE: Why = Why::Defect("bl-2ea9");
+/// A `<style>` in the body is read into a name.
+const STYLE_IN_NAME: Why = Why::Defect("bl-b124");
+/// A no-break space in a name becomes a plain space.
+const NO_BREAK_SPACE: Why = Why::Defect("bl-3bd4");
 
 pub const LEDGER: &[Row] = &[
-    // text — open divergences, one ball each.
+    // Open divergences, one ball per root cause.
     row("select", "text", "- h2", HIDDEN_OPTION),
+    // text
+    row("reach", "text", "- Shown", NEGATION),
+    row("reach", "text", "- by", NEGATION),
+    row("reach", "text", "- a", NEGATION),
+    row("reach", "text", "- negation.", NEGATION),
+    row("reach", "text", "+ Imported", IMPORT),
+    row("reach", "text", "+ rule", IMPORT),
+    row("reach", "text", "+ hides", IMPORT),
+    row("reach", "text", "+ this.", IMPORT),
+    row("reach", "text", "- §", SIBLING),
+    row("reach", "text", "- (one", STRUCTURAL),
+    row("reach", "text", "+ one", STRUCTURAL),
+    row("reach", "text", "- LOUD", TEXT_TRANSFORM),
+    row("reach", "text", "- WORDS", TEXT_TRANSFORM),
+    row("reach", "text", "+ ·", STRUCTURAL),
+    row("reach", "text", "+ loud", TEXT_TRANSFORM),
+    row("reach", "text", "+ words", TEXT_TRANSFORM),
+    row("reach", "text", "- data", ABSOLUTE),
+    row("reach", "text", "- ShareData", ABSOLUTE),
+    row("reach", "text", "+ dataShareData", ABSOLUTE),
+    row("reach", "text", "- Before", ABSOLUTE),
+    row("reach", "text", "- tip", ABSOLUTE),
+    row("reach", "text", "- after.", ABSOLUTE),
+    row("reach", "text", "+ Beforetipafter.", ABSOLUTE),
+    row("saved/bootstrap-forms", "text", "- Search", NEGATION),
+    row("saved/bootstrap-forms", "text", "- docs…", NEGATION),
+    row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),
+    row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
+    row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),
+    row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
+    row("saved/wikipedia-brass-rubbing", "text", "+ ·", STRUCTURAL),
+    row("saved/wikipedia-brass-rubbing", "text", "+ ·", STRUCTURAL),
+    row("saved/wikipedia-brass-rubbing", "text", "+ ·", STRUCTURAL),
+    // ax
+    row("reach", "ax", "+ paragraph \"\"", IMPORT),
+    row("reach", "ax", "- link \"§\"", SIBLING),
+    row("reach", "ax", "+ link \"\"", SIBLING),
+    row("roles", "ax", "- doc-noteref \"[1]\"", DPUB_ROLE),
+    row("roles", "ax", "+ link \"[1]\"", DPUB_ROLE),
+    row("roles", "ax", "- doc-footnote \"\"", DPUB_ROLE),
+    row("roles", "ax", "+ complementary \"\"", DPUB_ROLE),
+    row("roles", "ax", "- doc-backlink \"1\"", DPUB_ROLE),
+    row("roles", "ax", "+ link \"1\"", DPUB_ROLE),
+    row("roles", "ax", "+ row \"\"", PRESENTATION_TABLE),
+    row("roles", "ax", "+ (", PRESENTATION_TABLE),
+    row("roles", "ax", "+ cell \"icon\"", PRESENTATION_TABLE),
+    row("roles", "ax", "+ cell \"A notice laid out with a table.\"", PRESENTATION_TABLE),
+    row("roles", "ax", "+ )", PRESENTATION_TABLE),
+    row("roles", "ax", "- columnheader \"Drawing\"", STYLE_IN_NAME),
+    row("roles", "ax", "+ columnheader \".navbar { display: inline; }Drawing\"", STYLE_IN_NAME),
+    row("roles", "ax", "- link \"No\\u{a0}break\\u{a0}name\"", NO_BREAK_SPACE),
+    row("roles", "ax", "+ link \"No break name\"", NO_BREAK_SPACE),
+    row("saved/bootstrap-forms", "ax", "- button \"Bootstrap\\u{a0} v5.3 (switch to other versions)\"", NO_BREAK_SPACE),
+    row("saved/bootstrap-forms", "ax", "+ button \"Bootstrap v5.3 (switch to other versions)\"", NO_BREAK_SPACE),
+    row("saved/wikipedia-brass-rubbing", "ax", "+ row \"\"", PRESENTATION_TABLE),
+    row("saved/wikipedia-brass-rubbing", "ax", "+ (", PRESENTATION_TABLE),
+    row("saved/wikipedia-brass-rubbing", "ax", "+ cell \"\"", PRESENTATION_TABLE),
+    row("saved/wikipedia-brass-rubbing", "ax", "+ cell \"This article includes a list of general references but lacks sufficient corresponding inline citations. Please help improve this article by introducing more precise citations. (May 2010) (Learn how and when to remove this message)\"", PRESENTATION_TABLE),
+    row("saved/wikipedia-brass-rubbing", "ax", "+ (", PRESENTATION_TABLE),
+    row("saved/wikipedia-brass-rubbing", "ax", "+ )", PRESENTATION_TABLE),
+    row("saved/wikipedia-brass-rubbing", "ax", "+ )", PRESENTATION_TABLE),
+    row("saved/wikipedia-brass-rubbing", "ax", "- cell \"GND\"", STRUCTURAL),
+    row("saved/wikipedia-brass-rubbing", "ax", "+ cell \"GND ·\"", STRUCTURAL),
+    row("saved/wikipedia-brass-rubbing", "ax", "- cell \"United States\\u{a0}· Israel\"", STRUCTURAL),
+    row("saved/wikipedia-brass-rubbing", "ax", "+ cell \"United States · Israel ·\"", STRUCTURAL),
+    row("saved/wikipedia-brass-rubbing", "ax", "- cell \"Yale LUX\"", STRUCTURAL),
+    row("saved/wikipedia-brass-rubbing", "ax", "+ cell \"Yale LUX ·\"", STRUCTURAL),
+    // bboxes
+    row("reach", "bboxes", "+ 8 p", IMPORT),
+    row("reach", "bboxes", "- 10 span", NEGATION),
+    row("saved/bootstrap-forms", "bboxes", "- 111 span", NEGATION),
 ];

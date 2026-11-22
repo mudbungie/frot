@@ -5,7 +5,7 @@
 // this is the ONLY place Chrome is needed — at record time, never in CI.
 //
 //   scripts/fidelity-record                 # re-record every fixture
-//   scripts/fidelity-record a.html b.html   # re-record the named ones
+//   scripts/fidelity-record a.html saved/b.html   # re-record the named ones
 //   CHROME=/path/to/chrome scripts/fidelity-record
 //
 // Zero dependencies: Node >= 22's built-in WebSocket speaks CDP.
@@ -230,8 +230,11 @@ function serialize(capture) {
 
 async function main() {
   if (typeof WebSocket === 'undefined') die('needs Node >= 22 (built-in WebSocket)');
-  const all = fs.readdirSync(DIR).filter((f) => f.endsWith('.html')).sort();
-  const names = process.argv.length > 2 ? process.argv.slice(2).map((a) => path.basename(a)) : all;
+  // The authored pages sit at the top of the corpus, the saved real pages
+  // (each with its stylesheets in a directory of its own name) in saved/.
+  const all = ['', 'saved/'].flatMap((dir) => fs.readdirSync(path.join(DIR, dir))
+    .filter((f) => f.endsWith('.html')).map((f) => dir + f)).sort();
+  const names = process.argv.length > 2 ? process.argv.slice(2) : all;
   for (const name of names) if (!all.includes(name)) die(`no fixture ${name} in ${DIR}`);
 
   const chrome = findChrome();

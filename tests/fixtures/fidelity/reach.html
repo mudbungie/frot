@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stylesheet reach</title>
+<link rel="stylesheet" href="reach.css">
+<style>
+.label { display: none; }
+.label:not([hidden]) { display: inline; }
+h2 + a.self::before { content: "§"; }
+.sep li::after { content: " ·"; }
+.sep li:last-child::after { content: none; }
+.sep li:first-child::before { content: "("; }
+.shout { text-transform: uppercase; }
+var[data-type]::after { content: attr(data-type); position: absolute; }
+.tip { position: absolute; }
+</style>
+</head>
+<body>
+<h1>Stylesheet reach</h1>
+<p class="imported">Imported rule hides this.</p>
+<p><span class="label">Shown by a negation.</span></p>
+<h2>Section</h2><a class="self" href="#section"></a>
+<ul class="sep"><li>one</li><li>two</li><li>three</li></ul>
+<p class="shout">loud words</p>
+<p>Convert <var data-type="ShareData">data</var> now.</p>
+<p>Before<span class="tip">tip</span>after.</p>
+</body>
+</html>

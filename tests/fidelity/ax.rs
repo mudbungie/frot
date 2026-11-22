@@ -34,7 +34,9 @@ fn fate(role: &str) -> Option<Fate> {
         "generic" | "none" | "presentation" => Fate::Splice,
         // Blink-internal roles for elements HTML-AAM gives no role, which
         // frot's vocabulary — ARIA roles — therefore has no word for.
-        "LabelText" | "Legend" | "Canvas" | "Video" | "Audio" | "MenuListPopup" => Fate::Splice,
+        "LabelText" | "Legend" | "Canvas" | "Video" | "Audio" | "MenuListPopup" | "Abbr" => {
+            Fate::Splice
+        }
         // Chrome's verdict that a table is layout, which frot renders as
         // demotion to presentation: the scaffolding collapses.
         "LayoutTable" | "LayoutTableRow" | "LayoutTableCell" => Fate::Splice,

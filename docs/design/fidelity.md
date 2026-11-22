@@ -209,10 +209,10 @@ are gone, and those tokens are compared like any other. The third went with
 
 ## 4. Corpus — same bytes, pinned captures
 
-- **Fixtures are checked in, small, and network-free.** (As built: the ten
-  authored pages only. The saved real pages of §12 were scratch files, never
-  checked in, and adding one is a licensing decision per page —
-  `tests/fixtures/NOTICE.md` — filed as `bl-5334`.) Two kinds: authored
+- **Fixtures are checked in, small, and network-free.** (As built: the
+  authored pages at the top of `tests/fixtures/fidelity/`, and since `bl-5334`
+  three saved real pages in `saved/`, each a licensing decision recorded in
+  `tests/fixtures/NOTICE.md` §4 — see §15.2.) Two kinds: authored
   minimal fixtures, one per defect class (the §12 set: fallback, disclosure,
   hidden-attr, aria-hidden, generated content, tables/lists/selects, flex
   order, SVG text — i.e. the regression arena of `bl-eeb4`/`bl-74a6`/
@@ -643,3 +643,76 @@ collapsed select's options. `bl-2932` (2026-11-20) modelled select modes and
 deleted them; its new `select` page pinned one open defect row instead
 (`bl-240d`: Chrome's `innerText` lists a `hidden` option, frot's `text` does
 not). No row is a blind ruler any more.
+
+### 15.2 Saved real pages — 2026-11-21, Chrome 158.0.8127.36 (`bl-5334`)
+
+**Layout.** A saved page is `tests/fixtures/fidelity/saved/<name>.html`, its
+stylesheets in `saved/<name>/`, its capture `saved/<name>.json`. The recorder
+and the comparator list the corpus as the top directory plus `saved/`; a
+fixture's name in the ledger is its path below the corpus (`saved/<name>`).
+Nothing else changed: same recorder, same five channels, same equality.
+
+**What "saved" means here.** Scripts are removed, stylesheet links point at
+the saved copies, and every image, icon and font reference is replaced by one
+empty inline `data:` SVG — so Chrome asks for nothing outside the corpus and
+no image is redistributed, while every element, `alt` and size stays. The
+edits are listed per page in `tests/fixtures/NOTICE.md` §4. There is no save
+tool in the tree (§9, no crawler): a page is saved by hand, once, and reviewed.
+
+**The pages, and what each channel found** (rows = ledger rows, all defects):
+
+| page | licence | size seen by Chrome | text | ax | links | forms | bboxes |
+|---|---|---|---|---|---|---|---|
+| `saved/go-getting-started` (go.dev tutorial) | CC BY 4.0; stylesheet BSD-3-Clause | 1022 tokens, 399 elements, 105 links | 0 | 0 | 0 | 0 | 0 |
+| `saved/bootstrap-forms` (Bootstrap 5.3 docs, Forms overview) | CC BY 3.0; `bootstrap.min.css` MIT | 1005 tokens, 1291 elements, 172 links, 3 forms | 6 | 2 | 0 | 0 | 1 |
+| `saved/wikipedia-brass-rubbing` (English Wikipedia article body) | CC BY-SA 4.0 | 483 tokens, 157 elements, 39 links | 3 | 13 | 0 | 0 | 0 |
+
+`links` and `forms` are exact on all three. The Go page is exact on every
+channel — 1022 of 1022 tokens, 288 of 288 boxes — with a 114 KB real
+stylesheet applied.
+
+**Every divergence is a ball.** Ten root causes, each with a minimal repro in
+an authored page (`reach.html` for the stylesheet ones, `roles.html` for the
+`ax` ones) so the class stays pinned when a real page changes:
+
+| ball | divergence (frot `--css` vs Chrome 158) | seen on |
+|---|---|---|
+| `bl-3aef` | `@import` is skipped: rules in an imported sheet never apply | Python docs (left out) |
+| `bl-011e` | `:not()` / `:is()` unsupported: a rule that *reveals* content never applies, so the content stays hidden | Bootstrap (`Search docs…` label and its box) |
+| `bl-6363` | sibling combinators `+` / `~` unsupported | W3C spec (left out) |
+| `bl-e987` | `:first-child` / `:last-child` unsupported: list separators come out wrong | Wikipedia (trailing `·`) |
+| `bl-e48d` | `text-transform` not applied to `text` or accessible names | Bootstrap (`HTML`) |
+| `bl-346e` | an absolutely positioned box fuses with its neighbours in `text` | W3C spec (left out) |
+| `bl-fc83` | DPUB-ARIA roles (`doc-noteref` …) ignored | Python docs (left out) |
+| `bl-2ea9` | a `role=presentation` table keeps its rows and cells | Wikipedia (message box) |
+| `bl-b124` | a `<style>` in the body is read into an accessible name | a larger Wikipedia article (left out) |
+| `bl-3bd4` | a no-break space in a name becomes a plain space | Bootstrap, Wikipedia |
+
+`bl-011e` contradicts a claim in `css.md` ("an unsupported rule can only
+cause under-application, which leaves content visible"): under-applying a
+rule that *reveals* hides.
+
+**One projection fix, no residual.** Chrome's `Abbr` — its internal role for
+`<abbr title>` — joined the roles the `ax` projection splices: HTML-AAM gives
+`<abbr>` no role, so frot's vocabulary has no word for it. No residual row
+was added: all 68 new rows are defect rows, 25 of them on the two real
+pages that differ and 43 on the two authored repro pages.
+
+**Two pages were tried and left out** (the rule of `bl-5334`: a page whose
+rows come in hundreds from features frot's stylesheet subset does not have
+drowns the ledger). A Python docs page differed on about 100 lines, about 90
+of them one cause (`bl-3aef`: Sphinx's `classic.css` is a single `@import`);
+with the imported sheet linked directly it differed on 10. A W3C
+Recommendation (Web Share) differed on about 270: `bl-011e` with `bl-6363`
+(every section's `§`), `bl-346e` (a type tooltip on every `<var>`) and
+`bl-e48d`. Both have clean licences and are filed to return when those balls
+land (`bl-8682`). This is Rule 2 read honestly: the count scales with how
+often a page repeats one unsupported feature, not with the number of pages,
+so the remedy is the feature (or a decision that it is outside the model),
+not rows.
+
+**Also learned.** English Wikipedia's current parser stamps every page with a
+four-part version number that the repo's leak scanner reads as an address;
+the article was saved through the legacy parser instead (`NOTICE.md` §4)
+rather than touching the rule.
+
