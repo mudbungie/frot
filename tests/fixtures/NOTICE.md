@@ -100,7 +100,7 @@ App code: **MIT** — © 2025 Innei
 Real pages, saved once so that frot and Chrome read the same bytes with no
 network (`docs/design/fidelity.md` §4). Each was chosen because every byte kept
 is under a licence that allows redistribution with attribution and nothing
-more. All three were retrieved on 2026-11-21. The sha256 of every saved file is
+more. All four were retrieved on 2026-11-21. The sha256 of every saved file is
 in the `stamp.bytes` of the capture beside the page, and `tests/fidelity.rs`
 re-hashes them.
 
@@ -108,8 +108,10 @@ re-hashes them.
 `<script>`, no text is changed:
 
 - every `<script>` element is removed (the pages are compared without `--js`);
-- each stylesheet `href` points at the saved copy in the page's own directory,
-  and `integrity`/`crossorigin` are dropped from that `<link>`;
+- each stylesheet `href` points at the saved copy in the page's own directory
+  (a cache-busting `?v=…` query goes with the old address), and
+  `integrity`/`crossorigin` are dropped from that `<link>`; an `@import`
+  between two saved sheets is kept as written;
 - no image, icon or font is redistributed: every `<img src>`, every
   `<link rel=icon|apple-touch-icon|mask-icon|manifest|preconnect>` `href`, and
   every non-`data:` `url()` in a stylesheet or `<style>` is replaced by one
@@ -124,19 +126,24 @@ re-hashes them.
 | `fidelity/saved/bootstrap-forms/bootstrap.min.css` | `https://getbootstrap.com/docs/5.3/dist/css/bootstrap.min.css` (v5.3.9) | **MIT** — © 2011-2026 The Bootstrap Authors ([twbs/bootstrap](https://github.com/twbs/bootstrap)), `licenses/bootstrap-5.3.LICENSE`; banner preserved | none — verbatim (its images are already `data:` URIs) |
 | `fidelity/saved/bootstrap-forms/docs.css` | `https://getbootstrap.com/docs/5.3/assets/_slug_.ZhhCqGDD.css` | **CC BY 3.0**, `licenses/CC-BY-3.0.txt` — © 2011-2026 The Bootstrap Authors; banner preserved | none — verbatim; renamed |
 | `fidelity/saved/wikipedia-brass-rubbing.html` | English Wikipedia, "Brass rubbing", revision 1308487280 — `https://en.wikipedia.org/w/index.php?title=Brass_rubbing&oldid=1308487280` (fetched as `action=render`, legacy parser) | **CC BY-SA 4.0**, `licenses/CC-BY-SA-4.0.txt` — Wikipedia contributors; authors are listed at `https://en.wikipedia.org/w/index.php?title=Brass_rubbing&action=history`. This modified copy is offered under the same licence. | the rendered article body is wrapped in a minimal document (`<!doctype>`, `<title>`, and a `<base>` at the article's URL so its protocol-relative links resolve as they do on the site). The site skin and its stylesheet (MediaWiki, GPL-2.0-or-later) are **not** included; the article's own inline TemplateStyles are |
+| `fidelity/saved/python-webbrowser.html` | `https://docs.python.org/3.13/library/webbrowser.html` (Python 3.13.18 documentation) | **PSF-2.0**, and **0BSD** for the code examples — © 2001-2026 Python Software Foundation. Page footer: "This page is licensed under the Python Software Foundation License Version 2. Examples, recipes, and other code in the documentation are additionally licensed under the Zero Clause BSD License." Both texts are in `licenses/cpython-3.13.LICENSE` (CPython's `LICENSE`, verbatim) | none beyond the common edits (11 `<script>` elements removed; its `../` links and form actions are left pointing where they pointed) |
+| `fidelity/saved/python-webbrowser/classic.css`, `fidelity/saved/python-webbrowser/basic.css` | `https://docs.python.org/3.13/_static/classic.css`, `…/basic.css` | **BSD-2-Clause** — © 2007-2026 the Sphinx developers ([sphinx-doc/sphinx](https://github.com/sphinx-doc/sphinx)), `licenses/sphinx.LICENSE` | none — verbatim; `classic.css` reaches `basic.css` through its `@import` |
+| `fidelity/saved/python-webbrowser/pygments.css`, `fidelity/saved/python-webbrowser/pygments_dark.css` | `https://docs.python.org/3.13/_static/pygments.css`, `…/pygments_dark.css` | **BSD-2-Clause** — © 2006-2022 the Pygments authors ([pygments/pygments](https://github.com/pygments/pygments)), `licenses/pygments.LICENSE`: the highlighting styles Pygments emits, written out by the docs build | none — verbatim |
+| `fidelity/saved/python-webbrowser/pydoctheme.css`, `fidelity/saved/python-webbrowser/pydoctheme_dark.css` | `https://docs.python.org/3.13/_static/pydoctheme.css`, `…/pydoctheme_dark.css` | **PSF-2.0** — © Python Software Foundation ([python/python-docs-theme](https://github.com/python/python-docs-theme)), `licenses/python-docs-theme.LICENSE` | `pydoctheme.css`: 1 `url()` font reference replaced as above; `pydoctheme_dark.css`: none — verbatim |
 
 The `.json` beside each saved page is derived (§3), and it quotes the page:
 it reproduces the page's text and structure as Chrome reported them, so it is
 offered under that page's licence, not frot's.
 
-Pages tried and left out, so nobody repeats the work blind: a Python docs page
-(PSF-2.0; clean licence, but its Sphinx stylesheet is one `@import`, which frot
-skips — about 100 divergences from that one cause) and a W3C Recommendation
-under the permissive W3C Software and Document License (about 270 divergences
-from four stylesheet features frot lacks). Both are filed to come back when
-those land. MDN and the full Wikipedia skin were not tried: their site
-stylesheets are MPL-2.0 and GPL-2.0-or-later, which ask for more than
-attribution.
+Tried and left out, so nobody repeats the work blind: a W3C Recommendation
+(Web Share) under the permissive W3C Software and Document License. It was
+measured twice; the second time, with `@import`, `:is()`/`:not()`, the sibling
+combinators and `:first-child`/`:last-child` in place, it still differed from
+Chrome on 223 lines, nearly all from two things frot does not do yet (an
+absolutely positioned box in `text`, and `text-transform`). It is filed to come
+back when those land (`bl-3248`, which carries the recipe). MDN and the full
+Wikipedia skin were not tried: their site stylesheets are MPL-2.0 and
+GPL-2.0-or-later, which ask for more than attribution.
 
 ---
 

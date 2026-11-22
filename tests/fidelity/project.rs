@@ -29,34 +29,37 @@ pub fn tokens(text: &Value) -> Vec<String> {
         .collect()
 }
 
-/// A resolved URL in terms of the page it sits on: relative to the document's
-/// directory, else to its origin, else as written. Chrome read the fixture at
-/// the capture's neutral origin and frot at a `file://` path; the *reference*
-/// each resolved is the same, and that is what is compared.
-pub fn reference(href: &str, page: &str) -> String {
-    let dir = &page[..=page.rfind('/').expect("a page URL has a path")];
-    let host = page.find("://").expect("a page URL has a scheme") + 3;
-    let origin = &page[..host + page[host..].find('/').expect("a page URL has a path")];
-    let rest = href.strip_prefix(dir).or_else(|| href.strip_prefix(origin));
+/// A resolved URL in terms of the corpus it was read from: relative to the
+/// corpus root, else to the root's origin, else as written. Chrome read the
+/// fixture at the capture's neutral origin and frot at a `file://` path; the
+/// *reference* each resolved is the same, and that is what is compared. The
+/// root, not the page's own directory: a page in `saved/` may point above
+/// itself (`../index.html`) and still be inside the corpus.
+pub fn reference(href: &str, root: &str) -> String {
+    let host = root.find("://").expect("a corpus URL has a scheme") + 3;
+    let origin = &root[..host + root[host..].find('/').expect("a corpus URL has a path")];
+    let rest = href
+        .strip_prefix(root)
+        .or_else(|| href.strip_prefix(origin));
     rest.unwrap_or(href).to_string()
 }
 
 /// `links`, Chrome's side: `document.links`, as reference + collapsed text.
-pub fn chrome_links(links: &Value, page: &str) -> Vec<String> {
-    let line = |l: &Value| link_line(text_of(&l["href"]), text_of(&l["text"]), page);
+pub fn chrome_links(links: &Value, root: &str) -> Vec<String> {
+    let line = |l: &Value| link_line(text_of(&l["href"]), text_of(&l["text"]), root);
     items(links).iter().map(line).collect()
 }
 
 /// `links`, frot's side: the anchor kinds only. The view also carries
 /// `<link>`, which `document.links` has no notion of.
-pub fn frot_links(out: &Value, page: &str) -> Vec<String> {
+pub fn frot_links(out: &Value, root: &str) -> Vec<String> {
     let anchors = items(out).iter().filter(|l| l["kind"] != "link");
-    let line = |l: &Value| link_line(text_of(&l["href"]), text_of(&l["text"]), page);
+    let line = |l: &Value| link_line(text_of(&l["href"]), text_of(&l["text"]), root);
     anchors.map(line).collect()
 }
 
-fn link_line(href: &str, text: &str, page: &str) -> String {
-    format!("{} {:?}", reference(href, page), collapse(text))
+fn link_line(href: &str, text: &str, root: &str) -> String {
+    format!("{} {:?}", reference(href, root), collapse(text))
 }
 
 /// The controls frot's `forms` view declares (`src/views/forms.rs`).
@@ -74,10 +77,10 @@ fn field_line(tag: &str, kind: &Value, name: &Value) -> String {
 
 /// `forms`, Chrome's side: `document.forms` and each form's `elements`,
 /// narrowed to the four control tags.
-pub fn chrome_forms(forms: &Value, page: &str) -> Vec<String> {
+pub fn chrome_forms(forms: &Value, root: &str) -> Vec<String> {
     let mut out = Vec::new();
     for f in items(forms) {
-        let action = reference(text_of(&f["action"]), page);
+        let action = reference(text_of(&f["action"]), root);
         out.push(format!("form {action} {}", text_of(&f["method"])));
         for e in items(&f["elements"]) {
             let tag = text_of(&e["tag"]);
@@ -90,10 +93,10 @@ pub fn chrome_forms(forms: &Value, page: &str) -> Vec<String> {
 }
 
 /// `forms`, frot's side.
-pub fn frot_forms(out: &Value, page: &str) -> Vec<String> {
+pub fn frot_forms(out: &Value, root: &str) -> Vec<String> {
     let mut lines = Vec::new();
     for f in items(out) {
-        let action = reference(text_of(&f["action"]), page);
+        let action = reference(text_of(&f["action"]), root);
         lines.push(format!("form {action} {}", text_of(&f["method"])));
         for e in items(&f["fields"]) {
             lines.push(field_line(text_of(&e["tag"]), &e["type"], &e["name"]));
@@ -128,15 +131,17 @@ pub fn frot_boxes(out: &Value) -> Vec<String> {
 }
 
 #[test]
-fn a_reference_is_relative_to_the_page_it_sits_on() {
-    let file = "file:///work/fixtures/page.html";
-    let http = "http://fidelity.invalid/corpus/page.html";
-    for page in [file, http] {
-        let dir = &page[..page.len() - "page.html".len()];
-        assert_eq!(reference(&format!("{dir}other.html"), page), "other.html");
-        assert_eq!(reference(&format!("{page}#frag"), page), "page.html#frag");
+fn a_reference_is_relative_to_the_corpus_it_was_read_from() {
+    let file = "file:///work/fixtures/";
+    let http = "http://fidelity.invalid/corpus/";
+    for root in [file, http] {
+        assert_eq!(reference(&format!("{root}other.html"), root), "other.html");
         assert_eq!(
-            reference("https://example.com/far", page),
+            reference(&format!("{root}saved/page.html#frag"), root),
+            "saved/page.html#frag"
+        );
+        assert_eq!(
+            reference("https://example.com/far", root),
             "https://example.com/far"
         );
     }

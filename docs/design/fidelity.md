@@ -231,8 +231,9 @@ are gone, and those tokens are compared like any other. The third went with
   the recording machine's paths in every resolved href and AX `url`; served
   this way a capture carries no local identity, and a page that asks for any
   byte outside the corpus is refused outright. `links`/`forms` therefore
-  compare the *reference* — the URL relative to the page's own directory,
-  else to its origin — which is the same on both sides. Projection happens at compare
+  compare the *reference* — the URL relative to the corpus root, else to
+  its origin (the root, not the page's own directory, since `bl-8682`: a page
+  in `saved/` may link above itself) — which is the same on both sides. Projection happens at compare
   time, applied to both sides — so improving a projection never requires
   re-recording, and the capture stays a fact about Chrome, not about the
   comparator (single source of truth).
@@ -710,6 +711,31 @@ land (`bl-8682`). This is Rule 2 read honestly: the count scales with how
 often a page repeats one unsupported feature, not with the number of pages,
 so the remedy is the feature (or a decision that it is outside the model),
 not rows.
+
+### 15.3 The four stylesheet gaps closed, and one page back — 2026-11-21, Chrome 158.0.8127.36 (`bl-8682`)
+
+`bl-3aef` (`@import`), `bl-011e` (`:is()` / `:where()` / `:not()`), `bl-6363`
+(`+` / `~`) and `bl-e987` (`:first-child` / `:last-child`) landed, each
+deleting its own rows. The two pages §15.2 left out were measured again.
+
+**The Python docs page is in** (`saved/python-webbrowser`, the `webbrowser`
+module page with its six Sphinx sheets, one reached only through `@import`).
+It matches Chrome on every channel with no ledger row: 1263 text tokens, 776
+boxes, 71 links, 3 forms, and the `ax` outline. The 10 DPUB-role lines §15.2
+predicted went with `bl-fc83`, which landed in between. One harness change
+came with it: `links` and `forms` compare references relative to the corpus
+root rather than the page's directory (§4), because this page points above
+itself (`../genindex.html`) and the two sides resolved that to different
+absolute paths — a difference of the harness's making, not frot's.
+
+**The W3C page is left out again**, by the same rule. It now differs on 223
+lines (text 191, ax 32; links, forms and bboxes exact): about 150 are `bl-346e`
+(the type tooltip on every `<var>`), about 60 are `bl-e48d` (`text-transform`),
+and with both declarations stripped as a probe 12 remain — 9 `bl-fe2c` (a
+`display:block` span) and 3 a new one, `bl-788d` (`<details>` / `<summary>` do
+not break the line in `text`; pinned by three lines added to
+`disclosure.html` and nine defect rows). It is filed as `bl-3248`, blocked on
+the first two.
 
 **Also learned.** English Wikipedia's current parser stamps every page with a
 four-part version number that the repo's leak scanner reads as an address;

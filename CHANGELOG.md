@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The fidelity oracle reads a fourth saved real page** (dev-tree only;
+  nothing shipped changes): a Python docs page with its six Sphinx
+  stylesheets, one of them reached only through `@import`. It matches Chrome
+  on every channel with no ledger row. Link and form references are now
+  compared relative to the corpus root, so a saved page may link above its own
+  directory. The W3C page stays out (223 differing lines, from absolute
+  positioning and `text-transform`; `bl-3248`). [bl-8682]
 - **`--out ax`: table and caption edges follow Chrome.** [bl-dfc3]
   - A table of one row holding one cell is a layout table (no `table`, `row`
     or cell node) unless it has a `<caption>`, a non-empty `summary` or a

@@ -105,20 +105,22 @@ fn sides(fixture: &str, channel: &str) -> (Vec<String>, Vec<String>) {
     let stamp = &cap["stamp"];
     let envelope = frot(fixture, &stamp["recipe"], channel);
     let out = &envelope["out"];
-    let ours = envelope["url"]["final"].as_str().expect("url.final");
-    let theirs = format!(
-        "{}{fixture}.html",
-        stamp["base"].as_str().expect("stamp.base")
-    );
+    // Where each side read the corpus from: links and form actions are
+    // compared relative to it (`project::reference`).
+    let ours = envelope["url"]["final"]
+        .as_str()
+        .and_then(|page| page.strip_suffix(&format!("{fixture}.html")))
+        .expect("url.final is the page, below the corpus");
+    let theirs = stamp["base"].as_str().expect("stamp.base");
     match channel {
         "text" => (project::tokens(&cap["text"]), project::tokens(out)),
         "ax" => (ax::chrome(&cap), ax::frot(out)),
         "links" => (
-            project::chrome_links(&cap["links"], &theirs),
+            project::chrome_links(&cap["links"], theirs),
             project::frot_links(out, ours),
         ),
         "forms" => (
-            project::chrome_forms(&cap["forms"], &theirs),
+            project::chrome_forms(&cap["forms"], theirs),
             project::frot_forms(out, ours),
         ),
         "bboxes" => (

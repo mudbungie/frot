@@ -52,11 +52,22 @@ const ABSOLUTE: Why = Why::Defect("bl-346e");
 const STYLE_IN_NAME: Why = Why::Defect("bl-b124");
 /// A no-break space in a name becomes a plain space.
 const NO_BREAK_SPACE: Why = Why::Defect("bl-3bd4");
+/// `<details>` / `<summary>` do not break the line in `text`.
+const DETAILS_BREAK: Why = Why::Defect("bl-788d");
 
 pub const LEDGER: &[Row] = &[
     // Open divergences, one ball per root cause.
     row("select", "text", "- h2", HIDDEN_OPTION),
     // text
+    row("disclosure", "text", "- oneA", DETAILS_BREAK),
+    row("disclosure", "text", "- twoB", DETAILS_BREAK),
+    row("disclosure", "text", "- three", DETAILS_BREAK),
+    row("disclosure", "text", "- tail", DETAILS_BREAK),
+    row("disclosure", "text", "- head", DETAILS_BREAK),
+    row("disclosure", "text", "- four", DETAILS_BREAK),
+    row("disclosure", "text", "+ oneAtwoB", DETAILS_BREAK),
+    row("disclosure", "text", "+ threetail", DETAILS_BREAK),
+    row("disclosure", "text", "+ headfour", DETAILS_BREAK),
     row("reach", "text", "- LOUD", TEXT_TRANSFORM),
     row("reach", "text", "- WORDS", TEXT_TRANSFORM),
     row("reach", "text", "+ loud", TEXT_TRANSFORM),
