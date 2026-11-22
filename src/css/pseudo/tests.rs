@@ -1,6 +1,6 @@
 use crate::css::selector::{matches, Selector, Simple, Specificity};
 use crate::css::selparse::parse_selector_list;
-use crate::dom::{Attr, Element};
+use crate::dom::Document;
 
 fn sel(s: &str) -> Selector {
     parse_selector_list(s).pop().unwrap()
@@ -8,16 +8,6 @@ fn sel(s: &str) -> Selector {
 
 fn first(s: &str) -> Simple {
     sel(s).parts[0].1.simples[0].clone()
-}
-
-fn el(name: &str, class: &str) -> Element {
-    Element {
-        name: name.into(),
-        attrs: vec![Attr {
-            name: "class".into(),
-            value: class.into(),
-        }],
-    }
 }
 
 #[test]
@@ -65,9 +55,9 @@ fn a_logical_pseudo_class_the_engine_cannot_answer_is_unsupported() {
 
 #[test]
 fn matching_follows_the_arguments() {
-    let p = el("p", "x y");
-    let div = el("div", "wrap");
-    let hit = |s: &str| matches(&sel(s), &p, &[&div]);
+    let doc = Document::parse("<div class=wrap><p class='x y'>t</p></div>");
+    let p = doc.find_by_tag("p")[0];
+    let hit = |s: &str| matches(&sel(s), &doc, p);
     assert!(hit(":is(p, a)"));
     assert!(hit("p:is(.x)"));
     assert!(!hit(":is(a, .z)"));

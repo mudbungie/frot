@@ -44,8 +44,6 @@ const fn row(fixture: &'static str, channel: &'static str, delta: &'static str, 
 }
 
 const HIDDEN_OPTION: Why = Why::Defect("bl-240d");
-/// The sibling combinators are unsupported.
-const SIBLING: Why = Why::Defect("bl-6363");
 /// `:first-child` / `:last-child` are unsupported.
 const STRUCTURAL: Why = Why::Defect("bl-e987");
 /// `text-transform` is not applied.
@@ -61,7 +59,6 @@ pub const LEDGER: &[Row] = &[
     // Open divergences, one ball per root cause.
     row("select", "text", "- h2", HIDDEN_OPTION),
     // text
-    row("reach", "text", "- §", SIBLING),
     row("reach", "text", "- (one", STRUCTURAL),
     row("reach", "text", "+ one", STRUCTURAL),
     row("reach", "text", "- LOUD", TEXT_TRANSFORM),
@@ -84,8 +81,6 @@ pub const LEDGER: &[Row] = &[
     row("saved/wikipedia-brass-rubbing", "text", "+ ·", STRUCTURAL),
     row("saved/wikipedia-brass-rubbing", "text", "+ ·", STRUCTURAL),
     // ax
-    row("reach", "ax", "- link \"§\"", SIBLING),
-    row("reach", "ax", "+ link \"\"", SIBLING),
     row("roles", "ax", "- columnheader \"Drawing\"", STYLE_IN_NAME),
     row(
         "roles",

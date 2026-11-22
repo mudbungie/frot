@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--css` and `querySelector` understand the sibling combinators `+` and
+  `~`.** `h2 + a.self-link::before { content: "§" }` now paints its mark, and
+  `document.querySelectorAll('dt ~ dd')` returns the siblings instead of
+  throwing. Before, any rule with a sibling step was dropped. [bl-6363]
+
 - **`--out ax`: the DPUB-ARIA roles are honoured.** An author `role` naming
   any of the 41 `doc-*` roles (`doc-noteref`, `doc-footnote`, `doc-chapter`,
   …) is emitted under that name, as in Chrome, instead of falling back to the

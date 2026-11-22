@@ -1,7 +1,8 @@
 //! Selector AST, specificity, and matching.
 //!
 //! Supported: `*`, type, `.class`, `#id`, `[attr]`, `[attr=val]`, compound
-//! sequences, the descendant (whitespace) and child (`>`) combinators, the
+//! sequences, the descendant (whitespace), child (`>`), next-sibling (`+`)
+//! and subsequent-sibling (`~`) combinators, the
 //! logical pseudo-classes `:is()` / `:where()` / `:not()` over complex
 //! selector lists ([`super::pseudo`]), and the `::before` / `::after`
 //! pseudo-elements (legacy single-colon spelling too). Any other pseudo
@@ -9,12 +10,16 @@
 //! [`Simple::Unsupported`] marker so the whole compound fails to match — a
 //! rule we cannot evaluate must never apply.
 
-use crate::dom::Element;
+use crate::dom::{Document, Element, NodeId, NodeKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Combinator {
     Descendant,
     Child,
+    /// `+`: the element sibling immediately before.
+    NextSibling,
+    /// `~`: any element sibling before.
+    SubsequentSibling,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,8 +121,8 @@ fn class_list(el: &Element) -> Vec<&str> {
         .unwrap_or_default()
 }
 
-fn compound_matches(c: &Compound, el: &Element, ancestors: &[&Element]) -> bool {
-    let any = |list: &[Selector]| list.iter().any(|s| matches(s, el, ancestors));
+fn compound_matches(c: &Compound, doc: &Document, id: NodeId, el: &Element) -> bool {
+    let any = |list: &[Selector]| list.iter().any(|s| matches(s, doc, id));
     c.simples.iter().all(|s| match s {
         Simple::Is(list) | Simple::Where(list) => any(list),
         Simple::Not(list) => !any(list),
@@ -134,31 +139,54 @@ fn compound_matches(c: &Compound, el: &Element, ancestors: &[&Element]) -> bool 
     })
 }
 
-/// Does `sel` match `el`, whose element ancestors are `ancestors`
-/// (nearest first)? The subject compound's pseudo-element is ignored here;
-/// the cascade routes its declarations to the right pseudo bucket.
-pub fn matches(sel: &Selector, el: &Element, ancestors: &[&Element]) -> bool {
-    matches_at(&sel.parts, sel.parts.len() - 1, el, ancestors)
+fn element(doc: &Document, id: NodeId) -> Option<&Element> {
+    match &doc.node(id).kind {
+        NodeKind::Element(el) => Some(el),
+        _ => None,
+    }
 }
 
-fn matches_at(
-    parts: &[(Combinator, Compound)],
-    i: usize,
-    el: &Element,
-    ancestors: &[&Element],
-) -> bool {
-    if !compound_matches(&parts[i].1, el, ancestors) {
+/// `id`'s element ancestors, nearest first.
+fn ancestors(doc: &Document, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+    std::iter::successors(doc.node(id).parent, |&p| doc.node(p).parent)
+        .filter(|&p| element(doc, p).is_some())
+}
+
+/// The element siblings before `id`, nearest first. Text and comments between
+/// siblings do not separate them, as in CSS.
+fn earlier_siblings(doc: &Document, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+    let siblings = match doc.node(id).parent {
+        Some(p) => &doc.node(p).children[..],
+        None => doc.roots(),
+    };
+    let at = siblings.iter().position(|&s| s == id).unwrap_or(0);
+    let before = siblings[..at].iter().rev().copied();
+    before.filter(|&s| element(doc, s).is_some())
+}
+
+/// Does `sel` match the node `id` where it stands in `doc`? Only an element
+/// can match. The subject compound's pseudo-element is ignored here; the
+/// cascade routes its declarations to the right pseudo bucket.
+pub fn matches(sel: &Selector, doc: &Document, id: NodeId) -> bool {
+    matches_at(&sel.parts, sel.parts.len() - 1, doc, id)
+}
+
+fn matches_at(parts: &[(Combinator, Compound)], i: usize, doc: &Document, id: NodeId) -> bool {
+    let Some(el) = element(doc, id) else {
+        return false;
+    };
+    if !compound_matches(&parts[i].1, doc, id, el) {
         return false;
     }
     if i == 0 {
         return true;
     }
+    let rest = |n: NodeId| matches_at(parts, i - 1, doc, n);
     match parts[i].0 {
-        Combinator::Child => {
-            !ancestors.is_empty() && matches_at(parts, i - 1, ancestors[0], &ancestors[1..])
-        }
-        Combinator::Descendant => (0..ancestors.len())
-            .any(|k| matches_at(parts, i - 1, ancestors[k], &ancestors[k + 1..])),
+        Combinator::Child => ancestors(doc, id).take(1).any(rest),
+        Combinator::Descendant => ancestors(doc, id).any(rest),
+        Combinator::NextSibling => earlier_siblings(doc, id).take(1).any(rest),
+        Combinator::SubsequentSibling => earlier_siblings(doc, id).any(rest),
     }
 }
 

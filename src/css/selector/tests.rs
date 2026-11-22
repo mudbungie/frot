@@ -1,18 +1,13 @@
 use super::*;
+use crate::css::query_all;
 use crate::css::selparse::parse_selector_list;
-use crate::dom::{Attr, Element};
+use crate::dom::Document;
 
-fn el(name: &str, attrs: &[(&str, &str)]) -> Element {
-    Element {
-        name: name.into(),
-        attrs: attrs
-            .iter()
-            .map(|(n, v)| Attr {
-                name: (*n).into(),
-                value: (*v).into(),
-            })
-            .collect(),
-    }
+/// Whether `selector` matches the element with `id="t"` in `html`.
+fn hit(selector: &str, html: &str) -> bool {
+    let doc = Document::parse(html);
+    let t = query_all(&doc, None, "#t").unwrap()[0];
+    matches(&sel(selector), &doc, t)
 }
 
 fn sel(s: &str) -> Selector {
@@ -40,53 +35,96 @@ fn specificity_counts_each_class() {
 
 #[test]
 fn type_class_id_attr_matching() {
-    let p = el("p", &[("class", "a b"), ("id", "x"), ("data-k", "v")]);
-    assert!(matches(&sel("p"), &p, &[]));
-    assert!(!matches(&sel("div"), &p, &[]));
-    assert!(matches(&sel(".a"), &p, &[]));
-    assert!(matches(&sel(".b.a"), &p, &[]));
-    assert!(!matches(&sel(".z"), &p, &[]));
-    assert!(matches(&sel("#x"), &p, &[]));
-    assert!(!matches(&sel("#y"), &p, &[]));
-    assert!(matches(&sel("[data-k]"), &p, &[]));
-    assert!(matches(&sel("[data-k=v]"), &p, &[]));
-    assert!(!matches(&sel("[data-k=w]"), &p, &[]));
-    assert!(!matches(&sel("[missing]"), &p, &[]));
-    assert!(matches(&sel("*"), &p, &[]));
+    let p = "<p id=t class='a b' data-k=v>x</p>";
+    for yes in ["p", ".a", ".b.a", "#t", "[data-k]", "[data-k=v]", "*"] {
+        assert!(hit(yes, p), "{yes}");
+    }
+    for no in ["div", ".z", "#y", "[data-k=w]", "[missing]"] {
+        assert!(!hit(no, p), "{no}");
+    }
 }
 
 #[test]
 fn classless_element_has_empty_class_list() {
-    assert!(!matches(&sel(".a"), &el("p", &[]), &[]));
+    assert!(!hit(".a", "<p id=t>x</p>"));
 }
 
 #[test]
 fn unsupported_pseudo_never_matches() {
-    assert!(!matches(&sel("p:hover"), &el("p", &[]), &[]));
+    assert!(!hit("p:hover", "<p id=t>x</p>"));
+}
+
+#[test]
+fn only_an_element_matches() {
+    let doc = Document::parse("<p>text</p>");
+    let p = doc.find_by_tag("p")[0];
+    let text = doc.node(p).children[0];
+    assert!(matches(&sel("*"), &doc, p));
+    assert!(!matches(&sel("*"), &doc, text));
 }
 
 #[test]
 fn descendant_and_child_combinators() {
-    let div = el("div", &[("class", "wrap")]);
-    let section = el("section", &[]);
-    let span = el("span", &[]);
-    // ancestors nearest-first: span <- section <- div
-    let anc = [&section, &div];
-    assert!(matches(&sel("div span"), &span, &anc));
-    assert!(matches(&sel(".wrap span"), &span, &anc));
-    assert!(matches(&sel("section > span"), &span, &anc));
-    assert!(!matches(&sel("div > span"), &span, &anc));
-    assert!(matches(&sel("div > section"), &section, &[&div]));
-    assert!(!matches(&sel("article span"), &span, &anc));
-    // child combinator with no ancestors at all
-    assert!(!matches(&sel("a > span"), &span, &[]));
+    let html = "<div class=wrap><section><span id=t>x</span></section></div>";
+    for yes in [
+        "div span",
+        ".wrap span",
+        "section > span",
+        "div > section > span",
+    ] {
+        assert!(hit(yes, html), "{yes}");
+    }
+    for no in ["div > span", "article span", "span span", "span > span"] {
+        assert!(!hit(no, html), "{no}");
+    }
+    // The top of the tree has no parent to be a child of.
+    let doc = Document::parse("<html></html>");
+    let root = doc.find_by_tag("html")[0];
+    assert!(!matches(&sel("a > html"), &doc, root));
+    assert!(!matches(&sel("a html"), &doc, root));
+    // …and its siblings are the other roots.
+    assert!(!matches(&sel("a + html"), &doc, root));
+    assert!(!matches(&sel("a ~ html"), &doc, root));
 }
 
 #[test]
 fn descendant_backtracks_across_ancestors() {
-    let a = el("a", &[]);
-    let b = el("b", &[]);
-    let target = el("i", &[]);
-    // i with ancestors b <- a ; selector "a i" must skip b and find a.
-    assert!(matches(&sel("a i"), &target, &[&b, &a]));
+    // `a i` must skip the nearer `b` and find `a`; `a > b i` must not stop at
+    // the first `b` that fails its own left-hand side.
+    assert!(hit("a i", "<a><b><i id=t>x</i></b></a>"));
+    assert!(hit("u > b i", "<u><b><s><b><i id=t>x</i></b></s></b></u>"));
+}
+
+#[test]
+fn sibling_combinators() {
+    let html = "<div><h2>a</h2> text <!-- c --><p class=x>b</p><i>c</i><p id=t>d</p><b>e</b></div>";
+    // `+`: the element immediately before, whatever text or comments intervene.
+    assert!(hit("i + p", html));
+    assert!(!hit("h2 + p", html));
+    assert!(!hit(".x + p", html));
+    assert!(!hit("b + p", html));
+    // `~`: any earlier element sibling, never a later one.
+    for yes in [
+        "h2 ~ p",
+        ".x ~ p",
+        "i ~ p",
+        "h2 ~ i ~ p",
+        "h2 + .x ~ p",
+        "div > h2 ~ p",
+    ] {
+        assert!(hit(yes, html), "{yes}");
+    }
+    for no in ["b ~ p", "div ~ p", "p ~ h2 ~ p", "i ~ .x ~ p"] {
+        assert!(!hit(no, html), "{no}");
+    }
+    // A first child has no earlier sibling; siblings exist at the top level too.
+    assert!(!hit("* + h2", "<div><h2 id=t>a</h2></div>"));
+    assert!(!hit("* ~ h2", "<div><h2 id=t>a</h2></div>"));
+    // Mixed with ancestry on either side of the sibling step.
+    assert!(hit(
+        "div h2 + p",
+        "<div><section><h2>a</h2><p id=t>b</p></section></div>"
+    ));
+    assert!(hit("h2 + p > i", "<h2>a</h2><p><i id=t>b</i></p>"));
+    assert!(!hit("h2 + p > i", "<h2>a</h2><u></u><p><i id=t>b</i></p>"));
 }

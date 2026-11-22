@@ -12,6 +12,7 @@ use crate::dom::{Document, Element, NodeId, NodeKind};
 const SHEET: &str = "
     #hero{display:none} #hero.k{display:block}
     .k{display:none} div.k span{display:block} .k>b{display:none}
+    span+b{display:none} p~em{display:none} :is(a,i){display:none} em+:not(p){display:none}
     p{display:none} p span{display:block}
     *{visibility:visible} [data-x]{display:none} [data-x=1]{display:block}
     :hover{display:none} a:nth-child(2){display:none}
@@ -21,27 +22,11 @@ const SHEET: &str = "
 const HTML: &str = "<div id=hero class='k extra'><p><span>a</span><b data-x=1>b</b></p>
     <em class=k>e</em><a href=#>l</a><i>i</i></div>";
 
-fn each_element(doc: &Document, mut f: impl FnMut(&Element, &[&Element])) {
-    fn walk<'a>(
-        doc: &'a Document,
-        id: NodeId,
-        anc: &mut Vec<&'a Element>,
-        f: &mut impl FnMut(&Element, &[&Element]),
-    ) {
-        let NodeKind::Element(el) = &doc.node(id).kind else {
-            return;
-        };
-        let near: Vec<&Element> = anc.iter().rev().copied().collect();
-        f(el, &near);
-        anc.push(el);
-        for &c in &doc.node(id).children {
-            walk(doc, c, anc, f);
+fn each_element(doc: &Document, mut f: impl FnMut(NodeId, &Element)) {
+    for id in 0..doc.len() as NodeId {
+        if let NodeKind::Element(el) = &doc.node(id).kind {
+            f(id, el);
         }
-        anc.pop();
-    }
-    let mut anc = Vec::new();
-    for &r in doc.roots() {
-        walk(doc, r, &mut anc, &mut f);
     }
 }
 
@@ -54,13 +39,13 @@ fn candidates_cover_every_match() {
     let index = Index::build(&sheets);
     let doc = Document::parse(HTML);
     let mut matched = 0usize;
-    each_element(&doc, |el, anc| {
+    each_element(&doc, |id, el| {
         let offered: Vec<usize> = index.candidates(el).iter().map(|c| c.seq).collect();
         let mut seq = 0usize;
         for sheet in &sheets {
             for rule in &sheet.rules {
                 for sel in &rule.selectors {
-                    if matches(sel, el, anc) {
+                    if matches(sel, &doc, id) {
                         assert!(offered.contains(&seq), "{} missed seq {seq}", el.name);
                         matched += 1;
                     }
@@ -83,7 +68,7 @@ fn candidates_are_in_flat_scan_order() {
     ];
     let index = Index::build(&sheets);
     let doc = Document::parse(HTML);
-    each_element(&doc, |el, _| {
+    each_element(&doc, |_, el| {
         let seqs: Vec<usize> = index.candidates(el).iter().map(|c| c.seq).collect();
         assert!(
             seqs.windows(2).all(|w| w[0] < w[1]),

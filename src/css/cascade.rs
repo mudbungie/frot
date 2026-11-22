@@ -1,5 +1,5 @@
-//! Gather author CSS from the document, match it against every element with
-//! full ancestor context, and cascade it into a [`Styles`] table.
+//! Gather author CSS from the document, match it against every element where
+//! it stands in the tree, and cascade it into a [`Styles`] table.
 //!
 //! Origin/precedence is a deliberate simplification of the real cascade,
 //! sufficient for visibility and generated content: a declaration wins on
@@ -40,33 +40,22 @@ pub fn compute_bare(doc: &Document, js: bool) -> Styles {
     cascade(doc, &[], js)
 }
 
-/// Cascade `sheets` (already gathered) over every element with full ancestor
-/// context. The single per-element `resolve` walk shared by [`compute_with`]
+/// Cascade `sheets` (already gathered) over every element. The single per-element `resolve` walk shared by [`compute_with`]
 /// (author + external sheets) and [`compute_bare`] (empty sheets); inline
 /// `style=` and UA-implicit display are applied by `resolve` regardless of the
 /// sheet list.
 fn cascade(doc: &Document, sheets: &[Stylesheet], js: bool) -> Styles {
     let index = Index::build(sheets);
     let mut nodes = vec![ComputedStyle::default(); doc.len()];
-    let mut ancestors: Vec<&Element> = Vec::new();
     for &root in doc.roots() {
-        walk(
-            doc,
-            root,
-            &mut ancestors,
-            &index,
-            Visibility::Visible,
-            js,
-            &mut nodes,
-        );
+        walk(doc, root, &index, Visibility::Visible, js, &mut nodes);
     }
     Styles::from_nodes(nodes)
 }
 
-fn walk<'a>(
-    doc: &'a Document,
+fn walk(
+    doc: &Document,
     id: NodeId,
-    ancestors: &mut Vec<&'a Element>,
     index: &Index,
     parent_vis: Visibility,
     js: bool,
@@ -78,14 +67,12 @@ fn walk<'a>(
         nodes[id as usize] = conceal(ComputedStyle::default(), concealed);
         return;
     };
-    let cs = conceal(resolve(el, ancestors, index, parent_vis, js), concealed);
+    let cs = conceal(resolve(doc, id, el, index, parent_vis, js), concealed);
     let vis = cs.visibility;
     nodes[id as usize] = cs;
-    ancestors.push(el);
     for &c in &entry.children {
-        walk(doc, c, ancestors, index, vis, js, nodes);
+        walk(doc, c, index, vis, js, nodes);
     }
-    ancestors.pop();
 }
 
 /// Fold the UA's **structural** concealment ([`Document::concealed`]) into a
@@ -107,16 +94,16 @@ fn conceal(mut cs: ComputedStyle, concealed: bool) -> ComputedStyle {
 /// arrive in flat-scan order — see `index.rs` for why that is equivalent to
 /// testing every rule of every sheet.
 fn resolve(
+    doc: &Document,
+    id: NodeId,
     el: &Element,
-    ancestors: &[&Element],
     index: &Index,
     parent_vis: Visibility,
     js: bool,
 ) -> ComputedStyle {
-    let near_first: Vec<&Element> = ancestors.iter().rev().copied().collect();
     let mut applied: Vec<Applied> = Vec::new();
     for cand in index.candidates(el) {
-        if !super::selector::matches(cand.selector, el, &near_first) {
+        if !super::selector::matches(cand.selector, doc, id) {
             continue;
         }
         for d in cand.decls {

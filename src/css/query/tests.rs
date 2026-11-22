@@ -1,5 +1,5 @@
 use super::*;
-use crate::dom::Document;
+use crate::dom::{Document, NodeKind};
 
 fn ids_to_tags(doc: &Document, ids: &[NodeId]) -> Vec<String> {
     ids.iter()
@@ -110,4 +110,19 @@ fn an_unsupported_selector_inside_a_logical_pseudo_class_is_an_error() {
             "{bad}"
         );
     }
+}
+
+#[test]
+fn sibling_combinators_are_queryable_and_see_past_the_scope_root() {
+    let doc = Document::parse("<h2>a</h2><div id=r><p>b</p><i>c</i><p>d</p></div><u>e</u>");
+    let texts = |root: Option<NodeId>, list: &str| -> Vec<String> {
+        let hits = query_all(&doc, root, list).unwrap();
+        hits.iter().map(|&i| doc.text_content(i)).collect()
+    };
+    assert_eq!(texts(None, "i + p"), ["d"]);
+    assert_eq!(texts(None, "p ~ *"), ["c", "d"]);
+    assert_eq!(texts(None, "div ~ u, h2 + div > i"), ["c", "e"]);
+    let r = query_all(&doc, None, "#r").unwrap()[0];
+    assert_eq!(texts(Some(r), "h2 + div p"), ["b", "d"]);
+    assert_eq!(texts(Some(r), "p ~ p"), ["d"]);
 }

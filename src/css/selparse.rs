@@ -65,7 +65,7 @@ pub fn split_top(s: &str, sep: char) -> Vec<String> {
 
 enum Tok {
     Compound(String),
-    Child,
+    Combinator(Combinator),
 }
 
 pub(super) fn parse_selector(s: &str) -> Option<Selector> {
@@ -73,7 +73,7 @@ pub(super) fn parse_selector(s: &str) -> Option<Selector> {
     let mut comb = Combinator::Descendant;
     for tok in tokenize_combinators(s) {
         match tok {
-            Tok::Child => comb = Combinator::Child,
+            Tok::Combinator(c) => comb = c,
             Tok::Compound(text) => {
                 parts.push((comb, parse_compound(&text)?));
                 comb = Combinator::Descendant;
@@ -86,8 +86,9 @@ pub(super) fn parse_selector(s: &str) -> Option<Selector> {
     Some(Selector { parts })
 }
 
-/// Break a complex selector into compound chunks and `>` markers. Whitespace
-/// runs become compound boundaries; whitespace around `>` is absorbed.
+/// Break a complex selector into compound chunks and `>` / `+` / `~` markers.
+/// Whitespace runs become compound boundaries; whitespace around a marker is
+/// absorbed.
 fn tokenize_combinators(s: &str) -> Vec<Tok> {
     let mut toks = Vec::new();
     let mut buf = String::new();
@@ -119,9 +120,13 @@ fn tokenize_combinators(s: &str) -> Vec<Tok> {
                 depth = depth.saturating_sub(1);
                 buf.push(ch);
             }
-            '>' if depth == 0 => {
+            '>' | '+' | '~' if depth == 0 => {
                 flush(&mut buf, &mut toks);
-                toks.push(Tok::Child);
+                toks.push(Tok::Combinator(match ch {
+                    '>' => Combinator::Child,
+                    '+' => Combinator::NextSibling,
+                    _ => Combinator::SubsequentSibling,
+                }));
             }
             c if c.is_whitespace() && depth == 0 => flush(&mut buf, &mut toks),
             _ => buf.push(ch),

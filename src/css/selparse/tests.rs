@@ -128,6 +128,21 @@ fn combinators() {
     assert_eq!(s.parts[1].0, Combinator::Child);
     assert_eq!(s.parts[2].0, Combinator::Descendant);
     assert_eq!(s.parts[3].0, Combinator::Descendant);
+    let s = one("h2+a ~ b>i");
+    let combs: Vec<Combinator> = s.parts.iter().map(|(c, _)| *c).collect();
+    assert_eq!(
+        combs,
+        [
+            Combinator::Descendant,
+            Combinator::NextSibling,
+            Combinator::SubsequentSibling,
+            Combinator::Child,
+        ]
+    );
+    // Inside brackets or parentheses `+` and `~` are not combinators.
+    assert_eq!(one("a:nth-child(2n+1)").parts.len(), 1);
+    assert_eq!(one("a:is(b + c, d ~ e)").parts.len(), 1);
+    assert!(parse_selector_list("[a~=b]").is_empty());
     // leading whitespace flushes an empty buffer (no spurious compound).
     assert_eq!(one("   p").parts.len(), 1);
 }

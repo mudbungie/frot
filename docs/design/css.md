@@ -47,10 +47,13 @@ fetches them).
 `@font-face`, … — is skipped with its whole body.
 
 **Selectors.** `*`, type, `.class`, `#id`, `[attr]`, `[attr=value]`,
-compounds of those, the descendant (space) and child (`>`) combinators,
+compounds of those, all four combinators — descendant (space), child (`>`),
+next-sibling (`+`) and subsequent-sibling (`~`; `bl-6363`) —
 `:is()` / `:where()` / `:not()` (below), and `::before` / `::after`. Any other
-pseudo-class, pseudo-element, combinator or attribute operator makes its
-selector never match.
+pseudo-class, pseudo-element or attribute operator makes its selector never
+match. A selector is matched against the element where it stands in the DOM
+(`selector::matches(selector, document, node)`): a sibling step skips text
+and comments, as CSS does, and costs a scan of the element's earlier siblings.
 
 **`:is()`, `:where()`, `:not()`** (`bl-011e`; `src/css/pseudo.rs`). Each takes
 a comma-separated list of complex selectors (`:not(.a > .b, #c)`), nests, and
@@ -68,7 +71,8 @@ each of which makes the rule never apply rather than apply wrongly:
   other arguments still do (`:is(:hover, .open)` matches `.open`).
 
 JS `querySelector` / `querySelectorAll` / `matches` / `closest` share this
-grammar through `css::query_all`: the three pseudo-classes are accepted, and a
+grammar through `css::query_all`: the combinators and the three pseudo-classes
+are accepted, and a
 selector holding an unsupported piece at any depth (`p:is(:hover)`) throws
 `SyntaxError` as before.
 
