@@ -68,5 +68,5 @@ pub fn svg_title(doc: &Document, id: NodeId) -> Option<String> {
     let mut children = doc.node(id).children.iter().copied();
     let title = children
         .find(|&c| matches!(&doc.node(c).kind, NodeKind::Element(e) if e.name == "title"))?;
-    Some(doc.text_content(title)).filter(|t| !t.trim().is_empty())
+    Some(doc.text_content(title)).filter(|t| !t.trim_ascii().is_empty())
 }

@@ -50,8 +50,6 @@ const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
 const ABSOLUTE: Why = Why::Defect("bl-346e");
 /// A `<style>` in the body is read into a name.
 const STYLE_IN_NAME: Why = Why::Defect("bl-b124");
-/// A no-break space in a name becomes a plain space.
-const NO_BREAK_SPACE: Why = Why::Defect("bl-3bd4");
 /// `<details>` / `<summary>` do not break the line in `text`.
 const DETAILS_BREAK: Why = Why::Defect("bl-788d");
 
@@ -90,37 +88,6 @@ pub const LEDGER: &[Row] = &[
         "ax",
         "+ columnheader \".navbar { display: inline; }Drawing\"",
         STYLE_IN_NAME,
-    ),
-    row(
-        "roles",
-        "ax",
-        "- link \"No\\u{a0}break\\u{a0}name\"",
-        NO_BREAK_SPACE,
-    ),
-    row("roles", "ax", "+ link \"No break name\"", NO_BREAK_SPACE),
-    row(
-        "saved/bootstrap-forms",
-        "ax",
-        "- button \"Bootstrap\\u{a0} v5.3 (switch to other versions)\"",
-        NO_BREAK_SPACE,
-    ),
-    row(
-        "saved/bootstrap-forms",
-        "ax",
-        "+ button \"Bootstrap v5.3 (switch to other versions)\"",
-        NO_BREAK_SPACE,
-    ),
-    row(
-        "saved/wikipedia-brass-rubbing",
-        "ax",
-        "- cell \"United States\\u{a0}· Israel\"",
-        NO_BREAK_SPACE,
-    ),
-    row(
-        "saved/wikipedia-brass-rubbing",
-        "ax",
-        "+ cell \"United States · Israel\"",
-        NO_BREAK_SPACE,
     ),
     // bboxes
 ];

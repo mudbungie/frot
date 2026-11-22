@@ -32,10 +32,12 @@
 //! subtrees and include `::before`/`::after` generated content.
 
 mod contents;
+mod from_contents;
 mod related;
 
 use crate::css::Styles;
 use crate::dom::{Document, NodeId, NodeKind, WalkEvent};
+use from_contents::names_from_contents;
 use related::{control_label_text, fieldset_legend_text, table_caption_text};
 
 /// The name a role that names from its contents takes from its subtree — the
@@ -51,7 +53,7 @@ pub fn accessible_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> O
         return None;
     };
 
-    if let Some(label) = trimmed_attr(el, "aria-label") {
+    if let Some(label) = collapsed_attr(el, "aria-label") {
         return Some(label);
     }
     if let Some(label) = labelledby_text(doc, el, styles) {
@@ -63,7 +65,7 @@ pub fn accessible_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> O
             return Some(t);
         }
     }
-    trimmed_attr(el, "title").filter(|_| title_names(doc, id, el, styles))
+    collapsed_attr(el, "title").filter(|_| title_names(doc, id, el, styles))
 }
 
 /// Whether `title` is a name source for the node at all. It is not for a
@@ -88,11 +90,13 @@ fn title_names(
     }
 }
 
-fn trimmed_attr(el: &crate::dom::Element, name: &str) -> Option<String> {
+/// An attribute that is a name — `aria-label`, `title` — as the name it is:
+/// collapsed like every other ([`collapse_whitespace`]), and absent when that
+/// leaves nothing.
+fn collapsed_attr(el: &crate::dom::Element, name: &str) -> Option<String> {
     el.attr(name)
-        .map(str::trim)
+        .map(collapse_whitespace)
         .filter(|s| !s.is_empty())
-        .map(str::to_string)
 }
 
 fn labelledby_text(
@@ -172,63 +176,9 @@ pub fn author_name(
     el: &crate::dom::Element,
     styles: Option<&Styles>,
 ) -> Option<String> {
-    trimmed_attr(el, "aria-label")
+    collapsed_attr(el, "aria-label")
         .or_else(|| labelledby_text(doc, el, styles))
-        .or_else(|| trimmed_attr(el, "title"))
-}
-
-/// Roles whose accessible name is computed from descendant text — the
-/// "Name From: contents" set of WAI-ARIA 1.2 (roles listed with
-/// `nameFrom: contents` in §5.4 Definition of Roles). Only these take the
-/// subtree-text fallback (`row` too, conditionally: [`names_from_contents`]);
-/// container roles (`table`, `rowgroup`, `list`,
-/// `listitem`, `paragraph`, `navigation`, `region`, `group`, …) are absent,
-/// so they yield no native name instead of echoing their whole subtree.
-///
-/// `term` is the one entry ARIA does not list (it is name-from-author there):
-/// Chrome 156 names a `<dt>`, a `<dfn>` and a `role=term` from their contents
-/// (`bl-8ad7`), and the browser is the oracle. `definition` stays out — Chrome
-/// names a `<dd>` nothing. The five `doc-*` rows are the DPUB-ARIA roles
-/// Chrome 158 names from contents (`bl-fc83`): the three link kinds, the
-/// back-link, and the subtitle; the other 36 are sections and name nothing.
-const NAME_FROM_CONTENTS: &[&str] = &[
-    "button",
-    "cell",
-    "checkbox",
-    "columnheader",
-    "doc-backlink",
-    "doc-biblioref",
-    "doc-glossref",
-    "doc-noteref",
-    "doc-subtitle",
-    "gridcell",
-    "heading",
-    "link",
-    "menuitem",
-    "menuitemcheckbox",
-    "menuitemradio",
-    "option",
-    "radio",
-    "rowheader",
-    "switch",
-    "tab",
-    "term",
-    "tooltip",
-    "treeitem",
-];
-
-/// Whether the node's effective role is in [`NAME_FROM_CONTENTS`] — and, for
-/// a `row`, whether its table is a `grid`/`treegrid`. ARIA lists `row` as
-/// name-from-contents without condition, but a browser computes that name only
-/// where a row can be the thing in focus: measured in Chrome 156 (`bl-3072`),
-/// a row of a `table` is `""` — `<tr>` or `role=row`, focusable or not — while
-/// the same row in a grid is named from its cells.
-fn names_from_contents(doc: &Document, id: NodeId) -> bool {
-    match crate::ax::role(doc, id) {
-        Some("row") => crate::ax::role::in_grid(doc, id),
-        Some(r) => NAME_FROM_CONTENTS.contains(&r),
-        None => false,
-    }
+        .or_else(|| collapsed_attr(el, "title"))
 }
 
 fn input_name(
@@ -263,8 +213,14 @@ fn find_by_id(doc: &Document, target: &str) -> Option<NodeId> {
     found
 }
 
+/// A name's white space, collapsed: runs of HTML's ASCII white space (space,
+/// tab, LF, FF, CR) become one space and the ends are trimmed. Nothing else
+/// is white space here — measured in Chrome 158 (`bl-3bd4`), a no-break space
+/// stays U+00A0 wherever it stands (`No&nbsp;break` keeps it, `&nbsp;` alone
+/// is a name of one U+00A0), as do U+2003, U+3000 and U+2028, in contents,
+/// `aria-label`, `title`, `alt` and `value` alike.
 fn collapse_whitespace(s: &str) -> String {
-    s.split_whitespace().collect::<Vec<_>>().join(" ")
+    s.split_ascii_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 #[cfg(test)]

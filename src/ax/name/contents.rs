@@ -158,8 +158,8 @@ fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, o
     // §2I is last and conditional on saying nothing at all — which an
     // alternative can do: `<img alt="" title=T>` is "T" in Chrome, so the test
     // is the text, not whether a source matched.
-    if said.trim().is_empty() && w.reads_title() {
-        if let Some(t) = super::trimmed_attr(el, "title") {
+    if said.trim_ascii().is_empty() && w.reads_title() {
+        if let Some(t) = super::collapsed_attr(el, "title") {
             fence(&mut said, &t);
         }
     }
@@ -193,7 +193,7 @@ pub fn hidden(id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
 
 /// What an element contributes *instead of* its contents, if anything.
 fn alternative(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>) -> Option<String> {
-    super::trimmed_attr(el, "aria-label")
+    super::collapsed_attr(el, "aria-label")
         .or_else(|| labelledby(w, el, visited))
         .or_else(|| native_alternative(w.doc, id, el))
 }
@@ -216,5 +216,5 @@ fn labelledby(w: &Walk, el: &Element, visited: &mut Vec<NodeId>) -> Option<Strin
     {
         node_text(w, target, visited, &mut out);
     }
-    Some(out).filter(|s| !s.trim().is_empty())
+    Some(out).filter(|s| !s.trim_ascii().is_empty())
 }

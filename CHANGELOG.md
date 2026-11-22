@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: a name keeps its no-break spaces.** Only HTML's ASCII white
+  space (space, tab, LF, FF, CR) is collapsed and trimmed in an accessible
+  name, as in Chrome: `No&nbsp;break` keeps U+00A0 — it used to come out as a
+  plain space — and so do U+2003, U+3000 and the rest. `aria-label` and
+  `title` are now collapsed the same way (`aria-label="a  b"` is "a b"; they
+  were only trimmed). [bl-3bd4]
 - **`--js`: an interface called without `new` throws what Firefox throws.**
   `Event('x')`, `URL('…')`, `Blob()`, `XMLHttpRequest()`, `MutationObserver()`
   and every other constructable interface throw `TypeError: <Name>

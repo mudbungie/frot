@@ -152,3 +152,55 @@ fn a_dpub_reference_names_from_contents_and_a_dpub_section_does_not() {
         assert_eq!(name(&html, "span"), None, "{role}");
     }
 }
+
+/// Chrome 158 (`bl-3bd4`): only ASCII white space collapses; a no-break space
+/// is a character of the name, wherever the name comes from.
+#[test]
+fn a_no_break_space_is_not_white_space() {
+    let nb = "\u{a0}";
+    for (html, want) in [
+        (
+            "<span role=link>No&nbsp;break \n\t name</span>",
+            format!("No{nb}break name"),
+        ),
+        (
+            "<span role=link>&nbsp;ends&nbsp;</span>",
+            format!("{nb}ends{nb}"),
+        ),
+        ("<span role=link>&nbsp;</span>", nb.to_string()),
+        (
+            "<span role=link>a&#x2003;b&#x3000;c</span>",
+            "a\u{2003}b\u{3000}c".to_string(),
+        ),
+        (
+            "<span role=link aria-label=' l&nbsp;&nbsp;b  c '>x</span>",
+            format!("l{nb}{nb}b c"),
+        ),
+        (
+            "<span role=link aria-label='&nbsp;'>x</span>",
+            nb.to_string(),
+        ),
+        (
+            "<span role=link title='t&nbsp;b  c'></span>",
+            format!("t{nb}b c"),
+        ),
+        (
+            "<span role=link><img alt='i&nbsp;a'></span>",
+            format!("i{nb}a"),
+        ),
+        (
+            "<i id=q>r&nbsp;&nbsp;f  g</i><span aria-labelledby=q>x</span>",
+            format!("r{nb}{nb}f g"),
+        ),
+    ] {
+        assert_eq!(name(html, "span"), Some(want), "{html}");
+    }
+    // A title speaks for contents that said nothing, and an SVG `<title>`
+    // names only when it is not empty; a no-break space is something said.
+    let html = "<i id=q><b title=T>&nbsp;</b></i><span aria-labelledby=q>x</span>";
+    assert_eq!(name(html, "span").as_deref(), Some(nb));
+    let html = "<i id=q><b title=T> </b></i><span aria-labelledby=q>x</span>";
+    assert_eq!(name(html, "span").as_deref(), Some("T"));
+    let html = "<span role=link><svg><title>&nbsp;</title><text>t</text></svg></span>";
+    assert_eq!(name(html, "span").as_deref(), Some(nb));
+}
