@@ -193,3 +193,24 @@ fn a_hidden_label_or_legend_names_nothing() {
                 <fieldset><legend class=h>LEG</legend><input></fieldset>";
     assert_eq!(name_css(html, "fieldset"), None);
 }
+
+/// Chrome 158 (`bl-b124`): source and data elements say nothing in a name,
+/// not even to a reference that names one directly.
+#[test]
+fn source_elements_are_never_part_of_a_name() {
+    for source in [
+        "<style>.x{}</style>",
+        "<script>var q;</script>",
+        "<template>t</template>",
+        "<noscript>n</noscript>",
+    ] {
+        let html = format!("<button>a{source}b</button>");
+        assert_eq!(name(&html, "button").as_deref(), Some("ab"), "{html}");
+    }
+    let html = "<button aria-labelledby=s>x</button><style id=s>.lab{}</style>";
+    assert_eq!(name(html, "button").as_deref(), Some("x"));
+    let html = "<button aria-labelledby=s>x</button><div id=s>d<style>.in{}</style>e</div>";
+    assert_eq!(name(html, "button").as_deref(), Some("de"));
+    let html = "<label>lab<style>.l{}</style><input></label>";
+    assert_eq!(name(html, "input").as_deref(), Some("lab"));
+}

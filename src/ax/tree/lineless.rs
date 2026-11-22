@@ -41,7 +41,6 @@
 //! Without a cascade the boxes are the tags' own ([`Display::of`]), so the
 //! empty `<p>` goes in every recipe.
 
-use super::SKIP_TAGS;
 use crate::css::{Display, Styles};
 use crate::dom::{Attr, Document, Element, NodeId, NodeKind};
 
@@ -91,7 +90,7 @@ fn inline_level(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Option<b
         NodeKind::Text(t) => t
             .contains(|c: char| !c.is_ascii_whitespace())
             .then_some(true),
-        NodeKind::Element(el) if !SKIP_TAGS.contains(&el.name.as_str()) => {
+        NodeKind::Element(el) if !crate::tags::is_source(&el.name) => {
             match Display::of(styles, id, &el.name) {
                 Display::None => None,
                 Display::Inline | Display::InlineBlock | Display::InlineFlex => Some(true),

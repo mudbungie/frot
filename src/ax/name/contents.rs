@@ -19,6 +19,11 @@
 //! - **Excluded subtrees** — `aria-hidden`/`inert` ([`crate::ax::hidden`]) and
 //!   anything CSS made invisible — contribute nothing, matching what a screen
 //!   reader would read.
+//! - **Source and data** — `<script>`, `<style>`, `<template>`, `<noscript>`
+//!   ([`tags::is_source`]) — contribute nothing either, and unlike a hidden
+//!   node not even to a reference that names one directly: measured in Chrome
+//!   158 (`bl-b124`), `<th><style>.x{}</style>Drawing</th>` is "Drawing", and
+//!   `<button aria-labelledby=s>x</button><style id=s>.lab{}</style>` is "x".
 //!
 //! The recursion descends through [`Document::ax_children`], never through the
 //! raw child list, so a node the AX *tree* does not contain cannot name it
@@ -56,6 +61,7 @@ mod walk;
 use crate::ax;
 use crate::css::{Display, Styles};
 use crate::dom::{Document, Element, NodeId, NodeKind};
+use crate::tags;
 use native::native_alternative;
 pub use native::svg_title;
 use walk::Walk;
@@ -139,7 +145,7 @@ fn node_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) 
 
 fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, out: &mut String) {
     let concealed = !w.reads_hidden() && hidden(id, el, w.styles);
-    if concealed || visited.contains(&id) {
+    if concealed || tags::is_source(&el.name) || visited.contains(&id) {
         return;
     }
     // Not popped: once counted, a node is spent for this whole computation.

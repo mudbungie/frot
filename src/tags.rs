@@ -87,6 +87,19 @@ pub fn is_block(name: &str) -> bool {
     BLOCK_TAGS.contains(&name)
 }
 
+/// Elements that are source or data rather than content: a browser gives them
+/// no box and no accessibility node, and their text is never part of anything
+/// said about the page. The one home of the set for the accessibility tree
+/// and the accessible-name walk, which must agree on it (`bl-b124`: the tree
+/// skipped a `<style>` in the body while the name walk read its CSS into the
+/// name of the cell around it).
+const SOURCE_TAGS: &[&str] = &["script", "style", "template", "noscript"];
+
+/// Whether `name` is in [`SOURCE_TAGS`].
+pub fn is_source(name: &str) -> bool {
+    SOURCE_TAGS.contains(&name)
+}
+
 /// Tags whose children are **fallback content**: markup HTML defines as shown
 /// only by a user agent that does not implement the element. frot implements
 /// them all, so — like every browser — it renders the element's own replaced
@@ -179,6 +192,16 @@ mod tests {
         assert!(is_block("optgroup"));
         assert!(!is_block("select"));
         assert!(!is_block("datalist"));
+    }
+
+    #[test]
+    fn source_elements_are_the_four_and_no_other() {
+        for name in ["script", "style", "template", "noscript"] {
+            assert!(super::is_source(name), "{name}");
+        }
+        for name in ["div", "title", "datalist", "canvas"] {
+            assert!(!super::is_source(name), "{name}");
+        }
     }
 
     #[test]

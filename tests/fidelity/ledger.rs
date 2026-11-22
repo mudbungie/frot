@@ -48,8 +48,6 @@ const HIDDEN_OPTION: Why = Why::Defect("bl-240d");
 const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
 /// An absolutely positioned box fuses with its neighbours.
 const ABSOLUTE: Why = Why::Defect("bl-346e");
-/// A `<style>` in the body is read into a name.
-const STYLE_IN_NAME: Why = Why::Defect("bl-b124");
 /// `<details>` / `<summary>` do not break the line in `text`.
 const DETAILS_BREAK: Why = Why::Defect("bl-788d");
 
@@ -82,12 +80,5 @@ pub const LEDGER: &[Row] = &[
     row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
     // ax
-    row("roles", "ax", "- columnheader \"Drawing\"", STYLE_IN_NAME),
-    row(
-        "roles",
-        "ax",
-        "+ columnheader \".navbar { display: inline; }Drawing\"",
-        STYLE_IN_NAME,
-    ),
     // bboxes
 ];

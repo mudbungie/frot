@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: a `<style>` or `<script>` inside an element is no longer
+  read into its name.** The text of `<script>`, `<style>`, `<template>` and
+  `<noscript>` never contributes to an accessible name, as in Chrome — also
+  when `aria-labelledby` points straight at one. A Wikipedia header cell
+  carrying inline TemplateStyles was named with the stylesheet's source.
+  [bl-b124]
+
 - **`--out ax`: a name keeps its no-break spaces.** Only HTML's ASCII white
   space (space, tab, LF, FF, CR) is collapsed and trimmed in an accessible
   name, as in Chrome: `No&nbsp;break` keeps U+00A0 — it used to come out as a

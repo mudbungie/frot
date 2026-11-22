@@ -6,7 +6,7 @@
 //! Elements whose effective role is `None`, `generic`, `presentation`, or
 //! `none` do not contribute a node — their AX children promote into the
 //! parent's child list. Subtrees under `<script>`, `<style>`, `<template>`,
-//! and `<noscript>` are skipped entirely, as are subtrees excluded by
+//! and `<noscript>` ([`tags::is_source`]) are skipped entirely, as are subtrees excluded by
 //! `aria-hidden`/`inert` ([`crate::ax::hidden`]).
 //!
 //! A `<p>` whose box holds no line — empty, or with a block-level child —
@@ -46,11 +46,10 @@
 use crate::ax;
 use crate::css::{Styles, Visibility};
 use crate::dom::{Document, Element, NodeId, NodeKind};
+use crate::tags;
 use serde_json::{json, Value};
 
 mod lineless;
-
-const SKIP_TAGS: &[&str] = &["script", "style", "template", "noscript"];
 
 /// Children are emitted in DOM order, always: Chrome's AX tree does not follow
 /// flex `order` or `*-reverse` (measured, Chrome 156; `layout.md` §5), so the
@@ -68,7 +67,7 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
     let NodeKind::Element(el) = &entry.kind else {
         return Vec::new();
     };
-    if SKIP_TAGS.contains(&el.name.as_str()) {
+    if tags::is_source(&el.name) {
         return Vec::new();
     }
     // Semantic subtree cut (`aria-hidden`/`inert`, [`ax::excluded`]) — before
