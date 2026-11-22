@@ -2,10 +2,10 @@
 //!
 //! Supported: `*`, type, `.class`, `#id`, `[attr]`, `[attr=val]`, compound
 //! sequences, the descendant (whitespace), child (`>`), next-sibling (`+`)
-//! and subsequent-sibling (`~`) combinators, the
-//! logical pseudo-classes `:is()` / `:where()` / `:not()` over complex
-//! selector lists ([`super::pseudo`]), and the `::before` / `::after`
-//! pseudo-elements (legacy single-colon spelling too). Any other pseudo
+//! and subsequent-sibling (`~`) combinators, the logical pseudo-classes
+//! `:is()` / `:where()` / `:not()` over complex selector lists
+//! ([`super::pseudo`]), `:first-child` / `:last-child`, and the `::before` /
+//! `::after` pseudo-elements (legacy single-colon spelling too). Any other pseudo
 //! (`:hover`, `:nth-child(...)`, `::first-line`, …) parses into a
 //! [`Simple::Unsupported`] marker so the whole compound fails to match — a
 //! rule we cannot evaluate must never apply.
@@ -46,6 +46,10 @@ pub enum Simple {
     /// `:not(…)`: matches when no argument does; as specific as its most
     /// specific argument. Every argument is [`Selector::evaluable`].
     Not(Vec<Selector>),
+    /// `:first-child`: no element sibling before it.
+    FirstChild,
+    /// `:last-child`: no element sibling after it.
+    LastChild,
     Unsupported,
 }
 
@@ -98,6 +102,7 @@ impl Selector {
                 match simple {
                     Simple::Id(_) => s.0 += 1,
                     Simple::Class(_) | Simple::Attr { .. } => s.1 += 1,
+                    Simple::FirstChild | Simple::LastChild => s.1 += 1,
                     Simple::Type(_) => s.2 += 1,
                     Simple::Is(list) | Simple::Not(list) => {
                         let most = list.iter().map(Selector::specificity).max();
@@ -126,6 +131,8 @@ fn compound_matches(c: &Compound, doc: &Document, id: NodeId, el: &Element) -> b
     c.simples.iter().all(|s| match s {
         Simple::Is(list) | Simple::Where(list) => any(list),
         Simple::Not(list) => !any(list),
+        Simple::FirstChild => earlier_siblings(doc, id).next().is_none(),
+        Simple::LastChild => later_siblings(doc, id).next().is_none(),
         Simple::Universal => true,
         Simple::Unsupported => false,
         Simple::Type(t) => el.name == *t,
@@ -152,16 +159,31 @@ fn ancestors(doc: &Document, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
         .filter(|&p| element(doc, p).is_some())
 }
 
-/// The element siblings before `id`, nearest first. Text and comments between
-/// siblings do not separate them, as in CSS.
-fn earlier_siblings(doc: &Document, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-    let siblings = match doc.node(id).parent {
+/// The nodes on either side of `id` among its parent's children (or among
+/// the roots), in document order. A node that is in neither list — one a
+/// script created and has not inserted — has no siblings.
+fn sides(doc: &Document, id: NodeId) -> (&[NodeId], &[NodeId]) {
+    let family = match doc.node(id).parent {
         Some(p) => &doc.node(p).children[..],
         None => doc.roots(),
     };
-    let at = siblings.iter().position(|&s| s == id).unwrap_or(0);
-    let before = siblings[..at].iter().rev().copied();
+    match family.iter().position(|&s| s == id) {
+        Some(at) => (&family[..at], &family[at + 1..]),
+        None => (&[], &[]),
+    }
+}
+
+/// The element siblings before `id`, nearest first. Text and comments between
+/// siblings do not separate them, as in CSS.
+fn earlier_siblings(doc: &Document, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+    let before = sides(doc, id).0.iter().rev().copied();
     before.filter(|&s| element(doc, s).is_some())
+}
+
+/// The element siblings after `id`, nearest first.
+fn later_siblings(doc: &Document, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+    let after = sides(doc, id).1.iter().copied();
+    after.filter(|&s| element(doc, s).is_some())
 }
 
 /// Does `sel` match the node `id` where it stands in `doc`? Only an element

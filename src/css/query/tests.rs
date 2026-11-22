@@ -126,3 +126,19 @@ fn sibling_combinators_are_queryable_and_see_past_the_scope_root() {
     assert_eq!(texts(Some(r), "h2 + div p"), ["b", "d"]);
     assert_eq!(texts(Some(r), "p ~ p"), ["d"]);
 }
+
+#[test]
+fn first_and_last_child_are_queryable() {
+    let doc = Document::parse("<ul><li>a</li><li>b</li><li>c</li></ul>");
+    let texts = |list: &str| -> Vec<String> {
+        let hits = query_all(&doc, None, list).unwrap();
+        hits.iter().map(|&i| doc.text_content(i)).collect()
+    };
+    assert_eq!(texts("li:first-child"), ["a"]);
+    assert_eq!(texts("li:last-child"), ["c"]);
+    assert_eq!(texts("li:not(:first-child, :last-child)"), ["b"]);
+    assert_eq!(
+        query_all(&doc, None, "li:only-child"),
+        Err(UnsupportedSelector)
+    );
+}

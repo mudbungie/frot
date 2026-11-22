@@ -44,8 +44,6 @@ const fn row(fixture: &'static str, channel: &'static str, delta: &'static str, 
 }
 
 const HIDDEN_OPTION: Why = Why::Defect("bl-240d");
-/// `:first-child` / `:last-child` are unsupported.
-const STRUCTURAL: Why = Why::Defect("bl-e987");
 /// `text-transform` is not applied.
 const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
 /// An absolutely positioned box fuses with its neighbours.
@@ -59,11 +57,8 @@ pub const LEDGER: &[Row] = &[
     // Open divergences, one ball per root cause.
     row("select", "text", "- h2", HIDDEN_OPTION),
     // text
-    row("reach", "text", "- (one", STRUCTURAL),
-    row("reach", "text", "+ one", STRUCTURAL),
     row("reach", "text", "- LOUD", TEXT_TRANSFORM),
     row("reach", "text", "- WORDS", TEXT_TRANSFORM),
-    row("reach", "text", "+ ·", STRUCTURAL),
     row("reach", "text", "+ loud", TEXT_TRANSFORM),
     row("reach", "text", "+ words", TEXT_TRANSFORM),
     row("reach", "text", "- data", ABSOLUTE),
@@ -77,9 +72,6 @@ pub const LEDGER: &[Row] = &[
     row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
-    row("saved/wikipedia-brass-rubbing", "text", "+ ·", STRUCTURAL),
-    row("saved/wikipedia-brass-rubbing", "text", "+ ·", STRUCTURAL),
-    row("saved/wikipedia-brass-rubbing", "text", "+ ·", STRUCTURAL),
     // ax
     row("roles", "ax", "- columnheader \"Drawing\"", STYLE_IN_NAME),
     row(
@@ -110,38 +102,14 @@ pub const LEDGER: &[Row] = &[
     row(
         "saved/wikipedia-brass-rubbing",
         "ax",
-        "- cell \"GND\"",
-        STRUCTURAL,
-    ),
-    row(
-        "saved/wikipedia-brass-rubbing",
-        "ax",
-        "+ cell \"GND ·\"",
-        STRUCTURAL,
-    ),
-    row(
-        "saved/wikipedia-brass-rubbing",
-        "ax",
         "- cell \"United States\\u{a0}· Israel\"",
-        STRUCTURAL,
+        NO_BREAK_SPACE,
     ),
     row(
         "saved/wikipedia-brass-rubbing",
         "ax",
-        "+ cell \"United States · Israel ·\"",
-        STRUCTURAL,
-    ),
-    row(
-        "saved/wikipedia-brass-rubbing",
-        "ax",
-        "- cell \"Yale LUX\"",
-        STRUCTURAL,
-    ),
-    row(
-        "saved/wikipedia-brass-rubbing",
-        "ax",
-        "+ cell \"Yale LUX ·\"",
-        STRUCTURAL,
+        "+ cell \"United States · Israel\"",
+        NO_BREAK_SPACE,
     ),
     // bboxes
 ];

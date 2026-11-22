@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--css` and `querySelector` understand `:first-child` and
+  `:last-child`.** List separators drawn with them come out as in a browser:
+  `li::after { content: " ·" }` `li:last-child::after { content: none }` no
+  longer leaves a trailing `·` (every Wikipedia navbox row). A pseudo-class
+  written with two colons (`::first-child`, `::is(a)`) is invalid CSS and no
+  longer matches. [bl-e987]
+
 - **`--out ax`: a `<p>` with no line of its own emits no `paragraph`**, as in
   Chrome. That is an empty `<p>` (in every recipe), and under `--css` one
   with any block-level child (`<p><span style="display:block">…`) or one that

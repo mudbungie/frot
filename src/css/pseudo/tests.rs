@@ -23,8 +23,6 @@ fn logical_pseudo_classes_parse_their_selector_lists() {
         first(":not(:is([a='x,y'], b))"),
         Simple::Not(vec![sel(":is([a='x,y'], b)")])
     );
-    // A double colon is tolerated as it always was for pseudo-classes.
-    assert_eq!(first("::is(a)"), Simple::Is(vec![sel("a")]));
 }
 
 #[test]
@@ -42,6 +40,13 @@ fn a_logical_pseudo_class_the_engine_cannot_answer_is_unsupported() {
         ":not(:where(:nth-child(2)))",
         ":not(:not(:hover))",
         ":has(a)",
+        "::is(a)",
+        "::where(a)",
+        "::not(a)",
+        "::first-child",
+        "::last-child",
+        ":only-child",
+        ":first-of-type",
         ":nth-child(2)",
     ] {
         assert_eq!(first(bad), Simple::Unsupported, "{bad}");
@@ -100,4 +105,49 @@ fn evaluable_sees_unsupported_at_any_depth() {
     assert!(sel("a::before").pseudo_element());
     assert!(sel("a::before b").pseudo_element());
     assert!(!sel("a b").pseudo_element());
+}
+
+#[test]
+fn first_and_last_child_parse_and_weigh_as_a_class() {
+    assert_eq!(first(":first-child"), Simple::FirstChild);
+    assert_eq!(first(":LAST-CHILD"), Simple::LastChild);
+    assert_eq!(sel("li:first-child").specificity(), Specificity(0, 1, 1));
+    assert_eq!(
+        sel("li:last-child::after").specificity(),
+        Specificity(0, 1, 2)
+    );
+    assert!(sel("li:first-child:not(:last-child)").evaluable());
+}
+
+#[test]
+fn first_and_last_child_count_element_siblings_only() {
+    let doc = Document::parse(
+        "<ul> text <!-- c --><li id=a>1</li> <li id=b>2</li><li id=c>3</li> tail </ul>\
+         <ol><li id=only>x</li></ol>",
+    );
+    let hit = |s: &str, id: &str| {
+        let t = crate::css::query_all(&doc, None, &format!("#{id}")).unwrap()[0];
+        matches(&sel(s), &doc, t)
+    };
+    assert!(hit("li:first-child", "a"));
+    assert!(!hit("li:first-child", "b"));
+    assert!(!hit("li:last-child", "b"));
+    assert!(hit("li:last-child", "c"));
+    assert!(!hit("li:first-child", "c"));
+    assert!(hit("li:first-child:last-child", "only"));
+    assert!(hit(":not(:first-child):not(:last-child)", "b"));
+    assert!(hit("li:first-child + li", "b"));
+    assert!(hit("ul > :last-child", "c"));
+    // The root element is its parent's — the document's — only element child.
+    let html = doc.find_by_tag("html")[0];
+    assert!(matches(&sel(":first-child:last-child"), &doc, html));
+}
+
+#[test]
+fn a_node_that_is_not_in_the_tree_has_no_siblings() {
+    let mut doc = Document::parse("<p>x</p>");
+    let loose = doc.create_element("i");
+    assert!(matches(&sel("i:first-child:last-child"), &doc, loose));
+    assert!(!matches(&sel("* + i"), &doc, loose));
+    assert!(!matches(&sel("* ~ i"), &doc, loose));
 }

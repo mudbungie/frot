@@ -1,9 +1,11 @@
 //! Pseudo-class and pseudo-element parsing: what follows a `:` in a compound.
 //!
 //! Supported: the `::before` / `::after` pseudo-elements (legacy single-colon
-//! spelling too) and the logical pseudo-classes `:is(…)`, `:where(…)` and
+//! spelling too), the structural pseudo-classes `:first-child` and
+//! `:last-child`, and the logical pseudo-classes `:is(…)`, `:where(…)` and
 //! `:not(…)`, each over a comma-separated list of complex selectors. Every
-//! other pseudo parses into [`Simple::Unsupported`], which never matches.
+//! other pseudo parses into [`Simple::Unsupported`], which never matches — a
+//! pseudo-class written with two colons (`::first-child`) among them.
 //!
 //! A logical pseudo-class is itself [`Simple::Unsupported`] when the engine
 //! could not answer it truthfully:
@@ -29,7 +31,8 @@ pub(super) enum PseudoTok {
 /// just past it.
 pub(super) fn parse_pseudo(b: &[char], start: usize) -> (PseudoTok, usize) {
     let mut i = start + 1;
-    if i < b.len() && b[i] == ':' {
+    let double = i < b.len() && b[i] == ':';
+    if double {
         i += 1;
     }
     let (name, mut n) = ident(b, i);
@@ -47,14 +50,16 @@ pub(super) fn parse_pseudo(b: &[char], start: usize) -> (PseudoTok, usize) {
             n += 1;
             if depth == 0 {
                 let args: String = b[open + 1..n - 1].iter().collect();
-                return (PseudoTok::Class(logical(&name, &args)), n);
+                return (PseudoTok::Class(logical(&name, &args, double)), n);
             }
         }
         return (PseudoTok::Class(Simple::Unsupported), n);
     }
-    let tok = match name.as_str() {
-        "before" => PseudoTok::Element(Pseudo::Before),
-        "after" => PseudoTok::Element(Pseudo::After),
+    let tok = match (name.as_str(), double) {
+        ("before", _) => PseudoTok::Element(Pseudo::Before),
+        ("after", _) => PseudoTok::Element(Pseudo::After),
+        ("first-child", false) => PseudoTok::Class(Simple::FirstChild),
+        ("last-child", false) => PseudoTok::Class(Simple::LastChild),
         _ => PseudoTok::Class(Simple::Unsupported),
     };
     (tok, n)
@@ -62,15 +67,15 @@ pub(super) fn parse_pseudo(b: &[char], start: usize) -> (PseudoTok, usize) {
 
 /// The functional pseudo-class `:name(args)`, or [`Simple::Unsupported`]
 /// (module doc).
-fn logical(name: &str, args: &str) -> Simple {
+fn logical(name: &str, args: &str, double: bool) -> Simple {
     let list: Option<Vec<Selector>> = split_top(args, ',')
         .iter()
         .map(|a| parse_selector(a.trim()).filter(|s| !s.pseudo_element()))
         .collect();
-    match (name, list) {
-        ("is", Some(list)) => Simple::Is(list),
-        ("where", Some(list)) => Simple::Where(list),
-        ("not", Some(list)) if list.iter().all(Selector::evaluable) => Simple::Not(list),
+    match (name, list, double) {
+        ("is", Some(list), false) => Simple::Is(list),
+        ("where", Some(list), false) => Simple::Where(list),
+        ("not", Some(list), false) if list.iter().all(Selector::evaluable) => Simple::Not(list),
         _ => Simple::Unsupported,
     }
 }
