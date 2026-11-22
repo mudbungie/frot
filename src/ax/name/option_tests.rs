@@ -132,3 +132,23 @@ fn the_label_names_outside_a_select_too() {
     assert_eq!(name(html, "optgroup"), Some("BareG".into()));
     assert_eq!(name(html, "option"), Some("BO".into()));
 }
+
+/// Chrome 158 (`bl-fc83`): the DPUB link kinds and the subtitle name from
+/// their contents; a DPUB section does not.
+#[test]
+fn a_dpub_reference_names_from_contents_and_a_dpub_section_does_not() {
+    for role in [
+        "doc-backlink",
+        "doc-biblioref",
+        "doc-glossref",
+        "doc-noteref",
+        "doc-subtitle",
+    ] {
+        let html = format!("<span role={role}>[1]</span>");
+        assert_eq!(name(&html, "span").as_deref(), Some("[1]"), "{role}");
+    }
+    for role in ["doc-footnote", "doc-chapter", "doc-endnote"] {
+        let html = format!("<span role={role}>text</span>");
+        assert_eq!(name(&html, "span"), None, "{role}");
+    }
+}

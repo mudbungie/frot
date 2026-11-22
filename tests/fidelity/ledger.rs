@@ -52,8 +52,6 @@ const STRUCTURAL: Why = Why::Defect("bl-e987");
 const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
 /// An absolutely positioned box fuses with its neighbours.
 const ABSOLUTE: Why = Why::Defect("bl-346e");
-/// DPUB-ARIA roles are ignored.
-const DPUB_ROLE: Why = Why::Defect("bl-fc83");
 /// A `<style>` in the body is read into a name.
 const STYLE_IN_NAME: Why = Why::Defect("bl-b124");
 /// A no-break space in a name becomes a plain space.
@@ -88,12 +86,6 @@ pub const LEDGER: &[Row] = &[
     // ax
     row("reach", "ax", "- link \"§\"", SIBLING),
     row("reach", "ax", "+ link \"\"", SIBLING),
-    row("roles", "ax", "- doc-noteref \"[1]\"", DPUB_ROLE),
-    row("roles", "ax", "+ link \"[1]\"", DPUB_ROLE),
-    row("roles", "ax", "- doc-footnote \"\"", DPUB_ROLE),
-    row("roles", "ax", "+ complementary \"\"", DPUB_ROLE),
-    row("roles", "ax", "- doc-backlink \"1\"", DPUB_ROLE),
-    row("roles", "ax", "+ link \"1\"", DPUB_ROLE),
     row("roles", "ax", "- columnheader \"Drawing\"", STYLE_IN_NAME),
     row(
         "roles",

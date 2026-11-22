@@ -111,3 +111,22 @@ fn a_part_loses_its_role_with_its_owner() {
     let stands = "<ul role=none><li id=t role=listitem>x</ul>";
     assert_eq!(r(stands), Some("listitem"));
 }
+
+/// Chrome 158 (`bl-fc83`): a DPUB-ARIA role stands on any element, over the
+/// element's own role.
+#[test]
+fn a_dpub_role_is_an_author_role() {
+    assert_eq!(
+        r("<a id=t role=doc-noteref href=#n>1</a>"),
+        Some("doc-noteref")
+    );
+    assert_eq!(
+        r("<aside id=t role=doc-footnote>n</aside>"),
+        Some("doc-footnote")
+    );
+    assert_eq!(r("<li id=t role=doc-endnote>n</li>"), Some("doc-endnote"));
+    assert_eq!(
+        r("<div id=t role='doc-bogus doc-tip'>n</div>"),
+        Some("doc-tip")
+    );
+}

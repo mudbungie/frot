@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: the DPUB-ARIA roles are honoured.** An author `role` naming
+  any of the 41 `doc-*` roles (`doc-noteref`, `doc-footnote`, `doc-chapter`,
+  …) is emitted under that name, as in Chrome, instead of falling back to the
+  element's own role. `doc-backlink`, `doc-biblioref`, `doc-glossref`,
+  `doc-noteref` and `doc-subtitle` are named from their contents; the rest
+  only by the author. [bl-fc83]
 - **`--css` and `querySelector` understand `:is()`, `:where()` and `:not()`**,
   over lists of complex selectors, nested, with the spec's specificity
   (`:where()` zero; `:is()`/`:not()` their most specific argument). Before, a

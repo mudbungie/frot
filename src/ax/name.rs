@@ -174,12 +174,19 @@ pub fn author_name(
 /// `term` is the one entry ARIA does not list (it is name-from-author there):
 /// Chrome 156 names a `<dt>`, a `<dfn>` and a `role=term` from their contents
 /// (`bl-8ad7`), and the browser is the oracle. `definition` stays out — Chrome
-/// names a `<dd>` nothing.
+/// names a `<dd>` nothing. The five `doc-*` rows are the DPUB-ARIA roles
+/// Chrome 158 names from contents (`bl-fc83`): the three link kinds, the
+/// back-link, and the subtitle; the other 36 are sections and name nothing.
 const NAME_FROM_CONTENTS: &[&str] = &[
     "button",
     "cell",
     "checkbox",
     "columnheader",
+    "doc-backlink",
+    "doc-biblioref",
+    "doc-glossref",
+    "doc-noteref",
+    "doc-subtitle",
     "gridcell",
     "heading",
     "link",
