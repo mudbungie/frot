@@ -158,3 +158,11 @@ fn escaped_delimiter_keeps_a_literal_opaque_to_splitting() {
         ]
     );
 }
+
+#[test]
+fn a_semicolon_inside_an_at_rule_string_does_not_swallow_the_next_rule() {
+    let s = Stylesheet::parse(
+        "@import url('https://f.example/c?f=A:wght@400;700'); p { display: none }",
+    );
+    assert_eq!(s.rules.len(), 1);
+}

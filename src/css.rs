@@ -13,6 +13,7 @@ mod cascade;
 mod computed;
 mod content;
 mod escape;
+mod import;
 mod index;
 pub mod media;
 mod parse;
@@ -23,6 +24,7 @@ mod selparse;
 use crate::dom::NodeId;
 
 pub use cascade::{compute, compute_bare, compute_with};
+pub use import::imports;
 pub use query::{query_all, UnsupportedSelector};
 
 // This module publishes a table, not a traversal. Every consumer that needs

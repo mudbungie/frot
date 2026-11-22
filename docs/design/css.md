@@ -6,6 +6,54 @@ bl-5d13 field-trial investigation (2026-07-19, session Polythene): `--css` cost
 independent findings, two independent root causes. When code and this doc
 disagree, fix whichever is wrong.
 
+## What `--css` supports — the whole claim
+
+Anything not listed here is not applied. This section is the statement of
+record; when it and the code disagree, one of them is a bug.
+
+**Where rules come from.** Every `<link rel=stylesheet>` whose `media`
+matches, every `<style>` block, and every sheet either one `@import`s
+(below). Inline `style=` attributes. Cascade order is: fetched sheets in
+document order, then `<style>` blocks in document order — a `<link>` that
+follows a `<style>` still cascades ahead of it, which a browser does not do.
+
+**`@import`** (`bl-3aef`; `src/css/import.rs` finds them, `src/run/gather.rs`
+fetches them).
+
+- Forms: `@import "x";`, `@import url(x);`, `@import url("x");`, each
+  optionally followed by a media-query list. The list goes to the one media
+  authority (`media.rs`); an import whose list does not match is not fetched,
+  exactly like a non-matching `<link media>`.
+- `layer`, `layer(…)` and `supports(…)` on an import are not supported: such
+  an import is not applied at all.
+- An import counts only where CSS allows it — before every rule other than
+  `@charset` and a body-less `@layer`.
+- The imported sheet's rules cascade *ahead* of the importing sheet's own
+  (the rule stands at the top of the sheet), depth-first for nested imports.
+  A relative target resolves against the importing sheet's URL (after
+  redirects); a `<style>` block's against the document base.
+- It is the same gather: the one `GATHER_BUDGET_MS` budget covers links and
+  imports together, through the same session (pool, cache, `-H` scoping,
+  the stylesheet request intent). Each import level is one concurrent wave. A sheet
+  that fails or does not arrive in time is skipped; its importer still applies.
+- Bounds: a sheet that imports itself or any sheet on the chain that led to
+  it is not fetched again, and a chain is followed at most `IMPORT_DEPTH = 8`
+  imports deep.
+- A sheet served over the network cannot import a `file:` URL (the rule that
+  already stops a remote page linking a local sheet).
+
+**At-rules.** `@media` (see `media.rs` for the exact query grammar) and
+`@import`. Every other at-rule — `@supports`, `@layer`, `@container`,
+`@font-face`, … — is skipped with its whole body.
+
+**Selectors.** `*`, type, `.class`, `#id`, `[attr]`, `[attr=value]`,
+compounds of those, the descendant (space) and child (`>`) combinators, and
+`::before` / `::after`. Any other pseudo-class, pseudo-element, combinator or
+attribute operator makes its selector never match.
+
+**Properties.** `display`, `visibility` (inherited), `content` on
+`::before`/`::after`, `flex-direction` and `order`.
+
 ## Finding 1 — wall-clock cost: two additive, independent causes
 
 `--css` has no single bottleneck; it has two, and which dominates depends on
@@ -260,7 +308,8 @@ raised as suspects for "over-hiding":
   was the one doing the hiding. When an applied rule hides and a skipped rule
   *reveals* — `.label{display:none}` then `.label:not([hidden]){display:inline}`
   (Bootstrap's docs header) — under-application leaves the content hidden.
-  The same goes for a skipped `@import` whose sheet reveals.
+  The same went for a skipped `@import` whose sheet reveals, until `bl-3aef`
+  taught the gather to follow imports.
 - Cascade tie-break (`cascade.rs::winner`, keyed
   `(important, inline, specificity, order)`, highest wins) matches the real
   CSS cascade order faithfully: importance first, inline-vs-selector second at

@@ -44,8 +44,6 @@ const fn row(fixture: &'static str, channel: &'static str, delta: &'static str, 
 }
 
 const HIDDEN_OPTION: Why = Why::Defect("bl-240d");
-/// `@import` is skipped.
-const IMPORT: Why = Why::Defect("bl-3aef");
 /// `:not()` / `:is()` are unsupported.
 const NEGATION: Why = Why::Defect("bl-011e");
 /// The sibling combinators are unsupported.
@@ -73,10 +71,6 @@ pub const LEDGER: &[Row] = &[
     row("reach", "text", "- by", NEGATION),
     row("reach", "text", "- a", NEGATION),
     row("reach", "text", "- negation.", NEGATION),
-    row("reach", "text", "+ Imported", IMPORT),
-    row("reach", "text", "+ rule", IMPORT),
-    row("reach", "text", "+ hides", IMPORT),
-    row("reach", "text", "+ this.", IMPORT),
     row("reach", "text", "- §", SIBLING),
     row("reach", "text", "- (one", STRUCTURAL),
     row("reach", "text", "+ one", STRUCTURAL),
@@ -102,7 +96,6 @@ pub const LEDGER: &[Row] = &[
     row("saved/wikipedia-brass-rubbing", "text", "+ ·", STRUCTURAL),
     row("saved/wikipedia-brass-rubbing", "text", "+ ·", STRUCTURAL),
     // ax
-    row("reach", "ax", "+ paragraph \"\"", IMPORT),
     row("reach", "ax", "- link \"§\"", SIBLING),
     row("reach", "ax", "+ link \"\"", SIBLING),
     row("roles", "ax", "- doc-noteref \"[1]\"", DPUB_ROLE),
@@ -136,7 +129,6 @@ pub const LEDGER: &[Row] = &[
     row("saved/wikipedia-brass-rubbing", "ax", "- cell \"Yale LUX\"", STRUCTURAL),
     row("saved/wikipedia-brass-rubbing", "ax", "+ cell \"Yale LUX ·\"", STRUCTURAL),
     // bboxes
-    row("reach", "bboxes", "+ 8 p", IMPORT),
     row("reach", "bboxes", "- 10 span", NEGATION),
     row("saved/bootstrap-forms", "bboxes", "- 111 span", NEGATION),
 ];

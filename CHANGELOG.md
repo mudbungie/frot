@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--css` follows `@import`.** A stylesheet's `@import "x"` / `@import
+  url(x)` rules (in a linked sheet or a `<style>` block, nested imports too)
+  are fetched in the same budgeted stylesheet gather and cascade ahead of the
+  importing sheet, as in a browser. A media-qualified import is fetched only
+  when its query matches the 1280×720 viewport; one carrying `layer` or
+  `supports()` is not applied. Before, every imported rule was silently
+  missing — a Sphinx docs page kept ~90 hidden pilcrows and headings. A `;`
+  inside a quoted at-rule prelude (a Google Fonts URL) no longer swallows the
+  rule after it. [bl-3aef]
+
 - **The fidelity oracle now reads three saved real pages** (dev-tree only;
   nothing shipped changes): a go.dev tutorial, a Bootstrap docs page and a
   Wikipedia article, each with its stylesheets, licensed in

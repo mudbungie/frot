@@ -4,8 +4,10 @@
 //! declarations are dropped rather than aborting the sheet. `@media` preludes
 //! are evaluated against the fixed viewport ([`super::media`]) — a matching
 //! block's rules join the cascade, a non-matching one contributes nothing.
-//! Every other `@`-rule (`@supports`, `@layer`, `@import`, …) is still
-//! skipped wholesale, including any `{…}` body.
+//! `@import` contributes no rule here: the gather phase fetches the imported
+//! sheet and hands it to the cascade as its own text ([`super::import`]).
+//! Every other `@`-rule (`@supports`, `@layer`, …) is still skipped
+//! wholesale, including any `{…}` body.
 
 use super::escape::Quoting;
 use super::media;
@@ -122,7 +124,7 @@ fn strip_important(value: &mut String) -> bool {
     false
 }
 
-fn strip_comments(s: &str) -> String {
+pub(super) fn strip_comments(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let b: Vec<char> = s.chars().collect();
     let mut i = 0;
@@ -141,7 +143,7 @@ fn strip_comments(s: &str) -> String {
     out
 }
 
-fn skip_ws(b: &[char], mut i: usize) -> usize {
+pub(super) fn skip_ws(b: &[char], mut i: usize) -> usize {
     while i < b.len() && b[i].is_whitespace() {
         i += 1;
     }
@@ -150,8 +152,10 @@ fn skip_ws(b: &[char], mut i: usize) -> usize {
 
 /// Read an at-rule at `start` (`b[start] == '@'`): its lowercased name, its
 /// prelude (from the name to the terminating `;` or the `{`), its balanced
-/// `{…}` body if it has one, and the index just past the rule.
-fn read_at_rule(b: &[char], start: usize) -> (String, String, Option<String>, usize) {
+/// `{…}` body if it has one, and the index just past the rule. A `;` or `{`
+/// inside a string literal or parentheses is prelude text, not its end
+/// (`@import url("…wght@400;700")`).
+pub(super) fn read_at_rule(b: &[char], start: usize) -> (String, String, Option<String>, usize) {
     let mut i = start + 1;
     while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == '-') {
         i += 1;
@@ -161,7 +165,17 @@ fn read_at_rule(b: &[char], start: usize) -> (String, String, Option<String>, us
         .collect::<String>()
         .to_ascii_lowercase();
     let pre_start = i;
-    while i < b.len() && b[i] != ';' && b[i] != '{' {
+    let mut quoting = Quoting::default();
+    let mut depth = 0u32;
+    while i < b.len() {
+        if !quoting.feed(b[i]) {
+            match b[i] {
+                '(' => depth += 1,
+                ')' => depth = depth.saturating_sub(1),
+                ';' | '{' if depth == 0 => break,
+                _ => {}
+            }
+        }
         i += 1;
     }
     let prelude: String = b[pre_start..i].iter().collect();
