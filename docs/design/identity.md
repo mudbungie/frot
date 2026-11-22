@@ -1304,10 +1304,27 @@ already in memory, so a read cannot fail and `error` never fires. `Event`'s
 constructs, as before. **Short of Firefox, declared (§11):** `readAsText`
 decodes UTF-8 whatever encoding is named — a legacy `encoding` argument, a
 `charset` in the blob's type and a UTF-16 byte-order mark are not honoured,
-because `encoding.js` has UTF-8 only (the standing `TextDecoder` residual);
-`FileReader()` and `ProgressEvent()` called without `new` do not throw the
-`'new' is required` `TypeError` (true of every frot interface, `bl-6404`); no
-`File`, so nothing but a `Blob` can be read.
+because `encoding.js` has UTF-8 only (the standing `TextDecoder` residual); no
+`File`, so nothing but a `Blob` can be read. (`FileReader()` without `new`
+throws as measured since `bl-6404`, below.)
+
+**An interface called without `new` (`bl-6404`, 2026-11-21).**
+
+| fact | value | provenance |
+|---|---|---|
+| a constructable interface called as a function — `Event('x')`, `Event.call(Object.create(Event.prototype), 'x')`; the same for `CustomEvent`, `ProgressEvent`, `FileReader`, `Blob`, `Headers`, `Response`, `Request`, `XMLHttpRequest`, `AbortController`, `TextEncoder`, `TextDecoder`, `Text`, `Comment`, `DocumentFragment`, `MutationObserver`, `IntersectionObserver`, `ResizeObserver`, `EventTarget`, `URL`, `URLSearchParams`, `Worker`, `SharedWorker`, `Notification`, `FormData`, `Image`, `DOMRect`, `DOMRectReadOnly`, `AudioContext`, `OfflineAudioContext`, `OscillatorNode`, `ImageData`, `IDBVersionChangeEvent`, `PerformanceObserver` (34 read) | `TypeError: <Name> constructor: 'new' is required`, before any argument is examined (`Worker()` says this, not "At least 1 argument required") | read |
+| an interface a page cannot construct, called with or without `new` — `Node`, `Element`, `Storage`, `Navigator`, `NodeList`, `CryptoKey`, `AbortSignal`, `Location`, `CSSStyleDeclaration` | `TypeError: Illegal constructor.` | read |
+| `Reflect.construct(Event, ['x'])` | an `Event` | read |
+
+frot now gives each (`brand.js` `requireNew`, called by the one interface
+maker and by the ten hand-written constructors). Before, most returned
+`undefined`, `Event('x')` threw the engine's `not an object`, the observers
+said `Constructor X requires 'new'`, and `AbortSignal()` constructed a signal.
+Not closed: `DOMRect` and `DOMRectReadOnly` are constructable on the binary
+and `Illegal constructor.` in frot (`bl-e65f`); the engine's own built-ins
+(`Promise()`, `Map()`) say `must be called with new` where SpiderMonkey says
+`calling a builtin Promise constructor without new is forbidden` — the
+engine's message, not a prelude one.
 
 ### 3.19 The secure-context surface and WebCrypto's shape, read off the binary (`bl-b0f8`, 2026-11-17)
 

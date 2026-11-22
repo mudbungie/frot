@@ -27,9 +27,7 @@
   function ctor(name, build) {
     var holder = {};
     holder[name] = function (cb, opts) {
-      if (!(this instanceof holder[name])) {
-        throw new TypeError("Constructor " + name + " requires 'new'");
-      }
+      g.__frot_new(new.target, name);
       if (typeof cb !== 'function') {
         throw new TypeError(name + ' constructor: Argument 1 is not callable.');
       }

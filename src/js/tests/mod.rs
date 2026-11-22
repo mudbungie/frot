@@ -26,6 +26,7 @@ mod image;
 mod iterator;
 mod net;
 mod netbudget;
+mod newrequired;
 mod persona_gold;
 mod receiver;
 mod reflect;

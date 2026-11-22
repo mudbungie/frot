@@ -45,6 +45,7 @@
   }
 
   function URLSearchParams(init) {
+    g.__frot_new(new.target, 'URLSearchParams');
     var st = slots(this);
     if (init instanceof URLSearchParams) st.pairs = pairs(init).slice();
     else if (typeof init === 'string') st.pairs = parsePairs(init);
@@ -148,6 +149,7 @@
   };
 
   function URL(spec, base) {
+    g.__frot_new(new.target, 'URL');
     var b = base === undefined || base === null ? undefined : String(base);
     var r = g.__frot_url_parse(String(spec), b);
     if (!r.valid) throw new TypeError('Invalid URL: ' + spec);

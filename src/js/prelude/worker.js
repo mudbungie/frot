@@ -60,6 +60,7 @@
   function iface(name, build) {
     var holder = {};
     holder[name] = function () {
+      g.__frot_new(new.target, name);
       if (arguments.length < 1) {
         throw new TypeError(
           name + ' constructor: At least 1 argument required, but only 0 passed'

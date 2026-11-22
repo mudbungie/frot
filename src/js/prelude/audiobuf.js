@@ -71,6 +71,7 @@
   function klass(name, construct) {
     var holder = {};
     holder[name] = function () {
+      g.__frot_new(new.target, name);
       construct(this, arguments);
     };
     var C = brand(holder[name], name);

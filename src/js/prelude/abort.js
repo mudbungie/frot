@@ -26,10 +26,15 @@
   // since `bl-6438` moved the listener trio onto `EventTarget.prototype`: a
   // signal's `addEventListener` is now the ONE implementation it inherits, not
   // three methods stamped onto each instance by the constructor.
+  // A page cannot construct one (measured: `Illegal constructor.`, with or
+  // without `new`); the controller and the three statics make them.
   function Signal() {
-    var st = slots(this);
-    st.aborted = false;
-    st.reason = undefined;
+    throw new TypeError('Illegal constructor.');
+  }
+  function makeSignal() {
+    var s = Object.create(Signal.prototype);
+    slots(s).aborted = false;
+    return s;
   }
   Signal.prototype = Object.create(g.EventTarget.prototype);
   Object.defineProperty(Signal.prototype, 'constructor', {
@@ -60,7 +65,7 @@
   // A pre-aborted signal: the same flip, minus the dispatch nobody can be
   // listening for yet — one path, not a second hand-set of the two slots.
   function aborted(reason) {
-    var s = new Signal();
+    var s = makeSignal();
     slots(s).aborted = true;
     slots(s).reason = reason;
     return s;
@@ -70,7 +75,8 @@
   }
 
   var Controller = function AbortController() {
-    slots(this).signal = new Signal();
+    g.__frot_new(new.target, 'AbortController');
+    slots(this).signal = makeSignal();
   };
   // Operation before attribute: that is the order Gecko's WebIDL codegen emits
   // members in on all 41 prototypes read in `bl-706b` (identity.md §3.15).
@@ -84,7 +90,7 @@
     return aborted(orAbortError(reason));
   };
   Signal.timeout = function (ms) {
-    var s = new Signal();
+    var s = makeSignal();
     g.setTimeout(function () {
       doAbort(s, named('TimeoutError', 'The operation timed out.'));
     }, ms);
@@ -94,7 +100,7 @@
     var list = Array.prototype.slice.call(signals);
     for (var i = 0; i < list.length; i++)
       if (list[i].aborted) return aborted(list[i].reason);
-    var s = new Signal();
+    var s = makeSignal();
     list.forEach(function (src) {
       src.addEventListener('abort', function () {
         doAbort(s, src.reason);

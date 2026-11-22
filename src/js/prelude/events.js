@@ -74,10 +74,10 @@
   // off `Event.prototype`, operations before attributes as everywhere else. So
   // `isTrusted` is added here rather than dropped: it is the one own property
   // Gecko really has, and frot never published it at all.
-  var Event = g.__frot_iface('Event', null, function (inst, args) {
+  function initEvent(inst, type, init) {
     var st = slots(inst);
-    st.type = String(args[0]);
-    st.bubbles = !!(args[1] && args[1].bubbles);
+    st.type = String(type);
+    st.bubbles = !!(init && init.bubbles);
     st.defaultPrevented = false;
     st.target = null;
     Object.defineProperty(inst, 'isTrusted', {
@@ -89,6 +89,16 @@
       enumerable: true,
       configurable: false,
     });
+  }
+  var Event = g.__frot_iface('Event', null, function (inst, args) {
+    initEvent(inst, args[0], args[1]);
+  });
+  // The event subtypes in other modules (ProgressEvent, IDBVersionChangeEvent)
+  // start from the same initializer; calling `Event` itself needs `new`.
+  Object.defineProperty(g, '__frot_event_init', {
+    value: g.__frot_brand(initEvent, '__frot_event_init'),
+    configurable: true,
+    writable: true,
   });
   g.__frot_ifaceops(Event.prototype, {
     stopPropagation: function stopPropagation() {},
@@ -100,7 +110,7 @@
 
   // CustomEvent.prototype: initCustomEvent, detail, constructor — parent Event.
   var CustomEvent = g.__frot_iface('CustomEvent', null, function (inst, args) {
-    Event.call(inst, args[0], args[1]);
+    initEvent(inst, args[0], args[1]);
     slots(inst).detail = args[1] ? args[1].detail : null;
   });
   Object.setPrototypeOf(CustomEvent.prototype, Event.prototype);
@@ -130,7 +140,9 @@
   function receiver(o) {
     return o == null ? g : o;
   }
-  g.EventTarget = function EventTarget() {};
+  g.EventTarget = function EventTarget() {
+    g.__frot_new(new.target, 'EventTarget');
+  };
   g.EventTarget.prototype.addEventListener = function (type, fn) {
     add(etKey(receiver(this)), String(type), fn);
   };

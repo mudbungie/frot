@@ -30,7 +30,7 @@
     if (init !== undefined && init !== null && typeof init !== 'object') {
       throw new TypeError(at + "Value can't be converted to a dictionary.");
     }
-    g.Event.call(inst, args[0], init);
+    g.__frot_event_init(inst, args[0], init);
     init = init || {};
     Object.assign(slots(inst), {
       lengthComputable: !!init.lengthComputable,

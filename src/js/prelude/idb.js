@@ -248,10 +248,11 @@
   // IDBVersionChangeEvent IS constructable in Firefox (an Event subtype), UNLIKE
   // the interface zoo; inherit events.js's `g.Event` so `instanceof Event` holds.
   var VCE = brand(function (type, init) {
+    g.__frot_new(new.target, 'IDBVersionChangeEvent');
     if (arguments.length < 1) {
       throw new TypeError('IDBVersionChangeEvent constructor: At least 1 argument required, but only 0 passed');
     }
-    g.Event.call(this, type, init);
+    g.__frot_event_init(this, type, init);
     this.oldVersion = init && init.oldVersion ? init.oldVersion : 0;
     this.newVersion = init && init.newVersion !== undefined ? init.newVersion : null;
   }, 'IDBVersionChangeEvent');

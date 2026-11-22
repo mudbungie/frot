@@ -71,11 +71,14 @@
   // `Object.create(Ctor.prototype)`.
   // Every interface the registry builds, so `sealInterfaces` can put
   // `constructor` last on all of them AFTER the later modules have finished
-  // adding methods and event handlers to their prototypes. Doing it inside
-  // `iface` alone is not enough — anything defined after the call lands past the
-  // constructor — and asking each call site to re-seal is the call-site
-  // discipline this registry exists to remove.
+  // adding members to their prototypes.
   var built = [];
+
+  // A constructable interface called as a plain function throws this, before
+  // any argument is looked at (measured on 34 interfaces, `bl-6404`).
+  function requireNew(target, name) {
+    if (!target) throw new TypeError(name + " constructor: 'new' is required");
+  }
 
   // --- Per-instance backing state --------------------------------------------
   // ONE WeakMap for the whole prelude, for the same reason `reg` above is one:
@@ -184,6 +187,7 @@
     var holder = {};
     holder[name] = body
       ? function () {
+        requireNew(new.target, name);
         body(this, arguments);
       }
       : function () {
@@ -232,9 +236,8 @@
     });
   }
 
-  // `Child` inherits `Parent` the way one WebIDL interface inherits another:
-  // prototype under prototype AND interface object under interface object
-  // (measured: `Object.getPrototypeOf(Node) === EventTarget`).
+  // WebIDL inheritance: prototype under prototype AND interface object under
+  // interface object (measured: `Object.getPrototypeOf(Node) === EventTarget`).
   function extend(Child, Parent) {
     Object.setPrototypeOf(Child.prototype, Parent.prototype);
     return Object.setPrototypeOf(Child, Parent);
@@ -281,6 +284,7 @@
     ['__frot_onevent', onEvent],
     ['__frot_iface_seal', sealInterfaces],
     ['__frot_extends', extend],
+    ['__frot_new', requireNew],
     ['__frot_ifaceattrs', attrs],
     ['__frot_ifaceops', ops],
     ['__frot_slots', slots],

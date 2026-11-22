@@ -51,9 +51,7 @@
 
   var holder = {
     MutationObserver: function (cb) {
-      if (!(this instanceof holder.MutationObserver)) {
-        throw new TypeError("Constructor MutationObserver requires 'new'");
-      }
+      g.__frot_new(new.target, 'MutationObserver');
       if (typeof cb !== 'function') {
         throw new TypeError('MutationObserver constructor: Argument 1 is not callable.');
       }

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--js`: an interface called without `new` throws what Firefox throws.**
+  `Event('x')`, `URL('…')`, `Blob()`, `XMLHttpRequest()`, `MutationObserver()`
+  and every other constructable interface throw `TypeError: <Name>
+  constructor: 'new' is required`; most used to return `undefined`.
+  `AbortSignal()` and `new AbortSignal()` throw `Illegal constructor.`
+  [bl-6404]
+
 - **`--js`: the document is a node of the tree.** `html.parentNode` is the
   document (it was `null`), and the tree refuses what a browser's does, with
   Firefox's `HierarchyRequestError` messages: a node appended under its own

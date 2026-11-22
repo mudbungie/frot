@@ -27,7 +27,7 @@
   // `new Image(width, height)`: the height is only read when a width was given
   // (measured: `new Image(undefined, 5)` has neither attribute).
   var Image = function (width, height) {
-    if (!new.target) throw new TypeError("Image constructor: 'new' is required");
+    g.__frot_new(new.target, 'Image');
     var img = g.document.createElement('img');
     if (width !== undefined) {
       img.width = width;
