@@ -72,3 +72,42 @@ fn an_unnamed_form_or_region_role_does_not_stand() {
         assert_eq!(r(html), Some(want), "{html}");
     }
 }
+
+/// Chrome 158 (`bl-2ea9`): a table's parts have their roles only while the
+/// nearest `<table>` is a table or grid, and an `<li>` only while its list is
+/// a list. An author role on the part itself stands.
+#[test]
+fn a_part_loses_its_role_with_its_owner() {
+    let parts = [
+        "<thead id=t><tr><td>x",
+        "<tbody id=t aria-label=B><tr><td>x",
+        "<tfoot id=t><tr><td>x",
+        "<tr id=t><td>x",
+        "<tr><td id=t>x",
+        "<tr><th id=t scope=row>x",
+    ];
+    for owner in ["presentation", "none", "group", "list"] {
+        for part in parts {
+            let html = format!("<table role={owner}>{part}</table>");
+            assert_eq!(r(&html), Some("generic"), "{html}");
+        }
+        let html = format!("<table role={owner}><tr id=t role=row><td>x</table>");
+        assert_eq!(r(&html), Some("row"), "{html}");
+    }
+    for (owner, cell) in [("table", "cell"), ("grid", "gridcell")] {
+        let html = format!("<table role={owner}><tr><td id=t>x</table>");
+        assert_eq!(r(&html), Some(cell), "{html}");
+    }
+    let nested = "<table role=none><tr><td><table><tr id=t><th>h</table></table>";
+    assert_eq!(r(nested), Some("row"));
+    for owner in ["none", "presentation", "group", "menu"] {
+        let html = format!("<ul role={owner}><li id=t>x</ul>");
+        assert_eq!(r(&html), Some("generic"), "{html}");
+    }
+    for owner in ["list", "directory"] {
+        let html = format!("<ol role={owner}><li id=t>x</ol>");
+        assert_eq!(r(&html), Some("listitem"), "{html}");
+    }
+    let stands = "<ul role=none><li id=t role=listitem>x</ul>";
+    assert_eq!(r(stands), Some("listitem"));
+}

@@ -56,8 +56,6 @@ const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
 const ABSOLUTE: Why = Why::Defect("bl-346e");
 /// DPUB-ARIA roles are ignored.
 const DPUB_ROLE: Why = Why::Defect("bl-fc83");
-/// A `role=presentation` table keeps its rows and cells.
-const PRESENTATION_TABLE: Why = Why::Defect("bl-2ea9");
 /// A `<style>` in the body is read into a name.
 const STYLE_IN_NAME: Why = Why::Defect("bl-b124");
 /// A no-break space in a name becomes a plain space.
@@ -104,30 +102,68 @@ pub const LEDGER: &[Row] = &[
     row("roles", "ax", "+ complementary \"\"", DPUB_ROLE),
     row("roles", "ax", "- doc-backlink \"1\"", DPUB_ROLE),
     row("roles", "ax", "+ link \"1\"", DPUB_ROLE),
-    row("roles", "ax", "+ row \"\"", PRESENTATION_TABLE),
-    row("roles", "ax", "+ (", PRESENTATION_TABLE),
-    row("roles", "ax", "+ cell \"icon\"", PRESENTATION_TABLE),
-    row("roles", "ax", "+ cell \"A notice laid out with a table.\"", PRESENTATION_TABLE),
-    row("roles", "ax", "+ )", PRESENTATION_TABLE),
     row("roles", "ax", "- columnheader \"Drawing\"", STYLE_IN_NAME),
-    row("roles", "ax", "+ columnheader \".navbar { display: inline; }Drawing\"", STYLE_IN_NAME),
-    row("roles", "ax", "- link \"No\\u{a0}break\\u{a0}name\"", NO_BREAK_SPACE),
+    row(
+        "roles",
+        "ax",
+        "+ columnheader \".navbar { display: inline; }Drawing\"",
+        STYLE_IN_NAME,
+    ),
+    row(
+        "roles",
+        "ax",
+        "- link \"No\\u{a0}break\\u{a0}name\"",
+        NO_BREAK_SPACE,
+    ),
     row("roles", "ax", "+ link \"No break name\"", NO_BREAK_SPACE),
-    row("saved/bootstrap-forms", "ax", "- button \"Bootstrap\\u{a0} v5.3 (switch to other versions)\"", NO_BREAK_SPACE),
-    row("saved/bootstrap-forms", "ax", "+ button \"Bootstrap v5.3 (switch to other versions)\"", NO_BREAK_SPACE),
-    row("saved/wikipedia-brass-rubbing", "ax", "+ row \"\"", PRESENTATION_TABLE),
-    row("saved/wikipedia-brass-rubbing", "ax", "+ (", PRESENTATION_TABLE),
-    row("saved/wikipedia-brass-rubbing", "ax", "+ cell \"\"", PRESENTATION_TABLE),
-    row("saved/wikipedia-brass-rubbing", "ax", "+ cell \"This article includes a list of general references but lacks sufficient corresponding inline citations. Please help improve this article by introducing more precise citations. (May 2010) (Learn how and when to remove this message)\"", PRESENTATION_TABLE),
-    row("saved/wikipedia-brass-rubbing", "ax", "+ (", PRESENTATION_TABLE),
-    row("saved/wikipedia-brass-rubbing", "ax", "+ )", PRESENTATION_TABLE),
-    row("saved/wikipedia-brass-rubbing", "ax", "+ )", PRESENTATION_TABLE),
-    row("saved/wikipedia-brass-rubbing", "ax", "- cell \"GND\"", STRUCTURAL),
-    row("saved/wikipedia-brass-rubbing", "ax", "+ cell \"GND ·\"", STRUCTURAL),
-    row("saved/wikipedia-brass-rubbing", "ax", "- cell \"United States\\u{a0}· Israel\"", STRUCTURAL),
-    row("saved/wikipedia-brass-rubbing", "ax", "+ cell \"United States · Israel ·\"", STRUCTURAL),
-    row("saved/wikipedia-brass-rubbing", "ax", "- cell \"Yale LUX\"", STRUCTURAL),
-    row("saved/wikipedia-brass-rubbing", "ax", "+ cell \"Yale LUX ·\"", STRUCTURAL),
+    row(
+        "saved/bootstrap-forms",
+        "ax",
+        "- button \"Bootstrap\\u{a0} v5.3 (switch to other versions)\"",
+        NO_BREAK_SPACE,
+    ),
+    row(
+        "saved/bootstrap-forms",
+        "ax",
+        "+ button \"Bootstrap v5.3 (switch to other versions)\"",
+        NO_BREAK_SPACE,
+    ),
+    row(
+        "saved/wikipedia-brass-rubbing",
+        "ax",
+        "- cell \"GND\"",
+        STRUCTURAL,
+    ),
+    row(
+        "saved/wikipedia-brass-rubbing",
+        "ax",
+        "+ cell \"GND ·\"",
+        STRUCTURAL,
+    ),
+    row(
+        "saved/wikipedia-brass-rubbing",
+        "ax",
+        "- cell \"United States\\u{a0}· Israel\"",
+        STRUCTURAL,
+    ),
+    row(
+        "saved/wikipedia-brass-rubbing",
+        "ax",
+        "+ cell \"United States · Israel ·\"",
+        STRUCTURAL,
+    ),
+    row(
+        "saved/wikipedia-brass-rubbing",
+        "ax",
+        "- cell \"Yale LUX\"",
+        STRUCTURAL,
+    ),
+    row(
+        "saved/wikipedia-brass-rubbing",
+        "ax",
+        "+ cell \"Yale LUX ·\"",
+        STRUCTURAL,
+    ),
     // bboxes
     row("reach", "bboxes", "- 10 span", NEGATION),
     row("saved/bootstrap-forms", "bboxes", "- 111 span", NEGATION),

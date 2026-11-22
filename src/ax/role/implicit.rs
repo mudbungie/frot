@@ -29,7 +29,11 @@
 //! - **`<th>`** — `rowheader` or `columnheader` from `scope`, else from its
 //!   position in the row (Wikipedia: 14 `scope=row` cells are rowheaders).
 //! - **`<td>`/`<th>`** — `cell`/`gridcell` follows the ancestor table's role.
-//! - **`<li>`** — `listitem` only inside `<ul>`/`<ol>`/`<menu>`.
+//! - **`<li>`** — `listitem` only inside a `<ul>`/`<ol>`/`<menu>` that is still
+//!   a list; **`<thead>`/`<tbody>`/`<tfoot>`/`<tr>`/`<td>`/`<th>`** — their
+//!   roles only inside a `<table>` that is still a table or grid. An author
+//!   `role=presentation` (or any other role) on the owner takes the parts'
+//!   roles with it ([`context::table_part`], `bl-2ea9`).
 //! - **`<img>`** — `presentation` for `alt=""`, but only when nothing else
 //!   names it: a name is a conflict that keeps the node exposed.
 //! - **`<a>`/`<area>`** — the pre-existing `href` condition, unchanged.
@@ -64,9 +68,9 @@ pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
         "li" => return Some(context::listitem_or_generic(doc, id)),
         "select" => return Some(select_role(el)),
         "svg" => return svg::svg(doc, id, el),
-        "tbody" => return Some(context::named_landmark(doc, el, "rowgroup")),
-        "td" => return Some(context::cell_role(doc, id, "cell", "gridcell")),
-        "th" => return Some(th_role(doc, id, el)),
+        "tbody" | "td" | "tfoot" | "th" | "thead" | "tr" => {
+            return Some(context::table_part(doc, id, table_part(doc, id, el)))
+        }
         "article" => "article",
         "blockquote" => "blockquote",
         "body" | "div" | "span" => "generic",
@@ -101,10 +105,8 @@ pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
         "sub" => "subscript",
         "sup" => "superscript",
         "table" => "table",
-        "tfoot" | "thead" => "rowgroup",
         "textarea" => "textbox",
         "time" => "time",
-        "tr" => "row",
         _ => return svg::part(doc, id, el),
     };
     Some(fixed)
@@ -153,6 +155,18 @@ fn input_role(el: &Element) -> Option<&'static str> {
         "email" | "tel" | "text" | "url" if listed => "combobox",
         _ => "textbox",
     })
+}
+
+/// The role a part of a `<table>` has while its table is one
+/// ([`context::table_part`]).
+fn table_part(doc: &Document, id: NodeId, el: &Element) -> &'static str {
+    match el.name.as_str() {
+        "tbody" => context::named_landmark(doc, el, "rowgroup"),
+        "td" => context::cell_role(doc, id, "cell", "gridcell"),
+        "th" => th_role(doc, id, el),
+        "tr" => "row",
+        _ => "rowgroup",
+    }
 }
 
 /// `listbox` or `combobox` by the select's mode — [`Element::list_box`], the

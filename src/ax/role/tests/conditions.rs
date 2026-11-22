@@ -103,11 +103,12 @@ fn cells_follow_the_ancestor_tables_role() {
         assert_eq!(r(&html), Some("gridcell"), "{grid}");
     }
     // The nearest table decides: a data table nested in a grid has cells, and
-    // a table the author made presentational hands the question outward.
+    // a table the author made presentational has none — it does not hand the
+    // question outward.
     let nested = "<table role=grid><tr><td><table><tr><th>h</th><td id=t>d</td></tr></table>";
     assert_eq!(r(nested), Some("cell"));
     let through = "<table role=grid><tr><td><table role=none><tr><td id=t>d</td></tr></table>";
-    assert_eq!(r(through), Some("gridcell"));
+    assert_eq!(r(through), Some("generic"));
     // Headers keep their axis roles inside a grid.
     let html = "<table role=grid><tr><th id=t scope=row>H</th><td>d</td></tr></table>";
     assert_eq!(r(html), Some("rowheader"));

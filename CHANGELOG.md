@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: a table or list the author gave another role takes its
+  parts' roles with it**, as in Chrome. Under `<table role=presentation>` (or
+  `none`, `group`, any role but `table`/`grid`/`treegrid`) a `<thead>`,
+  `<tr>`, `<td>` or `<th>` emits no node, and under `<ul role=none>` (any
+  role but `list`) neither does an `<li>`; their contents surface in place. A
+  part with its own `role` keeps it, and a nested `<table>` starts over.
+  [bl-2ea9]
 - **`--css` follows `@import`.** A stylesheet's `@import "x"` / `@import
   url(x)` rules (in a linked sheet or a `<style>` block, nested imports too)
   are fetched in the same budgeted stylesheet gather and cascade ahead of the
