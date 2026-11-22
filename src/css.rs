@@ -103,6 +103,20 @@ impl Display {
     }
 }
 
+impl Display {
+    /// The box an element generates, for a reader that may have no cascade:
+    /// the computed `display` where there is one, and where there is not the
+    /// tag's own — block for a [`crate::tags::is_block`] tag, inline for any
+    /// other.
+    pub fn of(styles: Option<&Styles>, id: NodeId, tag: &str) -> Self {
+        match styles {
+            Some(s) => s.display(id),
+            None if crate::tags::is_block(tag) => Display::Block,
+            None => Display::Inline,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ComputedStyle {
     /// Computed `display` keyword — the winning author/inline rule, else the

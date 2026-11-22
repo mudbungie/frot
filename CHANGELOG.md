@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: a `<p>` with no line of its own emits no `paragraph`**, as in
+  Chrome. That is an empty `<p>` (in every recipe), and under `--css` one
+  with any block-level child (`<p><span style="display:block">…`) or one that
+  is itself `display:inline` or `flex`; its contents surface in its place. A
+  `<p>` carrying `id`, `title`, `tabindex`, `contenteditable`, `role` or any
+  `aria-*` attribute keeps its node, as does a `role=paragraph` on another
+  element. [bl-5c70]
 - **`--css` and `querySelector` understand the sibling combinators `+` and
   `~`.** `h2 + a.self-link::before { content: "§" }` now paints its mark, and
   `document.querySelectorAll('dt ~ dd')` returns the siblings instead of

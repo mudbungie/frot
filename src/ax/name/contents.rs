@@ -56,7 +56,6 @@ mod walk;
 use crate::ax;
 use crate::css::{Display, Styles};
 use crate::dom::{Document, Element, NodeId, NodeKind};
-use crate::tags;
 use native::native_alternative;
 pub use native::svg_title;
 use walk::Walk;
@@ -168,15 +167,10 @@ fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, o
 }
 
 /// Whether `el`'s box separates its contents from the text either side: every
-/// box but a plain inline one, and the two line-break elements. The box is the
-/// cascade's `display` when there is one and the tag's own
-/// ([`tags::is_block`]) when there is not.
+/// box but a plain inline one ([`Display::of`]), and the two line-break
+/// elements.
 fn breaks(id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
-    matches!(el.name.as_str(), "br" | "wbr")
-        || match styles {
-            Some(s) => s.display(id) != Display::Inline,
-            None => tags::is_block(&el.name),
-        }
+    matches!(el.name.as_str(), "br" | "wbr") || Display::of(styles, id, &el.name) != Display::Inline
 }
 
 /// Space `text` off from the text either side of it: an alternative is a

@@ -9,6 +9,9 @@
 //! and `<noscript>` are skipped entirely, as are subtrees excluded by
 //! `aria-hidden`/`inert` ([`crate::ax::hidden`]).
 //!
+//! A `<p>` whose box holds no line — empty, or with a block-level child —
+//! contributes no node either ([`paragraph`]).
+//!
 //! ## Layout-table demotion
 //!
 //! Much HTML nests `<table>` purely for visual grid layout (Hacker News is a
@@ -38,6 +41,8 @@ use crate::ax;
 use crate::css::{Styles, Visibility};
 use crate::dom::{Document, Element, NodeId, NodeKind};
 use serde_json::{json, Value};
+
+mod paragraph;
 
 const SKIP_TAGS: &[&str] = &["script", "style", "template", "noscript"];
 
@@ -102,6 +107,7 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
     }
     match role {
         None | Some("generic") | Some("presentation") | Some("none") => children,
+        Some("paragraph") if paragraph::ignored(doc, id, el, styles) => children,
         Some(role_name) => {
             let name = ax::accessible_name(doc, id, styles);
             let mut obj = serde_json::Map::new();
@@ -163,3 +169,6 @@ mod hidden_tests;
 
 #[cfg(test)]
 mod oracle_tests;
+
+#[cfg(test)]
+mod paragraph_tests;

@@ -120,3 +120,16 @@ b" }
     // …and out through the view, where each glyph precedes its element's text.
     assert!(crate::views::text::text(&doc, Some(&s)).starts_with("\u{e609}Download—D"));
 }
+
+/// `Display::of`: the cascade's answer where there is one, the tag's own
+/// block-or-inline where there is not.
+#[test]
+fn the_box_of_an_element_needs_no_cascade() {
+    let doc = Document::parse("<div style='display:inline'>d</div><span>s</span>");
+    let styles = compute(&doc);
+    let div = doc.find_by_tag("div")[0];
+    let span = doc.find_by_tag("span")[0];
+    assert_eq!(Display::of(Some(&styles), div, "div"), Display::Inline);
+    assert_eq!(Display::of(None, div, "div"), Display::Block);
+    assert_eq!(Display::of(None, span, "span"), Display::Inline);
+}
