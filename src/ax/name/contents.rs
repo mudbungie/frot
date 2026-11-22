@@ -184,7 +184,7 @@ fn fence(out: &mut String, text: &str) {
 /// Whether the element is outside the accessible name: semantically excluded,
 /// or invisible. `visibility:hidden` counts — an invisible label is not a label
 /// — even though it leaves its box in place for geometry.
-fn hidden(id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
+pub fn hidden(id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
     ax::excluded(el)
         || styles.is_some_and(|s| {
             s.display_none(id) || s.visibility(id) == crate::css::Visibility::Hidden

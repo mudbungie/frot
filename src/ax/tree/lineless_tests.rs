@@ -1,4 +1,4 @@
-//! The lineless `<p>` ([`super::paragraph`]): every case is a Chrome 158
+//! The lineless `<p>` and `<caption>` ([`super::lineless`]): every case is a Chrome 158
 //! measurement (`bl-5c70`), the roles listed being the page's whole outline.
 
 use super::*;
@@ -129,4 +129,52 @@ fn the_rule_is_the_p_elements_alone() {
         outline(html, true),
         "heading blockquote list listitem emphasis"
     );
+}
+
+const ROWS: &str = "<tr><th>a</th><th>b</th></tr>";
+
+/// Chrome 158 (`bl-fe88`, `bl-dfc3`): a table `<caption>` has the same rule,
+/// and under a cascade it is the caption's *boxes* that decide.
+#[test]
+fn a_caption_with_no_line_has_no_node() {
+    for caption in [
+        "<caption></caption>",
+        "<caption> \n</caption>",
+        "<caption><!-- note --></caption>",
+        "<caption title=''></caption>",
+        "<caption><span style='display:none'>h</span></caption>",
+        "<caption><span style='display:block'>x</span></caption>",
+        "<caption style='display:inline'>x</caption>",
+    ] {
+        let html = format!("<table>{caption}{ROWS}</table>");
+        assert_eq!(
+            outline(&html, true),
+            "table row columnheader columnheader",
+            "{html}"
+        );
+    }
+    for caption in [
+        "<caption>words</caption>",
+        "<caption><span></span></caption>",
+        "<caption><img alt=''></caption>",
+        "<caption aria-label=CL></caption>",
+        "<caption title=CT></caption>",
+        "<caption id=x></caption>",
+        "<caption role=caption></caption>",
+        "<caption class=g></caption>",
+    ] {
+        let html =
+            format!("<style>.g::before{{content:'gen'}}</style><table>{caption}{ROWS}</table>");
+        assert!(
+            outline(&html, true).starts_with("table caption row"),
+            "{html}"
+        );
+    }
+    assert!(
+        outline(&format!("<table><caption></caption>{ROWS}</table>"), false)
+            .starts_with("table row")
+    );
+    // Only the table caption: the other two caption-role sources keep theirs.
+    let html = "<figure><figcaption></figcaption></figure><div role=caption></div>";
+    assert_eq!(outline(html, true), "figure caption caption");
 }

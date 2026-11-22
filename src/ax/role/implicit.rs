@@ -40,8 +40,8 @@
 //! - **`<select>`** — `listbox` or `combobox` by its mode (`dom/select.rs`).
 //!
 //! - **`<svg>` and its parts** — `super::svg`.
-//! - **`<caption>`** — no role when it is empty and unnamed
-//!   ([`context::table_caption`]).
+//! - **`<caption>`** — always a `caption` here; the one with no line in it is
+//!   left out by the tree, which has the cascade (`ax/tree/lineless.rs`).
 //!
 //! Tags mapped to a *fixed* role are the flat rows below; each was audited
 //! against the HTML-AAM and carries no condition.
@@ -75,8 +75,7 @@ pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
         "blockquote" => "blockquote",
         "body" | "div" | "span" => "generic",
         "button" | "summary" => "button",
-        "caption" => return context::table_caption(doc, id, el),
-        "figcaption" => "caption",
+        "caption" | "figcaption" => "caption",
         "code" => "code",
         "datalist" => "listbox",
         "dd" => "definition",
@@ -161,7 +160,7 @@ fn input_role(el: &Element) -> Option<&'static str> {
 /// ([`context::table_part`]).
 fn table_part(doc: &Document, id: NodeId, el: &Element) -> &'static str {
     match el.name.as_str() {
-        "tbody" => context::named_landmark(doc, el, "rowgroup"),
+        "tbody" => context::named_rowgroup(doc, el),
         "td" => context::cell_role(doc, id, "cell", "gridcell"),
         "th" => th_role(doc, id, el),
         "tr" => "row",

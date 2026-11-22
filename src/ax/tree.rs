@@ -10,7 +10,8 @@
 //! `aria-hidden`/`inert` ([`crate::ax::hidden`]).
 //!
 //! A `<p>` whose box holds no line — empty, or with a block-level child —
-//! contributes no node either ([`paragraph`]).
+//! contributes no node either, and nor does such a table `<caption>`
+//! ([`lineless`]).
 //!
 //! ## Layout-table demotion
 //!
@@ -25,12 +26,17 @@
 //! **none** of these author signals of a real data table:
 //!
 //! - a `<caption>` direct child,
-//! - a `<th>` inside it (not counting cells owned by a *nested* `<table>`),
-//! - a `summary` attribute,
+//! - a `summary` attribute that is not empty,
 //! - a `role` attribute (any explicit role signals author intent),
+//! - a `<th>` inside it (not counting cells owned by a *nested* `<table>`),
 //! - `aria-label` or `aria-labelledby`.
 //!
-//! The bias is deliberately conservative: any single signal preserves the
+//! The last two do not rescue a table of **one row holding one cell**:
+//! measured in Chrome 158 (`bl-dfc3`), `<table><tr><th>x</th></tr></table>`
+//! is a layout table — with `title`, `summary=""` or `aria-label` too — while
+//! a caption or a `summary=S` keeps even that one cell a table.
+//!
+//! The bias is otherwise conservative: any single signal preserves the
 //! full table structure, because losing real structure is worse than keeping
 //! some layout noise. The `<th>` scan stops at nested `<table>` boundaries so
 //! an inner data table's header cannot rescue an outer layout table. Table
@@ -42,7 +48,7 @@ use crate::css::{Styles, Visibility};
 use crate::dom::{Document, Element, NodeId, NodeKind};
 use serde_json::{json, Value};
 
-mod paragraph;
+mod lineless;
 
 const SKIP_TAGS: &[&str] = &["script", "style", "template", "noscript"];
 
@@ -107,7 +113,7 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
     }
     match role {
         None | Some("generic") | Some("presentation") | Some("none") => children,
-        Some("paragraph") if paragraph::ignored(doc, id, el, styles) => children,
+        Some("paragraph" | "caption") if lineless::ignored(doc, id, el, styles) => children,
         Some(role_name) => {
             let name = ax::accessible_name(doc, id, styles);
             let mut obj = serde_json::Map::new();
@@ -124,19 +130,22 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
 
 /// DOM-only layout-table test: `true` (demote to presentation) when a
 /// `<table>` carries none of the data-table author signals documented in the
-/// module header. Conservative — any single signal preserves structure.
+/// module header.
 fn is_layout_table(doc: &Document, id: NodeId, el: &Element) -> bool {
-    if el.attr("summary").is_some()
+    if el.attr("summary").is_some_and(|s| !s.is_empty())
         || el.attr("role").is_some()
-        || el.attr("aria-label").is_some()
-        || el.attr("aria-labelledby").is_some()
+        || has_caption_child(doc, id)
     {
         return false;
     }
-    if has_caption_child(doc, id) {
-        return false;
-    }
-    !has_header_cell(doc, id)
+    let count = |tags: &[&str]| {
+        let mut n = 0;
+        count_parts(doc, id, tags, &mut n);
+        n
+    };
+    let labelled = el.attr("aria-label").is_some() || el.attr("aria-labelledby").is_some();
+    let one_cell = count(&["tr"]) == 1 && count(&["td", "th"]) == 1;
+    one_cell || !(labelled || count(&["th"]) > 0)
 }
 
 /// Whether a direct child of `id` is a `<caption>` element.
@@ -147,18 +156,17 @@ fn has_caption_child(doc: &Document, id: NodeId) -> bool {
         .any(|&c| matches!(&doc.node(c).kind, NodeKind::Element(e) if e.name == "caption"))
 }
 
-/// Whether a `<th>` appears in the subtree, without descending into nested
+/// Count the `tags` elements in the subtree, without descending into nested
 /// `<table>` elements — an inner data table's header must not rescue an outer
-/// layout table.
-fn has_header_cell(doc: &Document, id: NodeId) -> bool {
-    doc.node(id)
-        .children
-        .iter()
-        .any(|&c| match &doc.node(c).kind {
-            NodeKind::Element(e) if e.name == "th" => true,
-            NodeKind::Element(e) if e.name == "table" => false,
-            _ => has_header_cell(doc, c),
-        })
+/// layout table, and its cells are not the outer table's.
+fn count_parts(doc: &Document, id: NodeId, tags: &[&str], n: &mut usize) {
+    for &c in &doc.node(id).children {
+        match &doc.node(c).kind {
+            NodeKind::Element(e) if tags.contains(&e.name.as_str()) => *n += 1,
+            NodeKind::Element(e) if e.name != "table" => count_parts(doc, c, tags, n),
+            _ => {}
+        }
+    }
 }
 
 #[cfg(test)]
@@ -171,4 +179,7 @@ mod hidden_tests;
 mod oracle_tests;
 
 #[cfg(test)]
-mod paragraph_tests;
+mod lineless_tests;
+
+#[cfg(test)]
+mod table_tests;

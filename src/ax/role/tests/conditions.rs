@@ -213,26 +213,35 @@ fn empty_alt_is_decorative_unless_something_else_names_it() {
     assert_eq!(r("<img id=t alt='' title='Logo'>"), Some("img"));
 }
 
-/// `bl-fe88`, Chrome 158: an empty, unnamed table caption has no node.
+/// Every caption source has the role, empty or not: the table caption with
+/// no line in it is left out by the tree (`ax/tree/lineless.rs`), not here.
 #[test]
-fn an_empty_unnamed_caption_has_no_role() {
-    for (caption, want) in [
-        ("<caption id=t></caption>", None),
-        ("<caption id=t> \n</caption>", None),
-        ("<caption id=t><!-- note --></caption>", None),
-        ("<caption id=t>words</caption>", Some("caption")),
-        ("<caption id=t><span></span></caption>", Some("caption")),
-        ("<caption id=t><img alt=''></caption>", Some("caption")),
-        ("<caption id=t aria-label=CL></caption>", Some("caption")),
-        ("<caption id=t title=CT></caption>", Some("caption")),
+fn a_caption_is_a_caption() {
+    for html in [
+        "<table><caption id=t></caption><tr><th>a</th><td>b</td></tr></table>",
+        "<table><caption id=t>words</caption><tr><th>a</th><td>b</td></tr></table>",
+        "<figure><figcaption id=t></figcaption></figure>",
+        "<div id=t role=caption></div>",
     ] {
-        let html = format!("<table>{caption}<tr><th>a</th><td>b</td></tr></table>");
-        assert_eq!(r(&html), want, "{caption}");
+        assert_eq!(r(html), Some("caption"), "{html}");
     }
-    // Only the table caption: the other two caption-role sources keep theirs.
+}
+
+/// Chrome 158 (`bl-dfc3`): a `title` attribute, even an empty one, lets a
+/// landmark stand; an empty `aria-label` does not, and a `<tbody>` or an
+/// `<img alt="">` wants a real name.
+#[test]
+fn an_empty_title_still_claims_a_landmark() {
+    assert_eq!(r("<div id=t role=form title=''>x</div>"), Some("form"));
+    assert_eq!(r("<div id=t role=region title=''>x</div>"), Some("region"));
+    assert_eq!(r("<section id=t title=''>x</section>"), Some("region"));
+    let nested = "<article><aside id=t title=''>x</aside></article>";
+    assert_eq!(r(nested), Some("complementary"));
     assert_eq!(
-        r("<figure><figcaption id=t></figcaption></figure>"),
-        Some("caption")
+        r("<div id=t role=form aria-label=''>x</div>"),
+        Some("generic")
     );
-    assert_eq!(r("<div id=t role=caption></div>"), Some("caption"));
+    let tbody = "<table><tbody id=t title=''><tr><th>a</th><td>b</td></tr></table>";
+    assert_eq!(r(tbody), Some("generic"));
+    assert_eq!(r("<img id=t alt='' title=''>"), Some("presentation"));
 }

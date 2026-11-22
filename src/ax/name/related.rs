@@ -48,6 +48,11 @@ pub fn fieldset_legend_text(
     fieldset_id: NodeId,
     styles: Option<&Styles>,
 ) -> Option<String> {
+    legend(doc, fieldset_id).map(|id| contents::element_name(doc, id, styles, &[]))
+}
+
+/// The `<legend>` of a `<fieldset>`: the first one inside it.
+fn legend(doc: &Document, fieldset_id: NodeId) -> Option<NodeId> {
     let mut found: Option<NodeId> = None;
     doc.walk(Some(fieldset_id), &mut |ev, e| {
         if found.is_some() {
@@ -59,24 +64,47 @@ pub fn fieldset_legend_text(
             }
         }
     });
-    found.map(|id| contents::element_name(doc, id, styles, &[]))
+    found
 }
 
 /// HTML-AAM: a `<table>` is named by its first `<caption>` child. Unlike a
 /// `<legend>`, the caption is read as a *descendant* — measured in Chrome 156,
 /// `<caption aria-label=A>t</caption>` names the table "A" but
-/// `<caption title=T></caption>` names it nothing, and a caption CSS hides
-/// names nothing either.
+/// `<caption title=T></caption>` names it nothing.
 pub fn table_caption_text(
     doc: &Document,
     table: NodeId,
     styles: Option<&Styles>,
 ) -> Option<String> {
-    let caption = doc
-        .node(table)
-        .children
-        .iter()
-        .copied()
-        .find(|&c| matches!(&doc.node(c).kind, NodeKind::Element(e) if e.name == "caption"))?;
-    Some(contents::descendant_name(doc, caption, styles))
+    caption(doc, table, styles).map(|c| contents::descendant_name(doc, c, styles))
 }
+
+/// The `<caption>` that names a `<table>`: its first `<caption>` child that
+/// is not hidden. Measured in Chrome 158 (`bl-dfc3`): a caption that is
+/// `display:none`, `visibility:hidden`, `hidden` or `aria-hidden` is no
+/// caption — the next one names the table (`<caption hidden></caption>
+/// <caption>second</caption>` is "second"), and with none left `summary` and
+/// `title` do.
+fn caption(doc: &Document, table: NodeId, styles: Option<&Styles>) -> Option<NodeId> {
+    let shown = |&c: &NodeId| {
+        matches!(&doc.node(c).kind,
+            NodeKind::Element(e) if e.name == "caption" && !contents::hidden(c, e, styles))
+    };
+    doc.node(table).children.iter().copied().find(shown)
+}
+
+/// Whether `el` has the element that is its **whole** native name, so that
+/// `title` is never consulted. Measured in Chrome 158 (`bl-dfc3`):
+/// `<table title=T><caption></caption>` and `<fieldset title=T><legend>
+/// </legend>` are both named "". For a table that is a caption that is not
+/// hidden ([`caption`]); for a fieldset any `<legend>`, hidden or not.
+pub fn names_it_alone(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
+    match el.name.as_str() {
+        "table" => caption(doc, id, styles).is_some(),
+        "fieldset" => legend(doc, id).is_some(),
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests;

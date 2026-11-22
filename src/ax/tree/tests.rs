@@ -268,13 +268,13 @@ fn table_with_role_attr_preserves_structure() {
 
 #[test]
 fn table_with_aria_label_preserves_structure() {
-    let v = tree("<table aria-label='Prices'><tr><td>D</td></tr></table>");
+    let v = tree("<table aria-label='Prices'><tr><td>D</td><td>E</td></tr></table>");
     assert!(find_first(&v, "table").is_some());
 }
 
 #[test]
 fn table_with_aria_labelledby_preserves_structure() {
-    let v = tree("<table aria-labelledby='h'><tr><td>D</td></tr></table>");
+    let v = tree("<table aria-labelledby='h'><tr><td>D</td><td>E</td></tr></table>");
     assert!(find_first(&v, "table").is_some());
 }
 

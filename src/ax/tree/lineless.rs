@@ -1,4 +1,5 @@
-//! The paragraph Chrome leaves out: a `<p>` whose box holds no line.
+//! The block Chrome leaves out: a `<p>` or a table `<caption>` whose box
+//! holds no line.
 //!
 //! Blink exposes a `<p>` as `paragraph` only when its box is a block
 //! container *with a line in it*. Measured in Chrome 158
@@ -23,9 +24,19 @@
 //! its marker.
 //!
 //! The author can hold the node in place: an explicit `role=paragraph`, or
-//! any of the attributes in [`held`], keeps a `<p>` that has no line. Only
-//! `<p>` has this rule — an empty heading, blockquote, list item or `<em>`
-//! keeps its node — and a `<div role=paragraph>` is never dropped.
+//! any of the attributes in [`held`], keeps a `<p>` that has no line. An
+//! empty heading, blockquote, list item or `<em>` keeps its node, and a
+//! `<div role=paragraph>` is never dropped.
+//!
+//! A table `<caption>` is the one other element with the rule, case for case
+//! (`bl-dfc3`, which moved it here from the role resolver so that it reads
+//! the cascade): `<caption></caption>`, `<caption><span style="display:none">
+//! h</span></caption>`, `<caption><span style="display:block">x</span>
+//! </caption>` and `<caption style="display:inline">x</caption>` have no
+//! node, while `<caption><span></span></caption>`, a caption whose only
+//! content is `::before` text, and an empty `<caption id=x>` keep theirs. A
+//! `<figcaption>` and a `role=caption` do not have it. The table is still
+//! named from a caption that has no node.
 //!
 //! Without a cascade the boxes are the tags' own ([`Display::of`]), so the
 //! empty `<p>` goes in every recipe.
@@ -34,10 +45,10 @@ use super::SKIP_TAGS;
 use crate::css::{Display, Styles};
 use crate::dom::{Attr, Document, Element, NodeId, NodeKind};
 
-/// Whether `el`, whose role is `paragraph`, is a `<p>` Chrome leaves out of
-/// the tree (module docs).
+/// Whether `el` is a `<p>` or `<caption>` Chrome leaves out of the tree
+/// (module docs).
 pub fn ignored(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
-    if el.name != "p" || el.attrs.iter().any(held) {
+    if !matches!(el.name.as_str(), "p" | "caption") || el.attrs.iter().any(held) {
         return false;
     }
     match Display::of(styles, id, &el.name) {
@@ -47,7 +58,7 @@ pub fn ignored(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>
     }
 }
 
-/// The attributes that keep a lineless `<p>` in the tree: `role` (an author
+/// The attributes that keep a lineless element in the tree: `role` (an author
 /// role is the author's node), `id` — even an empty one — any `aria-*`
 /// attribute (`aria-label=""` included), `tabindex`, `contenteditable`, and a
 /// `title` that is not empty.

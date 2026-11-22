@@ -51,6 +51,17 @@
 <table><caption aria-label="labelled caption"></caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
 <table summary="shut out by an empty caption"><caption></caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
 <figure><figcaption></figcaption><p>figure body</p></figure>
+<table title="shut out by an empty caption too"><caption></caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table title="names it past a hidden caption"><caption hidden>hidden caption</caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table><caption title="a title does not name a caption"></caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table><caption><span style="display:none">hidden content</span></caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table><caption><span style="display:block">a block in a caption</span></caption><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>
+<fieldset title="shut out by a legend"><legend></legend><input name="n10"></fieldset>
+
+<h2>A table of one cell is layout</h2>
+<table><tr><th>one header cell</th></tr></table>
+<table summary="" title="an empty summary is no signal"><tr><th>one header cell</th></tr></table>
+<table summary="a summary keeps one cell a table"><tr><td>one cell</td></tr></table>
 
 <h2>An unnamed form or region role does not stand</h2>
 <div role="form"><input name="n8"></div>
@@ -58,6 +69,7 @@
 <div role="form" aria-label="named form"><input name="n9"></div>
 <div role="region" aria-label="named region"><p>named</p></div>
 <div role="region" title="titled region"><p>titled</p></div>
+<div role="form" title=""><p>an empty title still claims the landmark</p></div>
 <div role="form button">second token</div>
 <div role="foo button">skips unknown</div>
 <nav role="region"><p>still navigation</p></nav>

@@ -63,16 +63,29 @@ pub fn accessible_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> O
             return Some(t);
         }
     }
-    trimmed_attr(el, "title").filter(|_| title_names(doc, id))
+    trimmed_attr(el, "title").filter(|_| title_names(doc, id, el, styles))
 }
 
 /// Whether `title` is a name source for the node at all. It is not for a
 /// `term`: measured in Chrome 158 (`bl-0794`), `<dt title=T></dt>`,
 /// `<dfn title=T></dfn>` and `<span role=term title=T></span>` are all
 /// `term ""`, while an empty heading, link, button, tab, grid row or cell
-/// with a `title` is named by it. `aria-label` still names a term.
-fn title_names(doc: &Document, id: NodeId) -> bool {
-    crate::ax::role(doc, id) != Some("term")
+/// with a `title` is named by it. `aria-label` still names a term. Nor is it
+/// for a `caption` — `<caption title=T></caption>` and `<div role=caption
+/// title=T>` are `caption ""`, though `<figcaption title=T>` is "T" — or for
+/// a table or fieldset whose caption or legend is its whole name
+/// ([`related::names_it_alone`]; both `bl-dfc3`).
+fn title_names(
+    doc: &Document,
+    id: NodeId,
+    el: &crate::dom::Element,
+    styles: Option<&Styles>,
+) -> bool {
+    match crate::ax::role(doc, id) {
+        Some("term") => false,
+        Some("caption") => el.name == "figcaption",
+        _ => !related::names_it_alone(doc, id, el, styles),
+    }
 }
 
 fn trimmed_attr(el: &crate::dom::Element, name: &str) -> Option<String> {
@@ -124,7 +137,8 @@ fn native_name(
 /// A `<table>`'s `summary` attribute: its name when it has no `<caption>`
 /// child. Measured in Chrome 158 (`bl-2b09`): `aria-label` and a caption
 /// outrank it, it outranks `title`, and a caption that is present but empty
-/// still shuts it out (`<table summary=S><caption></caption>` is named "").
+/// still shuts both out (`<table summary=S title=T><caption></caption>` is
+/// named "").
 /// It is the `<table>` element's, whatever its role — `role=grid` reads it,
 /// a `<div role=table summary=S>` does not.
 fn summary(el: &crate::dom::Element) -> Option<String> {

@@ -52,11 +52,30 @@ pub fn scoped_aside(doc: &Document, id: NodeId, el: &Element) -> &'static str {
 }
 
 /// `<section>`: the landmark when named, `generic` when not — an unnamed
-/// landmark is noise a screen reader cannot navigate to. `<tbody>` is a
-/// `rowgroup` on the same terms: unnamed, it groups nothing a `<table>` did not.
+/// landmark is noise a screen reader cannot navigate to.
 pub fn named_landmark(doc: &Document, el: &Element, landmark: &'static str) -> &'static str {
-    if author_name(doc, el).is_some() {
+    if claims_landmark(doc, el) {
         landmark
+    } else {
+        "generic"
+    }
+}
+
+/// Whether the author named `el` as far as a landmark role asks: an author
+/// name, or a `title` attribute at all. Measured in Chrome 158 (`bl-dfc3`):
+/// `<div role=form title="">`, `<div role=region title="">`,
+/// `<section title="">` and a nested `<aside title="">` keep their landmarks
+/// with the name "", while `aria-label=""` and an `aria-labelledby` that
+/// resolves to nothing do not.
+pub fn claims_landmark(doc: &Document, el: &Element) -> bool {
+    author_name(doc, el).is_some() || el.attr("title").is_some()
+}
+
+/// `<tbody>`: a `rowgroup` only when the author named it — unnamed, it groups
+/// nothing a `<table>` did not. An empty `title` is no name here.
+pub fn named_rowgroup(doc: &Document, el: &Element) -> &'static str {
+    if author_name(doc, el).is_some() {
+        "rowgroup"
     } else {
         "generic"
     }
@@ -68,28 +87,6 @@ pub fn named_landmark(doc: &Document, el: &Element, landmark: &'static str) -> &
 /// from its contents — so this *is* the accessible name.
 pub fn author_name(doc: &Document, el: &Element) -> Option<String> {
     name::author_name(doc, el, None)
-}
-
-/// `<caption>`: a `caption`, unless it is empty — no element child, no text
-/// but whitespace — and the author gave it no name, in which case it has no
-/// role and no node. Measured in Chrome 158 (`bl-fe88`): `<caption></caption>`
-/// and `<caption> </caption>` are absent from the tree, while
-/// `<caption><span></span></caption>`, `<caption aria-label=L></caption>` and
-/// `<caption title=T></caption>` are `caption` nodes. It is the table
-/// caption's alone: an empty `<figcaption>` and an empty `role=caption` keep
-/// their nodes. The resolver takes no cascade, so a caption whose only content
-/// is CSS-hidden or CSS-generated is judged by its markup.
-pub fn table_caption(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
-    let empty = doc
-        .node(id)
-        .children
-        .iter()
-        .all(|&c| match &doc.node(c).kind {
-            NodeKind::Element(_) => false,
-            NodeKind::Text(t) => t.trim().is_empty(),
-            _ => true,
-        });
-    (!empty || author_name(doc, el).is_some()).then_some("caption")
 }
 
 /// `<li>`: a list item only inside a list — a `<ul>`, `<ol>` or `<menu>` that

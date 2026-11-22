@@ -18,6 +18,8 @@ pub const BLOCK_TAGS: &[&str] = &[
     "aside",
     "blockquote",
     "body",
+    // `display: table-caption`: a block container on a line of its own.
+    "caption",
     "dd",
     "dialog",
     "div",

@@ -44,13 +44,14 @@ pub fn role(doc: &Document, id: NodeId) -> Option<&'static str> {
 /// - it is a [`NAMED_ONLY`] landmark on an element the author did not name.
 ///   `<div role=region>` is generic, `<div role="form button">` is a `button`,
 ///   and `<nav role=region>` is still a `navigation`. With `aria-label`,
-///   `aria-labelledby` or `title` the landmark stands. The element `<form>`
+///   `aria-labelledby` or a `title` attribute — even an empty one
+///   ([`context::claims_landmark`]) — the landmark stands. The element `<form>`
 ///   needs no name — that is its implicit role, not this rule.
 fn explicit(doc: &Document, el: &Element) -> Option<&'static str> {
     el.attr("role")?
         .split_whitespace()
         .filter_map(|token| KNOWN_ROLES.iter().find(|known| **known == token).copied())
-        .find(|role| !NAMED_ONLY.contains(role) || context::author_name(doc, el).is_some())
+        .find(|role| !NAMED_ONLY.contains(role) || context::claims_landmark(doc, el))
 }
 
 /// Landmark roles an author may claim only for a named element.

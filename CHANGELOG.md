@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: table and caption edges follow Chrome.** [bl-dfc3]
+  - A table of one row holding one cell is a layout table (no `table`, `row`
+    or cell node) unless it has a `<caption>`, a non-empty `summary` or a
+    `role`; an empty `summary=""` no longer marks a data table.
+  - A `<caption>` or `<legend>` that is present is the whole native name:
+    `<table title=T><caption></caption>` and `<fieldset title=T><legend>
+    </legend>` have no name. A hidden caption is skipped, so the next
+    caption, `summary` or `title` names the table.
+  - `title` does not name a `<caption>` or a `role=caption` (it still names a
+    `<figcaption>`).
+  - Whether an empty `<caption>` emits a node now reads the cascade: content
+    that is all `display:none` does not keep it, `::before` text does, and a
+    caption whose only content is a block-level child, or that is itself
+    `display:inline`, has none.
+  - `role=form`, `role=region`, `<section>` and a nested `<aside>` keep their
+    landmark role when they carry a `title` attribute, even an empty one.
 - **`--js`: DOM nodes have the interfaces a browser gives them.** An element
   is an `HTMLDivElement` / `HTMLInputElement` / … (all 71 HTML interfaces, by
   tag) under `HTMLElement`, `Element`, `Node` and `EventTarget`; a text node is
