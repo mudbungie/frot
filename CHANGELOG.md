@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`<details>` and `<summary>` are block-level**, as in every browser. In
+  `--out text` each starts and ends a line, so a summary no longer fuses
+  with the text beside its `<details>` (`head<details><summary>four…` was
+  `headfour`); in `--out ax` their contents are spaced off inside a name
+  from contents; and layout gives them block boxes. [bl-788d]
 - **`--js`: a `DocumentFragment` is a real node.** It inherits `Node`, so
   `querySelector`, `getElementById`, `cloneNode`, `contains` and `textContent`
   work on it (they were absent), a node appended to it has it as `parentNode`,

@@ -48,22 +48,11 @@ const HIDDEN_OPTION: Why = Why::Defect("bl-240d");
 const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
 /// An absolutely positioned box fuses with its neighbours.
 const ABSOLUTE: Why = Why::Defect("bl-346e");
-/// `<details>` / `<summary>` do not break the line in `text`.
-const DETAILS_BREAK: Why = Why::Defect("bl-788d");
 
 pub const LEDGER: &[Row] = &[
     // Open divergences, one ball per root cause.
     row("select", "text", "- h2", HIDDEN_OPTION),
     // text
-    row("disclosure", "text", "- oneA", DETAILS_BREAK),
-    row("disclosure", "text", "- twoB", DETAILS_BREAK),
-    row("disclosure", "text", "- three", DETAILS_BREAK),
-    row("disclosure", "text", "- tail", DETAILS_BREAK),
-    row("disclosure", "text", "- head", DETAILS_BREAK),
-    row("disclosure", "text", "- four", DETAILS_BREAK),
-    row("disclosure", "text", "+ oneAtwoB", DETAILS_BREAK),
-    row("disclosure", "text", "+ threetail", DETAILS_BREAK),
-    row("disclosure", "text", "+ headfour", DETAILS_BREAK),
     row("reach", "text", "- LOUD", TEXT_TRANSFORM),
     row("reach", "text", "- WORDS", TEXT_TRANSFORM),
     row("reach", "text", "+ loud", TEXT_TRANSFORM),

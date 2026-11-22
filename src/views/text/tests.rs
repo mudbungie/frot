@@ -260,3 +260,15 @@ fn media_fallback_never_reaches_text() {
         assert_eq!(t(html), "", "{html}");
     }
 }
+
+/// `bl-788d`, Chrome 158: `<details>` and `<summary>` are block-level, so a
+/// summary never fuses with the text beside its `<details>`.
+#[test]
+fn details_and_summary_break_the_line() {
+    let closed = "<div>head<details><summary>four</summary>x</details>tail</div>";
+    assert_eq!(text(&Document::parse(closed), None), "head\nfour\ntail");
+    let open = "<div>h<details open><summary>five</summary>body</details>t</div>";
+    assert_eq!(text(&Document::parse(open), None), "h\nfive\nbody\nt");
+    let orphan = "<div>h<summary>orphan</summary>t</div>";
+    assert_eq!(text(&Document::parse(orphan), None), "h\norphan\nt");
+}

@@ -21,6 +21,9 @@ pub const BLOCK_TAGS: &[&str] = &[
     // `display: table-caption`: a block container on a line of its own.
     "caption",
     "dd",
+    // `<details>` computes `block`; its `<summary>` `list-item` inside it
+    // and `block` anywhere else (Chrome 158, `bl-788d`) — block-level both.
+    "details",
     "dialog",
     "div",
     "dl",
@@ -46,6 +49,7 @@ pub const BLOCK_TAGS: &[&str] = &[
     "p",
     "pre",
     "section",
+    "summary",
     "table",
     "tr",
     "td",
