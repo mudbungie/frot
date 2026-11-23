@@ -67,7 +67,7 @@
   // The tag-specific members sit in this relative order on every HTML<Tag>
   // interface but the three named above.
   var TAGGED = 'getContext toDataURL checked disabled src rel relList href type defaultValue selected ' +
-    'value width height naturalWidth naturalHeight complete currentSrc';
+    'value width height contentDocument contentWindow naturalWidth naturalHeight complete currentSrc';
   Object.getOwnPropertyNames(g).forEach(function (name) {
     if (!ORDER[name] && !/^HTML.+Element$/.test(name)) return;
     var proto = g[name].prototype;

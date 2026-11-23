@@ -138,7 +138,8 @@
     },
   });
   // A top-level document has no ancestors, so the list is empty — the honest
-  // value, not a stand-in: frot has one arena and no frames (js.md §11).
+  // value. A frame's would name its parent's origin; frot's leave it empty, a
+  // declared residual (js.md §14.4).
   var origins = Object.create(DOMStringList.prototype);
   slots(origins).list = [];
 

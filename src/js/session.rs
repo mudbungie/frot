@@ -125,9 +125,7 @@ impl Session {
             &env.url,
             engine.net(),
         )));
-        // The shared cookie jar (bl-6dad): the same jar the transport writes
-        // `Set-Cookie` into, so `document.cookie` at `env.url` reads it and a JS
-        // write feeds a later same-origin subfetch.
+        // The transport's one cookie jar (bl-6dad), read and written by JS too.
         let cookie = fetch.cookie_jar();
         let current: syscall::CurrentScript = Rc::new(std::cell::Cell::new(None));
         // The ES-module resolver/loader (js.md §4.1/§6) rides the same §6 cache as
@@ -147,6 +145,8 @@ impl Session {
                 clock: engine.clock(),
                 probe,
                 current: current.clone(),
+                location: page_url.clone(),
+                realms: engine.realms(),
             },
         );
         Session {

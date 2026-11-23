@@ -925,6 +925,14 @@ target now ends at `rounds:0`, one navigation.)*
 added: the one code change beyond the status rule is a general EventTarget
 correction.
 
+> **Update 2026-11-22 (`bl-54ac`).** Steps 2 and 4 are built: an iframe now
+> has a real window (`js.md` §14), and the script gets past them, POSTs its
+> first answer and evaluates the reply. It then stops at a new wall — the next
+> stage is a `<script src>` it inserts from a timer, which frot's script phase
+> has already closed to (`js.md` §4 rule 4, `bl-a86b`). With that one rule
+> relaxed in a throwaway build, the challenge **passed** (2 of 3 runs; the
+> third a 429). Full trace: `js.md` §14.5.
+
 ### 11.6 The undeclared 200 on Amazon, captured (`bl-eed9`, 2026-11-20)
 
 Captured with a throwaway build that saves each navigation's response, from

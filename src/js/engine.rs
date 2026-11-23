@@ -18,7 +18,9 @@ use rquickjs::{CatchResultExt, Coerced, Context, Ctx, FromJs, Runtime, Value};
 
 mod clock;
 mod module;
+mod realm;
 pub use clock::{Clock, Deadline, NetBudget, EXEC_CPU_MS, NET_BUDGET_MS};
+pub use realm::Realms;
 
 /// Engine heap cap. `set_memory_limit` is only honoured on the default C
 /// allocator, so `js::engine` never enables rquickjs's `allocator` feature.
@@ -51,6 +53,7 @@ pub struct Engine {
     mem_limit: usize,
     tripped: Arc<AtomicBool>,
     rejections: Rc<Cell<i64>>,
+    realms: Realms,
 }
 
 impl Engine {
@@ -88,6 +91,7 @@ impl Engine {
             },
         )));
         let ctx = Context::full(&rt).expect("quickjs context");
+        let realms = Realms::new(rt.weak(), mem_limit);
         Self {
             rt,
             ctx,
@@ -96,6 +100,7 @@ impl Engine {
             mem_limit,
             tripped,
             rejections,
+            realms,
         }
     }
 
@@ -117,6 +122,12 @@ impl Engine {
     /// (`js::syscall`). rquickjs types stay inside `src/js/` (js.md §1).
     pub fn context(&self) -> &Context {
         &self.ctx
+    }
+
+    /// The frame realms this engine owns (js.md §14) — handed to the syscall
+    /// that opens an iframe's window, closed when the engine drops.
+    pub fn realms(&self) -> Realms {
+        self.realms.clone()
     }
 
     /// Install the ES-module resolver/loader (js.md §4.1/§6) on the runtime — the
@@ -241,6 +252,14 @@ fn coerce_string<'js>(ctx: &Ctx<'js>, v: Value<'js>) -> String {
     Coerced::<String>::from_js(ctx, v)
         .map(|c| c.0)
         .unwrap_or_default()
+}
+
+/// Frame contexts close before the runtime does (`engine::realm`): the list is
+/// reachable from syscall closures inside the runtime, so nothing else would.
+impl Drop for Engine {
+    fn drop(&mut self) {
+        self.realms.close_all();
+    }
 }
 
 impl Default for Engine {

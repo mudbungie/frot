@@ -232,6 +232,10 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/audio.js"),
     "\n",
+    // Iframe windows (bl-54ac, js.md §14): after loop.js, whose agent state it
+    // hands every window it opens, and dom.js/elem.js (HTMLIFrameElement).
+    include_str!("prelude/frame.js"),
+    "\n",
     // nativebrand.js LAST: sweeps the whole existing web-API surface into the
     // brand registry so no function's toString discloses prelude source (§8).
     include_str!("prelude/nativebrand.js"),

@@ -51,7 +51,7 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
     bind!(ctx, g, "__frot_now", move || {
         clock.elapsed_nanos() as f64 / 1_000_000.0
     });
-    let url = host.env.url.clone();
+    let url = host.location.clone();
     bind!(
         ctx,
         g,

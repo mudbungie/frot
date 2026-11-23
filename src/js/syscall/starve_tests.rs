@@ -26,11 +26,11 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-fn engine(mem_limit: usize) -> Engine {
+pub(super) fn engine(mem_limit: usize) -> Engine {
     Engine::with_bounds(mem_limit, Deadline::compute(), NetBudget::network())
 }
 
-fn host(engine: &Engine, probe: Option<ProbeLog>) -> Host {
+pub(super) fn host(engine: &Engine, probe: Option<ProbeLog>) -> Host {
     let session = FetchSession::new(Vec::new());
     let cookie = session.cookie_jar();
     Host {
@@ -52,6 +52,8 @@ fn host(engine: &Engine, probe: Option<ProbeLog>) -> Host {
         clock: engine.clock(),
         probe,
         current: Rc::new(std::cell::Cell::new(None)),
+        location: "https://example.com/".into(),
+        realms: engine.realms(),
     }
 }
 

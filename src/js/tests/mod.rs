@@ -23,6 +23,7 @@ mod evloop;
 mod facade;
 mod filereader;
 mod fragment;
+mod frame;
 mod idle;
 mod image;
 mod iterator;

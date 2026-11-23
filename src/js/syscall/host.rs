@@ -11,7 +11,7 @@ use std::rc::Rc;
 use super::Messages;
 use crate::dom::{Document, NodeId};
 use crate::fetch::SharedJar;
-use crate::js::engine::Clock;
+use crate::js::engine::{Clock, Realms};
 use crate::js::geometry::SharedGeometry;
 use crate::js::probe::ProbeLog;
 use crate::js::subfetch::SharedSubfetch;
@@ -112,4 +112,12 @@ pub struct Host {
     /// The executing `<script>` (js.md §4.1), read back by the
     /// `__frot_current_script` syscall — see [`CurrentScript`].
     pub current: CurrentScript,
+    /// The document's own URL, as `location` reports it. The top document's is
+    /// `env.url`; an iframe's initial `about:blank` (js.md §14) has its own,
+    /// while its origin, cookies and base stay its creator's — which is
+    /// everything else in `env`.
+    pub location: String,
+    /// The frame realms the engine owns (js.md §14): a page reading
+    /// `contentWindow` opens one through the `__frot_open_frame` syscall.
+    pub realms: Realms,
 }

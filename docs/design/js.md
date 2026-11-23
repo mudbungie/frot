@@ -1249,6 +1249,11 @@ Two moves against today's `run.rs`:
 - **No persistence** across calls, of any kind (§7).
 - **No iframes.** Frame documents are not fetched or executed;
   `contentWindow`/`contentDocument` are `null`.
+  > **Superseded in part 2026-11-22 (`bl-54ac`, §14).** A connected iframe now
+  > has a window: a second realm on the one runtime with its own `about:blank`
+  > document, the full prelude, and the top window's event loop. What stands:
+  > no framed document is ever fetched (a `src` frame stays on its initial
+  > `about:blank`), `srcdoc` is not run, and the views show no frame content.
 - **No canvas *rasterisation*** (`bl-05e6`, §7). `getContext('2d')` is a coherent
   masquerade: a branded `CanvasRenderingContext2D` accepts the drawing API and
   folds each call into a fixed-`canvas_seed`-seeded digest, so `toDataURL()`
@@ -1466,3 +1471,137 @@ the falsifiable check on §1.
      not more time, is what buys the chunk-heavy case its latency back. (A
      transitive module-import *chain* remains serial — unknown until parsed —
      so a deep import graph can still exhaust the budget honestly.)
+
+## 14. Iframe windows (`bl-54ac`, 2026-11-22)
+
+*Supersedes, in part, the §11 bullet "No iframes" (Mark approved the design
+pass, 2026-11-22: "yes, definitely").* Cloudflare's managed challenge creates an
+`<iframe>`, takes its `contentWindow`, and calls that window's `eval`: it wants
+a second, pristine global. frot had none, so the challenge stopped there
+(`challenge.md` §11.5 step 4).
+
+### 14.1 What Firefox does (measured)
+
+Firefox 153.0esr, the identity.md §3.19 rig (tarball, headless, fresh profile,
+Marionette), the probe running as a page script in the page's own realm — not
+in Marionette's sandbox, whose X-ray wrappers would distort every cross-realm
+comparison. Page served over `http:` from a local server.
+
+| fact | value |
+|---|---|
+| `createElement('iframe')`, not inserted: `contentWindow`, `contentDocument` | `null`, `null` |
+| after `appendChild`, no `src` | a `[object Window]`; `f.contentWindow === f.contentWindow`; `f.contentDocument === w.document`; `w.document.defaultView === w` |
+| its realm | `w.Array !== Array`, `w.Object.prototype !== Object.prototype`, `[] instanceof w.Array` false, `w instanceof Window` false, `w instanceof w.Window` true, `new w.Function('return Array')() === w.Array` |
+| `w.eval` | runs in the frame: `w.eval('this') === w`; `w.eval('var zz=7')` sets `w.zz`, not the parent's |
+| links | `w.parent === window`, `w.top === window`, `w.frameElement === f`; the top's `parent === window`, `frameElement === null`, `frames === window`, `length` = its iframes, `window[i]` = the i-th one's window |
+| the initial document | `location.href` and `document.URL` `about:blank`, `readyState` `complete`, `<html><head></head><body></body></html>`, `compatMode` `BackCompat`, `characterSet` `UTF-8` |
+| shared with the parent | `navigator.userAgent`, `Date.now()` (equal), `document.cookie` (equal); `performance.timeOrigin` differs (the frame's is its creation, +24 ms here) |
+| `load` | an iframe with no `src` fires `load` **synchronously inside `appendChild`** |
+| an iframe with `src` (same-origin or cross-origin), read right after `appendChild` | **the initial `about:blank`**, accessible — the navigation is asynchronous; `load` fires later |
+| `srcdoc`, read right after `appendChild` | also the initial `about:blank`; later `about:srcdoc` with the srcdoc document, its scripts run, `load` fires, and `contentWindow` is still the same object (a WindowProxy) |
+| removed | `contentWindow` `null`; the old window's `parent` `null`, `closed` true, its `eval` still works; re-inserted, a **new** window |
+| a node created in the frame, appended to the parent | adopted (`ownerDocument` becomes the parent's document) |
+| a frame's `setTimeout` | its own function (`!== setTimeout`); the callback runs with `this === w` |
+| frame document under `innerHTML`, `open`/`write`/`close` | both work |
+
+### 14.2 The design, in the order it happens
+
+1. A script reads `contentWindow` (or `contentDocument`) of an `<iframe>`.
+   Disconnected: `null`. Connected and already opened: the same window.
+2. Otherwise the prelude (`frame.js`) asks the host to open one
+   (`__frot_open_frame`, `src/js/syscall/frame.rs`). The host opens a **second
+   context on the engine's one runtime** (`src/js/engine/realm.rs`). quickjs-ng
+   has exactly a browser agent's shape: many realms (`JSContext`) on one heap
+   and one job queue (`JSRuntime`). rquickjs's safe constructor locks the
+   runtime, which a syscall already holds, so this is the one place frot calls
+   `JS_NewContext` directly; the engine owns every context it opens and closes
+   them before the runtime is freed — a context reachable only from a closure
+   inside the runtime would be a cycle quickjs aborts on at teardown.
+3. The new realm gets **the same syscall table and the same prelude** as the
+   top window, bound to a document of its own: html5ever's empty-input
+   skeleton, which is byte-for-byte Firefox's initial frame document. A
+   pristine-but-bare global would fail exactly the scripts that want a frame:
+   fingerprinters take `navigator`, `Function.prototype.toString` and friends
+   from a fresh window to compare against the page's.
+4. What the frame inherits, it inherits by sharing, not copying — what a
+   same-origin `about:blank` shares in a browser: the origin and cookie jar
+   (`env`), the §6 network and its byte pool, the console and §10 error sinks,
+   the observable clock. Its own: document, geometry cache, current-script
+   cell, and `location` (`about:blank`).
+5. **One agent, one event loop.** The parent hands the new window its loop
+   state (`loop.js`'s `__frot_loop`). A frame's timers go into the one queue,
+   due on the one clock, and run with their own window as `this`; `Date.now`
+   is the agent's, `performance.now` counts from the window's own origin. So
+   the host still drives exactly one loop (§5) and nothing new needs driving.
+6. The parent sets the window's `parent`, `top` and `frameElement`, and caches
+   it on the element. `frames` is the window; `length` counts the document's
+   iframes — a query, never a tally.
+
+**Opened on first read, not at insertion.** A browser builds the window when
+the iframe is inserted; frot builds it when a script first asks. The two differ
+only in cost — a page with forty ad iframes nobody scripts pays for none of
+them — and in the synchronous `load` event, which frot does not fire (14.4).
+
+**A frame never navigates.** frot fetches no framed document (§6 and the
+escalation rule in `AGENTS.md`: it would widen what frot requests). An iframe
+with a `src` therefore stays on its initial `about:blank` forever — which is
+precisely what Firefox shows a script that reads it before the navigation
+completes (14.1). That is the smallest true thing; it is a browser state, not
+an invention.
+
+### 14.3 Bounds, statelessness, views
+
+- **Budgets.** Heap cap, compute interrupt and microtask queue are per
+  runtime, so a frame spends the run's one budget by construction. Opening a
+  frame is page work and is **charged**: its prelude evaluates inside the
+  armed compute window (~20 ms of CPU, release, measured 2026-11-22 — the
+  whole session's setup cost; the top window's install stays exempt, §5). A
+  budget trip mid-open stops the run like any other. The heap cap is lifted
+  only around the two pieces of quickjs that are not allocation-failure-safe
+  and are frot's fixed program, never page input: parsing the prelude
+  (bl-c385) and building the realm's intrinsics (`JS_NewContext` frees a
+  half-built context with a garbage GC header and the next collection aborts
+  the process — found by this ball's starvation sweep). Binding the table
+  stays capped and fails cleanly.
+- **Statelessness.** Every frame dies with the engine; nothing is global.
+- **Views.** Frame documents live in their own arenas and never enter the page
+  document, so `dom`/`text`/`ax`/`links`/`forms`/`bboxes` show nothing of
+  them — unchanged from before. A browser's AX tree does include same-origin
+  frame content; frot has none to include, since no framed document is
+  fetched, and a script-written frame body is a rendering of something the
+  user would see only inside a 300×150 box. Kept out until a page needs it.
+
+### 14.4 What this does not solve (declared residuals)
+
+- **No `load` event** for a frame — Firefox fires it synchronously on
+  insertion. A script that waits for an `about:blank` frame's `load` waits
+  forever.
+- **No navigation:** `src` is never fetched; `srcdoc` is never parsed or run
+  (`bl-7b86`); `location` writes in a frame are the usual counted no-op.
+- **Removal keeps the window.** Firefox closes it (`parent` null, `closed`
+  true) and a re-insertion gets a new one; frot answers `null` while the
+  iframe is out and the same window when it returns.
+- **No adoption across documents.** A node made in a frame and appended to
+  the parent throws (a `TypeError`); Firefox adopts it (`bl-2aaa`).
+- **`window[i]`** is not indexed (`bl-2aaa`); `length` and `frames` are.
+- A frame's `location.ancestorOrigins` is empty (Firefox: the parent's
+  origin), its `compatMode` reads `CSS1Compat` (Firefox: `BackCompat`), its
+  geometry is laid out at the top viewport's width, and a `PerformanceObserver`
+  inside a frame is never notified.
+- The measure instrument (`bl-bd4e`) watches the top window only.
+
+### 14.5 Measured on the target (2026-11-22)
+
+`frot https://stackoverflow.com/questions/1732348 --js --js-errors`: the
+Cloudflare script no longer throws (`js:{scripts:2, errors:0, settled:true}`).
+It now creates its iframes, evaluates code in them, POSTs its first answer
+(`/cdn-cgi/challenge-platform/…/fo/…`, 200, ~200 kB back), evaluates the reply,
+and inserts `<script src=…/scripts/precursor/…/main.js>` — **from a timer
+callback, after the script phase**, which §4.4 does not execute. Its UI then
+polls every 550 ms until the horizon. `needs:["human"]`, `rounds:1`,
+`passed:false`. In a throwaway build that runs scripts inserted during the
+event loop, main.js runs, POSTs once more, and the re-issued navigation
+returned the question page: `status:"ok"`, `http.status 200`,
+`challenge:{rounds:1, passed:true}` — 2 runs of 3, the third answered 429
+(rate-limited by the runs themselves). That wall is `bl-a86b`. The same trace
+found `window.postMessage` absent in every window (`bl-0af7`).

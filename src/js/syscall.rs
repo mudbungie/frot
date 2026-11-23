@@ -25,6 +25,7 @@ macro_rules! bind {
 mod cookie;
 mod crypto;
 mod env;
+mod frame;
 mod host;
 mod messages;
 mod net;
@@ -50,6 +51,7 @@ const GROUPS: &[Group] = &[
     cookie::install,
     crypto::install,
     subtle::install,
+    frame::install,
 ];
 
 /// Register the whole syscall table on `engine`'s realm, then evaluate the

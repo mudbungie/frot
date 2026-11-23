@@ -26,18 +26,35 @@
   // already in the reading — before/after a fetch differ by its duration, and a
   // synchronous/subfetch probe never sees perpetual zero.
   var PRECISION = JSON.parse(__frot_env_profile()).timerPrecisionUs / 1000;
-  var origin = Date.now();
-  var virtual = 0; // ms the virtual clock has jumped past real time (timer dues)
-  var ratchet = 0; // last observed value — the never-backward guard
+  // One agent, one loop (js.md §14): an iframe's window is handed its creator's
+  // loop state as `__frot_agent` and schedules into that one queue on that one
+  // clock; only the top window makes a new one. A window's own time origin is
+  // `base` on the agent's clock — 0 for the top — so performance.now() is
+  // per-window while Date.now() is the agent's, as in a browser.
+  var agent = g.__frot_agent;
+  delete g.__frot_agent;
+  var shared = agent || { timers: [], nextId: 1, virtual: 0, ratchet: 0, origin: Date.now() };
+  // virtual: ms the virtual clock has jumped past real time (timer dues);
+  // ratchet: the last observed value — the never-backward guard.
+  if (!agent)
+    shared.observe = function () {
+      var t = Math.floor((__frot_now() + shared.virtual) / PRECISION) * PRECISION;
+      if (t < shared.ratchet) t = shared.ratchet;
+      shared.ratchet = t;
+      return t;
+    };
+  var base = agent ? shared.observe() : 0;
+  var origin = shared.origin + base;
   function observe() {
-    var t = Math.floor((__frot_now() + virtual) / PRECISION) * PRECISION;
-    if (t < ratchet) t = ratchet;
-    ratchet = t;
-    return t;
+    return shared.observe() - base;
   }
   Date.now = function () {
-    return origin + observe();
+    return shared.origin + shared.observe();
   };
+  // frame.js hands `shared` to each window it opens; a frame's initial
+  // about:blank document is complete at birth (measured, js.md §14).
+  Object.defineProperty(g, '__frot_loop', { value: shared, configurable: true });
+  if (agent) g.__frot_slots(g.document).readyState = 'complete';
   // `performance` is a WebIDL interface, not an object literal: measured on
   // Firefox 153.0esr (identity.md §3.17) its instance owns nothing, its parent
   // is EventTarget, and its prototype lists the operations first — now, toJSON,
@@ -88,14 +105,14 @@
   }
 
   // --- Timer queue ----------------------------------------------------------
-  var timers = [];
-  var nextId = 1;
+  // Dues are on the agent's clock; each timer runs with its own window as `this`.
+  var timers = shared.timers;
   function schedule(cb, delay, args, interval) {
     if (typeof cb !== 'function') return 0;
     delay = +delay;
     delay = delay > 1 ? delay : 1;
-    var id = nextId++;
-    timers.push({ id: id, due: observe() + delay, cb: cb, args: args, interval: interval });
+    var id = shared.nextId++;
+    timers.push({ id: id, due: shared.observe() + delay, cb: cb, args: args, interval: interval, self: g });
     return id;
   }
   function clear(id) {
@@ -143,16 +160,15 @@
         timers[timers.length - 1].idle = handle;
       },
       cancel: function (handle) {
-        timers = timers.filter(function (t) {
-          return t.idle !== handle;
-        });
+        for (var i = timers.length - 1; i >= 0; i--) if (timers[i].idle === handle) timers.splice(i, 1);
       },
       // When the idle period that starts at `now` ends: 50 ms on, or sooner if a
-      // timer is due first.
+      // timer is due first. `now` is this window's time; dues are the agent's.
       until: function (now) {
+        var at = now + base;
         return timers.reduce(function (soonest, t) {
-          return Math.min(soonest, Math.max(now, t.due));
-        }, now + 50);
+          return Math.min(soonest, Math.max(at, t.due));
+        }, at + 50) - base;
       },
     },
   });
@@ -182,8 +198,8 @@
     // Jump the observable clock forward to at least the timer's due time — the
     // virtual offset (§5). Timers still fire immediately in host wall time; only
     // the *reading* jumps, so performance.now() >= the scheduled delay.
-    var c = observe();
-    if (t.due > c) virtual += t.due - c;
+    var c = shared.observe();
+    if (t.due > c) shared.virtual += t.due - c;
     if (t.interval > 0) {
       t.due += t.interval;
       if (t.due > HORIZON) timers.splice(best, 1);
@@ -191,7 +207,7 @@
       timers.splice(best, 1);
     }
     try {
-      t.cb.apply(g, t.args);
+      t.cb.apply(t.self, t.args);
       return 0;
     } catch (e) {
       return 1;
