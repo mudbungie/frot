@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.5](https://github.com/mudbungie/frot/compare/v0.0.4...v0.0.5) - 2026-11-23
+
+### Changes
+
+- state pseudo-classes read the DOM only — script-moved focus, property writes (.checked, .selected), showModal()/showPopover() are invisible; document.activeElement ignores autofocus [bl-bc6d]
+- generated-content leftovers after bl-082b — MathML containers, a broken img, object by load outcome [bl-aa2b]
+- display leftovers after bl-e3a0 — table-column content painted, inline list-item has no listitem, display:inherit dropped, stray table parts by adjacency, li outside a list [bl-9dec]
+- pseudo-classes still unsupported after bl-1508 — :indeterminate, :default, :valid/:invalid, :in-range/:out-of-range, :placeholder-shown, :open, :defined, :lang(), :dir(), :has(), :scope, media states [bl-2a85]
+- images under --js — stay pending forever (today), fail like a Firefox with images blocked, or actually send the GET (beacons) [bl-91a4]
+- name from contents reads descendants Chrome does not — container roles, range widgets, fieldset, input defaults, q by lang [bl-d94b]
+- crypto.subtle residual: the public-key algorithms (RSA*, ECDSA, ECDH, Ed25519, X25519) Firefox 153 has and frot rejects [bl-0cae]
+- SVG leftovers after bl-1c54 — [hidden] applied to SVG elements, display:none <g> still exposed in Chrome, svg <a> without href, links view lists a MathML <a href> [bl-b3db]
+- paragraph leftovers after bl-5c70 — cases the cascade cannot see (pseudo display, grid/table, UA display:none tags, onclick) [bl-50ec]
+- ruby, MathML, meter/progress and iframe diverge outside names — rp painted, fallback text in text, Chrome-only roles [bl-4991]
+- group leftovers after bl-0725 — custom and unknown elements, onclick keeps a span, display:list-item is a listitem, a table-cell div [bl-824c]
+- <img alt="" title=T> is named T; Chrome names it "" [bl-e88d]
+- roles Chrome gives and frot does not — address is group, dir is list [bl-c837]
+- window.innerHeight === outerHeight: frot has no browser chrome, and no real Firefox window looks like that [bl-9663]
+- iframe.contentWindow / contentDocument are absent — Cloudflare's managed challenge evaluates code in an iframe's window and stops there [bl-54ac]
+- honor a script-requested reload of the caller's own URL? Amazon's undeclared 200 is an Akamai interstitial a browser clears with one POST and a reload [bl-99b7]
+- role leftovers after bl-2ea9 — explicit role=row in a layout table, <li> under role=<unknown>, role=directory [bl-d61c]
+- document.createTreeWalker, TreeWalker and NodeFilter — a filtered pre-order walk over the arena, as Firefox 153 does it [bl-b8c0]
+- title names a <p>; Chrome gives paragraph "" [bl-84fc]
+- role=presentation/none on a table or list with aria-label is ignored by Chrome (the element keeps its native role); frot drops the node [bl-89a6]
+- DOMRect and DOMRectReadOnly are not constructable — new DOMRect() throws 'Illegal constructor.' [bl-e65f]
+- fidelity corpus: add the W3C Web Share Recommendation page (left out again by bl-8682) [bl-3248]
+- DOM leftovers after the interface chain: comment.data writes ignored; doctype nodeName is #doctype (Firefox: html); Promise()/Map() without new give the engine's message [bl-3d15]
+- a cookie set by a challenge page's subresource response earns the round though the script solved nothing (Cloudflare: rounds:1 every run) [bl-cc4c]
+- :target is unsupported — the selector engine is not given the URL fragment [bl-5852]
+- text-transform is not applied; Chrome's innerText and accessible names carry the transformed text [bl-e48d]
+- data-table signals Chrome reads and frot does not (thead/tfoot/colgroup, headers/scope/abbr, rules, border) — and aria-label, which Chrome does not [bl-7f3a]
+
 ## [0.0.4](https://github.com/mudbungie/frot/compare/v0.0.3...v0.0.4) - 2026-11-22
 
 ### Changes
