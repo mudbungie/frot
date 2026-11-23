@@ -135,13 +135,14 @@ fn the_author_can_hold_a_lineless_paragraph() {
         "tabindex=0",
         "contenteditable",
         "role=paragraph",
+        "role='foo paragraph'",
     ] {
         for body in ["", BLOCK] {
             let html = format!("<p {attr}>{body}</p>");
             assert_eq!(outline(&html, true), "paragraph", "{html}");
         }
     }
-    for attr in ["title=''", "class=c", "lang=en"] {
+    for attr in ["title=''", "class=c", "lang=en", "role=foo"] {
         let html = format!("<p {attr}></p>");
         assert_eq!(outline(&html, true), "", "{html}");
     }

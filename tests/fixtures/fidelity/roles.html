@@ -67,6 +67,10 @@
 <div role="foo" style="display:list-item">list-item with a role</div>
 <p style="display:list-item">list-item paragraph</p>
 <section style="display:list-item">list-item section</section>
+<h2>A role that is no role holds no paragraph</h2>
+<p role="foo"></p>
+<p role="foo paragraph"></p>
+<p role="foo"><span style="display:block">block in a foo paragraph</span></p>
 <h2>Custom elements, click handlers, table cells</h2>
 <x-el autofocus style="display:block"><a href="m.html">custom block</a></x-el>
 <x-el draggable="true" style="display:block"><a href="m.html">custom drag</a></x-el>

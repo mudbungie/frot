@@ -28,8 +28,9 @@
 //! style="display:block">`), and a `display:list-item` paragraph always has
 //! its marker.
 //!
-//! The author can hold the node in place: an explicit `role=paragraph`, or
-//! any of the attributes in [`held`], keeps a `<p>` that has no line. An
+//! The author can hold the node in place: an explicit `role=paragraph` (a
+//! `role` that is no role, `<p role=foo>`, does not: `bl-50ec`), or any of
+//! the attributes in [`held`], keeps a `<p>` that has no line. An
 //! empty heading, blockquote, list item or `<em>` keeps its node, and a
 //! `<div role=paragraph>` is never dropped.
 //!
@@ -65,19 +66,21 @@ pub fn kept(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>) -
         Display::Block | Display::InlineBlock | Display::TableCell => has_line(doc, id, styles),
         _ => false,
     };
-    el.attrs.iter().any(held) || (el.name != "span" && line())
+    let authored = || crate::ax::role::explicit(doc, id, el).is_some();
+    el.attrs.iter().any(held) || authored() || (el.name != "span" && line())
 }
 
-/// The attributes that keep a lineless element in the tree: `role` (an author
-/// role is the author's node), `id` — even an empty one — any `aria-*`
-/// attribute (`aria-label=""` included), `tabindex`, `contenteditable`, a
-/// `title` that is not empty, and a click handler — `onclick`, `onmousedown`
-/// or `onmouseup`, even an empty one, though no other `on*` (`bl-824c`:
-/// `<p onclick></p>` is `paragraph ""`, `<p onkeydown></p>` no node).
+/// The attributes that keep a lineless element in the tree — beside a usable
+/// `role`, which is the author's node ([`kept`]): `id` — even an empty one —
+/// any `aria-*` attribute (`aria-label=""` included), `tabindex`,
+/// `contenteditable`, a `title` that is not empty, and a click handler —
+/// `onclick`, `onmousedown` or `onmouseup`, even an empty one, though no other
+/// `on*` (`bl-824c`: `<p onclick></p>` is `paragraph ""`, `<p onkeydown></p>`
+/// no node).
 fn held(attr: &Attr) -> bool {
     matches!(
         attr.name.as_str(),
-        "role" | "id" | "tabindex" | "contenteditable" | "onclick" | "onmousedown" | "onmouseup"
+        "id" | "tabindex" | "contenteditable" | "onclick" | "onmousedown" | "onmouseup"
     ) || attr.name.starts_with("aria-")
         || (attr.name == "title" && !attr.value.is_empty())
 }
