@@ -67,6 +67,17 @@
 <div role="foo" style="display:list-item">list-item with a role</div>
 <p style="display:list-item">list-item paragraph</p>
 <section style="display:list-item">list-item section</section>
+<h2>Custom elements, click handlers, table cells</h2>
+<x-el autofocus style="display:block"><a href="m.html">custom block</a></x-el>
+<x-el draggable="true" style="display:block"><a href="m.html">custom drag</a></x-el>
+<x-el autofocus><a href="m.html">custom inline</a></x-el>
+<x-el style="display:list-item">custom list item</x-el>
+<p><span autofocus onclick="1"><a href="m.html">click span</a></span> <span autofocus onmouseup=""><a href="m.html">mouseup span</a></span>
+<span autofocus onkeydown="1"><a href="m.html">keydown span</a></span></p>
+<p onclick="1"></p>
+<p onkeydown="1"></p>
+<div autofocus style="display:table-cell"><a href="m.html">table-cell div</a></div>
+<div><div autofocus style="display:inline-block"><a href="m.html">inline-block div</a></div></div>
 <h2>Address and dir</h2>
 <address>an address</address>
 <address><a href="m.html">address link</a></address>

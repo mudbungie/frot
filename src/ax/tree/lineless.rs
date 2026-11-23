@@ -70,12 +70,14 @@ pub fn kept(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>) -
 
 /// The attributes that keep a lineless element in the tree: `role` (an author
 /// role is the author's node), `id` — even an empty one — any `aria-*`
-/// attribute (`aria-label=""` included), `tabindex`, `contenteditable`, and a
-/// `title` that is not empty.
+/// attribute (`aria-label=""` included), `tabindex`, `contenteditable`, a
+/// `title` that is not empty, and a click handler — `onclick`, `onmousedown`
+/// or `onmouseup`, even an empty one, though no other `on*` (`bl-824c`:
+/// `<p onclick></p>` is `paragraph ""`, `<p onkeydown></p>` no node).
 fn held(attr: &Attr) -> bool {
     matches!(
         attr.name.as_str(),
-        "role" | "id" | "tabindex" | "contenteditable"
+        "role" | "id" | "tabindex" | "contenteditable" | "onclick" | "onmousedown" | "onmouseup"
     ) || attr.name.starts_with("aria-")
         || (attr.name == "title" && !attr.value.is_empty())
 }

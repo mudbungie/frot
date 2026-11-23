@@ -28,7 +28,8 @@ use crate::css::{Display, Styles};
 use crate::dom::{Document, Element, NodeId};
 
 /// The elements measured to take the rule: those with no role and no
-/// handling of their own in Blink.
+/// handling of their own in Blink. A custom element — any name with a `-`
+/// (`<x-el>`) — takes it too (`bl-824c`).
 const PLAIN: &[&str] = &[
     "acronym", "b", "bdi", "bdo", "big", "blink", "center", "cite", "data", "div", "font", "i",
     "kbd", "listing", "nobr", "picture", "pre", "q", "samp", "small", "span", "strike", "tt", "u",
@@ -38,8 +39,10 @@ const PLAIN: &[&str] = &[
 /// `Some("group")` when `el` is a plain container the rule applies to, and
 /// `Some("listitem")` when that container's box is a list item: Chrome 158
 /// gives any plain `display:list-item` box the role, empty, unmarked, or with
-/// `list-style:none`, or under a `role` that is not one (`bl-d61c`) — but not a `<p>`, a heading, a link or a
-/// `<section>`, which keep their own.
+/// `list-style:none`, or under a `role` that is not one (`bl-d61c`) — but
+/// not a `<p>`, a heading, a link or a `<section>`, which keep their own. A
+/// `display:table-cell` box is no group (`bl-824c`): Blink makes it a cell
+/// of an anonymous table.
 pub fn group(
     doc: &Document,
     id: NodeId,
@@ -47,14 +50,16 @@ pub fn group(
     styles: Option<&Styles>,
 ) -> Option<&'static str> {
     let has = |name: &str| el.attr(name).is_some();
-    if !PLAIN.contains(&el.name.as_str()) {
+    if !PLAIN.contains(&el.name.as_str()) && !el.name.contains('-') {
         return None;
     }
-    if Display::of(styles, id, &el.name) == Display::ListItem {
+    let display = Display::of(styles, id, &el.name);
+    if display == Display::ListItem {
         return Some("listitem");
     }
     let marked = !has("role") && (has("autofocus") || has("draggable"));
-    (marked && lineless::kept(doc, id, el, styles)).then_some("group")
+    let kept = || display != Display::TableCell && lineless::kept(doc, id, el, styles);
+    (marked && kept()).then_some("group")
 }
 
 #[cfg(test)]

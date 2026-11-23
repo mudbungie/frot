@@ -121,3 +121,34 @@ fn a_plain_list_item_box_is_a_list_item() {
         assert_eq!(outline(html), want, "{html}");
     }
 }
+
+/// `bl-824c`, Chrome 158: a custom element is plain, a click handler holds a
+/// node, and a table-cell box is no group.
+#[test]
+fn custom_elements_click_handlers_and_table_cells() {
+    for (html, want) in [
+        ("<x-el autofocus style='display:block'>x</x-el>", "group"),
+        (
+            "<x-el draggable=true style='display:block'>x</x-el>",
+            "group",
+        ),
+        ("<x-el autofocus>inline</x-el>", ""),
+        ("<x-el id=q style='display:block'>unmarked</x-el>", ""),
+        ("<x-el style='display:list-item'>l</x-el>", "listitem"),
+        ("<span autofocus onclick=1>c</span>", "group"),
+        ("<span autofocus onmousedown=1>c</span>", "group"),
+        ("<span autofocus onmouseup=''>c</span>", "group"),
+        ("<span autofocus onkeydown=1>c</span>", ""),
+        ("<span autofocus onfocus=1>c</span>", ""),
+        ("<p onclick=1></p>", "paragraph"),
+        ("<p onkeydown=1></p>", ""),
+        ("<div autofocus style='display:table-cell'>tc</div>", ""),
+        (
+            "<div autofocus style='display:inline-block'>ib</div>",
+            "group",
+        ),
+        ("<div autofocus style='display:flex'>fl</div>", ""),
+    ] {
+        assert_eq!(outline(html), want, "{html}");
+    }
+}
