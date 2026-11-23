@@ -49,7 +49,7 @@ use crate::dom::{Document, Element, NodeId, NodeKind};
 use crate::tags;
 use serde_json::{json, Value};
 
-mod lineless;
+pub(in crate::ax) mod lineless;
 
 /// Children are emitted in DOM order, always: Chrome's AX tree does not follow
 /// flex `order` or `*-reverse` (measured, Chrome 156; `layout.md` §5), so the

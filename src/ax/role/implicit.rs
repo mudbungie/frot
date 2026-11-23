@@ -42,13 +42,15 @@
 //!   ([`context::summary`]).
 //!
 //! - **`<svg>` and its parts** — `super::svg`.
+//! - **`<div>`, `<span>` and the tags with no role at all** — a `group` when
+//!   `autofocus` or `draggable` marks one Chrome keeps (`super::marked`).
 //! - **`<caption>`** — always a `caption` here; the one with no line in it is
 //!   left out by the tree, which has the cascade (`ax/tree/lineless.rs`).
 //!
 //! Tags mapped to a *fixed* role are the flat rows below; each was audited
 //! against the HTML-AAM and carries no condition.
 
-use super::{context, svg};
+use super::{context, marked, svg};
 use crate::css::Styles;
 use crate::dom::{Document, Element, NodeId};
 
@@ -81,7 +83,8 @@ pub fn role(
         }
         "article" => "article",
         "blockquote" => "blockquote",
-        "body" | "div" | "span" => "generic",
+        "body" => "generic",
+        "div" | "span" => return Some(marked::group(doc, id, el, styles).unwrap_or("generic")),
         "button" => "button",
         "summary" => return Some(context::summary(doc, id)),
         "caption" | "figcaption" => "caption",
@@ -115,7 +118,7 @@ pub fn role(
         "table" => "table",
         "textarea" => "textbox",
         "time" => "time",
-        _ => return svg::part(doc, id, el),
+        _ => return svg::part(doc, id, el).or_else(|| marked::group(doc, id, el, styles)),
     };
     Some(fixed)
 }

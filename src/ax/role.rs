@@ -24,6 +24,7 @@ use crate::dom::{Document, Element, NodeId, NodeKind};
 
 mod context;
 mod implicit;
+mod marked;
 mod svg;
 
 pub use svg::titled as svg_titled;

@@ -52,14 +52,20 @@ use crate::dom::{Attr, Document, Element, NodeId, NodeKind};
 /// Whether `el` is a `<p>` or `<caption>` Chrome leaves out of the tree
 /// (module docs).
 pub fn ignored(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
-    if !matches!(el.name.as_str(), "p" | "caption") || el.attrs.iter().any(held) {
-        return false;
-    }
-    match Display::of(styles, id, &el.name) {
-        Display::ListItem => false,
-        Display::Block | Display::InlineBlock | Display::TableCell => !has_line(doc, id, styles),
-        _ => true,
-    }
+    matches!(el.name.as_str(), "p" | "caption") && !kept(doc, id, el, styles)
+}
+
+/// Whether Chrome keeps a node for an element it would otherwise find
+/// uninteresting: the author holds it ([`held`]), or its box is a block
+/// container with a line in it. The second half is not a `<span>`'s — Blink
+/// never keeps one for its box, even as `display:block` (`bl-0725`).
+pub fn kept(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
+    let line = || match Display::of(styles, id, &el.name) {
+        Display::ListItem => true,
+        Display::Block | Display::InlineBlock | Display::TableCell => has_line(doc, id, styles),
+        _ => false,
+    };
+    el.attrs.iter().any(held) || (el.name != "span" && line())
 }
 
 /// The attributes that keep a lineless element in the tree: `role` (an author

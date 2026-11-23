@@ -1,0 +1,94 @@
+//! Each case as Chrome 158 has it (`bl-0725`); the corpus page `roles.html`
+//! holds the same ones against the recorded capture.
+
+use crate::ax::tree::ax_tree;
+use crate::dom::Document;
+use serde_json::Value;
+
+fn roles(v: &Value, out: &mut Vec<String>) {
+    for node in v.as_array().unwrap() {
+        let name = node["name"]
+            .as_str()
+            .map_or(String::new(), |n| format!(" {n:?}"));
+        out.push(format!("{}{name}", node["role"].as_str().unwrap()));
+        roles(&node["children"], out);
+    }
+}
+
+fn outline(html: &str) -> String {
+    let doc = Document::parse(html);
+    let styles = crate::css::compute(&doc);
+    let mut out = Vec::new();
+    roles(&ax_tree(&doc, Some(&styles)), &mut out);
+    out.join(", ")
+}
+
+#[test]
+fn autofocus_or_draggable_makes_a_kept_plain_container_a_group() {
+    for html in [
+        "<div autofocus>text</div>",
+        "<div draggable=true>text</div>",
+        "<div draggable=false>text</div>",
+        "<div autofocus=false>text</div>",
+        "<p>a <span id=s autofocus>x</span></p>",
+        "<p>a <span id='' draggable>x</span></p>",
+        "<p>a <span tabindex=0 autofocus>x</span></p>",
+        "<p>a <span contenteditable autofocus>x</span></p>",
+        "<p>a <b id=b autofocus>x</b></p>",
+        "<b autofocus style='display:block'>x</b>",
+        "<pre autofocus>x</pre>",
+        "<div autofocus style='display:inline-block'>x</div>",
+        "<div id=d autofocus><p></p></div>",
+    ] {
+        assert!(outline(html).contains("group"), "{html}");
+    }
+    assert_eq!(
+        outline("<p>a <span autofocus aria-label=N>x</span></p>"),
+        "paragraph, group \"N\""
+    );
+    assert_eq!(
+        outline("<p>a <span autofocus title=T>x</span></p>"),
+        "paragraph, group \"T\""
+    );
+}
+
+#[test]
+fn a_container_chrome_does_not_keep_is_no_group() {
+    for html in [
+        // A span is never kept for its box.
+        "<p>a <span autofocus>x</span></p>",
+        "<div><span autofocus style='display:block'>x</span></div>",
+        "<p>a <b draggable=true>x</b></p>",
+        // A block with no line in it.
+        "<div autofocus><h1>h</h1></div>",
+        "<div autofocus></div>",
+        "<div autofocus style='display:inline'>x</div>",
+    ] {
+        assert!(!outline(html).contains("group"), "{html}");
+    }
+}
+
+#[test]
+fn nothing_else_makes_one_and_a_role_turns_it_off() {
+    for html in [
+        "<div>text</div>",
+        "<p>a <span id=s tabindex=0>x</span></p>",
+        "<p>a <span id=s title=t onclick=1>x</span></p>",
+        "<div autofocus role=bogus>x</div>",
+        "<div autofocus role=generic>x</div>",
+        "<div autofocus role=presentation>x</div>",
+        // Generic on purpose, or not a plain container at all.
+        "<section autofocus>x</section>",
+        "<p>a <a id=a autofocus>x</a></p>",
+        "<summary id=s autofocus>x</summary>",
+        "<svg><g id=g autofocus><text>t</text></g></svg>",
+    ] {
+        assert!(!outline(html).contains("group"), "{html}");
+    }
+    // An element with a role keeps it.
+    assert_eq!(
+        outline("<p>a <em id=e autofocus>x</em></p>"),
+        "paragraph, emphasis"
+    );
+    assert_eq!(outline("<div autofocus role=note>x</div>"), "note");
+}

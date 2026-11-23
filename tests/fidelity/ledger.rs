@@ -46,9 +46,6 @@ const fn row(fixture: &'static str, channel: &'static str, delta: &'static str, 
 /// `text-transform` is not applied.
 const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
 
-/// Chrome makes a span carrying `autofocus` a group.
-const AUTOFOCUS_GROUP: Why = Why::Defect("bl-0725");
-
 pub const LEDGER: &[Row] = &[
     // Open divergences, one ball per root cause.
     // text
@@ -61,9 +58,5 @@ pub const LEDGER: &[Row] = &[
     row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
     // ax
-    row("focus", "ax", "- group \"\"", AUTOFOCUS_GROUP),
-    row("focus", "ax", "- group \"\"", AUTOFOCUS_GROUP),
-    row("focus", "ax", "- group \"\"", AUTOFOCUS_GROUP),
-    row("focus", "ax", "- group \"\"", AUTOFOCUS_GROUP),
     // bboxes
 ];

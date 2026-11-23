@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: `autofocus` or `draggable` makes a plain container a
+  `group`**, as Chrome does. A `<div>`, a `<span>` or another element with no
+  role of its own (`<b>`, `<i>`, `<pre>`, …) that carries either attribute —
+  whatever its value — is a `group` node when Chrome keeps a node for it: it
+  has an `id`, a `tabindex`, `contenteditable`, an `aria-*` attribute or a
+  `title`, or (not a span) it is a block holding a line of text. A `role`
+  attribute turns the rule off. `<div draggable="true">card</div>` was no
+  node. [bl-0725]
+
 - **`--out forms`: the `form=` attribute associates a control with its
   form.** A form's `fields` are now the controls it owns, in document order:
   a control anywhere in the page whose `form` attribute names the form's id
