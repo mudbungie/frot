@@ -53,6 +53,9 @@ pub struct Report {
     /// termination fact: [`settled`](Report::settled) is exactly its absence, so
     /// there is nothing to keep in step.
     pub stopped: Option<JsStop>,
+    /// Whether the page's script asked to reload its own document — a refused
+    /// navigation `run.rs` may honour as a re-issue (`challenge.md` §12).
+    pub reload: bool,
     /// The bounded §10 error-message detail behind `errors` (js.md §10): the
     /// first `MESSAGES_MAX` captured `throw` / `report` / `subfetch` messages, in
     /// occurrence order. Captured unconditionally; the pipeline surfaces it only
@@ -137,6 +140,7 @@ pub(crate) fn run_session(session: &Session) -> Report {
         scripts: 0,
         errors: 0,
         stopped: None,
+        reload: false,
         messages: Vec::new(),
     };
     // Preload-scan (bl-08f6): warm the §6 cache concurrently with the initial
@@ -164,6 +168,7 @@ pub(crate) fn run_session(session: &Session) -> Report {
     // no-ops), unhandled promise rejections (net after the run's microtasks drain
     // — a late `.catch` un-counts), and unhandled errors the shim reported.
     report.errors += session.denials();
+    report.reload = session.reload_asked();
     report.errors += session.rejections();
     report.errors += session.reported_errors();
     // The bounded §10 message detail captured across the run (§10).

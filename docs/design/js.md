@@ -619,7 +619,12 @@ to drift, and the assertion is exactly as load-sensitive as `settled` is.
 ## 6. Network policy — once-then-frozen
 
 JS-visible network is `fetch` + `XMLHttpRequest` (both wrap one syscall; XHR
-is trivially "sync" since the whole loop is single-threaded and blocking):
+is trivially "sync" since the whole loop is single-threaded and blocking).
+*(2026-11-22, `bl-99b7`: a finished XHR raises `readystatechange`, then
+`load` or `error`, then `loadend` — each to its `on<type>` handler **and** to
+`addEventListener` listeners, as a browser does. Before, only the three
+handlers were called and no listener heard anything; Akamai's interstitial
+reads its verdict on a `loadend` listener, so its script never acted.)*
 
 - **GET only.** Anything else rejects (fetch — a rejected promise) / throws
   (XHR `send`). frot reads the web; it does not submit to it (the frottage
@@ -812,6 +817,11 @@ that, a page walking any of them read frot's implementation instead.
   frot cannot make would be the louder tell. Pure JS over `brand.js`, no syscall.
 - `navigator` / `location`: `location` *assignment* is navigation — a counted
   no-op; frot takes an impression of one document, it does not browse.
+  *(2026-11-22, `bl-99b7`: still counted, still never followed — but a
+  request to reload **this** document (`location.reload()`, or
+  `assign`/`replace`/`href=`/`location=` with its own URL by HTML's navigate
+  rule) is reported to the host, which may re-issue the caller's URL once:
+  `challenge.md` §12.)*
   **The `navigator` identity surface derives from the profile (`bl-3972` LANDED,
   `docs/design/identity.md` §4/§8).** Every fact — `userAgent`/`appVersion`/
   `appName`/`appCodeName`/`product`/`productSub`/`vendor`/`vendorSub`/`platform`/
@@ -1215,7 +1225,8 @@ Two moves against today's `run.rs`:
   > the false-`ok` VISION principle 5 forbids.
   >
   > **What still stands, verbatim:** `location` writes and `history` pushes are
-  > counted no-ops, a delay above zero is not followed (the browser shows this
+  > counted no-ops *(2026-11-22: a script's reload of its own document can earn
+  > a re-issue of the caller's URL — `challenge.md` §12)*, a delay above zero is not followed (the browser shows this
   > page first, so this page is the impression), and a refresh a *script*
   > inserts is script-chosen navigation — a no-op. **The `--js` ordering rule:**
   > the refresh is read from the parsed document *before* any script runs, and

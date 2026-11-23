@@ -243,3 +243,33 @@ fn xhr_posts_its_body_under_the_content_type_the_script_set() {
 
 mod formdata;
 mod perfobserver;
+
+#[test]
+fn a_sync_xhr_raises_its_events_to_handlers_and_listeners() {
+    // The browser's order for a finished request: readystatechange, then load
+    // (or error), then loadend — each to the `on<type>` handler and to every
+    // listener. Akamai's interstitial reads its verdict on `loadend`.
+    let mut server = Server::new();
+    let _m = server
+        .mock("POST", "/v")
+        .with_body("{\"reload\":true}")
+        .create();
+    let s = session_at(&server.url());
+    let wire = |x: &str| {
+        format!(
+            "var o=[]; var x=new XMLHttpRequest(); x.open('POST','{x}',false); \
+             ['readystatechange','load','error','loadend'].forEach(function(t){{ \
+               x['on'+t]=function(e){{o.push('on'+e.type)}}; \
+               x.addEventListener(t,function(e){{o.push(e.type+':'+(e.target===x))}}) }}); \
+             x.send('{{}}'); o.join(',')"
+        )
+    };
+    assert_eq!(
+        s.eval(&wire("/v")).unwrap(),
+        "onreadystatechange,readystatechange:true,onload,load:true,onloadend,loadend:true"
+    );
+    assert_eq!(
+        s.eval(&wire("file:///nope")).unwrap(),
+        "onreadystatechange,readystatechange:true,onerror,error:true,onloadend,loadend:true"
+    );
+}

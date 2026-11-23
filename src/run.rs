@@ -40,6 +40,9 @@ fn navigate(args: &cli::Args, bounds: Bounds, challenge: &mut Option<ChallengeIn
     // The `js` block of the challenge document's run, kept for the verdict when
     // the round it earned still ends at a challenge.
     let mut answered = None;
+    // Navigations issued after the first (§4.3): one count for the whole
+    // invocation, whatever asked for them.
+    let mut rounds = 0;
     loop {
         let fetched = match loaded {
             Ok(fetched) => fetched,
@@ -78,65 +81,85 @@ fn navigate(args: &cli::Args, bounds: Bounds, challenge: &mut Option<ChallengeIn
             );
             return Envelope::error(url, args.out, error).with_http(http);
         }
-        if let Some(header) = declared {
-            // The declared-challenge round trip (`docs/design/challenge.md`
-            // §4.2). frot does what the browser does unattended: it runs the
-            // challenge page's own scripts, and re-issues the caller's URL iff
-            // they changed the request it would send. It originates nothing.
-            let state = challenge.get_or_insert_with(|| ChallengeInfo::declared(header));
-            let verdict = |kind| Envelope::needs(url, args.out, vec![kind], None).with_http(http);
+        // Whether the server asked for the page to be run and the caller's
+        // URL asked again: a declared challenge (`docs/design/challenge.md`
+        // §4.2).
+        let asked = if let Some(header) = declared {
+            // Declared after a round a reload earned: that round is counted.
+            let info = ChallengeInfo {
+                rounds,
+                ..ChallengeInfo::declared(header)
+            };
+            challenge.get_or_insert(info);
+            let verdict = |kind| Envelope::needs(url.clone(), args.out, vec![kind], None);
             // No `--js`: a recipe change genuinely helps, so say which.
             if !args.js {
-                return verdict(NeedsKind::Js);
+                return verdict(NeedsKind::Js).with_http(http);
             }
             // The round is spent and the answer is still a challenge: frot has
             // tried the automatable route, so the escalation is earned.
-            if state.rounds == CHALLENGE_ROUNDS {
-                return verdict(NeedsKind::Human).with_js(answered);
+            if rounds == CHALLENGE_ROUNDS {
+                return verdict(NeedsKind::Human).with_http(http).with_js(answered);
             }
-            let before = nav.request();
-            let doc = Document::parse(&fetched.body);
-            let (_, js) = run_scripts(args, doc, &fetched, &session, bounds.clone());
-            // The scripts did not change the request — failed, ran out of
-            // budget, minted nothing, or only fetched a resource whose
-            // response set a cookie (§12): re-sending it would be a retry loop.
-            if !nav.request().earned_since(&before) {
-                return verdict(NeedsKind::Human).with_js(js);
+            true
+        } else {
+            // A body the one parser cannot read is not an impression either
+            // (`src/fetch/media.rs`): handing html5ever a PNG fabricates
+            // elements out of chunk headers, so a declared non-text media type
+            // is refused here — pre-parse, every view, `http` block kept.
+            if let Some(media) = declared_non_document(&fetched) {
+                let error = ErrorInfo::new(
+                    kinds::PARSE,
+                    format!("response media type {media} is not a document"),
+                );
+                return Envelope::error(url, args.out, error).with_http(http);
             }
-            state.rounds += 1;
-            answered = js;
-            loaded = nav.load();
-            continue;
-        }
-        // A body the one parser cannot read is not an impression either
-        // (`src/fetch/media.rs`): handing html5ever a PNG fabricates
-        // elements out of chunk headers, so a declared non-text media type
-        // is refused here — pre-parse, every view, `http` block kept.
-        if let Some(media) = declared_non_document(&fetched) {
-            let error = ErrorInfo::new(
-                kinds::PARSE,
-                format!("response media type {media} is not a document"),
-            );
-            return Envelope::error(url, args.out, error).with_http(http);
-        }
+            false
+        };
         let doc = Document::parse(&fetched.body);
         // A zero-delay refresh declared by the response *as fetched* — its
         // `Refresh` header or a `<meta http-equiv=refresh>` — is the
         // declarative spelling of a redirect (`src/refresh.rs`): the
         // navigation continues to its target and this document is never the
-        // impression — so, like a 3xx body, its scripts are not run.
-        if let Some(target) = crate::refresh::target(&doc, &fetched.final_url, &fetched.headers) {
+        // impression — so, like a 3xx body, its scripts are not run. A
+        // challenge is answered, not redirected.
+        let refresh = crate::refresh::target(&doc, &fetched.final_url, &fetched.headers);
+        if let Some(target) = refresh.filter(|_| !asked) {
             loaded = nav.follow(&target, &fetched.final_url);
             continue;
         }
+        // frot does what a browser does unattended: it runs the page's own
+        // scripts, and re-issues the caller's URL — once — iff it was asked
+        // to (the server declared a challenge, or the script asked to reload
+        // its own document) and the script changed the request frot would
+        // send (§12). It originates nothing and never navigates elsewhere.
+        let before = nav.request();
+        let (ran, reload) = run_scripts(args, doc, &fetched, &session, bounds.clone());
+        let open = (asked || reload) && rounds < CHALLENGE_ROUNDS;
+        if open && nav.request().earned_since(&before) {
+            rounds += 1;
+            challenge.iter_mut().for_each(|c| c.rounds = rounds);
+            answered = ran.1;
+            loaded = nav.load();
+            continue;
+        }
+        // A challenge whose scripts did not change the request — failed, ran
+        // out of budget, minted nothing, or only loaded a resource whose
+        // response set a cookie — is an honest stop: re-sending it would be a
+        // retry loop.
+        if asked {
+            return Envelope::needs(url, args.out, vec![NeedsKind::Human], None)
+                .with_http(http)
+                .with_js(ran.1);
+        }
         let landed = Landed { url, http, fetched };
-        return impression(args, doc, landed, &session, bounds);
+        return impression(args, ran, landed, &session);
     }
 }
 
 /// Navigations frot will issue **after** the first to answer a declared
-/// challenge (`docs/design/challenge.md` §4.3): at most two per invocation,
-/// ever. A constant, not a flag.
+/// challenge or a script's request to reload (`docs/design/challenge.md` §4.3,
+/// §12): at most two per invocation, ever. A constant, not a flag.
 const CHALLENGE_ROUNDS: u8 = 1;
 
 /// The response's declared media type when it is not a document frot parses
@@ -189,6 +212,9 @@ mod roundtrip_guard_tests;
 
 #[cfg(test)]
 mod roundtrip_subtle_tests;
+
+#[cfg(test)]
+mod roundtrip_reload_tests;
 
 #[cfg(test)]
 mod bboxes_tests;

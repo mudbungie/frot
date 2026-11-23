@@ -1027,7 +1027,7 @@
 
   var xhr = new XMLHttpRequest();
   shape('XMLHttpRequestEventTarget', XMLHttpRequestEventTarget.prototype,
-    'onabort,onerror,onload,constructor');
+    'onloadstart,onprogress,onabort,onerror,onload,ontimeout,onloadend,constructor');
   shape('XMLHttpRequest', XMLHttpRequest.prototype,
     'open,setRequestHeader,send,abort,getResponseHeader,getAllResponseHeaders,' +
     'onreadystatechange,readyState,status,statusText,response,responseText,' +

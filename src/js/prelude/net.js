@@ -155,9 +155,20 @@
   // both the prototype and the constructor, non-writable and non-configurable.
   var XHRTarget = iface('XMLHttpRequestEventTarget');
   Object.setPrototypeOf(XHRTarget.prototype, g.EventTarget.prototype);
-  ['onabort', 'onerror', 'onload'].forEach(function (k) {
-    g.__frot_onevent(XHRTarget.prototype, k);
-  });
+  ['onloadstart', 'onprogress', 'onabort', 'onerror', 'onload', 'ontimeout', 'onloadend'].forEach(
+    function (k) {
+      g.__frot_onevent(XHRTarget.prototype, k);
+    }
+  );
+  // An event the browser raises on an XHR: its `on<type>` handler, then its
+  // listeners — so `onload` and `addEventListener('loadend', …)` both hear it.
+  function emit(xhr, Ctor, type) {
+    var ev = new Ctor(type);
+    slots(ev).trusted = true;
+    var handler = slots(xhr)['on' + type];
+    if (typeof handler === 'function') handler.call(xhr, ev);
+    xhr.dispatchEvent(ev);
+  }
 
   var XHR = iface('XMLHttpRequest', null, function (inst) {
     var st = slots(inst);
@@ -197,9 +208,9 @@
         st.headers = r.headers || [];
       }
       st.readyState = 4;
-      if (typeof st.onreadystatechange === 'function') st.onreadystatechange.call(this);
-      var handler = r.error ? this.onerror : this.onload;
-      if (typeof handler === 'function') handler.call(this, new g.Event(r.error ? 'error' : 'load'));
+      emit(this, g.Event, 'readystatechange');
+      emit(this, g.ProgressEvent, r.error ? 'error' : 'load');
+      emit(this, g.ProgressEvent, 'loadend');
     },
     abort: function abort() {},
     getResponseHeader: function getResponseHeader(n) {

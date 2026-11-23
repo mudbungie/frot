@@ -20,22 +20,18 @@ pub(super) struct Landed {
     pub fetched: FetchResult,
 }
 
-/// The envelope for a landed, parsed document: scripts, styles, `needs`
-/// detection, then the requested view.
+/// The envelope for a landed document whose scripts have run (`js`, under
+/// `--js`; [`run_scripts`]): styles, `needs` detection, then the requested
+/// view. §9: JS runs before needs/CSS/layout/views, so everything downstream
+/// consumes the post-JS document exactly as it consumes a static one.
 pub(super) fn impression(
     args: &cli::Args,
-    mut doc: Document,
+    (doc, js): (Document, Option<JsInfo>),
     landed: Landed,
     session: &fetch::FetchSession,
-    bounds: Bounds,
 ) -> Envelope {
     let Landed { url, http, fetched } = landed;
     let fetched = &fetched;
-    // The URL's fragment names the target element (`:target`, autofocus).
-    doc.set_url(&fetched.final_url);
-    // §9: JS runs before needs/CSS/layout/views, so everything downstream
-    // consumes the post-JS document exactly as it consumes a static one.
-    let (doc, js) = run_scripts(args, doc, fetched, session, bounds);
     // Styles come before needs: a subtree the recipe does not render
     // carries no content, so the starvation detector consults the same
     // cascade the views will (`needs.md` §4 — a CSS-hidden fallback
@@ -61,15 +57,19 @@ pub(super) fn impression(
 /// `--js-errors` the block also carries the bounded `js.messages` detail (§10).
 /// `bounds` are the run's two §5 budgets, taken through the call signature so
 /// the golden suite can meter its mock-served fixtures on a clock it owns.
+/// The `bool` is whether the page's script asked to reload this document
+/// (`challenge.md` §12) — never, without `--js`.
 pub(super) fn run_scripts(
     args: &cli::Args,
-    doc: Document,
+    mut doc: Document,
     fetched: &FetchResult,
     session: &fetch::FetchSession,
     bounds: Bounds,
-) -> (Document, Option<JsInfo>) {
+) -> ((Document, Option<JsInfo>), bool) {
+    // The URL's fragment names the target element (`:target`, autofocus).
+    doc.set_url(&fetched.final_url);
     if !args.js {
-        return (doc, None);
+        return ((doc, None), false);
     }
     let styles = if args.css {
         StyleSource::Authored(external_css(&doc, &fetched.final_url, session))
@@ -91,7 +91,7 @@ pub(super) fn run_scripts(
                 .collect(),
         );
     }
-    (doc, Some(info))
+    ((doc, Some(info)), r.reload)
 }
 
 /// The [`crate::css::Styles`] a view needs. Under `--css`, the full author

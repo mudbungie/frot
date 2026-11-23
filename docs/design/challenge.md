@@ -13,7 +13,10 @@ of 15 got a different, undeclared response (`bl-eed9`). **Since 2026-11-20
 (`bl-a7c5`) a vendor-declared challenge enters the round trip at any status** —
 Cloudflare's is a 403 — and the first Cloudflare measurement is a null with a
 named wall (§11.5). The undeclared response is Akamai's interstitial, captured
-2026-11-20 (§11.6). Living authority for this path; `identity.md` §10/§14,
+2026-11-20 (§11.6). **Since 2026-11-22 a round is *asked* — by a
+declared challenge or by the page's script reloading its own document — and
+*earned* only by the page's script changing the request (§12, `bl-cc4c`,
+`bl-99b7`).** Living authority for this path; `identity.md` §10/§14,
 `js.md` §6/§11, `needs.md` §1/§3/§5 and `VISION.md` carry dated in-place notes
 pointing here.
 
@@ -263,6 +266,11 @@ request.
 
 ### 4.2 The sequence
 
+> **2026-11-22 (`bl-99b7`, §12).** The drawing's first branch has a second
+> way in: an undeclared page whose script asks to reload itself, under
+> `--js`, takes the same "request changed? → navigate(url) again" step, on
+> the same one-round budget.
+
 ```
 navigate(url)                       # GET, as today
   └─ declared challenge? (needs::challenge, unchanged)
@@ -374,6 +382,13 @@ the envelope.**
 > server refused — and a re-issue that got **no response** (timeout, redirect
 > loop) is `passed: false` beside the fetch error.
 
+> **2026-11-22 (`bl-99b7`, open: `bl-14f9`).** A round a script's reload
+> earned on an undeclared page has no header to name, so — until Mark decides
+> `bl-14f9` — it emits **no block**: the envelope is the delivered page's,
+> and does not say a stand-in preceded it. If that round is answered by a
+> declared challenge, the block appears as usual and `rounds` counts the
+> reload round (`rounds:1, passed:false`).
+
 Present only when a challenge was declared; absent otherwise
 (`skip_serializing_if = "Option::is_none"`, exactly as `js` and `http` do in
 `src/envelope.rs`). **The envelope has never renamed a field** — `js`, `http`,
@@ -412,6 +427,14 @@ changes is that `human` stops being asserted before frot has tried.
   construction rather than by prohibition.
 - **Script-chosen navigation.** frot re-issues the caller's URL; it never follows
   a page elsewhere. `location`/`history`/meta-refresh stay no-ops.
+  > **Superseded in part 2026-11-22 (`bl-99b7`, Mark: yes, option b).** One
+  > script-chosen navigation is now *answered*, never followed: a request to
+  > reload the document the script runs in — `location.reload()`, or
+  > `location.replace`/`assign`/`href=`/`location=` with the document's own
+  > URL. It is answered the way a declared challenge is: by re-issuing **the
+  > caller's URL**, once, and only if the script also changed the request frot
+  > would send. Every other `location` write is still a counted no-op, and frot
+  > still never navigates anywhere but the caller's URL. The rule: §12.
   > **Superseded in part 2026-11-17 (`bl-c262`, `bl-08d8`).** One document-chosen
   > navigation is now followed: a **zero-delay `<meta http-equiv=refresh>` in
   > the markup as fetched**, treated as a redirect (`js.md` §11's note of the
@@ -960,14 +983,33 @@ resolve it is honoring the script's own request to reload the caller's URL.
 That moves the boundary in §6 and is Mark's call, filed with this evidence as
 `bl-99b7`. Until then frot's answer for this response is unchanged and stated
 plainly: one Amazon run in four or so ends `needs:["js"]` under `--js`.
+*(Decided 2026-11-22 — §12. Two corrections to the trace above: frot's XHR
+never raised `loadend` to a listener, so step 4 never happened — the script's
+`location.replace` was never called (`js.errors` was 0, and a refused
+navigation counts one); and the verify response **does** set a cookie, so the
+request had changed — §12.3.)*
 
-## 12. What earns a round (`bl-cc4c`, 2026-11-22)
+## 12. The round rule: asked, and earned by the page's script (`bl-cc4c`, `bl-99b7`, 2026-11-22)
 
-Decided by Mark, 2026-11-22 (`bl-cc4c` option b): a round is earned by **what
-the page's script did**, not by whatever happened to the jar while it ran.
+Decided by Mark, 2026-11-22 (`bl-cc4c` option b, `bl-99b7` option b): a round
+is earned by **what the page's script did** — not by whatever happened to the
+jar while it ran, and not only on a page a header declared.
 
-**The rule.** After the challenge document's scripts run, frot re-issues the
-caller's URL iff the page's script changed the request frot would send. A
+**The rule, one sentence.** Under `--js`, after a document's scripts run,
+frot re-issues the caller's URL — once per invocation (`CHALLENGE_ROUNDS =
+1`) — iff it was **asked** to and the page's script **earned** it:
+
+- **Asked:** the server declared a challenge (§11.5's header rule,
+  unchanged), *or* the page's script asked to reload its own document (§12.2).
+- **Earned:** the page's script changed the request frot would send (§12.1).
+
+Neither alone is enough. A page whose script writes cookies but asks nothing
+is an ordinary page (analytics do it constantly); a page that asks to reload
+but changed nothing would be re-asked the same question — a retry loop (§4.1).
+
+### 12.1 Earned (`bl-cc4c`)
+
+frot re-issues iff the page's script changed the request frot would send. A
 cookie is the script's when its last write was the script's:
 
 - a `document.cookie` write, or
@@ -1012,3 +1054,74 @@ Pinned: `src/fetch/cookie/tests.rs`
 `src/run/cookie_tests.rs` (`a_cookie_set_by_a_script_src_response_earns_no_round`,
 `a_cookie_set_by_the_scripts_own_fetch_earns_the_round`,
 `a_script_rewriting_the_servers_cookie_unchanged_earns_no_round`).
+
+### 12.2 Asked by the script (`bl-99b7`)
+
+The page's script asks to reload its own document when it calls
+`location.reload()`, or navigates with `location.replace(u)`,
+`location.assign(u)`, `location.href = u`, `location = u` or
+`document.location = u` where `u` — resolved against the document's URL — is
+that URL. The comparison is HTML's navigate rule, and the `url` crate does
+the normalising (`https://a.example` and `https://a.example/` are one URL):
+
+- equal to the document's URL with fragments ignored, **and** `u` has no
+  fragment → a reload;
+- same URL with a fragment → a fragment navigation (a scroll), not a reload;
+- anything else → a navigation elsewhere, never followed.
+
+So Akamai's `location.replace(location.href.replace(/[&?]bm-verify=[^#]*/,
+""))` is a reload: the document was fetched without that parameter, so the
+expression is the document's own URL. A `location` part setter (`search`,
+`hash`, …) is never a reload; `history.go(0)` stays a no-op. Every one of
+these is still a refused navigation, counted in `js.errors` (`js.md` §7).
+
+What is re-issued is always the **caller's** URL, exactly as for a declared
+challenge — never the URL the script named.
+
+Built in `src/js/syscall/env.rs` (`reloads`, and the `__frot_denied` sink,
+which now receives the URL asked for; `location.reload()` passes `""`, the
+document itself) → `js::Report::reload` → `run.rs`. The XHR events the
+measured script needs (`loadend` to a listener) were built with it (`js.md`
+§6 note).
+
+### 12.3 The sequence, in order (`src/run.rs`, `navigate`)
+
+1. GET the caller's URL (redirects and zero-delay refreshes as always).
+2. Declared challenge? Without `--js`: `needs:["js"]`. With it, the round
+   already spent: `needs:["human"]` (the second challenge is not run).
+3. Not declared: a non-document media type is refused, a zero-delay
+   refresh is followed — as before. (A declared challenge is answered, not
+   refreshed.)
+4. Read the request a re-issue would send; run the page's scripts; read it
+   again.
+5. Asked (declared, or a script reload), a round left, and earned: GET the
+   caller's URL again, back to step 2 with the new response.
+6. Otherwise: a declared challenge stops at `needs:["human"]`; any other
+   page is the impression of this document, as it always was.
+
+**The envelope**, for each way it can end:
+
+| what happened | envelope |
+|---|---|
+| ordinary page, script asked nothing (or asked and changed nothing) | the page's impression, one navigation — unchanged |
+| undeclared page, script reloaded and earned it, re-issue is the page | the delivered page's `ok`/`needs`; `http` and `js` are the delivered page's; **no `challenge` block** (open: `bl-14f9`) |
+| undeclared page, reload round answered by a declared challenge | `needs:["human"]`, `challenge:{declared:…, rounds:1, passed:false}`, two navigations |
+| a page a round delivered asks to reload again | its impression — the round is spent |
+
+**Measured before building (2026-11-22, a throwaway trace build, 12 runs of
+`frot https://www.amazon.com/ --js`, from the machine the session ran on —
+not verified to be the reference egress).** 11 runs reached CloudFront and
+passed AWS WAF's declared challenge as before (traced: its page also calls
+`location.reload(true)` after the token write — a declared challenge already
+asks, so this changes nothing for it). **1 run reached the Akamai edge**:
+the navigation set `ak_bmsc`; the script's `POST /_sec/verify` was answered
+`{"reload": true}` **with a fresh `Set-Cookie: ak_bmsc`** — a response to a
+script-issued XHR, so the script's own write (§12.1); and no `location` call
+was ever made, because frot's XHR raised `loadend` to no listener. That is
+the bug this ball fixed alongside the rule.
+
+Pinned: `src/js/syscall/env/reload_tests.rs` (the navigate rule, every
+`location` spelling), `src/js/tests/net.rs`
+(`a_sync_xhr_raises_its_events_to_handlers_and_listeners`), and
+`src/run/roundtrip_reload_tests.rs` (the Akamai shape end to end, and every
+way it stops short).

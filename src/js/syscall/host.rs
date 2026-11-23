@@ -51,12 +51,17 @@ pub type ReportedErrors = Rc<RefCell<u32>>;
 /// The prelude's §10 reporting sinks, shared with the host: the two counts
 /// folded into `js.errors` after the run — refused navigations ([`Denials`], §7/
 /// §11) and reported unhandled errors ([`ReportedErrors`], §10) — plus the
-/// bounded [`Messages`] detail behind them (surfaced only under `--js-errors`).
-#[derive(Clone)]
+/// bounded [`Messages`] detail behind them (surfaced only under `--js-errors`)
+/// — and whether one refused navigation asked to reload this document.
+#[derive(Clone, Default)]
 pub struct Counters {
     pub denials: Denials,
     pub reported: ReportedErrors,
     pub messages: Messages,
+    /// Set when the page's script asked to reload the document it runs in
+    /// (`location.reload()`, or `assign`/`replace`/`href=` with its own URL):
+    /// the one navigation request `run.rs` may honour (`challenge.md` §12).
+    pub reload: Rc<Cell<bool>>,
 }
 
 /// The `<script>` the host is running *right now*, or `None` between scripts

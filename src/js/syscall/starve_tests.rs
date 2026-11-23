@@ -42,11 +42,7 @@ fn host(engine: &Engine, probe: Option<ProbeLog>) -> Host {
             user_agent: "frot-test/1".into(),
             accept_language: "en-US,en;q=0.5".into(),
         },
-        counters: Counters {
-            denials: Rc::new(RefCell::new(0)),
-            reported: Rc::new(RefCell::new(0)),
-            messages: Rc::new(RefCell::new(Vec::new())),
-        },
+        counters: Counters::default(),
         subfetch: Rc::new(RefCell::new(subfetch::Subfetch::new(
             session,
             "https://example.com/",

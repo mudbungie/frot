@@ -5,7 +5,7 @@
 //! URL decomposition is done here, by the `url` crate, so the parser stays the
 //! single source of truth for URL semantics; the prelude never re-parses.
 
-use rquickjs::{Ctx, Function, Object};
+use rquickjs::{prelude::Opt, Ctx, Function, Object};
 use url::Url;
 
 use super::Host;
@@ -75,9 +75,30 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
     bind!(ctx, g, "__frot_media_matches", |q: String| {
         crate::css::media::matches(&q)
     });
-    let d = denials.clone();
-    bind!(ctx, g, "__frot_denied", move || *d.borrow_mut() += 1);
+    let (d, reload, page) = (
+        denials.clone(),
+        host.counters.reload.clone(),
+        host.env.url.clone(),
+    );
+    bind!(ctx, g, "__frot_denied", move |to: Opt<String>| {
+        *d.borrow_mut() += 1;
+        reload.set(reload.get() || to.0.is_some_and(|to| reloads(&page, &to)));
+    });
     Ok(())
+}
+
+/// Whether navigating the document at `page` to `to` reloads it (HTML
+/// "navigate": a URL equal to the document's own with fragments excluded is a
+/// fragment navigation only when it *has* a fragment). `to` resolves against
+/// `page`, so `""` — what `location.reload()` passes — is the page itself.
+fn reloads(page: &str, to: &str) -> bool {
+    let Ok(page) = Url::parse(page) else {
+        return false;
+    };
+    let mut page = page;
+    let to = page.join(to).ok();
+    page.set_fragment(None);
+    to.is_some_and(|to| to.fragment().is_none() && to == page)
 }
 
 /// The persona facts the JS prelude reads, as a JSON string (`bl-3972`,
@@ -237,6 +258,8 @@ fn url_parse<'js>(ctx: &Ctx<'js>, spec: &str, base: Option<&str>) -> rquickjs::R
     Ok(obj)
 }
 
+#[cfg(test)]
+mod reload_tests;
 mod secure;
 #[cfg(test)]
 mod starve_tests;

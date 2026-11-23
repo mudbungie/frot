@@ -145,9 +145,18 @@
   var L = g.__frot_location();
   var loc = Object.create(Location.prototype);
   // Navigation is the denial (js.md §7/§11): assigning `href` or calling
-  // assign/replace/reload is observable, so each is counted, never silent.
-  function navigate() {
+  // assign/replace/reload is observable, so each is counted, never silent. The
+  // URL asked for goes with it — `reload()` asks for `''`, the page itself — so
+  // the host can tell a reload of this document (challenge.md §12); a part
+  // setter (`search`, `hash`, …) names no URL.
+  function navigate(url) {
+    g.__frot_denied(String(url));
+  }
+  function part() {
     g.__frot_denied();
+  }
+  function reload() {
+    g.__frot_denied('');
   }
   ['href', 'origin', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash'].forEach(
     function (k) {
@@ -155,7 +164,7 @@
         get: brand(function () {
           return L[k];
         }, 'get ' + k),
-        set: k === 'origin' ? undefined : brand(navigate, 'set ' + k),
+        set: k === 'origin' ? undefined : brand(k === 'href' ? navigate : part, 'set ' + k),
         enumerable: true,
         configurable: false,
       });
@@ -169,7 +178,7 @@
     configurable: false,
   });
   [
-    ['assign', navigate], ['replace', navigate], ['reload', navigate],
+    ['assign', navigate], ['replace', navigate], ['reload', reload],
     ['toString', function toString() {
       return L.href;
     }],

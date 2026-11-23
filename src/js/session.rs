@@ -114,11 +114,7 @@ impl Session {
         let doc = Rc::new(RefCell::new(doc));
         let console = Rc::new(RefCell::new(Vec::new()));
         let geo = Rc::new(RefCell::new(geometry::Geometry::new(styles)));
-        let counters = syscall::Counters {
-            denials: Rc::new(RefCell::new(0)),
-            reported: Rc::new(RefCell::new(0)),
-            messages: Rc::new(RefCell::new(Vec::new())),
-        };
+        let counters = syscall::Counters::default();
         // The §6 cache is anchored at the page URL and dispatches through the
         // invocation's shared `fetch` session (its pool + `-H` scoping); build it
         // before install moves `env` into the environment shims. It shares the
@@ -250,6 +246,12 @@ impl Session {
     /// wiring layer folds into the envelope `js.errors` count (§10).
     pub fn denials(&self) -> u32 {
         *self.counters.denials.borrow()
+    }
+
+    /// Whether the page's script asked to reload this document (`challenge.md`
+    /// §12) — one of the [`denials`](Self::denials), the one `run.rs` may honour.
+    pub fn reload_asked(&self) -> bool {
+        self.counters.reload.get()
     }
 
     /// Unhandled promise rejections (§10) observed across the run — the engine's
