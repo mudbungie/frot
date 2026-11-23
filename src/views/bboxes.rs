@@ -73,15 +73,17 @@ fn emit(
     let NodeKind::Element(el) = &entry.kind else {
         return;
     };
-    let Some(rect) = layout.rect(id) else {
-        return;
-    };
-    out.push(json!({
-        "i": ordinals[id as usize],
-        "tag": el.name,
-        "rect": rect,
-        "text": direct_text(doc, entry, styles),
-    }));
+    match layout.rect(id) {
+        Some(rect) => out.push(json!({
+            "i": ordinals[id as usize],
+            "tag": el.name,
+            "rect": rect,
+            "text": direct_text(doc, entry, styles),
+        })),
+        // No box of its own, and its children's are still there.
+        None if styles.display(id) == Display::Contents => {}
+        None => return,
+    }
     let children = if matches!(styles.display(id), Display::Flex | Display::InlineFlex) {
         layout.child_order(id)
     } else {

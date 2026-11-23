@@ -71,6 +71,35 @@ fn a_paragraph_that_is_no_block_container_has_no_node() {
     );
 }
 
+/// Measured in Chrome 158 (`bl-e3a0`).
+#[test]
+fn contents_and_table_parts_are_read_as_the_boxes_they_are() {
+    // No box, and a table row's, are no block container.
+    for display in ["contents", "table-row", "ruby"] {
+        let html = format!("<p style='display:{display}'>text</p>");
+        assert_eq!(outline(&html, true), "", "{html}");
+    }
+    // A table cell is one, and an inline-level table or grid too.
+    for display in ["table-cell", "inline-grid", "inline-table"] {
+        let html = format!("<p style='display:{display}'>text</p>");
+        assert_eq!(outline(&html, true), "paragraph", "{html}");
+    }
+    assert_eq!(outline("<p style='display:table-cell'></p>", true), "");
+    // A table part inside is block-level; an inline-level table is a line.
+    for display in ["table-cell", "table-row"] {
+        let html = format!("<p><span style='display:{display}'>x</span></p>");
+        assert_eq!(outline(&html, true), "", "{html}");
+    }
+    let html = "<p><span style='display:inline-table'>x</span></p>";
+    assert_eq!(outline(html, true), "paragraph");
+    // `contents` is looked through: its children are the paragraph's.
+    let through = |inner: &str| format!("<p><span style='display:contents'>{inner}</span></p>");
+    assert_eq!(outline(&through("x"), true), "paragraph");
+    assert_eq!(outline(&through(BLOCK), true), "");
+    assert_eq!(outline(&through(""), true), "");
+    assert_eq!(outline(&through("<b>i</b><!--c-->"), true), "paragraph");
+}
+
 #[test]
 fn any_inline_level_box_is_a_line() {
     for html in [

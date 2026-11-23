@@ -68,7 +68,7 @@ fn flex_direction(applied: &[Applied]) -> FlexDirection {
 }
 
 /// The winning `display`, blockified when the box is out of flow
-/// ([`out_of_flow`]): a matched author/inline rule ([`Display::parse`]),
+/// ([`out_of_flow`]): a matched author/inline rule ([`display_winner`]),
 /// else the tag's UA-implicit display — but `<noscript>` is UA-implicit `none`
 /// once `--js` ran (js.md §4: scripting hides noscript), and `[hidden]` is
 /// UA-implicit `none` always ([`Element::hidden`]). Both are author-overridable:
@@ -82,8 +82,8 @@ fn display(applied: &[Applied], el: &Element, js: bool) -> Display {
     if el.hidden_input() {
         return Display::None;
     }
-    let display = match winner(applied, None, "display") {
-        Some(v) => Display::parse(v),
+    let display = match display_winner(applied, None) {
+        Some(d) => d,
         None if el.hidden() || (js && el.name == "noscript") => Display::None,
         None => implicit_display(&el.name),
     };
@@ -93,8 +93,7 @@ fn display(applied: &[Applied], el: &Element, js: bool) -> Display {
 /// The computed `display` of a pseudo-element's box: its own declaration,
 /// else `inline`, blockified when the pseudo-element is out of flow.
 fn pseudo_display(applied: &[Applied], pseudo: Pseudo) -> Display {
-    winner(applied, Some(pseudo), "display")
-        .map(Display::parse)
+    display_winner(applied, Some(pseudo))
         .unwrap_or_default()
         .blockified(out_of_flow(applied, Some(pseudo)))
 }
@@ -143,8 +142,24 @@ fn winner<'b>(applied: &'b [Applied], pseudo: Option<Pseudo>, name: &str) -> Opt
         .map(|a| a.value.as_str())
 }
 
-fn is_none_kw(v: &str) -> bool {
-    v.trim().eq_ignore_ascii_case("none")
+/// The winning `display` among the declarations Chrome would keep: one
+/// whose value is not a `display` value at all ([`Display::parse`]) was
+/// dropped when the sheet was parsed, so the valid declaration it would have
+/// beaten wins instead — `display: inline-block; display: bogus` is an
+/// inline-block (Chrome 158, `bl-e3a0`).
+///
+/// `display: revert` is kept and computes to nothing here, which leaves the
+/// caller with the user agent's value, as it asks.
+fn display_winner(applied: &[Applied], pseudo: Option<Pseudo>) -> Option<Display> {
+    applied
+        .iter()
+        .filter(|a| a.pseudo == pseudo && a.name == "display")
+        .filter_map(|a| {
+            let display = Display::parse(&a.value);
+            (display.is_some() || Display::reverts(&a.value)).then_some((a.key(), display))
+        })
+        .max_by_key(|(key, _)| *key)
+        .and_then(|(_, display)| display)
 }
 
 fn visibility(applied: &[Applied], parent_vis: Visibility) -> Visibility {
@@ -162,7 +177,7 @@ fn visibility(applied: &[Applied], parent_vis: Visibility) -> Visibility {
 }
 
 fn generated(applied: &[Applied], pseudo: Pseudo, el: &Element) -> Option<String> {
-    if winner(applied, Some(pseudo), "display").is_some_and(is_none_kw) {
+    if display_winner(applied, Some(pseudo)) == Some(Display::None) {
         return None;
     }
     let raw = winner(applied, Some(pseudo), "content")?;

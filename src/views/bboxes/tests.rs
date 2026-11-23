@@ -163,3 +163,17 @@ fn a_wbr_has_no_box_and_a_br_has_one() {
     assert!(!tags.contains(&"wbr"), "{tags:?}");
     assert!(tags.contains(&"br"), "{tags:?}");
 }
+
+/// `display: contents` has no box and its children keep theirs (`bl-e3a0`;
+/// Chrome 158 answers no client rect for it and one for each child).
+#[test]
+fn a_contents_element_is_omitted_and_its_children_are_not() {
+    let (doc, l, s) = bare(
+        "<div style='display:contents'><p>one</p></div>\
+         <p>x<span style='display:contents'><b>two</b></span></p>\
+         <div style='display:none'><i style='display:contents'><u>no</u></i></div>",
+    );
+    let out = entries(bboxes(&doc, &l, &s));
+    let tags: Vec<&str> = out.iter().map(|e| e["tag"].as_str().unwrap()).collect();
+    assert_eq!(tags, ["html", "body", "p", "p", "b"]);
+}

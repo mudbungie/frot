@@ -10,7 +10,7 @@
 //! live in the [`inline`] submodule, which this module calls to size a block's
 //! inline formatting context; flex is 3.5. The box *kind* is never stored: it is
 //! [`Styles::display`](crate::css::Styles::display), the single source of
-//! truth (grid/table/… coercion to the seven
+//! truth (grid/table/… coercion to the
 //! [`Display`](crate::css::Display) variants already happened in the cascade),
 //! and geometry branches on it.
 //!
@@ -127,13 +127,22 @@ impl Layout {
 /// element gets real geometry ([`place`]/[`layout_block`]); every other
 /// rendered element keeps an empty placeholder box at its containing block's
 /// content origin ([`walk`]); non-rendered/`display:none`/non-element nodes get
-/// `None`.
+/// `None`, and so does a `display: contents` element, whose children are laid
+/// out all the same.
 pub fn compute(doc: &Document, styles: &Styles, viewport_w: i32) -> Layout {
     let mut boxes = vec![None; doc.len()];
     let orders = flex::child_orders(doc, styles);
     let mut cursor = 0;
     for &root in doc.roots() {
         cursor += place(doc, root, styles, 0, cursor, viewport_w, &mut boxes);
+    }
+    // `display: contents` generates no box. Its subtree was laid out through
+    // it — stacked by `place`, or flowed as the words of the line it is in —
+    // so the one thing left to do is take back the box that flow gave it.
+    for (id, slot) in boxes.iter_mut().enumerate() {
+        if styles.display(id as NodeId) == Display::Contents {
+            *slot = None;
+        }
     }
     Layout { boxes, orders }
 }
@@ -160,8 +169,9 @@ fn place(
         return 0;
     }
     match styles.display(id) {
-        Display::Block | Display::ListItem => layout_block(doc, id, styles, x, y, w, boxes),
         Display::Flex => flex::place_container(doc, id, styles, x, y, w, boxes),
+        Display::Contents => stack(doc, id, styles, x, y, w, boxes),
+        d if d.stacks() => layout_block(doc, id, styles, x, y, w, boxes),
         _ => {
             walk(doc, id, styles, x, y, boxes);
             0
@@ -191,11 +201,7 @@ fn layout_block(
     let entry = doc.node(id);
     let has_block = entry.children.iter().any(|&c| is_block_box(doc, c, styles));
     let h = if has_block {
-        let mut cursor = y;
-        for &c in &entry.children {
-            cursor += place(doc, c, styles, x, cursor, w, boxes);
-        }
-        cursor - y
+        stack(doc, id, styles, x, y, w, boxes)
     } else {
         for &c in &entry.children {
             walk(doc, c, styles, x, y, boxes);
@@ -206,15 +212,36 @@ fn layout_block(
     h
 }
 
-/// Whether `id` is a rendered block-level box: a rendered element whose computed
-/// display is `Block`, `ListItem`, or `Flex` (a flex container is block-level and
-/// establishes its own formatting context, so it stacks like a block box).
+/// Stack `id`'s children down from `(x, y)` at width `w` and return the height
+/// they take. A block container with block-level children does it inside its
+/// own box; a `display: contents` element does it in its parent's, having none.
+fn stack(
+    doc: &Document,
+    id: NodeId,
+    styles: &Styles,
+    x: i32,
+    y: i32,
+    w: i32,
+    boxes: &mut [Option<Rect>],
+) -> i32 {
+    let mut cursor = y;
+    for &c in &doc.node(id).children {
+        cursor += place(doc, c, styles, x, cursor, w, boxes);
+    }
+    cursor - y
+}
+
+/// Whether `id` is a rendered box layout stacks ([`Display::stacks`]: a flex
+/// container is block-level and establishes its own formatting context, so it
+/// stacks like a block box) — or a `display: contents` element holding one,
+/// whose children are its parent's.
 fn is_block_box(doc: &Document, id: NodeId, styles: &Styles) -> bool {
+    let through = |c: &NodeId| is_block_box(doc, *c, styles);
     is_rendered_element(doc, id, styles)
-        && matches!(
-            styles.display(id),
-            Display::Block | Display::ListItem | Display::Flex
-        )
+        && match styles.display(id) {
+            Display::Contents => doc.node(id).children.iter().any(through),
+            display => display.stacks(),
+        }
 }
 
 /// Whether `id` is in the render tree at all — asked of **text nodes as much as
@@ -255,5 +282,7 @@ fn walk(doc: &Document, id: NodeId, styles: &Styles, x: i32, y: i32, boxes: &mut
     }
 }
 
+#[cfg(test)]
+mod contents_tests;
 #[cfg(test)]
 mod tests;

@@ -70,8 +70,13 @@ becomes the derived query `display == Display::None` (don't store what you can
 compute).
 
 ```
-enum Display { None, Block, Inline, InlineBlock, ListItem, Flex, InlineFlex }
+enum Display { None, Block, Inline, InlineBlock, ListItem, Flex, InlineFlex,
+               Contents, TableCell, TableRow }
 ```
+
+The last three were added on 2026-11-22 (`bl-e3a0`); until then the enum was
+the first seven and everything else was a block. See the coercion table
+below for why that stopped being enough.
 
 **Implicit (UA) display by tag** seeds the value when no rule sets `display`.
 One tag in that map computes `none`: `datalist { display: none }` (HTML
@@ -161,19 +166,56 @@ the tag's own display and not a fact about its parent — which is what stops
 | `inline-block`, `inline-flex` | inline-level atomic box; contents laid out as block/flex |
 | `flex` | flex container (§ flex) |
 | `none` | no box; subtree skipped (already the `display_none` behavior) |
+| `contents` | no box; the children are laid out in the parent's flow |
+| `table-cell`, `table-row` | block flow, and its own rule in `text` (below) |
 
-**Coerced (accepted, approximated as block flow):** every other value maps to
-`Block` so the page still lays out, just without the specialised algorithm:
+**Coerced (accepted, approximated):** a value frot has no algorithm for takes
+the nearest box it has — nearest in *level* first, because the level is what
+`text`, accessible names and the lineless-paragraph rule read:
 
 | Input | Coerced to | Because |
 |---|---|---|
-| `grid`, `inline-grid` | block | grid is a non-goal (§6) |
-| `table`, `table-*` | block | table layout is a non-goal (§6) |
-| `contents` | block | box-elision special-casing not worth it in P3 |
-| unknown / unparsed | block | safe, in-flow default |
+| `grid`, `table`, `table-caption`, `flow-root`, `-webkit-box`, `block ruby`, `block math` | block | grid and table layout are non-goals (§6); all block-level |
+| `inline-grid`, `inline-table`, `-webkit-inline-box` | inline-block | the same, inline-level: an atomic box on the line it is written in |
+| `ruby`, `ruby-text`, `math`, `inline list-item` | inline | inline-level and not atomic (Chrome names `va<span style="display:ruby">vb</span>vc` "vavbvc") |
+| `table-row-group`, `table-header-group`, `table-footer-group` | table-row | a group separates the way its rows do |
+| `table-column`, `table-column-group` | block | Chrome paints none of its content; frot does (`bl-e3a0` leftovers) |
+| the two-keyword forms (`inline flex`, `block flow`, `inline flow-root`, …) | their one-keyword twin | CSS Display 3 §2.5; outer keyword first only |
+| `initial`, `unset` | inline | the property's initial value; `display` is not inherited |
 
 Coercion is deterministic and documented; it is not a silent failure (§6, honest
 signals).
+
+> **Superseded 2026-11-22 (`bl-e3a0`).** This table used to send every value
+> outside the seven keywords — `contents`, `inline-grid`, `inline-table`,
+> `table-*`, and anything unknown — to `block`. That was harmless while only
+> layout read `display`; once `text` broke lines on it (`bl-fe2c`) it put
+> `p<span style="display:contents">ct</span>q` on three lines where Chrome's
+> `innerText` has `pctq`. Measured per value in Chrome 158 and held by the
+> corpus page `display.html`:
+>
+> - **An invalid value is no declaration.** `display: run-in`, `bogus`,
+>   `inline-list-item` are dropped when Chrome parses the sheet, so the valid
+>   declaration they would have beaten wins (`display: inline-block; display:
+>   bogus` is an inline-block) and, with none, the tag's own display stands.
+>   `Display::parse` answers `None` and the cascade passes over it.
+>   `display: revert` is valid and asks for exactly that UA value.
+> - **`contents` is no box.** No line break in `text`, no entry in `bboxes`
+>   (Chrome answers no client rect), no paragraph for a `<p>`; its children
+>   are stacked or flowed where it stands, and a block inside it is a
+>   block-level child of its parent. A name still spaces it off (Chrome names
+>   `sa<span style="display:contents">sb</span>sc` "sa sb sc"). Out of flow it
+>   stays `contents`.
+> - **A table part is on no line of its own.** `innerText` writes a tab after
+>   a cell that another cell follows and a newline after a row that another
+>   row follows, and nothing around either: `ia<span cell>ib</span><span
+>   cell>ic</span>id` is `iaib<TAB>icid`. frot writes a space and a line
+>   break. "Follows" means nothing but white space lies between — text, any
+>   other element, or the end of the enclosing element ends it. Not even a
+>   `<p>` breaks a line as a cell or a row. Layout still stacks a part as a
+>   block, a name still spaces it off, and out of flow it is a block.
+>   The *tags* `<tr>`, `<td>`, `<th>` keep their UA `block` (`tags::BLOCK_TAGS`):
+>   inside a `<table>` the two rules give the same tokens.
 
 **Blockified (`bl-346e`).** A box taken out of flow — `position: absolute |
 fixed`, or a `float` other than `none` — computes a block-level `display`, as
@@ -418,7 +460,8 @@ in-flow block/inline so the page still lays out approximately:
   around them.
 - **Positioning** (`position: absolute|fixed|sticky|relative`) — laid out as
   `static`; `top/left/right/bottom` and relative offsets ignored.
-- **CSS Grid** (`display:grid`) — coerced to block.
+- **CSS Grid** (`display:grid`) — coerced to block (`inline-grid` to
+  inline-block, §2).
 - **Tables as layout** (`display:table*`, the table sizing algorithm) — coerced
   to block; cells stack as blocks. (Complements, but is separate from, the AX
   layout-table demotion in Phase 2.5 / bl-ab78.)

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--css`: `display` values that are not block-level stop breaking the
+  line**, a regression since `bl-fe2c`, where every value outside seven
+  keywords was read as `block`. Measured per value in Chrome 158. [bl-e3a0]
+  - `display: contents` is no box: no line break in `--out text`, no entry
+    in `--out bboxes` (its children keep theirs and are laid out in its
+    parent's flow), no `paragraph` for a `<p>`.
+  - `inline-grid`, `inline-table` and `-webkit-inline-box` are inline-level
+    boxes like `inline-block`; `ruby` and `ruby-text` are inline.
+  - `table-cell` and `table-row` (and the row groups) are on no line of
+    their own: a cell is set off from the cell just before it by a space and
+    a row from the row before it by a line break, where Chrome's `innerText`
+    writes a tab and a newline. `p<span style="display:table-cell">c1</span>
+    <span style="display:table-cell">c2</span>q` is `pc1 c2q`.
+  - A value Chrome rejects (`run-in`, a typo) is no declaration: the valid
+    declaration it would have beaten wins, else the tag's own display. It
+    used to make the element a block. `display: revert` gives the tag's own;
+    `initial` and `unset` give `inline`.
+  - The two-keyword forms (`inline flex`, `block flow`, `inline flow-root`,
+    …) are read as their one-keyword twins.
+  - Under `--js`, `getComputedStyle().display` answers `contents`,
+    `table-cell` and `table-row` for those boxes.
+
 - **`--css`: an absolutely positioned or floated box is block-level**, as
   CSS computes it. `position: absolute | fixed` and `float` blockify the
   `display` of an element or a `::before`/`::after`, so in `--out text` such

@@ -13,7 +13,10 @@
 //!   </p>`, where the text lands in an anonymous block beside it;
 //! - a `<p>` that is not a block container at all: `display:inline`, `flex`
 //!   or `inline-flex`, whatever it holds (`<p style="display:inline">text</p>`
-//!   has no node).
+//!   has no node) — nor one with no box (`display:contents`) or a table row's.
+//!   A `display:table-cell` paragraph is a block container and keeps its
+//!   node; a table part or a block *through* a `display:contents` child is a
+//!   block-level child like any other (`bl-e3a0`).
 //!
 //! A line is any inline-level box: text that is not all collapsible white
 //! space (a no-break space counts), an inline element even when empty or
@@ -54,7 +57,7 @@ pub fn ignored(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>
     }
     match Display::of(styles, id, &el.name) {
         Display::ListItem => false,
-        Display::Block | Display::InlineBlock => !has_line(doc, id, styles),
+        Display::Block | Display::InlineBlock | Display::TableCell => !has_line(doc, id, styles),
         _ => true,
     }
 }
@@ -81,14 +84,22 @@ fn has_line(doc: &Document, id: NodeId, styles: Option<&Styles>) -> bool {
         }
         line = true;
     }
+    children_level(doc, id, styles).unwrap_or(line)
+}
+
+/// What `id`'s children are between them: inline-level boxes only
+/// (`Some(true)`), at least one block-level box (`Some(false)`), or no box
+/// (`None`).
+fn children_level(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Option<bool> {
+    let mut level = None;
     for c in doc.painted_children(id) {
-        match inline_level(doc, c, styles) {
-            Some(true) => line = true,
-            Some(false) => return false,
-            None => {}
+        let child = inline_level(doc, c, styles);
+        if child == Some(false) {
+            return child;
         }
+        level = level.or(child);
     }
-    line
+    level
 }
 
 /// Whether the child `id` is an inline-level box (`Some(true)`), a block-level
@@ -105,7 +116,11 @@ fn inline_level(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Option<b
             let floats = styles.is_some_and(|s| s.out_of_flow(id));
             match Display::of(styles, id, &el.name) {
                 Display::None => None,
-                display => Some(floats || !display.block_level()),
+                // No box: its children are this container's (`bl-e3a0`).
+                Display::Contents => children_level(doc, id, styles),
+                // A table part is no line box either: the table Chrome
+                // wraps it in is a block.
+                display => Some(floats || !display.stacks()),
             }
         }
         _ => None,

@@ -548,7 +548,9 @@ stylesheet), `script` (a deterministic DOM build with a timer; `--css --js`).
 Added since (2026-11-20, Chrome 158): `select` (select modes, `bl-2932`) and
 `names` (accessible-name and role edge cases, one section per ball:
 `bl-fb69` separators, `bl-07bd` SVG, `bl-2b09` table summary, `bl-fe88` empty
-caption, `bl-c5a6` unnamed form/region roles, `bl-0794` titled term).
+caption, `bl-c5a6` unnamed form/region roles, `bl-0794` titled term). And
+(2026-11-22) `display` — one line per `display` value in `text`, names,
+paragraphs and boxes (`bl-e3a0`, layout.md §2).
 
 **What the first recording found.** 51 ledger rows over 10 pages × 5 channels.
 `links` and `forms`: zero deltas. `text`: zero deltas outside the two

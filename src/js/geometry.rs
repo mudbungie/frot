@@ -118,6 +118,9 @@ fn display_keyword(d: Display) -> &'static str {
         Display::ListItem => "list-item",
         Display::Flex => "flex",
         Display::InlineFlex => "inline-flex",
+        Display::Contents => "contents",
+        Display::TableCell => "table-cell",
+        Display::TableRow => "table-row",
     }
 }
 

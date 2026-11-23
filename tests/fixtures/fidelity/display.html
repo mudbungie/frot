@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Display values</title>
+<style>
+.contents { display: contents }
+.igrid { display: inline-grid }
+.itable { display: inline-table }
+.ruby { display: ruby }
+.rt { display: ruby-text }
+.runin { display: run-in }
+.cell { display: table-cell }
+.row { display: table-row }
+.rowgroup { display: table-row-group }
+.table { display: table }
+.caption { display: table-caption }
+.grid { display: grid }
+.flowroot { display: flow-root }
+.box { display: -webkit-box }
+.ibox { display: -webkit-inline-box }
+.bogus { display: bogus }
+.fallback { display: inline-block; display: bogus }
+.twoflex { display: inline flex }
+.twoflow { display: block flow }
+.twoiroot { display: inline flow-root }
+.headgroup { display: table-header-group }
+.initial { display: none; display: initial }
+.revert { display: none; display: revert }
+.out { position: absolute }
+.bc::before { content: "B1"; display: table-cell }
+.bn::before { content: "B2"; display: contents }
+.bt::before { content: "B3"; display: inline-table }
+.ar::after { content: "B4"; display: table-row }
+</style>
+</head>
+<body>
+<h1>Display values</h1>
+<div>ca<span class="contents">cb</span>cc</div>
+<div>da<div class="contents">db</div>dc</div>
+<div>ea<span class="igrid">eb</span>ec</div>
+<div>fa<span class="itable">fb</span>fc</div>
+<div>ga<span class="ruby">gb</span>gc<span class="rt">gd</span>ge</div>
+<div>ha<span class="runin">hb</span>hc<div class="runin">hd</div>he</div>
+<div>ia<span class="cell">ib</span><span class="cell">ic</span>id</div>
+<div>ja<span class="row">jb</span><span class="row">jc</span>jd</div>
+<div>la<span class="table">lb</span>lc<span class="caption">ld</span>le</div>
+<div>ma<span class="grid">mb</span>mc<span class="flowroot">md</span>me</div>
+<div>na<span class="box">nb</span>nc<span class="ibox">nd</span>ne</div>
+<div>oa<span class="bogus">ob</span>oc<div class="bogus">od</div>oe<div class="fallback">of</div>og</div>
+<div>pa<div class="twoflex">pb</div>pc<span class="twoflow">pd</span>pe<div class="twoiroot">pf</div>pg</div>
+<div class="table"><div class="row"><div class="cell">qa</div><div class="cell">qb</div></div><div class="row"><div class="cell">qc</div><div class="cell">qd</div></div></div>
+<div>ra<span class="cell">rb</span>rc<span class="cell">rd</span>re</div>
+<div class="table"><div class="headgroup"><div class="row"><span class="cell">ka</span><span class="cell">kb</span></div></div><div class="rowgroup"><div class="row"><span class="cell">kc</span> <span class="cell">kd</span></div></div></div>
+<div>aa<span class="cell">ab</span><img alt=""><span class="cell">ac</span>ad</div>
+<div>ba<b><span class="cell">bb</span></b><span class="cell">bc</span>bd</div>
+<div>fg<span class="initial">fh</span>fi<div class="revert">fj</div>fk</div>
+<ul><li class="revert">fl</li></ul>
+<div>ta<span class="cell out">tb</span>tc<span class="contents out">td</span>te<span class="row out">tf</span>tg</div>
+<div>g1<span class="bc">g2</span>g3</div>
+<div>h1<span class="bn">h2</span>h3</div>
+<div>i1<span class="bt">i2</span>i3</div>
+<div>j1<span class="ar">j2</span>j3</div>
+<div>xa<p class="contents">xb</p>xc<p class="cell">xd</p>xe<p class="row">xf</p>xg<p class="igrid">xh</p>xi</div>
+<div>
+<p class="contents">p1</p>
+<p class="igrid">p3</p>
+<p class="row">p4</p>
+<p class="ruby">p5</p>
+<p><span class="cell">p6</span></p>
+<p><span class="contents">p7</span></p>
+<p><span class="itable">p8</span></p>
+<p><span class="row">p9</span></p>
+<p><span class="contents"><span class="flowroot">p10</span></span></p>
+<div>blk</div><p class="cell">p2</p>
+<p class="contents"></p>
+<p class="cell"></p>
+</div>
+<div class="contents"><section><div class="contents"><p>deep</p><div>deeper</div></div></section></div>
+<p><button>sa<span class="contents">sb</span>sc</button>
+<button>ta<span class="igrid">tb</span>tc</button>
+<button>ua<span class="itable">ub</span>uc</button>
+<button>va<span class="ruby">vb</span>vc</button>
+<button>wa<span class="cell">wb</span><span class="cell">wc</span>wd</button>
+<button>xa<span class="row">xb</span><span class="row">xc</span>xd</button>
+<button>ya<span class="ibox">yb</span>yc</button>
+<button>za<span class="bogus">zb</span>zc</button>
+<button>oa<span class="rowgroup">ob</span>oc</button>
+<button>qa<span class="rt">qb</span>qc</button></p>
+</body>
+</html>

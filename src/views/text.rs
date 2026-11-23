@@ -13,7 +13,9 @@
 //! - Block-level boundaries become newlines; `<br>` becomes a newline. Under
 //!   `--css` "block-level" is the computed `display`, so a `display:block`
 //!   span breaks the line and a `display:inline` div does not; without it,
-//!   the tag's own ([`breaks_line`]).
+//!   the tag's own ([`breaks_line`]). A `display:contents` element and a
+//!   table part break none: a cell is set off from the cell before it by a
+//!   space, a row from the row before it by a line ([`State::open`]).
 //! - With `--css` (a [`Styles`] table is passed): `display:none` subtrees are
 //!   dropped — which is how the author-overridable `[hidden]` rule reaches this
 //!   view, and why *that* one does need the recipe — an element's own text is
@@ -57,6 +59,9 @@ struct State {
     pre_depth: u32,
     pending_break: bool,
     pending_space: bool,
+    /// The table part ([`Display::table_part`]) that has just ended, while
+    /// nothing has come after it.
+    part: Option<Display>,
 }
 
 impl State {
@@ -66,7 +71,26 @@ impl State {
             pre_depth: 0,
             pending_break: true,
             pending_space: false,
+            part: None,
         }
+    }
+
+    /// The start of an element whose box is `display`. A table cell is set
+    /// off from the cell just before it by a space and a row from the row
+    /// before it by a line — Chrome's `innerText` writes a tab and a newline
+    /// — and from nothing else: `ia<span cell>ib</span><span cell>ic</span>id`
+    /// is `iaib icid`, and `rb` and `rd` either side of `rc` stay `rbrcrd`
+    /// (Chrome 158, `bl-e3a0`).
+    fn open(&mut self, display: Display) {
+        match self.part.take() {
+            Some(Display::TableRow) if display == Display::TableRow => self.block_break(),
+            Some(Display::TableCell) if display == Display::TableCell => self.pending_space = true,
+            _ => {}
+        }
+    }
+
+    fn close(&mut self, display: Display) {
+        self.part = display.table_part().then_some(display);
     }
 
     /// Whitespace never needs an "is there anything before me?" guard: the
@@ -77,6 +101,7 @@ impl State {
     /// being block-level, which a stylesheet can undo (`bl-fe2c`).
     fn push_text(&mut self, s: &str) {
         if self.pre_depth > 0 {
+            self.part = None;
             self.flush_pending();
             self.out.push_str(s);
             return;
@@ -85,6 +110,7 @@ impl State {
             if ch.is_whitespace() {
                 self.pending_space = true;
             } else {
+                self.part = None;
                 self.flush_pending();
                 self.out.push(ch);
             }
@@ -155,9 +181,14 @@ impl State {
 /// the cascade, so `Before<span style="position:absolute">tip</span>after`
 /// is three lines too (`bl-346e`). The `<p>` is `innerText`'s own rule,
 /// keyed on the element rather than its box: `<p style="display:inline">`
-/// still stands on a line of its own.
+/// still stands on a line of its own — unless it has no box (`contents`) or
+/// is a table part, which are on no line of their own, `<p>` or not
+/// (`bl-e3a0`): `x<p style="display:table-cell">pp</p>y` is `xppy`.
 fn breaks_line(styles: Option<&Styles>, id: NodeId, tag: &str) -> bool {
-    Display::of(styles, id, tag).block_level() || tag == "p"
+    match Display::of(styles, id, tag) {
+        Display::Contents | Display::TableCell | Display::TableRow => false,
+        display => display.block_level() || tag == "p",
+    }
 }
 
 fn visible(styles: Option<&Styles>, id: NodeId) -> bool {
@@ -186,6 +217,7 @@ fn emit(
             }
             let vis = visible(styles, id);
             let block = breaks_line(styles, id, &el.name);
+            let display = Display::of(styles, id, &el.name);
             // A `<select>` lists every option, whatever the cascade says of
             // the options themselves; only hiding the select hides them.
             // Measured in Chrome 158 `innerText` (`bl-240d`): `<option
@@ -200,6 +232,7 @@ fn emit(
             }
             let styles = if select { None } else { styles };
             let pre = el.name == "pre";
+            state.open(display);
             if block {
                 state.block_break();
             }
@@ -221,6 +254,7 @@ fn emit(
             if block {
                 state.block_break();
             }
+            state.close(display);
         }
         // A text node needs no gate of its own: an element the cascade hides
         // returns above before the recursion reaches its children, and a node
@@ -246,6 +280,9 @@ pub fn text(doc: &Document, styles: Option<&Styles>) -> String {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod display_tests;
 
 #[cfg(test)]
 mod foreign_tests;

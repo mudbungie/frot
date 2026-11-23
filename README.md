@@ -69,7 +69,7 @@ Phase 2.5 (impression fidelity — the honest-capability-signals principle catch
 
 Phase 3 (on-demand layout) added element geometry with no new flag:
 
-- **`--out bboxes` is a real view.** It returns a flat array in reading order, one entry per rendered element — `{ "i": <source-order index>, "tag", "rect": {"x","y","w","h"}, "text": <the element's direct text | null> }`. `display:none` elements are omitted; `visibility:hidden` are kept. `i` is source order, so it is non-monotonic wherever flex `order`/`flex-direction: *-reverse` shuffles reading order.
+- **`--out bboxes` is a real view.** It returns a flat array in reading order, one entry per rendered element — `{ "i": <source-order index>, "tag", "rect": {"x","y","w","h"}, "text": <the element's direct text | null> }`. `display:none` elements are omitted, and so is a `display:contents` element (its children are not); `visibility:hidden` are kept. `i` is source order, so it is non-monotonic wherever flex `order`/`flex-direction: *-reverse` shuffles reading order.
 - **Layout is on-demand, not a flag.** `bboxes` always builds it, and is where flex `order`/`*-reverse` surface as visual reading order. Every other view skips layout entirely — `--out ax` included: like Chrome's AX tree, it stays in DOM order.
 - **Viewport is 1280px, hard-coded** (no `--viewport`/`--width` knob).
 

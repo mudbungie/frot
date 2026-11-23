@@ -12,6 +12,7 @@
 mod cascade;
 mod computed;
 mod content;
+mod display;
 mod escape;
 mod focus;
 mod import;
@@ -28,6 +29,7 @@ mod state;
 use crate::dom::NodeId;
 
 pub use cascade::{compute, compute_bare, compute_with};
+pub use display::Display;
 pub use import::imports;
 pub use query::{matches_any, query_all, UnsupportedSelector};
 
@@ -66,74 +68,6 @@ impl FlexDirection {
             "column" => FlexDirection::Column,
             "column-reverse" => FlexDirection::ColumnReverse,
             _ => FlexDirection::Row,
-        }
-    }
-}
-
-/// Computed `display` keyword: one of the seven values Phase 3 layout branches
-/// on. The cascade coerces every other CSS `display` value (`grid`, `table*`,
-/// `contents`, unknown) to [`Display::Block`] once, at compute time, so this
-/// enum only ever holds one of these variants. The default is [`Display::Inline`]
-/// (never `None`): non-element and untouched nodes must report as rendered.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Display {
-    None,
-    Block,
-    #[default]
-    Inline,
-    InlineBlock,
-    ListItem,
-    Flex,
-    InlineFlex,
-}
-
-impl Display {
-    /// Parse an author/inline `display` value into one of the seven layout
-    /// keywords. Case-insensitive and trimmed. Every other value — `grid`,
-    /// `inline-grid`, `table`, `table-*`, `contents`, unknown — coerces to
-    /// [`Display::Block`] (the layout §2 coercion, applied once here).
-    pub fn parse(value: &str) -> Self {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "none" => Display::None,
-            "block" => Display::Block,
-            "inline" => Display::Inline,
-            "inline-block" => Display::InlineBlock,
-            "list-item" => Display::ListItem,
-            "flex" => Display::Flex,
-            "inline-flex" => Display::InlineFlex,
-            _ => Display::Block,
-        }
-    }
-}
-
-impl Display {
-    /// Whether the box is block-level: it starts and ends a line. The
-    /// inline-level boxes are `inline`, `inline-block` and `inline-flex`.
-    pub fn block_level(self) -> bool {
-        matches!(self, Display::Block | Display::ListItem | Display::Flex)
-    }
-
-    /// The computed `display` of a box taken out of flow — absolutely
-    /// positioned or floated — which CSS blockifies (CSS Display §2.7):
-    /// `inline` and `inline-block` compute to `block`, `inline-flex` to
-    /// `flex`. In flow, and for every other value, it is `self`.
-    pub fn blockified(self, out_of_flow: bool) -> Self {
-        match self {
-            Display::Inline | Display::InlineBlock if out_of_flow => Display::Block,
-            Display::InlineFlex if out_of_flow => Display::Flex,
-            other => other,
-        }
-    }
-
-    /// The box an element generates, for a reader that may have no cascade:
-    /// the computed `display` where there is one, and where there is not the
-    /// tag's own — block for a [`crate::tags::is_block`] tag, inline for any
-    /// other.
-    pub fn of(styles: Option<&Styles>, id: NodeId, tag: &str) -> Self {
-        match styles {
-            Some(s) => s.display(id),
-            None if crate::tags::is_block(tag) => Display::Block,
-            None => Display::Inline,
         }
     }
 }

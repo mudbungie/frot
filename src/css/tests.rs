@@ -39,24 +39,6 @@ fn flex_direction_parse_maps_keywords_and_coerces_the_rest() {
 }
 
 #[test]
-fn display_parse_maps_the_seven_keywords_and_coerces_the_rest() {
-    assert_eq!(Display::parse("none"), Display::None);
-    assert_eq!(Display::parse("block"), Display::Block);
-    assert_eq!(Display::parse("inline"), Display::Inline);
-    assert_eq!(Display::parse("inline-block"), Display::InlineBlock);
-    assert_eq!(Display::parse("list-item"), Display::ListItem);
-    assert_eq!(Display::parse("flex"), Display::Flex);
-    assert_eq!(Display::parse("inline-flex"), Display::InlineFlex);
-    // Case-insensitive and trimmed, like the visibility keyword parsing.
-    assert_eq!(Display::parse("  INLINE-Block "), Display::InlineBlock);
-    // Everything else — grid, table*, contents, unknown — coerces to Block.
-    assert_eq!(Display::parse("grid"), Display::Block);
-    assert_eq!(Display::parse("table-cell"), Display::Block);
-    assert_eq!(Display::parse("contents"), Display::Block);
-    assert_eq!(Display::parse("wat"), Display::Block);
-}
-
-#[test]
 fn accessors_expose_the_computed_table() {
     let doc = Document::parse(
         "<style>p{display:none}q{visibility:hidden}r::before{content:'x'}</style>\

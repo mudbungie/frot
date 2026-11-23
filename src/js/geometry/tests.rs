@@ -60,10 +60,10 @@ fn rect_is_the_box_or_all_zero_for_box_less_nodes() {
     );
 }
 
-/// `getComputedStyle`'s `display` covers every one of the seven keywords the
-/// cascade can compute; inline `style=` applies under the bare policy.
+/// `getComputedStyle`'s `display` covers every keyword the cascade can
+/// compute; inline `style=` applies under the bare policy.
 #[test]
-fn computed_display_covers_all_seven_keywords() {
+fn computed_display_covers_every_keyword() {
     let s = bare(
         "<html><body>\
          <i id='d0' style='display:none'></i>\
@@ -73,6 +73,9 @@ fn computed_display_covers_all_seven_keywords() {
          <i id='d4' style='display:list-item'></i>\
          <i id='d5' style='display:flex'></i>\
          <i id='d6' style='display:inline-flex'></i>\
+         <i id='d7' style='display:contents'></i>\
+         <i id='d8' style='display:table-cell'></i>\
+         <i id='d9' style='display:table-row'></i>\
          </body></html>",
     );
     let want = [
@@ -83,6 +86,9 @@ fn computed_display_covers_all_seven_keywords() {
         "list-item",
         "flex",
         "inline-flex",
+        "contents",
+        "table-cell",
+        "table-row",
     ];
     for (i, kw) in want.iter().enumerate() {
         let js =
