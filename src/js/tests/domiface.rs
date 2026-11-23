@@ -11,12 +11,6 @@ use super::{sess, Session};
 
 const MEASURED: &str = include_str!("../../../tests/fixtures/js/dom-interfaces.json");
 
-/// Interfaces frot still shapes by hand; each is closed by the ball named.
-const PENDING: &[&str] = &[
-    "Document",     // bl-9f79
-    "HTMLDocument", // bl-9f79
-];
-
 /// frot's view of one interface, in the fixture's own encoding.
 const DESCRIBE: &str = "(function(n){var C=globalThis[n];if(typeof C!=='function')return 'absent';\
     var P=C.prototype,pp=Object.getPrototypeOf(P);\
@@ -41,9 +35,6 @@ fn every_interface_is_a_subset_of_the_binarys_in_its_order() {
     let measured = measured();
     let mut built = 0;
     for (name, want) in measured["interfaces"].as_object().unwrap() {
-        if PENDING.contains(&name.as_str()) {
-            continue;
-        }
         let got = s.eval(&format!("{DESCRIBE}('{name}')")).unwrap();
         assert_ne!(got, "absent", "{name} is not built");
         let got: Value = serde_json::from_str(&got).unwrap();
@@ -68,7 +59,7 @@ fn every_interface_is_a_subset_of_the_binarys_in_its_order() {
         }
         built += 1;
     }
-    assert_eq!(built, 80);
+    assert_eq!(built, 82);
     // And frot builds no HTML interface the binary lacks.
     let extra = s
         .eval(

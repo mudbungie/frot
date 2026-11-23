@@ -32,10 +32,9 @@
     el.dispatchEvent(ev);
   }
 
-  Object.defineProperty(g.document, 'activeElement', {
-    configurable: true,
-    get: function () {
-      return active || g.document.body;
+  g.__frot_ifaceattrs(g.Document.prototype, {
+    activeElement: function () {
+      return active || this.body;
     },
   });
   // On HTMLElement.prototype and, separately, SVGElement.prototype (measured).

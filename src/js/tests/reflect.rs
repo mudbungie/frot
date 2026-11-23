@@ -201,7 +201,7 @@ fn document_scripts_is_the_collection_of_script_elements() {
         ),
         "3,2"
     );
-    let d = "Object.getOwnPropertyDescriptor(document,'scripts')";
+    let d = "Object.getOwnPropertyDescriptor(Document.prototype,'scripts')";
     assert_eq!(
         eval(&format!(
             "[{d}.enumerable,{d}.configurable,{d}.set===undefined,{d}.get.name,\

@@ -90,15 +90,11 @@
 
   // Visibility/focus: frot takes one impression of a foreground tab, so the
   // honest report is visible + focused (a page gating render on these unblocks).
-  if (g.document) {
-    Object.defineProperty(g.document, 'visibilityState', {
-      get: function () { return 'visible'; },
-      configurable: true,
-    });
-    Object.defineProperty(g.document, 'hidden', {
-      get: function () { return false; },
-      configurable: true,
-    });
-    g.document.hasFocus = g.__frot_brand(function hasFocus() { return true; });
-  }
+  g.__frot_ifaceops(g.Document.prototype, {
+    hasFocus: function hasFocus() { return true; },
+  });
+  g.__frot_ifaceattrs(g.Document.prototype, {
+    hidden: function () { return false; },
+    visibilityState: function () { return 'visible'; },
+  });
 })(globalThis);

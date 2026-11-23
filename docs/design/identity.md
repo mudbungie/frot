@@ -1676,8 +1676,39 @@ nodes moved (and one removal on the fragment, if it is observed), as the DOM
 specifies; that order between two observers is frot's first-queued order and
 was not read off the binary. The staging fragment's negative ids are gone.
 
-**Until step 4 lands** the document rows of the first table stand: `document`
-is still a hand-built object, adopted as node 0's wrapper.
+**Step 4 landed (`bl-9f79`, 2026-11-22).** `document` is `wrap(<document
+id>)` over `HTMLDocument.prototype → Document.prototype → Node.prototype →
+EventTarget.prototype`. The members six modules assigned onto the object are
+on `Document.prototype` in the captured order; the instance owns `location`.
+
+| question | Firefox 153.0esr | frot before | frot now |
+|---|---|---|---|
+| `Object.getOwnPropertyNames(document)` | `["location"]` | 32 names | `["location"]` |
+| `Object.prototype.toString.call(document)` | `[object HTMLDocument]` | `[object Object]` | `[object HTMLDocument]` |
+| `document instanceof Node` | `true` | `false` | `true` |
+| `document.appendChild`, `.childNodes`, `.firstChild`, `.contains`, `.removeChild`, `.replaceChild` | present, from `Node.prototype`; `childNodes.length` 2 | absent | present, from `Node.prototype`; 2 |
+| `document.textContent` / `.nodeValue` / `.ownerDocument` / `.parentNode` | `null` ×4; `document.textContent = 'x'` changes nothing | `undefined`, `undefined`, `null`, `undefined` | `null` ×4; no change |
+| `Object.getOwnPropertyNames(HTMLDocument.prototype)` | `["constructor"]` | interface absent | `["constructor"]` |
+| `Object.getOwnPropertyNames(Document.prototype).length` | 232 | interface absent | 30 — the 29 below and `constructor` |
+| `document.implementation === document.implementation` | `true` | `true` (a stored object) | `true` |
+| `document.appendChild(document.createTextNode('x'))`, `(document.documentElement)`, `replaceChild(text, html)` | the §3.21 step-1 refusals | not callable | the same refusals |
+
+frot's 29 `Document.prototype` members, in the binary's order:
+`getElementsByTagName, getElementsByClassName, createElement, createElementNS,
+createDocumentFragment, createTextNode, createComment, getElementsByName,
+hasFocus, getElementById, prepend, append, querySelector, querySelectorAll,
+implementation, compatMode, documentElement, cookie, readyState, body, head,
+scripts, defaultView, onreadystatechange, currentScript, hidden,
+visibilityState, activeElement, children`. The listener trio is no longer the
+document's own: it inherits `EventTarget`'s through `Node`.
+
+Left, each in §11: the 203 `Document.prototype` members frot does not
+implement (`title`, `URL`, `referrer`, `createEvent`, `createRange`,
+`doctype`, … — a page that calls one gets `undefined`, as before);
+`document.cloneNode()` returns an empty text node where the binary returns a
+second `HTMLDocument` (frot has one document); `document.implementation` is a
+plain object, not a `DOMImplementation`, and `createHTMLDocument()` returns a
+plain object, not a document.
 
 ## 4. The one profile
 
@@ -2544,7 +2575,7 @@ Permanently out of reach, by design or by constraint:
 | **`requestIdleCallback` `timeout`** | Built on the virtual clock (`bl-b584`, §3.20): an idle callback runs once every timer due at that instant has run. The idle period therefore always arrives, so `didTimeout` is always `false` and a `timeout` option is accepted and unused — where a busy real page can report `true`. A coherent value a real Firefox also produces, not a fabricated one. |
 | **`FileReader`** | Built 2026-11-20 (`bl-8c46`, §3.20) over `Blob`, with `ProgressEvent`. Residual: `readAsText` decodes **UTF-8 only** — a legacy `encoding` argument, a `charset` in the blob's type or a UTF-16 byte-order mark is ignored, where Firefox honours each (the same gap as the `TextDecoder` row); `error` never fires (an in-memory read cannot fail); no `File`. |
 | **`Image` / `<img>` loading** | `Image` and `HTMLImageElement` exist (`bl-1404`, §3.20). **An image never arrives** — a pinned choice: no request is sent for any `<img>` (so no beacon), neither `load` nor `error` fires, `complete` stays `false` once a `src` is set, the natural size is 0. A real Firefox holds that state only until the response; a page awaiting the image waits out the run. No `data:` image loading, no `decode()`, no IMG-specific properties beyond `src`/`width`/`height`/`complete`/`naturalWidth`/`naturalHeight`/`currentSrc`. Whether images should fail instead (what a Firefox with images blocked does, measured) or beacons be sent: `bl-91a4`. |
-| **DOM interface members** | The node interfaces are real and linked as on the binary (`bl-78cb`, §3.21): `EventTarget ← Node ← Element ← HTMLElement ← HTML<Tag>Element` (all 71), `Node ← CharacterData ← Text`/`Comment`, `Node ← DocumentType`; a node has one wrapper. Residual: each prototype holds the **subset** frot implements (27 of `Element.prototype`'s 144, 9 of `HTMLElement.prototype`'s 138; most `HTML<Tag>Element` prototypes hold only `constructor`), always in the binary's order and on the binary's interface. Elements have no namespace: `svg` alone is `SVGElement` (no `SVGSVGElement`/`SVGGraphicsElement`), every other foreign element is typed by its tag as if HTML. A call on the wrong receiver or with a non-node argument throws the engine's error, not WebIDL's. `input.type` reflects the attribute (`''` when absent, where the binary answers `text`); a doctype's `nodeName` is `#doctype`. `document` is still hand-shaped — `bl-9f79`. |
+| **DOM interface members** | The node interfaces are real and linked as on the binary (`bl-78cb`, §3.21): `EventTarget ← Node ← Element ← HTMLElement ← HTML<Tag>Element` (all 71), `Node ← CharacterData ← Text`/`Comment`, `Node ← DocumentType`; a node has one wrapper. Residual: each prototype holds the **subset** frot implements (27 of `Element.prototype`'s 144, 9 of `HTMLElement.prototype`'s 138; most `HTML<Tag>Element` prototypes hold only `constructor`), always in the binary's order and on the binary's interface. Elements have no namespace: `svg` alone is `SVGElement` (no `SVGSVGElement`/`SVGGraphicsElement`), every other foreign element is typed by its tag as if HTML. A call on the wrong receiver or with a non-node argument throws the engine's error, not WebIDL's. `input.type` reflects the attribute (`''` when absent, where the binary answers `text`); a doctype's `nodeName` is `#doctype`. `document` is the document node's wrapper and owns `location` alone (`bl-9f79`), with 29 of `Document.prototype`'s 232 members; `document.cloneNode()`, `document.implementation` and `createHTMLDocument()` are not the binary's objects (§3.21). |
 | **`Blob` / blob: URLs** | `Blob`, `URL.createObjectURL` and `revokeObjectURL` are real (`bl-78c5`, §3.20). Residual: no `Blob.prototype.stream` (no `ReadableStream`); a blob: URL cannot be loaded — `fetch`/XHR of one is a network error where Firefox answers 200, and a Blob-URL `Worker` never runs (the Worker row above); no `File`; a `FormData` holding a `Blob` cannot be POSTed. Each is a refusal or an absence, never a wrong value. |
 | **`Intl` beyond `DateTimeFormat.resolvedOptions()`** | Residual. quickjs-ng ships without `Intl`; frot provides the low-entropy locale/timezone subset a page reads (`DateTimeFormat` + `resolvedOptions`, `timeZone` pinned UTC). `NumberFormat`/`Collator`/`RelativeTimeFormat`/real locale-aware formatting are unbuilt — a filed gap, not a permanent non-goal. |
 | **`__frot_*` syscall names enumerable on `globalThis`** | Residual. `Function.prototype.toString` no longer leaks their source or the name (`bl-3926` branding), but the syscall **names** are still enumerable globals (`Object.getOwnPropertyNames(window)`). Making them non-enumerable touches every `bind!` site and is tracked as a separate concern. |

@@ -166,15 +166,14 @@
     },
   });
 
-  // window and document are event targets with FIXED registry keys (the lifecycle
-  // dispatch below fires on those keys), so they take the same three functions
-  // rather than copies. Branding here, at the definition, is what makes them read
-  // native everywhere they are reached — including through every prototype that
-  // now inherits them (nativebrand.js's final sweep only walks own properties).
+  // window and document are event targets with FIXED registry keys (the
+  // lifecycle dispatch fires on those keys). The window is not an EventTarget
+  // by inheritance here, so it takes the same three functions as its own;
+  // the document inherits them through Node (bl-9f79). Branding at the
+  // definition is what makes them read native everywhere they are reached.
   ['addEventListener', 'removeEventListener', 'dispatchEvent'].forEach(function (k) {
     g.__frot_brand(g.EventTarget.prototype[k], k);
     g[k] = g.EventTarget.prototype[k];
-    g.document[k] = g.EventTarget.prototype[k];
   });
   etKeys.set(g, 'window');
   etKeys.set(g.document, 'document');

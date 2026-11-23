@@ -135,3 +135,54 @@ fn the_document_is_observed_as_the_node_it_is() {
         "attributes:P,childList:P,childList:document"
     );
 }
+
+/// `document` is a `Node` (`bl-9f79`): the rows of identity.md §3.21's first
+/// table, each as read off Firefox 153.0esr.
+#[test]
+fn the_document_is_shaped_as_the_binarys() {
+    for (expr, want) in [
+        ("Object.getOwnPropertyNames(D)", "location"),
+        ("Object.prototype.toString.call(D)", "[object HTMLDocument]"),
+        ("[D instanceof Node,D instanceof Document,D instanceof HTMLDocument,D instanceof EventTarget,\
+          Object.getPrototypeOf(HTMLDocument.prototype)===Document.prototype,\
+          Object.getPrototypeOf(Document.prototype)===Node.prototype,\
+          Object.getOwnPropertyNames(HTMLDocument.prototype)]",
+         "true,true,true,true,true,true,constructor"),
+        ("[D.nodeType,D.nodeName,D.parentNode,D.parentElement,D.nextSibling,D.nodeValue,\
+          D.textContent,D.ownerDocument,D.isConnected,D.hasChildNodes()].map(String)",
+         "9,#document,null,null,null,null,null,null,true,true"),
+        ("Array.prototype.map.call(D.childNodes,function(n){return n.nodeName+n.nodeType})",
+         "#doctype10,HTML1"),
+        ("[D.firstChild.nodeType,D.lastChild===H,D.contains(D.body),D.contains(D),\
+          D.body.contains(D),D.contains(D.createElement('p')),D.getRootNode()===D]",
+         "10,true,true,true,false,false,true"),
+        ("(D.textContent='x',D.childNodes.length)", "2"),
+        ("[D.readyState,D.compatMode,D.defaultView===globalThis,D.implementation===\
+          D.implementation,D.children.length,D.documentElement===H,D.head.tagName,\
+          D.getElementById('p')===p,D.getElementsByTagName('p').length,D.activeElement===D.body,\
+          D.hidden,D.visibilityState,D.hasFocus(),String(D.onreadystatechange)]",
+         "loading,CSS1Compat,true,true,1,true,HEAD,true,1,true,false,visible,true,null"),
+        // The tree operations a page calls on it exist, and refuse as measured.
+        ("(function(){var c=D.appendChild(D.createComment('z'));var n=D.childNodes.length;\
+          D.removeChild(c);return n+','+D.childNodes.length})()", "3,2"),
+        ("t(function(){return D.appendChild(D.createTextNode('x'))})",
+         "HierarchyRequestError: Node.appendChild: Cannot insert a Text as a child of a Document"),
+        ("t(function(){return D.appendChild(D.createElement('div'))})",
+         "HierarchyRequestError: Node.appendChild: Cannot have more than one Element child of a \
+          Document"),
+        ("t(function(){return D.appendChild(H)})",
+         "HierarchyRequestError: Node.appendChild: Cannot have more than one Element child of a \
+          Document"),
+        ("t(function(){return D.replaceChild(D.createTextNode('x'),H)})",
+         "HierarchyRequestError: Node.replaceChild: Cannot insert a Text as a child of a Document"),
+        ("(function(){var n=D.createElement('html');D.replaceChild(n,H);var r=D.documentElement===n;\
+          D.replaceChild(H,n);return r&&D.documentElement===H})()", "true"),
+        ("(function(){D.removeChild(H);var r=String(D.documentElement)+D.childNodes.length;\
+          D.appendChild(H);return r+(D.body!==null)})()", "null1true"),
+        ("(function(){var n=0;D.addEventListener('x',function(e){n+=e.target===D});\
+          D.dispatchEvent(new Event('x'));return n+String(Object.prototype.hasOwnProperty.call(D,\
+          'addEventListener'))})()", "1false"),
+    ] {
+        assert_eq!(eval(expr), want.replace("\n          ", ""), "{expr}");
+    }
+}

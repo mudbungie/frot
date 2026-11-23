@@ -40,7 +40,7 @@
   // transport owns (__frot_cookie_get/set at the final document URL). So a
   // Set-Cookie from the document GET is visible here iff non-HttpOnly, a JS
   // write feeds a later same-origin GET, and HttpOnly never enters JS.
-  Object.defineProperty(g.document, 'cookie', {
+  Object.defineProperty(g.Document.prototype, 'cookie', {
     configurable: true,
     get: function () {
       return g.__frot_cookie_get();

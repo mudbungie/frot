@@ -61,14 +61,6 @@
     matches: function matches(sel) {
       return g.__frot_matches(slots(this).id, sel);
     },
-    // getElementsBy* return an HTMLCollection (the spec-named interface, built
-    // by dom.js's one collection maker over the same selector hits qSA finds).
-    getElementsByTagName: function getElementsByTagName(tag) {
-      return g.__frot_elems(query(this, String(tag)));
-    },
-    getElementsByClassName: function getElementsByClassName(cls) {
-      return g.__frot_elems(query(this, '.' + String(cls).trim().split(/\s+/).join('.')));
-    },
     remove: remove,
   });
   // ChildNode is mixed into CharacterData and DocumentType too (measured).
@@ -81,9 +73,23 @@
     },
   });
 
+  // getElementsBy* return an HTMLCollection (the spec-named interface, built
+  // by dom.js's one collection maker over the same selector hits qSA finds).
+  // On Element and on Document, each with its own copies.
+  [proto, g.Document.prototype].forEach(function (P) {
+    g.__frot_ifaceops(P, {
+      getElementsByTagName: function getElementsByTagName(tag) {
+        return g.__frot_elems(query(this, String(tag)));
+      },
+      getElementsByClassName: function getElementsByClassName(cls) {
+        return g.__frot_elems(query(this, '.' + String(cls).trim().split(/\s+/).join('.')));
+      },
+    });
+  });
+
   // ParentNode: each interface that mixes it in owns its own copies (measured:
-  // `Element.prototype.append !== DocumentFragment.prototype.append`), and a
-  // fragment has `getElementById` where an element has none.
+  // `Element.prototype.append !== DocumentFragment.prototype.append`); a
+  // fragment and a document have `getElementById` where an element has none.
   function parentNode(P, byId) {
     g.__frot_ifaceops(P, byId ? {
       getElementById: function getElementById(id) {
@@ -118,6 +124,7 @@
   }
   parentNode(proto, false);
   parentNode(g.DocumentFragment.prototype, true);
+  parentNode(g.Document.prototype, true);
 
   // The form-control reflections frameworks/jQuery read off cloned nodes, each
   // on the interfaces Firefox 153.0esr defines that name on (bl-78cb; a `<div>`

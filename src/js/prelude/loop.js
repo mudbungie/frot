@@ -202,7 +202,7 @@
   // readyState-polling init and older loaders unblock. Returns the listener
   // throw count (folded into the loop's error tally like any handler).
   function setReadyState(state) {
-    g.document.readyState = state;
+    g.__frot_slots(g.document).readyState = state;
     var ev = new g.Event('readystatechange');
     var errs = dispatch('document', ev, g.document);
     if (typeof g.document.onreadystatechange === 'function')

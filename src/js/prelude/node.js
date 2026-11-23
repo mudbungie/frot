@@ -11,7 +11,7 @@
   var slots = g.__frot_slots;
   var wrap = g.__frot_wrap;
   var Node = g.Node;
-  var TYPE = { element: 1, text: 3, comment: 8, doctype: 10, 'document-fragment': 11 };
+  var TYPE = { element: 1, text: 3, comment: 8, document: 9, doctype: 10, 'document-fragment': 11 };
 
   function kindOf(n) {
     return g.__frot_kind(slots(n).id);
@@ -125,9 +125,9 @@
     isConnected: function () {
       return this.getRootNode() === g.document;
     },
-    // The one document (no frames, js.md §11).
+    // The one document (no frames, js.md §11), which has no owner itself.
     ownerDocument: function () {
-      return g.document;
+      return this === g.document ? null : g.document;
     },
     parentNode: function () {
       return wrap(g.__frot_parent(slots(this).id));
@@ -184,15 +184,18 @@
   );
   // Setting an element's textContent replaces its children with one text node,
   // or with none for the empty string; `null` is the empty string
-  // ([LegacyNullToEmptyString]).
+  // ([LegacyNullToEmptyString]). A document and a doctype have none: the read
+  // is `null` and the write does nothing (measured).
+  var TEXTLESS = { document: true, doctype: true };
   rw(
     Node.prototype,
     'textContent',
     function () {
-      return kindOf(this) === 'doctype' ? null : data(this);
+      return TEXTLESS[kindOf(this)] ? null : data(this);
     },
     function (v) {
       var text = v === null || v === undefined ? '' : String(v);
+      if (TEXTLESS[kindOf(this)]) return;
       if (this instanceof g.CharacterData) return setData.call(this, text);
       g.__frot_clear(this);
       if (text) g.__frot_insert_child(slots(this).id, g.__frot_create_text(text), null);

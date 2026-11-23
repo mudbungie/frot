@@ -19,7 +19,8 @@
   // --- The interface chain (bl-78cb, identity.md §3.21) ----------------------
   // One prototype per node kind, linked as on the binary: EventTarget <- Node <-
   // Element <- HTMLElement <- HTML<Tag>Element, Node <- CharacterData <- Text |
-  // Comment, Node <- DocumentType | DocumentFragment. Each is a real interface
+  // Comment, Node <- DocumentType | DocumentFragment | Document <- HTMLDocument.
+  // Each is a real interface
   // (`new` throws "Illegal constructor."; Text, Comment and DocumentFragment
   // construct, as Firefox's do), so
   // `instanceof` is the engine's own prototype walk and a text node has no
@@ -45,6 +46,7 @@
     comment: made('Comment', CharacterData, '__frot_create_comment'),
     doctype: sub('DocumentType', Node).prototype,
     'document-fragment': made('DocumentFragment', Node, '__frot_create_fragment'),
+    document: sub('HTMLDocument', sub('Document', Node)).prototype,
   };
 
   // Which interface a tag's element implements — read off Firefox 153.0esr by
@@ -221,10 +223,8 @@
     writable: true,
   });
 
-  // The document is arena node `__frot_document` (bl-196a): its children are
-  // the top-level nodes and a top-level node's parent is it, so the generic
-  // syscalls answer for it by id. Its object is still built by hand (doc.js
-  // gives it its members; bl-9f79 makes it a wrapper like any other); adopting
-  // it as that id's wrapper is what makes `html.parentNode === document`.
-  g.document = adopt({}, g.__frot_document);
+  // The document is arena node `__frot_document` (bl-196a), so `document` is
+  // that node's wrapper like any other (bl-9f79): the tree operations come
+  // from Node.prototype and answer for it by id.
+  g.document = wrap(g.__frot_document);
 })(globalThis);

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--js`: `document` is a node.** `document.appendChild`, `.childNodes`,
+  `.firstChild`, `.contains`, `.removeChild` and `.replaceChild` exist (they
+  threw `not a function`), `document instanceof Node` is true, and
+  `String(document)` is `[object HTMLDocument]`. Its members are on
+  `Document.prototype`, in Firefox's order; the object itself owns only
+  `location`, as a real one does. [bl-9f79]
+
 - **`<details>` and `<summary>` are block-level**, as in every browser. In
   `--out text` each starts and ends a line, so a summary no longer fuses
   with the text beside its `<details>` (`head<details><summary>four…` was
