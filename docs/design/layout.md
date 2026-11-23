@@ -392,6 +392,12 @@ other options might have belonged with `<video>`'s prose. Measured in Chrome
   matched: `<img alt="" title=T>` is "T", because the empty alternative is
   still nothing said.
 
+  Which *roles* `title` names is a separate fact (2026-11-23, `bl-84fc`,
+  Chrome 158): never a `paragraph`, `term`, `definition`, `code`, `emphasis`,
+  `strong`, `mark`, `insertion`, `deletion`, `subscript`, `superscript` or
+  `time` — `<p title=T>text</p>` is `paragraph ""` — nor a `<caption>`; every
+  other role measured is named by it (`ax/name.rs` `UNTITLED`).
+
 ## 3. "On-demand" — the exact trigger
 
 VISION: "Layout runs implicitly when something needs geometry … Outside that,

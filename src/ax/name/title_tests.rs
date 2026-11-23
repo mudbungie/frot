@@ -247,13 +247,27 @@ fn hidden_still_decides_before_title() {
 /// `bl-0794`, Chrome 158: `title` never names a `term`, though it names the
 /// other name-from-contents roles when their contents are empty.
 #[test]
-fn title_does_not_name_a_term() {
+fn title_does_not_name_a_term_or_a_paragraph() {
     for (html, tag) in [
         ("<dl><dt title=TT></dt><dd>d</dd></dl>", "dt"),
         ("<dl><dt title=TT> </dt></dl>", "dt"),
         ("<dl><dt title=TT><img alt=''></dt></dl>", "dt"),
         ("<dfn title=DT></dfn>", "dfn"),
         ("<span role=term title=RT></span>", "span"),
+        // `bl-84fc`: the other roles `title` does not name.
+        ("<p title=T></p>", "p"),
+        ("<p title=T>text</p>", "p"),
+        ("<p title=T><span style='display:block'>x</span></p>", "p"),
+        ("<em title=T>e</em>", "em"),
+        ("<strong title=T>s</strong>", "strong"),
+        ("<code title=T>c</code>", "code"),
+        ("<mark title=T>m</mark>", "mark"),
+        ("<ins title=T>i</ins>", "ins"),
+        ("<del title=T>d</del>", "del"),
+        ("<dl><dd title=T>dd</dd></dl>", "dd"),
+        ("<sup title=T>s</sup>", "sup"),
+        ("<div role=subscript title=T></div>", "div"),
+        ("<time title=T>t</time>", "time"),
     ] {
         assert_eq!(name(html, tag), None, "{html}");
     }
@@ -261,6 +275,11 @@ fn title_does_not_name_a_term() {
         ("<dl><dt title=TT>term2</dt></dl>", "dt", "term2"),
         ("<dl><dt aria-label=AL title=TT></dt></dl>", "dt", "AL"),
         ("<h4 title=HT></h4>", "h4", "HT"),
+        ("<p aria-label=L></p>", "p", "L"),
+        ("<blockquote title=T></blockquote>", "blockquote", "T"),
+        ("<ul><li title=T></li></ul>", "li", "T"),
+        ("<div role=note title=T></div>", "div", "T"),
+        ("<hr title=T>", "hr", "T"),
         ("<a href=x title=LT></a>", "a", "LT"),
         ("<button title=BT></button>", "button", "BT"),
         ("<div role=tab title=TBT></div>", "div", "TBT"),

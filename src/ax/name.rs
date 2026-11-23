@@ -68,12 +68,15 @@ pub fn accessible_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> O
     collapsed_attr(el, "title").filter(|_| title_names(doc, id, el, styles))
 }
 
-/// Whether `title` is a name source for the node at all. It is not for a
-/// `term`: measured in Chrome 158 (`bl-0794`), `<dt title=T></dt>`,
-/// `<dfn title=T></dfn>` and `<span role=term title=T></span>` are all
-/// `term ""`, while an empty heading, link, button, tab, grid row or cell
-/// with a `title` is named by it. `aria-label` still names a term. Nor is it
-/// for a `caption` — `<caption title=T></caption>` and `<div role=caption
+/// Whether `title` is a name source for the node at all. Measured in Chrome
+/// 158 (`bl-0794`, `bl-84fc`): it is not for the roles in [`UNTITLED`] —
+/// `<p title=T></p>`, `<p title=T>text</p>`, `<em title=T>e</em>`,
+/// `<div role=time title=T></div>` are all named "" — while every other role
+/// measured (heading, link, button, tab, grid row, cell, blockquote, list,
+/// list item, article, the landmarks, figure, the form controls, dialog,
+/// group, note, status, separator, meter, image, math, tooltip, the live
+/// regions, `doc-*`) is named by it. `aria-label` still names them all. Nor is
+/// it for a `caption` — `<caption title=T></caption>` and `<div role=caption
 /// title=T>` are `caption ""`, though `<figcaption title=T>` is "T" — or for
 /// a table or fieldset whose caption or legend is its whole name
 /// ([`related::names_it_alone`]; both `bl-dfc3`).
@@ -84,11 +87,27 @@ fn title_names(
     styles: Option<&Styles>,
 ) -> bool {
     match crate::ax::role(doc, id) {
-        Some("term") => false,
+        Some(r) if UNTITLED.contains(&r) => false,
         Some("caption") => el.name == "figcaption",
         _ => !related::names_it_alone(doc, id, el, styles),
     }
 }
+
+/// The roles `title` does not name (Chrome 158, [`title_names`]).
+const UNTITLED: &[&str] = &[
+    "code",
+    "definition",
+    "deletion",
+    "emphasis",
+    "insertion",
+    "mark",
+    "paragraph",
+    "strong",
+    "subscript",
+    "superscript",
+    "term",
+    "time",
+];
 
 /// An attribute that is a name — `aria-label`, `title` — as the name it is:
 /// collapsed like every other ([`collapse_whitespace`]), and absent when that
