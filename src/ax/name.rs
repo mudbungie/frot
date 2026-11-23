@@ -216,9 +216,23 @@ fn input_name(
         .attr("type")
         .map(|s| s.to_ascii_lowercase())
         .unwrap_or_else(|| "text".to_string());
+    // Measured in Chrome 158 (`bl-d94b`): a submit or reset button is named by
+    // its label, else its `value`, else its default label — never its
+    // `title`; an image button by a non-empty `alt`, else `value`, else
+    // `title`, else "Submit".
+    let labelled =
+        || control_label_text(doc, id, el, styles).filter(|l| !l.trim_ascii().is_empty());
+    let value = el.attr("value").map(str::to_string);
     match t.as_str() {
-        "button" | "submit" | "reset" => el.attr("value").map(str::to_string),
-        "image" => el.attr("alt").map(str::to_string),
+        "button" => value,
+        "submit" | "reset" => labelled()
+            .or(value)
+            .or_else(|| contents::button_default(&t).map(str::to_string)),
+        "image" => {
+            let alt = el.attr("alt").filter(|a| !a.is_empty()).map(str::to_string);
+            let fallback = || el.attr("title").is_none().then(|| "Submit".to_string());
+            alt.or(value).or_else(fallback)
+        }
         _ => control_label_text(doc, id, el, styles),
     }
 }
@@ -238,6 +252,9 @@ mod tests;
 
 #[cfg(test)]
 mod contents_tests;
+
+#[cfg(test)]
+mod opaque_tests;
 
 #[cfg(test)]
 mod option_tests;

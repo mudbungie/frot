@@ -64,7 +64,7 @@ use crate::ax;
 use crate::css::{Display, Styles};
 use crate::dom::{Document, Element, NodeId, NodeKind};
 use native::native_alternative;
-pub use native::svg_title;
+pub use native::{button_default, svg_title};
 use walk::Walk;
 
 /// The name `id`'s **descendants** compute for it: rule 2F over its children,
@@ -182,12 +182,18 @@ fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, o
     let mut said = String::new();
     match alternative(inner, id, el, visited) {
         Some(text) => fence(&mut said, &text),
-        None if breaks(w.doc, id, el, w.styles) => {
+        None => {
             let mut own = String::new();
-            children_text(inner, id, visited, &mut own);
-            fence(&mut said, &own);
+            if w.reads_itself() || !native::opaque(w.doc, id, el) {
+                children_text(inner, id, visited, &mut own);
+            } else if let Some(legend) = super::related::legend(w.doc, id) {
+                node_text(inner, legend, visited, &mut own);
+            }
+            match breaks(w.doc, id, el, w.styles, own.trim_ascii().is_empty()) {
+                true => fence(&mut said, &own),
+                false => said.push_str(&own),
+            }
         }
-        None => children_text(inner, id, visited, &mut said),
     }
     // §2I is last and conditional on saying nothing at all — which an
     // alternative can do: `<img alt="" title=T>` is "T" in Chrome, so the test
@@ -202,9 +208,13 @@ fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, o
 
 /// Whether `el`'s box separates its contents from the text either side: every
 /// box but a plain inline one ([`Display::of`]), and one that is atomic
-/// whatever its `display` ([`native::atomic`]).
-fn breaks(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
-    Display::of(styles, id, &el.name) != Display::Inline || native::atomic(doc, id, el)
+/// whatever its `display` ([`native::atomic`]) — except an inline-level box
+/// with nothing in it: `a<span style="display:inline-block"></span>c` is "ac"
+/// in Chrome 158, while an empty block and an empty `<button>` give "a c"
+/// (`bl-d94b`).
+fn breaks(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>, empty: bool) -> bool {
+    let display = Display::of(styles, id, &el.name);
+    native::atomic(doc, id, el) || (display != Display::Inline && (display.block_level() || !empty))
 }
 
 /// Space `text` off from the text either side of it: an alternative is a
@@ -230,6 +240,7 @@ fn alternative(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>) ->
     super::collapsed_attr(el, "aria-label")
         .or_else(|| labelledby(w, el, visited))
         .or_else(|| native_alternative(w.doc, id, el))
+        .or_else(|| native::range_value(w.doc, id, el))
 }
 
 /// `aria-labelledby`, resolved through the same recursion so the visited set

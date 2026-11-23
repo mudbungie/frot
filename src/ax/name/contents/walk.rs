@@ -105,6 +105,13 @@ impl<'a> Walk<'a> {
         matches!(self.via, Via::Target)
     }
 
+    /// Whether the node is read for itself — the subject, or a reference's
+    /// target — rather than as a descendant: only then does a role that does
+    /// not name from its contents still give them ([`super::native::opaque`]).
+    pub fn reads_itself(&self) -> bool {
+        matches!(self.via, Via::Subject | Via::Target)
+    }
+
     /// §2B does not recurse: one reference hop is all there is, so neither a
     /// target nor anything under it follows a further `aria-labelledby`. A
     /// `<legend>`'s own reference *is* followed — a legend is not inside one.

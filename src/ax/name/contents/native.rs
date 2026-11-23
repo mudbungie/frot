@@ -14,8 +14,76 @@ use crate::tags;
 /// a `<title>` — which is its parent's alternative ([`svg_title`]) or, in
 /// HTML, unrendered. Measured in Chrome 158 (`bl-3fc9`): `a<ruby>rb<rt>rt</rt>
 /// </ruby>c` is "arbc" and `a<title>t</title>c` is "ac".
+///
+/// An `<object>`'s fallback and an image `<map>` say nothing either: `a<object>
+/// obj</object>c` and `a<map><area alt=ar href=x></map>c` are "ac" (`bl-d94b`).
 pub fn silent(name: &str) -> bool {
-    tags::is_source(name) || matches!(name, "rp" | "rt" | "title")
+    tags::is_source(name) || matches!(name, "rp" | "rt" | "title" | "object" | "map")
+}
+
+/// Roles whose contents a descendant does not give: it says its own author
+/// name and nothing else, and a `<fieldset>` its legend. Measured in Chrome
+/// 158 (`bl-d94b`) on `a<span role=R>X</span>c`, "ac" for each — "a c" for the
+/// two that are controls ([`CONTROLS`]) — and on `a<fieldset><legend>lg
+/// </legend>fs</fieldset>c` ("a lg c"), `<figure>`, `<article>`, `<dialog
+/// open>` and `<output>` ("a c").
+const OPAQUE: &[&str] = &[
+    "application",
+    "article",
+    "combobox",
+    "dialog",
+    "figure",
+    "grid",
+    "group",
+    "img",
+    "listbox",
+    "menu",
+    "menubar",
+    "note",
+    "progressbar",
+    "radiogroup",
+    "separator",
+    "status",
+    "tablist",
+    "toolbar",
+    "tree",
+];
+
+/// Whether a descendant with `id`'s role keeps its contents out of a name.
+/// A `group` does only when the author wrote the role, or is a `<fieldset>`:
+/// an open `<details>` ("a sm db c"), an unlabelled `<optgroup>` and a
+/// described SVG `<g>` are groups that still give theirs.
+pub fn opaque(doc: &Document, id: NodeId, el: &Element) -> bool {
+    match crate::ax::role(doc, id) {
+        Some("group") => el.name == "fieldset" || crate::ax::role::explicit(doc, id, el).is_some(),
+        role => role.is_some_and(|r| OPAQUE.contains(&r)),
+    }
+}
+
+/// What an ARIA range widget says in a name: `aria-valuetext`, else
+/// `aria-valuenow`, else its default — the middle of a slider's or
+/// scrollbar's range (`aria-valuemin` 0 and `aria-valuemax` 100 unless
+/// given), zero for a spinbutton or meter. Measured in Chrome 158
+/// (`bl-d94b`): `a<span role=slider>X</span>c` is "a 50 c", with
+/// `aria-valuemin=10 aria-valuemax=20` "a 15 c", with `aria-valuenow=7`
+/// "a 7 c" and `aria-valuetext=seven` "a seven c"; `role=spinbutton` "a 0 c".
+pub fn range_value(doc: &Document, id: NodeId, el: &Element) -> Option<String> {
+    let role = crate::ax::role(doc, id)?;
+    let num = |attr: &str| el.attr(attr).and_then(|v| v.trim().parse::<f64>().ok());
+    let middle =
+        || (num("aria-valuemin").unwrap_or(0.0) + num("aria-valuemax").unwrap_or(100.0)) / 2.0;
+    let default = match role {
+        "slider" | "scrollbar" => middle(),
+        "spinbutton" | "meter" => 0.0,
+        _ => return None,
+    };
+    let text = el
+        .attr("aria-valuetext")
+        .filter(|t| !t.trim_ascii().is_empty());
+    Some(text.map_or_else(
+        || num("aria-valuenow").unwrap_or(default).to_string(),
+        str::to_string,
+    ))
 }
 
 /// Roles that are controls: a descendant holding one is spaced off from the
@@ -41,9 +109,10 @@ const CONTROLS: &[&str] = &[
 /// break, a control — by role, or a `<button>` under any role (`<button
 /// role=link>` and `<button style="display:inline">` are still spaced off) —
 /// or a `<canvas>` that has fallback content (an empty one separates nothing).
+/// An `<output>` too: `a<output>out</output>c` is "a c" (`bl-d94b`).
 pub fn atomic(doc: &Document, id: NodeId, el: &Element) -> bool {
     match el.name.as_str() {
-        "br" | "wbr" | "button" => true,
+        "br" | "wbr" | "button" | "output" => true,
         "canvas" => !doc.node(id).children.is_empty(),
         _ => crate::ax::role(doc, id).is_some_and(|r| CONTROLS.contains(&r)),
     }
@@ -115,14 +184,44 @@ fn gauge(el: &Element) -> String {
     }
 }
 
-/// An `<input>` is a leaf: `type=image` speaks through `alt`, everything else
-/// (button labels and embedded controls alike) through its `value`.
+/// An `<input>` is a leaf that speaks through its `value` — a button's
+/// default label when it has none, a range's middle, a password's bullets —
+/// and `type=image` through a non-empty `alt` first. Measured in Chrome 158
+/// (`bl-d94b`): `a<input type=submit>c` is "a Submit c", `type=reset` "a Reset
+/// c", `type=image` "a Submit c" (with `alt="" value=IV`, "a IV c"),
+/// `type=range` "a 50 c" (`min=10 max=20`, "a 15 c"), `type=password
+/// value=pw` "a •• c".
 fn input_alternative(el: &Element) -> String {
-    let attr = match el.attr("type").unwrap_or("").to_ascii_lowercase().as_str() {
-        "image" => "alt",
-        _ => "value",
+    let kind = el.attr("type").unwrap_or("").to_ascii_lowercase();
+    let value = el.attr("value");
+    let num = |attr: &str, or: f64| {
+        el.attr(attr)
+            .and_then(|v| v.trim().parse().ok())
+            .unwrap_or(or)
     };
-    el.attr(attr).unwrap_or("").to_string()
+    match kind.as_str() {
+        "image" => el
+            .attr("alt")
+            .filter(|a| !a.is_empty())
+            .or(value)
+            .unwrap_or("Submit")
+            .to_string(),
+        "range" => value.map_or_else(
+            || ((num("min", 0.0) + num("max", 100.0)) / 2.0).to_string(),
+            str::to_string,
+        ),
+        "password" => "\u{2022}".repeat(value.unwrap_or("").chars().count()),
+        _ => value.or(button_default(&kind)).unwrap_or("").to_string(),
+    }
+}
+
+/// The label a `type=submit` or `type=reset` button shows with no `value`.
+pub fn button_default(kind: &str) -> Option<&'static str> {
+    match kind {
+        "submit" => Some("Submit"),
+        "reset" => Some("Reset"),
+        _ => None,
+    }
 }
 
 /// An embedded `<select>` speaks its selected option — the first one when the

@@ -400,6 +400,20 @@ other options might have belonged with `<video>`'s prose. Measured in Chrome
   `time` — `<p title=T>text</p>` is `paragraph ""` — nor a `<caption>`; every
   other role measured is named by it (`ax/name.rs` `UNTITLED`).
 
+- **What a descendant gives** (2026-11-23, `bl-d94b`, Chrome 158). Inside a
+  name, a descendant whose role does not name from its contents — a
+  container (`group` written by the author, `figure`, `article`, `dialog`,
+  `toolbar`, `grid`, `menu`, …), a composite control (`combobox`,
+  `listbox`, `tree`, `radiogroup`, `tablist`), `img`, `status`,
+  `progressbar`, `separator` — gives its own author name and nothing of its
+  contents; a `<fieldset>` gives its legend. A native `group` that is an
+  open `<details>`, an `<optgroup>` or an SVG `<g>` still gives its
+  contents. Range widgets say their value (`aria-valuetext`,
+  `aria-valuenow`, else a slider's midpoint or a spinbutton's 0), and an
+  input button its default label ("Submit", "Reset"), which also names the
+  button itself (`ax/name/contents/native.rs` `OPAQUE`, `range_value`,
+  `input_alternative`).
+
 ## 3. "On-demand" — the exact trigger
 
 VISION: "Layout runs implicitly when something needs geometry … Outside that,

@@ -52,7 +52,7 @@ pub fn fieldset_legend_text(
 }
 
 /// The `<legend>` of a `<fieldset>`: the first one inside it.
-fn legend(doc: &Document, fieldset_id: NodeId) -> Option<NodeId> {
+pub(super) fn legend(doc: &Document, fieldset_id: NodeId) -> Option<NodeId> {
     let mut found: Option<NodeId> = None;
     doc.walk(Some(fieldset_id), &mut |ev, e| {
         if found.is_some() {
