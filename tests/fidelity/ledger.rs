@@ -34,6 +34,8 @@ pub struct Row {
     pub why: Why,
 }
 
+/// Unused while the ledger is empty, its healthy state.
+#[allow(dead_code)]
 const fn row(fixture: &'static str, channel: &'static str, delta: &'static str, why: Why) -> Row {
     Row {
         fixture,
@@ -43,20 +45,9 @@ const fn row(fixture: &'static str, channel: &'static str, delta: &'static str, 
     }
 }
 
-/// `text-transform` is not applied.
-const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
-
 pub const LEDGER: &[Row] = &[
     // Open divergences, one ball per root cause.
     // text
-    row("reach", "text", "- LOUD", TEXT_TRANSFORM),
-    row("reach", "text", "- WORDS", TEXT_TRANSFORM),
-    row("reach", "text", "+ loud", TEXT_TRANSFORM),
-    row("reach", "text", "+ words", TEXT_TRANSFORM),
-    row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),
-    row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
-    row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),
-    row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
     // ax
     // bboxes
 ];

@@ -4,13 +4,15 @@
 //! Origin/precedence is a deliberate simplification of the real cascade,
 //! sufficient for visibility and generated content: a declaration wins on
 //! `(important, inline, specificity, source-order)`, compared in that order.
-//! `visibility` is inherited; `display` and generated `content` are not.
+//! `visibility` and `text-transform` are inherited; `display` and generated
+//! `content` are not. The walk also carries the line context capitalization
+//! reads ([`super::transform`]): the character before each run of text.
 
 use super::computed::{reduce, Applied};
 use super::index::Index;
 use super::parse::{parse_decls, Stylesheet};
 use super::selector::Specificity;
-use super::{ComputedStyle, Display, Styles, Visibility};
+use super::{ComputedStyle, Display, Styles};
 use crate::dom::{Document, Element, NodeId, NodeKind};
 
 pub fn compute(doc: &Document) -> Styles {
@@ -47,37 +49,55 @@ pub fn compute_bare(doc: &Document, js: bool) -> Styles {
 fn cascade(doc: &Document, sheets: &[Stylesheet], js: bool) -> Styles {
     let index = Index::build(sheets);
     let mut nodes = vec![ComputedStyle::default(); doc.len()];
+    let top = ComputedStyle::default();
     for &root in doc.roots() {
-        walk(doc, root, &index, Visibility::Visible, js, &mut nodes);
+        walk(doc, root, &index, &top, js, &mut ' ', &mut nodes);
     }
     Styles::from_nodes(nodes)
 }
 
+/// Resolve `id` and its subtree. `prev` is the character before `id` in its
+/// line: a block, an atomic inline and a replaced element each start a line
+/// context of their own, and a `display:none` subtree, being in no line,
+/// leaves the context as it found it.
 fn walk(
     doc: &Document,
     id: NodeId,
     index: &Index,
-    parent_vis: Visibility,
+    parent: &ComputedStyle,
     js: bool,
+    prev: &mut char,
     nodes: &mut [ComputedStyle],
 ) {
     let entry = doc.node(id);
     let concealed = doc.concealed(id);
     let NodeKind::Element(el) = &entry.kind else {
-        nodes[id as usize] = conceal(ComputedStyle::default(), concealed);
+        let mut cs = conceal(ComputedStyle::default(), concealed);
+        if let NodeKind::Text(t) = &entry.kind {
+            cs.text = parent.text_transform.apply(t, prev);
+        }
+        nodes[id as usize] = cs;
         return;
     };
-    let mut cs = conceal(resolve(doc, id, el, index, parent_vis, js), concealed);
+    let mut cs = conceal(resolve(doc, id, el, index, parent, js), concealed);
+    let holds = doc.holds_generated(id, el);
     // A box that takes no children holds no generated ones either.
-    if !doc.holds_generated(id, el) {
+    if !holds {
         cs.before = None;
         cs.after = None;
     }
-    let vis = cs.visibility;
-    nodes[id as usize] = cs;
+    let own_line = !holds || !matches!(cs.display, Display::Inline | Display::Contents);
+    let mut inner = if own_line { ' ' } else { *prev };
+    let [before, after] = cs.pseudo_transform;
+    cs.before = cs.before.map(|s| before.apply(&s, &mut inner).unwrap_or(s));
     for &c in &entry.children {
-        walk(doc, c, index, vis, js, nodes);
+        walk(doc, c, index, &cs, js, &mut inner, nodes);
     }
+    cs.after = cs.after.map(|s| after.apply(&s, &mut inner).unwrap_or(s));
+    if cs.display != Display::None {
+        *prev = if own_line { ' ' } else { inner };
+    }
+    nodes[id as usize] = cs;
 }
 
 /// Fold the UA's **structural** concealment ([`Document::concealed`]) into a
@@ -103,7 +123,7 @@ fn resolve(
     id: NodeId,
     el: &Element,
     index: &Index,
-    parent_vis: Visibility,
+    parent: &ComputedStyle,
     js: bool,
 ) -> ComputedStyle {
     let mut applied: Vec<Applied> = Vec::new();
@@ -138,7 +158,7 @@ fn resolve(
             });
         }
     }
-    reduce(&applied, el, parent_vis, js)
+    reduce(&applied, el, parent, js)
 }
 
 #[cfg(test)]

@@ -3,8 +3,9 @@
 //! per-node [`Styles`] side table.
 //!
 //! Scope is deliberately narrow — only what visibility and generated content
-//! need: `display:none`, `visibility:hidden|collapse` (inherited), and
-//! `::before`/`::after` `content`. `@media` preludes are evaluated against
+//! need: `display:none`, `visibility:hidden|collapse` (inherited),
+//! `::before`/`::after` `content`, and `text-transform` (inherited; the case
+//! text is painted in, [`transform`]). `@media` preludes are evaluated against
 //! the fixed 1280×720 viewport ([`media`] — the same evaluator JS
 //! `matchMedia` delegates to). There is no layout and no
 //! `cssparser`/`selectors` dependency; see `VISION.md`.
@@ -25,6 +26,7 @@ mod query;
 mod selector;
 mod selparse;
 mod state;
+mod transform;
 
 use crate::dom::NodeId;
 
@@ -32,6 +34,7 @@ pub use cascade::{compute, compute_bare, compute_with};
 pub use display::Display;
 pub use import::imports;
 pub use query::{matches_any, query_all, UnsupportedSelector};
+pub use transform::{Case, TextTransform};
 
 // This module publishes a table, not a traversal. Every consumer that needs
 // "the text of this subtree as rendered" walks the arena itself and asks
@@ -101,6 +104,12 @@ pub struct ComputedStyle {
     pub out_of_flow: bool,
     /// The same fact for the `::before` and the `::after` box, in that order.
     pub pseudo_out_of_flow: [bool; 2],
+    /// Computed (inherited) `text-transform` ([`transform`]). `before` and
+    /// `after` are already transformed by theirs, `pseudo_transform`.
+    pub text_transform: TextTransform,
+    pub pseudo_transform: [TextTransform; 2],
+    /// A text node's characters as painted, when a transform changed them.
+    pub text: Option<String>,
 }
 
 /// Per-node computed styles, indexed by [`NodeId`]. Non-element nodes and
@@ -173,6 +182,12 @@ impl Styles {
         let before = cs.before.as_ref().map(|_| (cs.before_display, !before));
         let after = cs.after.as_ref().map(|_| (cs.after_display, !after));
         before.into_iter().chain(after)
+    }
+
+    /// Text node `id`'s characters as painted: `raw` unless a
+    /// `text-transform` changed them.
+    pub fn text<'a>(&'a self, id: NodeId, raw: &'a str) -> &'a str {
+        self.get(id).text.as_deref().unwrap_or(raw)
     }
 
     /// Whether `id`'s box is out of flow ([`ComputedStyle::out_of_flow`]).

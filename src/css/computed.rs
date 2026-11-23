@@ -7,6 +7,7 @@
 
 use super::content;
 use super::selector::{Pseudo, Specificity};
+use super::transform::TextTransform;
 use super::{ComputedStyle, Display, FlexDirection, Visibility};
 use crate::dom::Element;
 use crate::tags::is_block;
@@ -29,24 +30,34 @@ impl Applied {
     }
 }
 
-/// Fold `applied` into the element's [`ComputedStyle`].
+/// Fold `applied` into the element's [`ComputedStyle`]; `parent` supplies the
+/// inherited properties.
 pub fn reduce(
     applied: &[Applied],
     el: &Element,
-    parent_vis: Visibility,
+    parent: &ComputedStyle,
     js: bool,
 ) -> ComputedStyle {
+    let transform = TextTransform::of(
+        ranked(applied, None, "text-transform"),
+        el,
+        parent.text_transform,
+    );
     ComputedStyle {
         display: display(applied, el, js),
         order: order_value(applied),
         flex_direction: flex_direction(applied),
-        visibility: visibility(applied, parent_vis),
+        visibility: visibility(applied, parent.visibility),
         before: generated(applied, Pseudo::Before, el),
         after: generated(applied, Pseudo::After, el),
         before_display: pseudo_display(applied, Pseudo::Before),
         after_display: pseudo_display(applied, Pseudo::After),
         out_of_flow: out_of_flow(applied, None),
         pseudo_out_of_flow: [Pseudo::Before, Pseudo::After].map(|p| out_of_flow(applied, Some(p))),
+        text_transform: transform,
+        pseudo_transform: [Pseudo::Before, Pseudo::After]
+            .map(|p| transform.pseudo(ranked(applied, Some(p), "text-transform"))),
+        text: None,
     }
 }
 
@@ -132,6 +143,20 @@ fn implicit_display(name: &str) -> Display {
         n if is_block(n) => Display::Block,
         _ => Display::Inline,
     }
+}
+
+/// Every value declared for `name`, the cascade's winner first.
+fn ranked<'b>(
+    applied: &'b [Applied],
+    pseudo: Option<Pseudo>,
+    name: &str,
+) -> impl Iterator<Item = &'b str> {
+    let mut hits: Vec<&Applied> = applied
+        .iter()
+        .filter(|a| a.pseudo == pseudo && a.name == name)
+        .collect();
+    hits.sort_by_key(|a| std::cmp::Reverse(a.key()));
+    hits.into_iter().map(|a| a.value.as_str())
 }
 
 fn winner<'b>(applied: &'b [Applied], pseudo: Option<Pseudo>, name: &str) -> Option<&'b str> {

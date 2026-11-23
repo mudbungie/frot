@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Text transform</title>
+<style>
+.up { text-transform: uppercase; }
+.low { text-transform: lowercase; }
+.cap { text-transform: capitalize; }
+.none { text-transform: none; }
+.fw { text-transform: full-width; }
+.bad { text-transform: uppercase; text-transform: bogus; }
+.gen::before { content: "gen "; }
+.genlow::after { content: " TAIL"; text-transform: lowercase; }
+</style>
+</head>
+<body>
+<h1 class="up">text transform</h1>
+<p class="up">straße ﬁne café</p>
+<p class="low">MiXeD CASE Words</p>
+<p class="cap">hello world-wide o'neil foo_bar 3rd x.y élan (paren) «quote» a/b</p>
+<p class="cap">hel<b>lo</b> wo<i>rld</i></p>
+<p>x<span class="cap">yz</span> <span class="cap">ab</span><span class="cap">cd</span></p>
+<div class="up"><span>inner kept</span> <em class="none">not this</em> <span class="low">BACK DOWN</span></div>
+<p class="bad">invalid last</p>
+<p class="up gen">with generated</p>
+<p class="up genlow">own transform</p>
+<p lang="tr" class="up">istanbul</p>
+<p lang="tr" class="low">IŞIK</p>
+<p class="low">ΟΔΟΣ ΣΑΣ</p>
+<p class="fw">wide</p>
+<pre class="up">pre text
+two</pre>
+<h2 class="cap">names and values</h2>
+<p><button class="up">push me</button></p>
+<p><a class="up" href="a.html">link words</a></p>
+<p><a class="up" href="b.html" aria-label="Labelled link">ignored text</a></p>
+<p><a class="up" href="c.html"><img alt="logo pic" src="data:,"></a></p>
+<p><a class="up" href="d.html" title="titled link"></a></p>
+<p><input class="up" type="submit" value="send it"></p>
+<p><input class="up" type="text" value="typed value" aria-label="field"></p>
+<p><select class="up" aria-label="menu"><option>first option</option><option>second</option></select></p>
+<p><textarea class="up" aria-label="area">area text</textarea></p>
+<p><span id="ref" class="up">referenced words</span> <button aria-labelledby="ref">x</button></p>
+<p><label class="up" for="f2">label words</label> <input id="f2"></p>
+</body>
+</html>

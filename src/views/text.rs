@@ -22,7 +22,8 @@
 //!   view, and why *that* one does need the recipe — an element's own text is
 //!   suppressed when its computed `visibility` is hidden (a
 //!   `visibility:visible` descendant reappears), and `::before`/`::after`
-//!   generated content is emitted as inline text. None of it reaches below a
+//!   generated content is emitted as inline text, and text is in the case
+//!   `text-transform` paints it (`bl-e48d`). None of it reaches below a
 //!   `<select>`, whose options are listed whatever their own style says.
 
 use crate::css::{Display, Styles, Visibility};
@@ -263,7 +264,7 @@ fn emit(
         // the *parent's* box swallows never comes out of `painted_children`.
         NodeKind::Text(t) => {
             if parent_visible {
-                state.push_text(t);
+                state.push_text(styles.map_or(t, |s| s.text(id, t)));
             }
         }
         NodeKind::Comment(_) | NodeKind::Doctype | NodeKind::Document | NodeKind::Fragment => {}

@@ -168,7 +168,22 @@ selector holding an unsupported piece at any depth (`p:is(:target)`) throws
 paragraph gave `p:is(:hover)` as the selector that throws.)
 
 **Properties.** `display`, `visibility` (inherited), `content` on
-`::before`/`::after`, `flex-direction` and `order`.
+`::before`/`::after`, `flex-direction`, `order` and `text-transform`
+(inherited). (**Amended 2026-11-22, `bl-e48d`:** `text-transform` was not in
+this list; Mark ruled that the case text is painted in is part of what `text`
+and `ax` claim, as it is of Chrome's `innerText` and accessible names.)
+
+`text-transform` (`src/css/transform.rs`, measured in Chrome 158 on the
+`transform` fixture): `uppercase`, `lowercase`, `capitalize`, `none`, on text
+nodes and generated content, in the `text` view and in every name computed
+from content. Attributes are never transformed — `alt`, `title`,
+`aria-label`, a control's `value`. The UA sets `none` on `<input>`,
+`<textarea>`, `<select>` and `<button>`, so an inherited transform stops
+there. `capitalize` reads the line across element boundaries
+(`x<span>yz</span>` keeps `yz`); a letter starts a word unless the
+character before it is a letter, a digit, `'`, `’`, `_` or a middle dot.
+`lang` tailors casing for Turkish and Azeri only. `full-width` and
+`full-size-kana` are accepted and change nothing Chrome reports.
 
 `content` generates nothing on an element whose box takes no children
 (2026-11-22, `bl-082b`; until then every element generated it): a replaced

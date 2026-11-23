@@ -9,7 +9,8 @@
 //!
 //! Per node, in tree order:
 //!
-//! - **Text** — its characters, verbatim, unless CSS hid it.
+//! - **Text** — its characters, in the case `text-transform` paints them
+//!   (`bl-e48d`), unless CSS hid it.
 //! - **An element that supplies its own alternative** — `aria-label`,
 //!   `aria-labelledby`, `alt`, an SVG `<title>`, or an embedded control's value
 //!   — contributes *that* and is not descended into.
@@ -164,7 +165,7 @@ fn node_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) 
         // outside the name are its parent element being hidden (caught below,
         // before the recursion reaches here) and structural concealment
         // (caught by [`Document::ax_children`], which is the only way in).
-        NodeKind::Text(t) => out.push_str(t),
+        NodeKind::Text(t) => out.push_str(w.styles.map_or(t, |s| s.text(id, t))),
         NodeKind::Element(el) => element_text(w, id, el, visited, out),
         NodeKind::Comment(_) | NodeKind::Doctype | NodeKind::Document | NodeKind::Fragment => {}
     }
