@@ -762,6 +762,11 @@ not break the line in `text`; pinned by three lines added to
 `disclosure.html` and nine defect rows). It is filed as `bl-3248`, blocked on
 the first two.
 
+(**Superseded 2026-11-22, `bl-3248`:** the W3C page is in, as
+`saved/web-share`, with no ledger row. Once `bl-346e`, `bl-2f42` and
+`bl-e48d` landed it matched Chrome 158 on every channel; the `bl-788d`
+`<details>` rows never appeared on it.)
+
 **Also learned.** English Wikipedia's current parser stamps every page with a
 four-part version number that the repo's leak scanner reads as an address;
 the article was saved through the legacy parser instead (`NOTICE.md` §4)

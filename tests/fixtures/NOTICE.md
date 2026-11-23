@@ -100,7 +100,8 @@ App code: **MIT** — © 2025 Innei
 Real pages, saved once so that frot and Chrome read the same bytes with no
 network (`docs/design/fidelity.md` §4). Each was chosen because every byte kept
 is under a licence that allows redistribution with attribution and nothing
-more. All four were retrieved on 2026-11-21. The sha256 of every saved file is
+more. The first four were retrieved on 2026-11-21, the W3C page on
+2026-11-22. The sha256 of every saved file is
 in the `stamp.bytes` of the capture beside the page, and `tests/fidelity.rs`
 re-hashes them.
 
@@ -130,18 +131,16 @@ re-hashes them.
 | `fidelity/saved/python-webbrowser/classic.css`, `fidelity/saved/python-webbrowser/basic.css` | `https://docs.python.org/3.13/_static/classic.css`, `…/basic.css` | **BSD-2-Clause** — © 2007-2026 the Sphinx developers ([sphinx-doc/sphinx](https://github.com/sphinx-doc/sphinx)), `licenses/sphinx.LICENSE` | none — verbatim; `classic.css` reaches `basic.css` through its `@import` |
 | `fidelity/saved/python-webbrowser/pygments.css`, `fidelity/saved/python-webbrowser/pygments_dark.css` | `https://docs.python.org/3.13/_static/pygments.css`, `…/pygments_dark.css` | **BSD-2-Clause** — © 2006-2022 the Pygments authors ([pygments/pygments](https://github.com/pygments/pygments)), `licenses/pygments.LICENSE`: the highlighting styles Pygments emits, written out by the docs build | none — verbatim |
 | `fidelity/saved/python-webbrowser/pydoctheme.css`, `fidelity/saved/python-webbrowser/pydoctheme_dark.css` | `https://docs.python.org/3.13/_static/pydoctheme.css`, `…/pydoctheme_dark.css` | **PSF-2.0** — © Python Software Foundation ([python/python-docs-theme](https://github.com/python/python-docs-theme)), `licenses/python-docs-theme.LICENSE` | `pydoctheme.css`: 1 `url()` font reference replaced as above; `pydoctheme_dark.css`: none — verbatim |
+| `fidelity/saved/web-share.html` | `https://www.w3.org/TR/web-share/` (Web Share API, W3C Recommendation, dated version `https://www.w3.org/TR/2023/REC-web-share-20230530/`) | **W3C Software and Document License** (2015), `licenses/w3c-software-and-document-2015.LICENSE` — Copyright © 2023 World Wide Web Consortium. Page footer: "W3C liability, trademark and permissive document license rules apply." This copy includes material copied from that document, modified as listed. | 3 `<script>` elements removed; the W3C logo `<img>` (W3C logos are not under the licence) and the 8 browser-logo `url()`s in the page's `<style>` replaced as above, its one `data:` GIF kept; the `crossorigin` on the logo dropped |
+| `fidelity/saved/web-share/W3C-REC.css`, `fidelity/saved/web-share/base.css` | `https://www.w3.org/StyleSheets/TR/2021/W3C-REC`, `…/base.css` | **W3C Software Notice and License** (2002) — W3C ([w3c/tr-design](https://github.com/w3c/tr-design)), `licenses/w3c-tr-design.LICENSE` (the repository's `LICENSE` and the licence text it names) | `W3C-REC` saved as `W3C-REC.css` (the recorder types files by extension), reaching `base.css` through its `@import`; their 3 `url()` logo references (1 + 2) replaced as above; otherwise verbatim |
 
 The `.json` beside each saved page is derived (§3), and it quotes the page:
 it reproduces the page's text and structure as Chrome reported them, so it is
 offered under that page's licence, not frot's.
 
-Tried and left out, so nobody repeats the work blind: a W3C Recommendation
-(Web Share) under the permissive W3C Software and Document License. It was
-measured twice; the second time, with `@import`, `:is()`/`:not()`, the sibling
-combinators and `:first-child`/`:last-child` in place, it still differed from
-Chrome on 223 lines, nearly all from two things frot does not do yet (an
-absolutely positioned box in `text`, and `text-transform`). It is filed to come
-back when those land (`bl-3248`, which carries the recipe). MDN and the full
+The W3C page was tried twice and left out (223 lines from an absolutely
+positioned box in `text` and `text-transform`, both missing then); it went in
+once `bl-346e` and `bl-e48d` landed, with no ledger row (`bl-3248`). MDN and the full
 Wikipedia skin were not tried: their site stylesheets are MPL-2.0 and
 GPL-2.0-or-later, which ask for more than attribution.
 
