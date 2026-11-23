@@ -44,14 +44,15 @@ pub fn reference(href: &str, root: &str) -> String {
     rest.unwrap_or(href).to_string()
 }
 
-/// `links`, Chrome's side: `document.links`, as reference + collapsed text.
+/// `links`, Chrome's side: every `:any-link` element, as reference +
+/// collapsed text.
 pub fn chrome_links(links: &Value, root: &str) -> Vec<String> {
     let line = |l: &Value| link_line(text_of(&l["href"]), text_of(&l["text"]), root);
     items(links).iter().map(line).collect()
 }
 
 /// `links`, frot's side: the anchor kinds only. The view also carries
-/// `<link>`, which `document.links` has no notion of.
+/// `<link>`, which is a relation and no hyperlink.
 pub fn frot_links(out: &Value, root: &str) -> Vec<String> {
     let anchors = items(out).iter().filter(|l| l["kind"] != "link");
     let line = |l: &Value| link_line(text_of(&l["href"]), text_of(&l["text"]), root);

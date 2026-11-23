@@ -50,9 +50,6 @@ const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
 const FORM_ATTR: Why = Why::Defect("bl-e8fa");
 /// Chrome makes a span carrying `autofocus` a group.
 const AUTOFOCUS_GROUP: Why = Why::Defect("bl-0725");
-/// The recorder reads `document.links`, which lists HTML `<a>` / `<area>`
-/// only; an SVG `<a href>` is a link all the same (SVG 2, "Linking").
-const SVG_LINK: Why = Why::Residual("document.links omits SVG <a>; frot lists it");
 
 pub const LEDGER: &[Row] = &[
     // Open divergences, one ball per root cause.
@@ -65,8 +62,6 @@ pub const LEDGER: &[Row] = &[
     row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
-    row("state", "links", "+ z \"\"", SVG_LINK),
-    row("state", "links", "+ z \"\"", SVG_LINK),
     row(
         "state",
         "forms",

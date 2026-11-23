@@ -31,6 +31,8 @@
   {"tag":"a","href":"http://fidelity.invalid/corpus/state.html","text":"blank"},
   {"tag":"a","href":"http://fidelity.invalid/corpus/x","text":""},
   {"tag":"area","href":"http://fidelity.invalid/corpus/y","text":""},
+  {"tag":"a","href":"http://fidelity.invalid/corpus/z","text":""},
+  {"tag":"a","href":"http://fidelity.invalid/corpus/z","text":""},
   {"tag":"a","href":"http://fidelity.invalid/corpus/q","text":""}
  ],
  "forms": [

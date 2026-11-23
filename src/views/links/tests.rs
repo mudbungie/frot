@@ -188,3 +188,24 @@ fn multiple_anchors_returned_in_order() {
     assert_eq!(href_of(&r[0]), "https://example.com/1");
     assert_eq!(href_of(&r[1]), "https://example.com/2");
 }
+
+/// Chrome 158 `:any-link` (`bl-4650`): an SVG anchor is a hyperlink with
+/// `href` or with `xlink:href`, and not without either; `xlink:href` on an
+/// HTML anchor is just an attribute.
+#[test]
+fn an_svg_anchor_is_a_hyperlink() {
+    let r = run(
+        "<svg><a href='z'><title>t</title><text>la</text></a>\
+         <a xlink:href='y'><text>lb</text></a><a><text>lc</text></a></svg>\
+         <a xlink:href='q'>hx</a>",
+        "https://example.com/d/",
+    );
+    let got: Vec<_> = r.iter().map(|l| (href_of(l), &l["text"])).collect();
+    assert_eq!(
+        got,
+        [
+            ("https://example.com/d/z", &Value::from("tla")),
+            ("https://example.com/d/y", &Value::from("lb")),
+        ]
+    );
+}

@@ -1,11 +1,15 @@
 //! `--out links`: extract anchors and link relations.
 //!
-//! Covered elements: `<a href>`, `<area href>`, `<link href rel>`. Each href is
+//! Covered elements: `<a href>`, `<area href>`, `<link href rel>` — every
+//! hyperlink in the document, plus the link relations. An SVG `<a>` is one
+//! with `href` or with `xlink:href` (the parser files both under `href`),
+//! as Chrome's `:any-link` has it (`bl-4650`). Each href is
 //! resolved against the document base URL ([`crate::base`]) — the shared
 //! authority, so a `<base href>` means the same thing here as everywhere else.
 //!
 //! Output shape: `[{"kind": "a"|"area"|"link", "href": <abs>, "text": <str|null>,
-//! "rel": [<token>...]}, ...]`.
+//! "rel": [<token>...]}, ...]`. `text` is the element's `textContent`, white
+//! space collapsed — an SVG anchor's `<title>` included.
 
 use crate::base;
 use crate::dom::{Document, NodeId, NodeKind};

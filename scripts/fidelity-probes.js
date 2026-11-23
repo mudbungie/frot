@@ -11,10 +11,17 @@
 // is the fact — an SVG <defs> child and a <wbr> pass checkVisibility() with no
 // rect at all. `visibility: hidden` keeps its box on both halves, as it does
 // in frot's `bboxes` (layout.md §7).
+//
+// `links` is every hyperlink Chrome sees, which is what `:any-link` matches:
+// an HTML <a> or <area> with `href`, and an SVG <a> with `href` or
+// `xlink:href`. `document.links` is the HTML half alone. An SVG anchor's
+// `href` is an SVGAnimatedString holding the attribute as written, so it is
+// resolved here the way Chrome resolves it to follow it.
 function flat() {
   return {
-    links: [...document.links].map((a) => (
-      { tag: a.localName, href: a.href, text: a.textContent })),
+    links: [...document.querySelectorAll(':any-link')].map((a) => ({ tag: a.localName,
+      href: typeof a.href === 'string' ? a.href : new URL(a.href.baseVal, document.baseURI).href,
+      text: a.textContent })),
     forms: [...document.forms].map((f) => ({
       action: f.action,
       method: f.method,

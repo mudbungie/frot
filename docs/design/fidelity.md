@@ -82,7 +82,7 @@ and the fix was accessors in frot, not comparisons against Chrome.
 |---|---|---|---|
 | `text` | `document.body.innerText`, read after the recorder has put the two things Chrome paints and `innerText` omits — string `::before`/`::after` content and `<textarea>` values — into the tree as text where they paint (§15.1) | whitespace-collapsed token sequence | **zero** (measured: 521/521 and 776/776 tokens on two real pages) |
 | `ax` | `Accessibility.getFullAXTree` | roled-node tree in frot's model: prune `ignored`/`InlineTextBox`/`StaticText`/`ListMarker`/`generic`/UA-widget subtrees; map Blink role names; trim names | zero after projection (measured on the §12 fixture set) |
-| `links` | `document.links` | filter frot's `links` to anchor kind (frot's view also carries `<link>`/`<area>`/forms of reference `document.links` lacks — measured 195 vs 163 on one page); compare resolved `href` + text in document order | zero |
+| `links` | `document.querySelectorAll(':any-link')` — every hyperlink Chrome sees: HTML `<a>`/`<area>` with `href`, SVG `<a>` with `href` or `xlink:href` (`document.links`, the HTML half alone, until 2026-11-22, `bl-4650`) | filter frot's `links` to anchor kind (frot's view also carries `<link>`, which is no hyperlink — measured 195 vs 163 on one page); compare resolved `href` + text (`textContent`) in document order | zero |
 | `forms` | `document.forms` + `form.elements` | field list per form: tag/type/name/action/method, over the four control tags the view declares (`input`/`textarea`/`select`/`button`), `type` as the attribute is written | zero (measured, §15) |
 | `bboxes` | `checkVisibility() && getClientRects().length > 0` per element (§15.1) | **box vs no box only**; never a coordinate | zero for flow content; a collapsed select's options, once the one ledger residual here, have no box on either side since `bl-2932` (`layout.md` §2.4) |
 
@@ -490,6 +490,16 @@ saved and read as the same bytes by both sides.
 8. **Links channel shape**: saved Wikipedia page — frot `links` 195 entries
    (anchors + `<link rel=stylesheet>` + alternates…), `document.links` 163
    (anchors/areas only). Mapping = filter by kind, then compare.
+
+   > **Superseded 2026-11-22 (`bl-4650`).** `document.links` is HTML-only by
+   > definition, and an SVG `<a href>` is a hyperlink: Chrome 158 matches it
+   > with `:any-link`, makes it focusable and gives it the `link` role, with
+   > `href` or with `xlink:href` alone (and `href` wins when both are
+   > written). frot's view lists those — "every hyperlink in the document" —
+   > so the recorder now asks `:any-link` and the two `state` residual rows
+   > are an equality. An SVG `<a>` with neither attribute, and an HTML `<a
+   > xlink:href>`, are links on neither side. The link's text is its
+   > `textContent` on both sides, a `<title>` child included.
 
 ## 13. Decomposition — as proposed (built as one ball, `bl-2e08`)
 
