@@ -98,11 +98,16 @@ fn br_inside_pre_emits_real_newline() {
 }
 
 #[test]
-fn block_break_inside_pre_does_nothing_extra() {
-    let got = t("<pre>line1\n<p>line2</p>line3</pre>");
-    assert!(got.contains("line1"));
-    assert!(got.contains("line2"));
-    assert!(got.contains("line3"));
+fn a_block_inside_pre_breaks_the_line_once() {
+    // The newline the source wrote before the block is not doubled.
+    assert_eq!(
+        t("<pre>line1\n<p>line2</p>line3</pre>"),
+        "line1\nline2\nline3"
+    );
+    // Chrome 158 (`bl-2f42`): three lines, and two.
+    assert_eq!(t("<pre>one<div>two</div>three</pre>"), "one\ntwo\nthree");
+    let html = "<pre><span style='display:block'>WebIDL</span><code>partial  x</code></pre>";
+    assert_eq!(t_css(html), "WebIDL\npartial  x");
 }
 
 #[test]

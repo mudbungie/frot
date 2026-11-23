@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out text`: a block inside `<pre>` breaks the line.** `<pre>one
+  <div>two</div>three</pre>` is three lines, as in Chrome; it was
+  `onetwothree`. Preformatted white space is untouched, and a newline already
+  written before the block is not doubled. [bl-2f42]
+
 - **`--css`: `::before`/`::after` generate nothing on a box that takes no
   children**, as in Chrome, which builds no pseudo-element box there:
   `<img>`, `<br>`, `<wbr>`, `<video>`, `<audio>`, `<canvas>`, `<iframe>`,

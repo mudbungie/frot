@@ -3,7 +3,8 @@
 //! Rules:
 //! - Whitespace collapses per the HTML serializer (runs of whitespace fold
 //!   to a single space) **outside** `<pre>`.
-//! - `<pre>` content is preserved verbatim.
+//! - `<pre>` content is preserved verbatim; a block-level box inside it
+//!   still starts and ends a line.
 //! - Subtrees under [`SKIP_TAGS`] are skipped.
 //! - The walk descends through [`crate::dom::Document::painted_children`], so
 //!   what the *parent's* box swallows never reaches it: a `<video>`'s or
@@ -140,10 +141,11 @@ impl State {
         self.pending_break = true;
     }
 
+    /// A block boundary, inside `<pre>` as much as outside it: `<pre>one
+    /// <div>two</div>three</pre>` is three lines in Chrome 158 (`bl-2f42`).
+    /// The break is only pending, so a newline the source already wrote
+    /// there is not doubled.
     fn block_break(&mut self) {
-        if self.pre_depth > 0 {
-            return;
-        }
         self.pending_space = false;
         self.pending_break = true;
     }
