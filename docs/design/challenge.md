@@ -798,6 +798,17 @@ succeed.
 >
 > **2026-11-20 (`bl-1404`):** `Image` exists (identity.md §3.20); the page's
 > beacons construct and are not sent.
+>
+> **2026-11-22 (`bl-cb8c`), the current measurement:** 1 `js.errors` per run,
+> not 5 (two runs, main at `ab2e1d5`: `ok`, 200, `rounds:1, passed:true`,
+> 2.8–2.9 kB of text, `js:{scripts:~99, errors:1, settled:true}`). The one
+> left is `Error: not a function` from an inline 1,548-line Lit bundle that
+> defines the custom element `hp-stripe`: lit-html's module-level
+> `document.createTreeWalker(document, 129)`. `createTreeWalker` is absent, and
+> so is everything that bundle needs next (`customElements`, `attachShadow`,
+> `importNode`, `adoptedStyleSheets`) — whether frot runs custom elements is
+> a decision, filed as `bl-aff4`. It was the same error before and after the
+> document became a node (`bl-9f79`).
 
 ### 11.5 A challenge declared at 400 or above (`bl-a7c5`, 2026-11-20)
 
