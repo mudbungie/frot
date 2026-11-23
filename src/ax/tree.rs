@@ -18,30 +18,28 @@
 //! Much HTML nests `<table>` purely for visual grid layout (Hacker News is a
 //! canonical example). Real browsers run layout-table heuristics in the AX
 //! layer and demote such tables to `role=presentation`, so their scaffolding
-//! collapses out of the tree and only content surfaces. We apply a
-//! **DOM-only** subset of Chromium's rules — no layout engine, purely the
-//! markup: a `<table>` is treated as *layout* (and its table-structural
-//! descendants — `table`, `rowgroup`, `row`, `cell`, `columnheader`,
-//! `rowheader`, `gridcell` — collapse to presentation) when it carries
-//! **none** of these author signals of a real data table:
+//! collapses out of the tree and only content surfaces. We apply the
+//! **DOM-only** part of Chromium's test (`IsDataTable`), measured in Chrome 158
+//! (`bl-dfc3`, `bl-7f3a`): a `<table>` is treated as *layout* (and its
+//! table-structural descendants — `table`, `rowgroup`, `row`, `cell`,
+//! `columnheader`, `rowheader`, `gridcell` — collapse to presentation) unless
 //!
-//! - a `<caption>` direct child,
-//! - a `summary` attribute that is not empty,
-//! - a `role` attribute (any explicit role signals author intent),
-//! - a `<th>` inside it (not counting cells owned by a *nested* `<table>`),
-//! - `aria-label` or `aria-labelledby`.
+//! 1. it carries a `role`, a non-empty `summary` or a non-empty `rules`, or a
+//!    `<caption>`, `<thead>`, `<tfoot>`, `<colgroup>` or `<col>` child — any
+//!    of which keeps even a one-cell table; or, short of that,
+//! 2. it is more than one row holding one cell, and it has 20 rows, or a
+//!    `<th>`, or a cell with a non-empty `headers`, `abbr`, `axis` or
+//!    `scope`; or it has two cells and a `border` that is not zero (Chrome
+//!    reads the cell borders the attribute draws: `border=""` and
+//!    `border=abc` count, `border=0px` does not).
 //!
-//! The last two do not rescue a table of **one row holding one cell**:
-//! measured in Chrome 158 (`bl-dfc3`), `<table><tr><th>x</th></tr></table>`
-//! is a layout table — with `title`, `summary=""` or `aria-label` too — while
-//! a caption or a `summary=S` keeps even that one cell a table.
-//!
-//! The bias is otherwise conservative: any single signal preserves the
-//! full table structure, because losing real structure is worse than keeping
-//! some layout noise. The `<th>` scan stops at nested `<table>` boundaries so
-//! an inner data table's header cannot rescue an outer layout table. Table
-//! nesting likewise *resets* the flag (each `<table>` re-classifies), so a
-//! genuine data table nested inside a layout table keeps its own structure.
+//! `aria-label` and `aria-labelledby` are no signal: Chrome names a layout
+//! table and still leaves it out. Cell borders and backgrounds set by CSS,
+//! and `contenteditable`, are signals in Chrome that this DOM-only reading
+//! does not see. Cells, rows and headers are counted without descending into
+//! a nested `<table>`, which re-classifies on its own, so a data table inside
+//! a layout table keeps its structure and an inner header cannot rescue the
+//! outer table.
 
 use crate::ax;
 use crate::css::{Styles, Visibility};
@@ -135,41 +133,53 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
 }
 
 /// DOM-only layout-table test: `true` (demote to presentation) when a
-/// `<table>` carries none of the data-table author signals documented in the
-/// module header.
+/// `<table>` carries none of the data-table signals in the module header.
 fn is_layout_table(doc: &Document, id: NodeId, el: &Element) -> bool {
-    if el.attr("summary").is_some_and(|s| !s.is_empty())
-        || el.attr("role").is_some()
-        || has_caption_child(doc, id)
-    {
+    let said = |a: &str| el.attr(a).is_some_and(|s| !s.is_empty());
+    let structure = ["caption", "thead", "tfoot", "colgroup", "col"];
+    let child = doc.node(id).children.iter().any(|&c| {
+        matches!(&doc.node(c).kind, NodeKind::Element(e) if structure.contains(&e.name.as_str()))
+    });
+    if said("summary") || said("rules") || el.attr("role").is_some() || child {
         return false;
     }
-    let count = |tags: &[&str]| {
-        let mut n = 0;
-        count_parts(doc, id, tags, &mut n);
-        n
+    let parts = |tags: &[&str]| {
+        let mut found = Vec::new();
+        parts(doc, id, tags, &mut found);
+        found
     };
-    let labelled = el.attr("aria-label").is_some() || el.attr("aria-labelledby").is_some();
-    let one_cell = count(&["tr"]) == 1 && count(&["td", "th"]) == 1;
-    one_cell || !(labelled || count(&["th"]) > 0)
+    let (rows, cells) = (parts(&["tr"]).len(), parts(&["td", "th"]));
+    let marked = |c: &&Element| {
+        c.name == "th"
+            || ["headers", "abbr", "axis", "scope"]
+                .iter()
+                .any(|a| c.attr(a).is_some_and(|v| !v.is_empty()))
+    };
+    let data = rows >= 20 || cells.iter().any(marked) || (cells.len() > 1 && bordered(el));
+    (rows == 1 && cells.len() == 1) || !data
 }
 
-/// Whether a direct child of `id` is a `<caption>` element.
-fn has_caption_child(doc: &Document, id: NodeId) -> bool {
-    doc.node(id)
-        .children
-        .iter()
-        .any(|&c| matches!(&doc.node(c).kind, NodeKind::Element(e) if e.name == "caption"))
+/// Whether the `border` attribute draws cell borders: present, and not a
+/// non-negative integer equal to zero — an unparsable value means 1.
+fn bordered(el: &Element) -> bool {
+    el.attr("border").is_some_and(|v| {
+        let digits: String = v
+            .trim_start()
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect();
+        digits.is_empty() || digits.bytes().any(|b| b != b'0')
+    })
 }
 
-/// Count the `tags` elements in the subtree, without descending into nested
+/// The `tags` elements in the subtree, without descending into nested
 /// `<table>` elements — an inner data table's header must not rescue an outer
 /// layout table, and its cells are not the outer table's.
-fn count_parts(doc: &Document, id: NodeId, tags: &[&str], n: &mut usize) {
+fn parts<'d>(doc: &'d Document, id: NodeId, tags: &[&str], found: &mut Vec<&'d Element>) {
     for &c in &doc.node(id).children {
         match &doc.node(c).kind {
-            NodeKind::Element(e) if tags.contains(&e.name.as_str()) => *n += 1,
-            NodeKind::Element(e) if e.name != "table" => count_parts(doc, c, tags, n),
+            NodeKind::Element(e) if tags.contains(&e.name.as_str()) => found.push(e),
+            NodeKind::Element(e) if e.name != "table" => parts(doc, c, tags, found),
             _ => {}
         }
     }

@@ -163,18 +163,46 @@ pub fn in_grid(doc: &Document, id: NodeId) -> bool {
     matches!(table, Some("grid" | "treegrid"))
 }
 
-/// Whether a scope-less `<th>` heads its *row*: it opens the row and at least
-/// one data cell follows it. A row of nothing but `<th>` is a header row, so
-/// its cells head columns.
+/// Whether a scope-less `<th>` heads its *row* — Chromium's reading of its
+/// element siblings, measured in Chrome 158 (`bl-7f3a`). A *full cell* is a
+/// `<td>` with any child node at all (a space or a comment counts):
+///
+/// 1. alone in its row, or between two `<th>`: a column header;
+/// 2. a full cell beside it: a row header;
+/// 3. a full cell first, last, second or second-to-last in the row (tables
+///    often leave the corner cell empty): a row header;
+/// 4. otherwise a column header.
+///
+/// So `<th>x</th><td></td>` heads a column and `<td>v</td><th></th>` a row.
 pub fn heads_its_row(doc: &Document, id: NodeId) -> bool {
-    let cells: Vec<NodeId> = doc
+    let row: Vec<NodeId> = doc
         .node(id)
         .parent
         .into_iter()
         .flat_map(|p| doc.node(p).children.iter().copied())
-        .filter(|&c| matches!(tag(doc, c), Some("td" | "th")))
+        .filter(|&c| tag(doc, c).is_some())
         .collect();
-    cells.first() == Some(&id) && cells.iter().any(|&c| tag(doc, c) == Some("td"))
+    let at = row.iter().position(|&c| c == id).unwrap_or_default();
+    let cell = |i: Option<usize>| i.and_then(|i| row.get(i).copied());
+    let (prev, next) = (cell(at.checked_sub(1)), cell(Some(at + 1)));
+    let th = |c: Option<NodeId>| c.is_some_and(|c| tag(doc, c) == Some("th"));
+    let full = |c: Option<NodeId>| {
+        c.is_some_and(|c| tag(doc, c) == Some("td") && !doc.node(c).children.is_empty())
+    };
+    let n = row.len();
+    if (prev.is_none() && next.is_none()) || (th(prev) && th(next)) {
+        return false;
+    }
+    [
+        prev,
+        next,
+        cell(Some(0)),
+        cell(n.checked_sub(1)),
+        cell(Some(1)),
+        cell(n.checked_sub(2)),
+    ]
+    .into_iter()
+    .any(full)
 }
 
 pub fn has_ancestor(doc: &Document, id: NodeId, tags: &[&str]) -> bool {

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Data tables and layout tables</title>
+</head>
+<body>
+<h1>Data tables and layout tables</h1>
+<h2>Structure keeps one cell</h2>
+<table><thead><tr><td>head</td></tr></thead></table>
+<table><tfoot><tr><td>foot</td></tr></tfoot></table>
+<table><colgroup><col></colgroup><tr><td>colgroup</td></tr></table>
+<table rules="all"><tr><td>rules</td></tr></table>
+<table rules=""><tr><td>no</td><td>rules</td></tr></table>
+<h2>One cell is layout</h2>
+<table><tr><td headers="q">headers</td></tr></table>
+<table border="1"><tr><td>border</td></tr></table>
+<table border="1"><tr><td>border</td></tr><tr></tr></table>
+<h2>Cell signals</h2>
+<table><tr><td headers="q">headers</td><td>y</td></tr></table>
+<table><tr><td scope="row">scope</td><td>y</td></tr></table>
+<table><tr><td abbr="a">abbr</td><td>y</td></tr></table>
+<table><tr><td axis="a">axis</td><td>y</td></tr></table>
+<table><tr><td headers="">empty</td><td>headers</td></tr></table>
+<table><tr><td>r1</td></tr><tr><td>r2</td></tr><tr><td>r3</td></tr><tr><td>r4</td></tr><tr><td>r5</td></tr><tr><td>r6</td></tr><tr><td>r7</td></tr><tr><td>r8</td></tr><tr><td>r9</td></tr><tr><td>r10</td></tr><tr><td>r11</td></tr><tr><td>r12</td></tr><tr><td>r13</td></tr><tr><td>r14</td></tr><tr><td>r15</td></tr><tr><td>r16</td></tr><tr><td>r17</td></tr><tr><td>r18</td></tr><tr><td>r19</td></tr><tr><td>r20</td></tr></table>
+<table><tr><td>s1</td></tr><tr><td>s2</td></tr><tr><td>s3</td></tr><tr><td>s4</td></tr><tr><td>s5</td></tr><tr><td>s6</td></tr><tr><td>s7</td></tr><tr><td>s8</td></tr><tr><td>s9</td></tr><tr><td>s10</td></tr><tr><td>s11</td></tr><tr><td>s12</td></tr><tr><td>s13</td></tr><tr><td>s14</td></tr><tr><td>s15</td></tr><tr><td>s16</td></tr><tr><td>s17</td></tr><tr><td>s18</td></tr><tr><td>s19</td></tr></table>
+<h2>Borders</h2>
+<table border="1"><tr><td>b1</td><td>y</td></tr><tr><td>x</td><td>y</td></tr></table>
+<table border="0"><tr><td>b0</td><td>y</td></tr></table>
+<table border="0px"><tr><td>b0px</td><td>y</td></tr></table>
+<table border><tr><td>bare</td><td>y</td></tr></table>
+<table border="abc"><tr><td>babc</td><td>y</td></tr></table>
+<h2>Labels</h2>
+<table aria-label="L"><tr><td>label</td><td>y</td></tr><tr><td>x</td><td>y</td></tr></table>
+<table aria-labelledby="lab"><tr><td>labelledby</td><td>y</td></tr></table>
+<p id="lab">Lab</p>
+<table aria-label="M"><tr><th>labelled header</th><td>y</td></tr></table>
+<h2>Header axis</h2>
+<table><tr><th>x</th><td></td></tr></table>
+<table><tr><th>x</th><td> </td></tr></table>
+<table><tr><td>v</td><th>after data</th></tr></table>
+<table><tr><td></td><th>between empties</th><td></td></tr></table>
+<table><tr><td></td><th>h</th><th>g</th><td>d</td></tr></table>
+<table><tr><td>d</td><th>a</th><th>h</th><th>g</th></tr></table>
+<table><tr><th>a</th><th>h</th><td>e</td><td></td></tr></table>
+<table><tr><th>a</th><th>h</th><th>g</th></tr><tr><th>k</th><td>d</td></tr></table>
+</body>
+</html>

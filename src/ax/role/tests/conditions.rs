@@ -90,9 +90,27 @@ fn a_scopeless_th_in_an_all_header_row_is_a_columnheader() {
 }
 
 #[test]
-fn a_scopeless_th_that_does_not_open_its_row_is_a_columnheader() {
-    let html = "<table><tr><td>V</td><th id=t>A</th></tr></table>";
-    assert_eq!(r(html), Some("columnheader"));
+fn a_scopeless_th_reads_its_siblings() {
+    // Chrome 158 (`bl-7f3a`): a full `<td>` (any child node) beside a header,
+    // or at either end of the row or one in from it, makes it head its row.
+    for (row, want) in [
+        ("<td>V</td><th id=t>A</th>", "rowheader"),
+        ("<th id=t>x</th><td></td>", "columnheader"),
+        ("<th id=t>x</th><td> </td>", "rowheader"),
+        ("<th id=t>x</th>", "columnheader"),
+        ("<td></td><th id=t>h</th><td></td>", "columnheader"),
+        ("<td></td><th id=t>h</th><th>g</th><td>d</td>", "rowheader"),
+        (
+            "<td>d</td><th>a</th><th id=t>h</th><th>g</th>",
+            "columnheader",
+        ),
+        ("<td>d</td><th>a</th><th>h</th><th id=t>g</th>", "rowheader"),
+        ("<th id=t>a</th><th>h</th><td>e</td><td></td>", "rowheader"),
+        ("<th id=t>a</th><th>h</th><th>g</th>", "columnheader"),
+    ] {
+        let html = format!("<table><tr>{row}</tr></table>");
+        assert_eq!(r(&html), Some(want), "{row}");
+    }
 }
 
 #[test]
