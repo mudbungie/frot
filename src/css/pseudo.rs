@@ -1,8 +1,8 @@
 //! Pseudo-class and pseudo-element parsing: what follows a `:` in a compound.
 //!
 //! Supported: the `::before` / `::after` pseudo-elements (legacy single-colon
-//! spelling too), the structural pseudo-classes `:first-child` and
-//! `:last-child`, the state pseudo-classes ([`super::state`], and `NEVER`
+//! spelling too), the child-indexed pseudo-classes (`:nth-child()` and its
+//! family, [`super::nth`]), the state pseudo-classes ([`super::state`], and `NEVER`
 //! for those known to be false), and the logical pseudo-classes `:is(…)`,
 //! `:where(…)` and `:not(…)`, each over a comma-separated list of complex
 //! selectors. Every other pseudo parses into [`Simple::Unsupported`], which
@@ -23,6 +23,7 @@
 //!   Inside `:is()` / `:where()` an unsupported argument simply never matches
 //!   and the other arguments still can.
 
+use super::nth::Nth;
 use super::selector::{Pseudo, Selector, Simple};
 use super::selparse::{ident, parse_selector, split_top};
 use super::state::State;
@@ -63,11 +64,10 @@ pub(super) fn parse_pseudo(b: &[char], start: usize) -> (PseudoTok, usize) {
     let tok = match (name.as_str(), double) {
         ("before", _) => PseudoTok::Element(Pseudo::Before),
         ("after", _) => PseudoTok::Element(Pseudo::After),
-        ("first-child", false) => PseudoTok::Class(Simple::FirstChild),
-        ("last-child", false) => PseudoTok::Class(Simple::LastChild),
         (name, false) if NEVER.contains(&name) => PseudoTok::Class(Simple::Never),
         (name, false) => {
-            PseudoTok::Class(State::named(name).map_or(Simple::Unsupported, Simple::State))
+            let state = || State::named(name).map_or(Simple::Unsupported, Simple::State);
+            PseudoTok::Class(Nth::named(name).map_or_else(state, Simple::Nth))
         }
         _ => PseudoTok::Class(Simple::Unsupported),
     };
@@ -95,16 +95,25 @@ const NEVER: [&str; 11] = [
 /// The functional pseudo-class `:name(args)`, or [`Simple::Unsupported`]
 /// (module doc).
 fn logical(name: &str, args: &str, double: bool) -> Simple {
-    let list: Option<Vec<Selector>> = split_top(args, ',')
-        .iter()
-        .map(|a| parse_selector(a.trim()).filter(|s| !s.pseudo_element()))
-        .collect();
-    match (name, list, double) {
-        ("is", Some(list), false) => Simple::Is(list),
-        ("where", Some(list), false) => Simple::Where(list),
-        ("not", Some(list), false) if list.iter().all(Selector::evaluable) => Simple::Not(list),
+    match (name, double) {
+        ("is", false) => list(args).map_or(Simple::Unsupported, Simple::Is),
+        ("where", false) => list(args).map_or(Simple::Unsupported, Simple::Where),
+        ("not", false) => list(args)
+            .filter(|list| list.iter().all(Selector::evaluable))
+            .map_or(Simple::Unsupported, Simple::Not),
+        (name, false) => Nth::function(name, args).map_or(Simple::Unsupported, Simple::Nth),
         _ => Simple::Unsupported,
     }
+}
+
+/// A comma-separated list of complex selectors, parsed unforgivingly: `None`
+/// if any one does not parse or carries a pseudo-element.
+pub(super) fn list(args: &str) -> Option<Vec<Selector>> {
+    let parts = split_top(args, ',');
+    let parsed = parts
+        .iter()
+        .map(|a| parse_selector(a.trim()).filter(|s| !s.pseudo_element()));
+    parsed.collect()
 }
 
 #[cfg(test)]

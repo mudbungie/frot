@@ -49,15 +49,41 @@ fetches them).
 **Selectors.** `*`, type, `.class`, `#id`, `[attr]`, `[attr=value]`,
 compounds of those, all four combinators — descendant (space), child (`>`),
 next-sibling (`+`) and subsequent-sibling (`~`; `bl-6363`) —
-`:is()` / `:where()` / `:not()` (below), `:first-child` / `:last-child`
-(`bl-e987`), the state pseudo-classes (below; `bl-1508`), and `::before` /
-`::after`. Any other pseudo-class, pseudo-element or attribute operator makes
-its selector never match — the other structural pseudo-classes included
-(`:only-child`, `:nth-child()`, `:nth-last-child()`, `:first-of-type` and its
-family; `bl-00d1`).
-`:first-child` / `:last-child` count element siblings only (text and comments
-do not), weigh as a class, and are pseudo-*classes*: the two-colon spelling
-(`::first-child`, `::is(a)`) is invalid CSS and never matches. A selector is matched against the element where it stands in the DOM
+`:is()` / `:where()` / `:not()` (below), the child-indexed pseudo-classes
+(below; `bl-e987`, `bl-00d1`), the state pseudo-classes (below; `bl-1508`),
+and `::before` / `::after`. Any other pseudo-class, pseudo-element or
+attribute operator makes its selector never match. (**Superseded 2026-11-22,
+`bl-00d1`:** this sentence went on "the other structural pseudo-classes
+included (`:only-child`, `:nth-child()`, `:nth-last-child()`,
+`:first-of-type` and its family, `:empty`, `:root`)"; all of those are
+supported now.)
+
+**Child-indexed pseudo-classes** (`bl-e987`, `bl-00d1`; `src/css/nth.rs`).
+`:first-child`, `:last-child`, `:only-child`, `:nth-child(An+B)`,
+`:nth-last-child(An+B)`, and the same five counted among siblings of the
+element's own tag name: `:first-of-type`, `:last-of-type`, `:only-of-type`,
+`:nth-of-type(An+B)`, `:nth-last-of-type(An+B)`. `:nth-child()` and
+`:nth-last-child()` also take ` of S` — `:nth-child(2 of .on, b)` counts only
+the siblings matching the selector list `S`, and the element must match it.
+
+- They count element siblings only (text and comments do not). The root
+  element is a first, last and only child.
+- `An+B` is the grammar Chrome 158 accepts, measured case by case in
+  `tests/fixtures/fidelity/structural.html`: `odd`, `even`, an integer, or
+  `An` with an optional signed `B` (`2n+1`, `-n+3`, `n`, `+n`, `3n - 2`), in
+  any letter case; whitespace only around the sign of `B`. `2 n`, `+ n`,
+  `n+ +1`, `2n1`, `2.5` and an empty argument are invalid.
+- `of` is lower-case and set off by whitespace (`2 OF li` and `2of li` are
+  invalid, as in Chrome); `S` is not parsed forgivingly; the `-of-type`
+  forms take no `of`.
+- Each weighs as a class, plus the most specific selector of `S`.
+- An invalid form never matches. One whose `S` holds an unsupported piece
+  (`:nth-child(2 of :target)`) never matches and fails closed under `:not()`.
+- `-of-type` compares tag names and ignores namespaces: an SVG `<a>` and an
+  HTML `<a>` side by side count as one type.
+
+These are pseudo-*classes*: the two-colon spelling (`::first-child`,
+`::nth-child(1)`, `::is(a)`) is invalid CSS and never matches. A selector is matched against the element where it stands in the DOM
 (`selector::matches(selector, document, node)`): a sibling step skips text
 and comments, as CSS does, and costs a scan of the element's earlier siblings.
 
@@ -132,7 +158,7 @@ Still unsupported, so never matching and failing closed under `:not()`:
 
 JS `querySelector` / `querySelectorAll` / `matches` / `closest` share this
 grammar through `css::query_all`: the combinators, the three logical
-pseudo-classes, `:first-child` / `:last-child` and the state pseudo-classes
+pseudo-classes, the child-indexed and the state pseudo-classes
 are accepted — `querySelector(":hover")` returns `null`, as in a browser. A
 selector holding an unsupported piece at any depth (`p:is(:target)`) throws
 `SyntaxError` as before. (**Superseded 2026-11-22, `bl-1508`:** this

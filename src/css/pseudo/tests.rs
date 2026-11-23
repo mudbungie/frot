@@ -37,7 +37,7 @@ fn a_logical_pseudo_class_the_engine_cannot_answer_is_unsupported() {
         ":not(:target)",
         ":not(a, b:target)",
         ":not(:is(a, :target))",
-        ":not(:where(:nth-child(2)))",
+        ":not(:where(:lang(en)))",
         ":not(:not(:target))",
         ":has(a)",
         "::is(a)",
@@ -45,9 +45,7 @@ fn a_logical_pseudo_class_the_engine_cannot_answer_is_unsupported() {
         "::not(a)",
         "::first-child",
         "::last-child",
-        ":only-child",
-        ":first-of-type",
-        ":nth-child(2)",
+        ":lang(en)",
     ] {
         assert_eq!(first(bad), Simple::Unsupported, "{bad}");
     }
@@ -109,8 +107,15 @@ fn evaluable_sees_unsupported_at_any_depth() {
 
 #[test]
 fn first_and_last_child_parse_and_weigh_as_a_class() {
-    assert_eq!(first(":first-child"), Simple::FirstChild);
-    assert_eq!(first(":LAST-CHILD"), Simple::LastChild);
+    use crate::css::nth::Nth;
+    assert_eq!(
+        first(":first-child"),
+        Simple::Nth(Nth::named("first-child").unwrap())
+    );
+    assert_eq!(
+        first(":LAST-CHILD"),
+        Simple::Nth(Nth::named("last-child").unwrap())
+    );
     assert_eq!(sel("li:first-child").specificity(), Specificity(0, 1, 1));
     assert_eq!(
         sel("li:last-child::after").specificity(),

@@ -4,13 +4,14 @@
 //! sequences, the descendant (whitespace), child (`>`), next-sibling (`+`)
 //! and subsequent-sibling (`~`) combinators, the logical pseudo-classes
 //! `:is()` / `:where()` / `:not()` over complex selector lists
-//! ([`super::pseudo`]), `:first-child` / `:last-child`, the state
+//! ([`super::pseudo`]), `:nth-child()` and its family ([`Nth`]), the state
 //! pseudo-classes ([`State`]; `:hover` and its kind are [`Simple::Never`]),
 //! and the `::before` / `::after` pseudo-elements (legacy single-colon
-//! spelling too). Any other pseudo (`:target`, `:nth-child(...)`,
+//! spelling too). Any other pseudo (`:target`, `:has(...)`,
 //! `::first-line`, …) parses into a [`Simple::Unsupported`] marker so the
 //! whole compound fails to match — a rule we cannot evaluate must never apply.
 
+use super::nth::Nth;
 use super::state::State;
 use crate::dom::{Document, Element, NodeId, NodeKind};
 
@@ -48,10 +49,8 @@ pub enum Simple {
     /// `:not(…)`: matches when no argument does; as specific as its most
     /// specific argument. Every argument is [`Selector::evaluable`].
     Not(Vec<Selector>),
-    /// `:first-child`: no element sibling before it.
-    FirstChild,
-    /// `:last-child`: no element sibling after it.
-    LastChild,
+    /// A position among siblings: `:nth-child()` and its family ([`Nth`]).
+    Nth(Nth),
     /// A state computed from the DOM ([`State`]).
     State(State),
     /// A pseudo-class known to be false in an unattended load (`:hover`):
@@ -98,6 +97,7 @@ impl Selector {
             Simple::Is(list) | Simple::Where(list) | Simple::Not(list) => {
                 list.iter().all(Selector::evaluable)
             }
+            Simple::Nth(nth) => nth.of().iter().all(Selector::evaluable),
             _ => true,
         })
     }
@@ -109,8 +109,12 @@ impl Selector {
                 match simple {
                     Simple::Id(_) => s.0 += 1,
                     Simple::Class(_) | Simple::Attr { .. } => s.1 += 1,
-                    Simple::FirstChild | Simple::LastChild => s.1 += 1,
                     Simple::State(_) | Simple::Never => s.1 += 1,
+                    Simple::Nth(nth) => {
+                        let most = nth.of().iter().map(Selector::specificity).max();
+                        let Specificity(a, b, c) = most.unwrap_or_default();
+                        s = Specificity(s.0 + a, s.1 + b + 1, s.2 + c);
+                    }
                     Simple::Type(_) => s.2 += 1,
                     Simple::Is(list) | Simple::Not(list) => {
                         let most = list.iter().map(Selector::specificity).max();
@@ -139,8 +143,7 @@ fn compound_matches(c: &Compound, doc: &Document, id: NodeId, el: &Element) -> b
     c.simples.iter().all(|s| match s {
         Simple::Is(list) | Simple::Where(list) => any(list),
         Simple::Not(list) => !any(list),
-        Simple::FirstChild => earlier_siblings(doc, id).next().is_none(),
-        Simple::LastChild => later_siblings(doc, id).next().is_none(),
+        Simple::Nth(nth) => nth.holds(doc, id, el),
         Simple::State(state) => state.holds(doc, id, el),
         Simple::Universal => true,
         Simple::Unsupported | Simple::Never => false,
@@ -183,13 +186,13 @@ fn sides(doc: &Document, id: NodeId) -> (&[NodeId], &[NodeId]) {
 
 /// The element siblings before `id`, nearest first. Text and comments between
 /// siblings do not separate them, as in CSS.
-fn earlier_siblings(doc: &Document, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+pub(super) fn earlier_siblings(doc: &Document, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
     let before = sides(doc, id).0.iter().rev().copied();
     before.filter(|&s| element(doc, s).is_some())
 }
 
 /// The element siblings after `id`, nearest first.
-fn later_siblings(doc: &Document, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+pub(super) fn later_siblings(doc: &Document, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
     let after = sides(doc, id).1.iter().copied();
     after.filter(|&s| element(doc, s).is_some())
 }

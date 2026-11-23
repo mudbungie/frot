@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     or `<tspan>` with a `<title>` contributes that title to a name around it.
   - A described `<image>` (a `<title>` child or an author name) is an `img`
     node inside its graphic.
+- **`--css`: the rest of the structural pseudo-classes.** `:only-child`,
+  `:nth-child()`, `:nth-last-child()`, `:first-of-type`, `:last-of-type`,
+  `:only-of-type`, `:nth-of-type()` and `:nth-last-of-type()` now match, with
+  the whole `An+B` grammar (`odd`, `even`, `2n+1`, `-n+3`) and
+  `:nth-child(… of S)`, each checked against Chrome 158. Their rules were
+  ignored and `querySelector` threw on them. [bl-00d1]
+
 - **`--out text --css`: a `<select>` lists its hidden options**, as Chrome's
   `innerText` does. An `<option>` that is `hidden`, `display:none` or
   `visibility:hidden`, or sits in a hidden `<optgroup>`, used to be dropped;

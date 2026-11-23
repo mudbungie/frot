@@ -165,7 +165,7 @@ fn first_and_last_child_are_queryable() {
     assert_eq!(texts("li:last-child"), ["c"]);
     assert_eq!(texts("li:not(:first-child, :last-child)"), ["b"]);
     assert_eq!(
-        query_all(&doc, Document::ROOT, "li:only-child"),
+        query_all(&doc, Document::ROOT, "li:lang(en)"),
         Err(UnsupportedSelector)
     );
 }

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" id="html">
+<head>
+<meta charset="utf-8">
+<title>Structural pseudo-classes</title>
+<style>
+.only li:only-child::after { content: "!"; }
+.only li:nth-child(1)::before { content: "#"; }
+.stripe li:nth-child(odd) { display: none; }
+.tail li:nth-last-child(-n+2)::after { content: " tail"; }
+.mixed :first-of-type::before { content: "first-"; }
+.mixed :last-of-type::after { content: "-last"; }
+.mixed b:only-of-type::after { content: "-sole"; }
+.mixed i:nth-of-type(2)::after { content: "-second"; }
+.mixed i:nth-last-of-type(2n+1)::before { content: "odd-"; }
+.pick li:nth-child(2 of .on)::after { content: " picked"; }
+.pick li:not(:nth-last-child(1 of .on), :first-child)::before { content: "~"; }
+</style>
+</head>
+<body>
+<h1>Structure</h1>
+<ul class="only"><li>one</li></ul>
+<ul class="only"><li>two</li><li>three</li></ul>
+<ul class="stripe"><li>s1</li><li>s2</li><li>s3</li><li>s4</li></ul>
+<ul class="tail"><li>t1</li><li>t2</li><li>t3</li></ul>
+<p class="mixed"><i>a</i> <b>b</b> <i>c</i> <i>d</i></p>
+<ul class="pick"><li>p1</li><li class="on">p2</li><li>p3</li><li class="on">p4</li><li class="on">p5</li></ul>
+<div hidden>
+<ul id="ul"><li id="l1"></li><!-- c --><li id="l2" class="x"></li>text<span id="sp"></span><li id="l3"></li><li id="l4" class="x"></li><li id="l5" class="x"></li></ul>
+<div id="solo"><p id="sole"></p></div><div id="pair"><p id="pp"></p><span id="ps"></span></div>
+</div>
+<div id="report"></div>
+<script>
+var report = document.getElementById('report');
+['odd', 'even', '2n+1', ' 2n + 1 ', '2N+1', 'ODD', '2n+ 1', '2n +1', '-n+3', '-n + 3', 'n+3', '3', '+3', '0', '-1',
+  '2n', '+2n', 'n', '+n', '-n', 'n-1', 'n- 1', 'n -1', '3n-2', '-2n+6', '0n+2', '2n+0', '1n+1', '-n-1', '-0n+1',
+  '2n1', '2 n+1', '2 n', '+ n', '- n', '--n', 'n+', 'n+ +1', 'n - -1', '2.5', '',
+  '3 of li', 'odd of li', '2 of .x, span', '1 of .x', 'n of #sp', '2 OF li', '2of li', '2 of', '2 of :nope'
+].forEach(function (formula) {
+  line('#ul > :nth-child(' + formula + ')');
+});
+['#ul > :nth-last-child(1)', '#ul > :nth-last-child(2n)', '#ul > :nth-last-child(-n+2)', '#ul > :nth-last-child(1 of li.x)',
+  '#ul > :nth-of-type(2)', '#ul > :nth-of-type(odd)', '#ul > :nth-last-of-type(2)', '#ul > :nth-of-type(2 of li)',
+  '#ul > :first-of-type', '#ul > :last-of-type', '#ul > :only-of-type', '#ul > :only-child',
+  '#ul > :first-child', '#ul > :last-child', '#ul > :not(:nth-child(odd))', '#ul > :is(:nth-child(2), :last-child)',
+  '#solo > :only-child', '#pair > :only-child', '#pair > :only-of-type',
+  ':root:first-child:last-child:only-child:nth-child(1):nth-last-child(1):first-of-type:only-of-type',
+  ':NTH-CHILD(1):root', ':nth-child', ':first-child()', '::nth-child(1)', '#ul > ::only-child'
+].forEach(line);
+function line(selector) {
+  var p = document.createElement('p');
+  var ids = [];
+  try {
+    var hits = document.querySelectorAll(selector);
+    for (var i = 0; i < hits.length; i++) ids.push(hits[i].id);
+  } catch (e) {
+    ids.push('refused');
+  }
+  p.textContent = selector + ' = ' + ids.join(' ');
+  report.appendChild(p);
+}
+</script>
+</body>
+</html>

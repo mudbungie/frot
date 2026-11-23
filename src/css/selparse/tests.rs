@@ -114,7 +114,7 @@ fn pseudo_elements_and_unsupported_pseudos() {
 
 #[test]
 fn functional_pseudos_consume_balanced_parens() {
-    for fp in ["a:nth-child(2n+1)", "a:not(b(c))", "a:nth-child(2"] {
+    for fp in ["a:lang(en(x))", "a:not(b(c))", "a:nth-child(2"] {
         let s = one(fp);
         assert!(s.parts[0].1.simples.contains(&Simple::Unsupported));
     }
