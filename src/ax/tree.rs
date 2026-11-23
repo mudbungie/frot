@@ -107,7 +107,7 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
         // own node above), so promote the collected children.
         return children;
     }
-    let role = ax::role(doc, id);
+    let role = ax::role::role_under(doc, id, styles);
     if layout_table
         && matches!(
             role,

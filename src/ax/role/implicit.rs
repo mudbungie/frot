@@ -49,9 +49,15 @@
 //! against the HTML-AAM and carries no condition.
 
 use super::{context, svg};
+use crate::css::Styles;
 use crate::dom::{Document, Element, NodeId};
 
-pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
+pub fn role(
+    doc: &Document,
+    id: NodeId,
+    el: &Element,
+    styles: Option<&Styles>,
+) -> Option<&'static str> {
     let fixed = match el.name.as_str() {
         "a" | "area" => return Some(link_or_generic(el)),
         "aside" => return Some(context::scoped_aside(doc, id, el)),
@@ -69,7 +75,7 @@ pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
         "input" => return input_role(el),
         "li" => return Some(context::listitem_or_generic(doc, id)),
         "select" => return Some(select_role(el)),
-        "svg" => return svg::svg(doc, id, el),
+        "svg" => return svg::svg(doc, id, el, styles),
         "tbody" | "td" | "tfoot" | "th" | "thead" | "tr" => {
             return Some(context::table_part(doc, id, table_part(doc, id, el)))
         }

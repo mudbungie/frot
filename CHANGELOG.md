@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: SVG edges follow Chrome.** [bl-1c54]
+  - Under `--css` an `<svg>` whose only content is hidden (`<text
+    style="display:none">`, `visibility:hidden`) is an `img`, not a
+    `graphics-document`.
+  - An `<a>` inside an `<svg>` is named by its `<title>` child when it has
+    one (`link "at"`, not the title run into the link text), and a `<text>`
+    or `<tspan>` with a `<title>` contributes that title to a name around it.
+  - A described `<image>` (a `<title>` child or an author name) is an `img`
+    node inside its graphic.
 - **`--out text --css`: a `<select>` lists its hidden options**, as Chrome's
   `innerText` does. An `<option>` that is `hidden`, `display:none` or
   `visibility:hidden`, or sits in a hidden `<optgroup>`, used to be dropped;

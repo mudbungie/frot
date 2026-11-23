@@ -19,6 +19,7 @@
 //! [`level`] extracts the integer level for heading roles (h1–h6), honoring
 //! `aria-level` if present.
 
+use crate::css::Styles;
 use crate::dom::{Document, Element, NodeId, NodeKind};
 
 mod context;
@@ -30,10 +31,18 @@ pub use svg::titled as svg_titled;
 /// Effective ARIA role for the node `id`, or `None` when it carries no
 /// semantics (a non-element node, or an element the HTML-AAM maps to nothing).
 pub fn role(doc: &Document, id: NodeId) -> Option<&'static str> {
+    role_under(doc, id, None)
+}
+
+/// [`role`] as the accessibility tree asks it: with the cascade, where there
+/// is one. Roles are CSS-independent with one measured exception — whether an
+/// `<svg>` is a picture or a document turns on what it *shows* ([`svg`]) —
+/// so every other caller asks [`role`] and gets the markup's answer.
+pub fn role_under(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Option<&'static str> {
     let NodeKind::Element(el) = &doc.node(id).kind else {
         return None;
     };
-    explicit(doc, el).or_else(|| implicit::role(doc, id, el))
+    explicit(doc, el).or_else(|| implicit::role(doc, id, el, styles))
 }
 
 /// An author `role=` attribute, resolved to its first **usable** token; with

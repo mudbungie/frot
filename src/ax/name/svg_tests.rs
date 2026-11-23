@@ -117,3 +117,58 @@ fn an_svg_part_is_named_from_its_title_child() {
     let inner = find_by_id(&d, "i").unwrap();
     assert_eq!(accessible_name(&d, inner, None), Some("inner".into()));
 }
+
+/// Chrome 158 (`bl-1c54`): an `<a>` inside an `<svg>` is named by its
+/// `<title>` child when it has one; an HTML `<a>` never is.
+#[test]
+fn an_svg_link_is_named_from_its_title_child() {
+    for (html, want) in [
+        (
+            "<svg><a href=q><title>at</title><text>la</text></a></svg>",
+            "at",
+        ),
+        ("<svg><a href=q><text>la</text></a></svg>", "la"),
+        (
+            "<svg><a href=q><title></title><text>la</text></a></svg>",
+            "la",
+        ),
+        (
+            "<svg><a href=q aria-label=AL><title>at</title></a></svg>",
+            "AL",
+        ),
+        ("<a href=x><title>ht</title>html</a>", "html"),
+    ] {
+        assert_eq!(name(html, "a").as_deref(), Some(want), "{html}");
+    }
+    assert_eq!(
+        name("<svg><a><title>t</title><text>la</text></a></svg>", "a").as_deref(),
+        Some("t")
+    );
+    assert_eq!(
+        name("<svg><image><title>it</title></image></svg>", "image").as_deref(),
+        Some("it")
+    );
+}
+
+/// Chrome 158 (`bl-1c54`): inside someone else's name a titled `<text>`,
+/// `<tspan>` or SVG `<a>` speaks its title instead of its contents.
+#[test]
+fn a_titled_text_contributes_its_title() {
+    for (html, want) in [
+        (
+            "<h2>a<svg><text><title>tt</title>tx</text></svg>c</h2>",
+            "a tt c",
+        ),
+        (
+            "<h2>a<svg><text>p<tspan><title>ts</title>b</tspan>q</text></svg>c</h2>",
+            "a p ts q c",
+        ),
+        (
+            "<h2>a<svg><a href=q><title>at</title><text>la</text></a></svg>c</h2>",
+            "a at c",
+        ),
+        ("<h2>a<svg><text>tx</text></svg>c</h2>", "a tx c"),
+    ] {
+        assert_eq!(name(html, "h2").as_deref(), Some(want), "{html}");
+    }
+}

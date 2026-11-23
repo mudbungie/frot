@@ -80,7 +80,7 @@ pub fn native_alternative(doc: &Document, id: NodeId, el: &Element) -> Option<St
         "textarea" => Some(doc.text_content(id)),
         "select" => Some(selected_option_text(doc, id)),
         "option" | "optgroup" => super::super::label_attr(el),
-        n if crate::ax::role::svg_titled(n) => svg_title(doc, id),
+        n if crate::ax::role::svg_titled(doc, id, n) => svg_title(doc, id),
         // An SVG description is never part of a name.
         "desc" => Some(String::new()),
         _ => None,

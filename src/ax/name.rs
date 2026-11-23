@@ -130,7 +130,8 @@ fn native_name(
         "textarea" | "select" => control_label_text(doc, id, el, styles),
         "fieldset" => fieldset_legend_text(doc, id, styles),
         "table" => table_caption_text(doc, id, styles).or_else(|| summary(el)),
-        n if super::role::svg_titled(n) => contents::svg_title(doc, id),
+        n if super::role::svg_titled(doc, id, n) => contents::svg_title(doc, id)
+            .or_else(|| names_from_contents(doc, id).then(|| contents_text(doc, id, styles))),
         "optgroup" => label_attr(el),
         "option" => label_attr(el).or_else(|| Some(contents_text(doc, id, styles))),
         _ if names_from_contents(doc, id) => Some(contents_text(doc, id, styles)),

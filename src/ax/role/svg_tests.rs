@@ -118,3 +118,51 @@ fn a_nested_graphic_is_a_group_when_described_and_nothing_otherwise() {
     assert_eq!(role(&d, svgs[1]), Some("group"));
     assert_eq!(role(&d, svgs[2]), None);
 }
+
+/// Chrome 158 (`bl-1c54`): with a cascade, what an `<svg>` exposes is what it
+/// shows. The plain [`role`] still answers from the markup.
+#[test]
+fn a_graphic_whose_content_is_css_hidden_is_one_picture() {
+    let under = |html: &str| {
+        let doc = Document::parse(html);
+        let styles = crate::css::compute(&doc);
+        crate::ax::role::role_under(&doc, doc.find_by_tag("svg")[0], Some(&styles))
+    };
+    for inner in [
+        "<text style='display:none'>x</text>",
+        "<text style='visibility:hidden'>x</text>",
+        "<g><text style='display:none'>x</text></g>",
+        "<g style='visibility:hidden'><text>x</text></g>",
+        "<a href=q style='display:none'><text>la</text></a>",
+        "<foreignObject style='display:none'><p>fo</p></foreignObject>",
+    ] {
+        let html = format!("<svg aria-label=s>{inner}</svg>");
+        assert_eq!(under(&html), Some("img"), "{html}");
+        assert_eq!(r(&html, "svg"), Some("graphics-document"), "{html}");
+    }
+    for inner in [
+        "<text>x</text>",
+        "<text style='display:none'>x</text><text>y</text>",
+        "<text style='display:none'>x</text><circle><title>c</title></circle>",
+        "<text style='visibility:hidden'>a<tspan style='visibility:visible'>b</tspan></text>",
+    ] {
+        let html = format!("<svg aria-label=s>{inner}</svg>");
+        assert_eq!(under(&html), Some("graphics-document"), "{html}");
+    }
+}
+
+/// Chrome 158 (`bl-1c54`): a described `<image>` is an `img` inside its
+/// graphic; undescribed it has no node and the graphic is one picture.
+#[test]
+fn a_described_image_is_an_img_part() {
+    let html = "<svg><image><title>it</title></image></svg>";
+    assert_eq!(r(html, "image"), Some("img"));
+    assert_eq!(r(html, "svg"), Some("graphics-document"));
+    assert_eq!(
+        r("<svg><image aria-label=L></image></svg>", "image"),
+        Some("img")
+    );
+    let bare = "<svg><image></image></svg>";
+    assert_eq!(r(bare, "image"), None);
+    assert_eq!(r(bare, "svg"), Some("img"));
+}
