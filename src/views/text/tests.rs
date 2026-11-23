@@ -141,8 +141,8 @@ fn leading_whitespace_in_inline_at_doc_start_dropped() {
 /// buys, across every shape that can put whitespace before the first character.
 #[test]
 fn text_never_starts_with_whitespace() {
-    assert!(crate::tags::is_block("html"), "html must stay a block tag");
-    assert!(crate::tags::is_block("body"), "body must stay a block tag");
+    let inline = "<html style='display:inline'><body style='display:inline'> <b> lead</b> x";
+    assert_eq!(t_css(inline), "lead x");
     for html in [
         "  <p>hi</p>",
         "<html><body><span>   hello</span></body></html>",

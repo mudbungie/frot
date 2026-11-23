@@ -118,3 +118,25 @@ fn svg_text_stays_out_of_a_neighbouring_run() {
         "a\nINLINE_SVG\nb",
     );
 }
+
+/// `bl-fe2c`, Chrome 158 `innerText`: under a cascade the line breaks follow
+/// the computed `display`, not the tag; without one, the tag.
+#[test]
+fn line_breaks_follow_the_computed_display() {
+    for (html, want) in [
+        ("<button>x<span style='display:block'>sb</span>y</button>", "x\nsb\ny"),
+        ("<button>x<span style='display:flex'>fx</span>y</button>", "x\nfx\ny"),
+        ("<div>p<span style='display:list-item'>li</span>q</div>", "p\nli\nq"),
+        ("<button>x<div style='display:inline'>di</div>y</button>", "xdiy"),
+        ("<div>p<span style='display:inline-block'>ib</span>q</div>", "pibq"),
+        ("<div>p<span style='display:inline-flex'>if</span>q</div>", "pifq"),
+        ("<div>p<li style='display:inline'>il</li>q</div>", "pilq"),
+        ("<table><tr><td style='display:inline'>t1</td><td style='display:inline'>t2</td></tr></table>", "t1t2"),
+        // A `<p>` stands on its own line whatever its box.
+        ("<div>a<p style='display:inline'>ip</p>r</div>", "a\nip\nr"),
+    ] {
+        assert_eq!(t_css(html), want, "{html}");
+    }
+    let bare = "<button>x<span style='display:block'>sb</span>y<div style='display:inline'>d</div></button>";
+    assert_eq!(t(bare), "xsby\nd");
+}

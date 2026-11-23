@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out text --css`: line breaks follow the computed `display`, not the
+  tag**, as Chrome's `innerText` does. A `display:block`, `flex` or
+  `list-item` span now stands on its own line (`x<span
+  style="display:block">sb</span>y` was the fused token `xsby`), and a
+  `display:inline` div, list item or table cell no longer breaks one. A
+  `<p>` still does, whatever its box. Without `--css` nothing changes. Values
+  the cascade coerces to block (`contents`, `inline-grid`, `inline-table`)
+  break the line too, which Chrome does not. [bl-fe2c]
+
 - **`--out ax`: SVG edges follow Chrome.** [bl-1c54]
   - Under `--css` an `<svg>` whose only content is hidden (`<text
     style="display:none">`, `visibility:hidden`) is an `img`, not a

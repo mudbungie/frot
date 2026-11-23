@@ -10,7 +10,10 @@
 //!   `<canvas>`'s fallback content, and a closed `<details>`'s disclosure body.
 //!   Neither is an author declaration, so neither waits for a cascade — they
 //!   hold with or without `--css` (`bl-0f83`, `bl-d470`).
-//! - Block-level boundaries become newlines; `<br>` becomes a newline.
+//! - Block-level boundaries become newlines; `<br>` becomes a newline. Under
+//!   `--css` "block-level" is the computed `display`, so a `display:block`
+//!   span breaks the line and a `display:inline` div does not; without it,
+//!   the tag's own ([`breaks_line`]).
 //! - With `--css` (a [`Styles`] table is passed): `display:none` subtrees are
 //!   dropped — which is how the author-overridable `[hidden]` rule reaches this
 //!   view, and why *that* one does need the recipe — an element's own text is
@@ -19,9 +22,8 @@
 //!   generated content is emitted as inline text. None of it reaches below a
 //!   `<select>`, whose options are listed whatever their own style says.
 
-use crate::css::{Styles, Visibility};
+use crate::css::{Display, Styles, Visibility};
 use crate::dom::{Document, NodeId, NodeKind};
-use crate::tags::is_block;
 
 /// Elements whose text a browser never paints, whatever it is for: source and
 /// data (`<script>`, `<style>`, `<template>`, `<noscript>`) and the descriptive
@@ -62,21 +64,17 @@ impl State {
         Self {
             out: String::new(),
             pre_depth: 0,
-            pending_break: false,
+            pending_break: true,
             pending_space: false,
         }
     }
 
-    /// Whitespace never needs an "is there anything before me?" guard, because
-    /// there always is: [`emit`] calls [`State::block_break`] on entering any
-    /// block element *before* pushing any text, `Document::parse` always yields
-    /// an `html` root, and `tags::BLOCK_TAGS` holds both `html` and `body`. So
-    /// `pending_break` is set before the first `push_text` runs, and
-    /// [`State::flush_pending`] takes the break arm — which returns early —
-    /// while `out` is still empty. A pending *space* therefore only ever
-    /// survives to be flushed once `out` is non-empty, and `out` never shrinks
-    /// before `finish`. `text_never_starts_with_whitespace` pins the tag
-    /// membership this rests on.
+    /// Whitespace never needs an "is there anything before me?" guard: the
+    /// state starts with a break pending — the start of the document is the
+    /// start of a line — so the first text flushes through the break arm of
+    /// [`State::flush_pending`], which writes nothing while `out` is empty
+    /// and drops any pending space. It does not rest on `<html>` or `<body>`
+    /// being block-level, which a stylesheet can undo (`bl-fe2c`).
     fn push_text(&mut self, s: &str) {
         if self.pre_depth > 0 {
             self.flush_pending();
@@ -133,6 +131,23 @@ impl State {
     }
 }
 
+/// Whether the element starts and ends a line: its box is block-level — the
+/// computed `display` under a cascade, the tag's own without one
+/// ([`Display::of`]) — or it is a `<p>`. Measured in Chrome 158 `innerText`
+/// (`bl-fe2c`): `x<span style="display:block">sb</span>y` is three lines and
+/// so is a `display:flex` or `list-item` span, while `x<div
+/// style="display:inline">di</div>y` is the one token `xdiy`; an inline-block
+/// or inline-flex box stays on its line. The `<p>` is `innerText`'s own rule,
+/// keyed on the element rather than its box: `<p style="display:inline">`
+/// still stands on a line of its own.
+fn breaks_line(styles: Option<&Styles>, id: NodeId, tag: &str) -> bool {
+    let block = matches!(
+        Display::of(styles, id, tag),
+        Display::Block | Display::ListItem | Display::Flex
+    );
+    block || tag == "p"
+}
+
 fn visible(styles: Option<&Styles>, id: NodeId) -> bool {
     styles.is_none_or(|s| s.visibility(id) == Visibility::Visible)
 }
@@ -158,6 +173,7 @@ fn emit(
                 return;
             }
             let vis = visible(styles, id);
+            let block = breaks_line(styles, id, &el.name);
             // A `<select>` lists every option, whatever the cascade says of
             // the options themselves; only hiding the select hides them.
             // Measured in Chrome 158 `innerText` (`bl-240d`): `<option
@@ -172,7 +188,6 @@ fn emit(
             }
             let styles = if select { None } else { styles };
             let pre = el.name == "pre";
-            let block = is_block(&el.name);
             if block {
                 state.block_break();
             }

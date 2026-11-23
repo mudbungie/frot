@@ -1,9 +1,10 @@
 //! Shared tag classifications.
 //!
 //! Single source of truth for the set of block-level element names. Both the
-//! `text` view's block-break logic (`views::text`) and the CSS cascade's
-//! UA-implicit `display` step (`css::cascade`) read this set, so the two can
-//! never drift. Do not change its membership without accounting for both
+//! `text` view's block-break logic (`views::text`, which reads it through
+//! `css::Display::of`: the tag decides only where no cascade does) and the CSS
+//! cascade's UA-implicit `display` step (`css::cascade`) read this set, so
+//! the two can never drift. Do not change its membership without accounting for both
 //! consumers: it drives `text` view line breaks *and* implicit `display`.
 //!
 //! It is not an *HTML* set: SVG and MathML elements carry a UA-implicit
