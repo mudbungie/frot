@@ -92,3 +92,32 @@ fn nothing_else_makes_one_and_a_role_turns_it_off() {
     );
     assert_eq!(outline("<div autofocus role=note>x</div>"), "note");
 }
+
+/// `bl-d61c`: a plain list-item box is a list item; an element with a role
+/// of its own keeps it.
+#[test]
+fn a_plain_list_item_box_is_a_list_item() {
+    for (html, want) in [
+        ("<span style='display:list-item'>x</span>", "listitem"),
+        ("<span style='display:list-item'></span>", "listitem"),
+        ("<b style='display:list-item'>b</b>", "listitem"),
+        (
+            "<div style='display:list-item;list-style:none'>n</div>",
+            "listitem",
+        ),
+        (
+            "<div autofocus style='display:list-item'>t</div>",
+            "listitem",
+        ),
+        ("<p style='display:list-item'>p</p>", "paragraph"),
+        ("<h3 style='display:list-item'>h</h3>", "heading \"h\""),
+        ("<div role=none style='display:list-item'>r</div>", ""),
+        (
+            "<div role=foo style='display:list-item'>f</div>",
+            "listitem",
+        ),
+        ("<section style='display:list-item'>s</section>", ""),
+    ] {
+        assert_eq!(outline(html), want, "{html}");
+    }
+}

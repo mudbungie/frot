@@ -108,6 +108,7 @@ fn a_part_loses_its_role_with_its_owner() {
         let html = format!("<ol role={owner}><li id=t>x</ol>");
         assert_eq!(r(&html), Some("listitem"), "{html}");
     }
+    assert_eq!(r("<ul id=t role=directory><li>x</ul>"), Some("list"));
     let stands = "<ul role=none><li id=t role=listitem>x</ul>";
     assert_eq!(r(stands), Some("listitem"));
 }

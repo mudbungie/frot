@@ -40,6 +40,9 @@
 //! a nested `<table>`, which re-classifies on its own, so a data table inside
 //! a layout table keeps its structure and an inner header cannot rescue the
 //! outer table.
+//!
+//! A part the author roled — or a cell in a row the author roled — is not
+//! scaffolding and keeps its node in a layout table ([`authored`]).
 
 use crate::ax;
 use crate::css::{Styles, Visibility};
@@ -111,6 +114,7 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
             role,
             Some("table" | "rowgroup" | "row" | "cell" | "columnheader" | "rowheader" | "gridcell")
         )
+        && !authored(doc, id, el)
     {
         // Demoted layout-table scaffolding: emit no node, promote content.
         return children;
@@ -130,6 +134,16 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
             vec![Value::Object(obj)]
         }
     }
+}
+
+/// Whether the author roled a part of a layout table, which Chrome then keeps
+/// (`bl-d61c`, Chrome 158): an explicit role on the part, or on the row a
+/// cell sits in — `<tr role=row><td>x</td></tr>` is `row` > `cell "x"` with
+/// no table node, while a `<tr>` under `<tbody role=rowgroup>` is demoted.
+fn authored(doc: &Document, id: NodeId, el: &Element) -> bool {
+    let explicit = |n: NodeId| doc.element(n).and_then(|e| ax::role::explicit(doc, n, e));
+    let row = || doc.node(id).parent.and_then(explicit) == Some("row");
+    explicit(id).is_some() || (matches!(el.name.as_str(), "td" | "th") && row())
 }
 
 /// DOM-only layout-table test: `true` (demote to presentation) when a

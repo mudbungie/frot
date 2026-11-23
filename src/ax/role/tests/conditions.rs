@@ -214,12 +214,18 @@ fn a_sectioned_header_or_footer_is_section_scoped() {
 }
 
 #[test]
-fn a_list_item_needs_a_list() {
-    for tag in ["ul", "ol", "menu"] {
-        let html = format!("<{tag}><li id=t>x</li></{tag}>");
-        assert_eq!(r(&html), Some("listitem"), "{tag}");
+fn a_list_item_needs_no_list() {
+    // Chrome 158 (`bl-d61c`): an `<li>` outside a list is a list item too.
+    for html in [
+        "<ul><li id=t>x</li></ul>",
+        "<ol><li id=t>x</li></ol>",
+        "<menu><li id=t>x</li></menu>",
+        "<div><li id=t>x</li></div>",
+        "<li id=t>x</li>",
+        "<dir role=foo><li id=t>x</li></dir>",
+    ] {
+        assert_eq!(r(html), Some("listitem"), "{html}");
     }
-    assert_eq!(r("<div><li id=t>x</li></div>"), Some("generic"));
 }
 
 #[test]

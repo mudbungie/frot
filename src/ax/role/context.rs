@@ -100,19 +100,21 @@ pub fn summary(doc: &Document, id: NodeId) -> &'static str {
     }
 }
 
-/// `<li>`: a list item only inside a `<ul>`, `<ol>` or `<menu>` whose `role`
-/// attribute, if it has one, says exactly `list`, `directory` or nothing.
-/// Measured in Chrome 158 (`bl-89a6`): the attribute decides, not the list's
-/// role — under `role=foo`, `role=" "`, `role=LIST`, `role="foo list"` or a
-/// `role=none` that a label overrules, the list stands and its items have no
-/// node; under `role=""` they are list items.
+/// `<li>`: a list item, unless it sits in a `<ul>`, `<ol>` or `<menu>` whose
+/// `role` attribute says something other than exactly `list`, `directory` or
+/// nothing. Measured in Chrome 158 (`bl-89a6`, `bl-d61c`): the attribute
+/// decides, not the list's role — under `role=foo`, `role=" "`, `role=LIST`,
+/// `role="foo list"` or a `role=none` that a label overrules, the list stands
+/// and its items have no node; under `role=""` they are list items. An `<li>`
+/// with any other parent — a `<div>`, `<body>`, a `<dir role=foo>` — is a list
+/// item.
 pub fn listitem_or_generic(doc: &Document, id: NodeId) -> &'static str {
     let list = doc.node(id).parent.and_then(|p| match &doc.node(p).kind {
         NodeKind::Element(e) if matches!(e.name.as_str(), "ul" | "ol" | "menu") => Some(e),
         _ => None,
     });
     match list.map(|e| e.attr("role")) {
-        Some(None | Some("" | "list" | "directory")) => "listitem",
+        None | Some(None | Some("" | "list" | "directory")) => "listitem",
         _ => "generic",
     }
 }

@@ -114,7 +114,6 @@ fn a_list_items_role_follows_the_lists_role_attribute() {
         "<ul role='foo list'>",
         "<ul role=region>",
         "<ul role=none aria-label=U>",
-        "<div>",
     ] {
         assert_eq!(
             r(&format!("{list}<li id=t>i</li>")),

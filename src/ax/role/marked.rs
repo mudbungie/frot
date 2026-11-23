@@ -24,7 +24,7 @@
 //! leave a kept span `generic`.
 
 use crate::ax::tree::lineless;
-use crate::css::Styles;
+use crate::css::{Display, Styles};
 use crate::dom::{Document, Element, NodeId};
 
 /// The elements measured to take the rule: those with no role and no
@@ -35,7 +35,11 @@ const PLAIN: &[&str] = &[
     "var", "xmp",
 ];
 
-/// `Some("group")` when `el` is a plain container the rule applies to.
+/// `Some("group")` when `el` is a plain container the rule applies to, and
+/// `Some("listitem")` when that container's box is a list item: Chrome 158
+/// gives any plain `display:list-item` box the role, empty, unmarked, or with
+/// `list-style:none`, or under a `role` that is not one (`bl-d61c`) — but not a `<p>`, a heading, a link or a
+/// `<section>`, which keep their own.
 pub fn group(
     doc: &Document,
     id: NodeId,
@@ -43,8 +47,13 @@ pub fn group(
     styles: Option<&Styles>,
 ) -> Option<&'static str> {
     let has = |name: &str| el.attr(name).is_some();
-    let marked =
-        PLAIN.contains(&el.name.as_str()) && !has("role") && (has("autofocus") || has("draggable"));
+    if !PLAIN.contains(&el.name.as_str()) {
+        return None;
+    }
+    if Display::of(styles, id, &el.name) == Display::ListItem {
+        return Some("listitem");
+    }
+    let marked = !has("role") && (has("autofocus") || has("draggable"));
     (marked && lineless::kept(doc, id, el, styles)).then_some("group")
 }
 

@@ -54,5 +54,18 @@
 <ul role=""><li>empty role item</li></ul>
 <ul role="LIST"><li>upper list item</li></ul>
 <p id="pd">description</p>
+<h2>Authored parts of a layout table, list items</h2>
+<table><tr role="row"><td>implicit cell in an explicit row</td><td role="cell">explicit cell</td></tr></table>
+<table><tr><td role="cell">lone explicit cell</td><td>demoted cell</td></tr></table>
+<table><tr role="foo"><td>unknown row role</td></tr></table>
+<table><tbody role="rowgroup"><tr><td>row under</td><td>a rowgroup</td></tr></tbody></table>
+<table role="none"><tr role="row"><td>row in a presentational table</td></tr></table>
+<ul role="directory"><li>directory item</li></ul>
+<div><li>item outside a list</li></div>
+<span style="display:list-item">list-item span</span>
+<div style="display:list-item;list-style:none">list-item div</div>
+<div role="foo" style="display:list-item">list-item with a role</div>
+<p style="display:list-item">list-item paragraph</p>
+<section style="display:list-item">list-item section</section>
 </body>
 </html>

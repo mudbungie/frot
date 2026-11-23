@@ -104,3 +104,47 @@ fn an_author_label_is_no_signal() {
     assert!(!has_table(&format!("<table summary=''>{rows}</table>")));
     assert!(has_table(&format!("<table summary=' '>{rows}</table>")));
 }
+
+/// `bl-d61c`: an author role keeps its part of a layout table, and an
+/// explicit row keeps the cells in it.
+#[test]
+fn an_authored_part_of_a_layout_table_stays() {
+    let outline = |html: &str| {
+        let v = ax_tree(&Document::parse(html), None);
+        let mut out = Vec::new();
+        let mut walk = vec![v];
+        while let Some(Value::Array(ns)) = walk.pop() {
+            for n in ns.into_iter().rev() {
+                out.push(n["role"].as_str().expect("role").to_string());
+                walk.push(n["children"].clone());
+            }
+        }
+        out.join(" ")
+    };
+    for (html, want) in [
+        (
+            "<table><tr role=row><td>x</td><td role=cell>y</td></tr></table>",
+            "row cell cell",
+        ),
+        (
+            "<table><tr><td role=cell>x</td><td>y</td></tr></table>",
+            "cell",
+        ),
+        ("<table><tr role=row><td>x</td></tr></table>", "row cell"),
+        ("<table><tr role=foo><td>x</td></tr></table>", ""),
+        (
+            "<table><tr><th role=columnheader>h</th></tr></table>",
+            "columnheader",
+        ),
+        (
+            "<table><tbody role=rowgroup><tr><td>x</td><td>y</td></tr></tbody></table>",
+            "rowgroup",
+        ),
+        (
+            "<table role=none><tr role=row><td>x</td></tr></table>",
+            "row",
+        ),
+    ] {
+        assert_eq!(outline(html), want, "{html}");
+    }
+}

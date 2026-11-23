@@ -44,9 +44,7 @@ pub fn role_under(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Option
     let NodeKind::Element(el) = &doc.node(id).kind else {
         return None;
     };
-    explicit(doc, el)
-        .filter(|r| !matches!(*r, "none" | "presentation") || !conflict::overruled(doc, id, el))
-        .or_else(|| implicit::role(doc, id, el, styles))
+    explicit(doc, id, el).or_else(|| implicit::role(doc, id, el, styles))
 }
 
 /// An author `role=` attribute, resolved to its first **usable** token; with
@@ -61,12 +59,19 @@ pub fn role_under(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Option
 ///   ([`context::claims_landmark`]) — the landmark stands. The element `<form>`
 ///   needs no name — that is its implicit role, not this rule.
 ///
-/// A usable `none`/`presentation` can still be overruled ([`conflict`]).
-fn explicit(doc: &Document, el: &Element) -> Option<&'static str> {
-    el.attr("role")?
+/// A usable `none`/`presentation` can still be overruled ([`conflict`]), and
+/// the deprecated `directory` is a `list` (Chrome 158, `bl-d61c`).
+pub fn explicit(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
+    let role = el
+        .attr("role")?
         .split_whitespace()
         .filter_map(|token| KNOWN_ROLES.iter().find(|known| **known == token).copied())
-        .find(|role| !NAMED_ONLY.contains(role) || context::claims_landmark(doc, el))
+        .find(|role| !NAMED_ONLY.contains(role) || context::claims_landmark(doc, el))?;
+    match role {
+        "none" | "presentation" if conflict::overruled(doc, id, el) => None,
+        "directory" => Some("list"),
+        _ => Some(role),
+    }
 }
 
 /// Landmark roles an author may claim only for a named element.
