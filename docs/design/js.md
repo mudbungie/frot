@@ -914,7 +914,8 @@ that, a page walking any of them read frot's implementation instead.
   separate calls share no state (OQ-2). `crypto.subtle` is a real, partial `SubtleCrypto` since 2026-11-17
   (`bl-0647`, widened by `bl-db8f`: SHA digests, HMAC, PBKDF2, HKDF and AES in
   CBC/CTR/GCM/KW over eight `__frot_subtle_*` syscalls; `subtlekey.js` +
-  `subtlealg.js` + `subtle.js`; no public-key algorithm) — what it does and does not
+  `subtlealg.js` + `subtle.js`; and by `bl-0cae`, 2026-11-23: ECDSA, ECDH, Ed25519 and
+  X25519 in `subtlepk.js` over seven more; RSA is the one family left) — what it does and does not
   implement is **identity.md §3.19 and §11**, not this document's §11
   (Non-goals). `isSecureContext` (`bl-b0f8`) gates it and `randomUUID`.
 - **Native-code branding** (`bl-3926`, LANDED): frot's web APIs are JS over

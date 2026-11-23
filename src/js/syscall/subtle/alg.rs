@@ -52,6 +52,11 @@ fn hash(name: &str) -> Option<Hash> {
     })
 }
 
+/// The provider's digest for a WebCrypto hash name (ECDSA hashes with it).
+pub fn digest_algorithm(name: &str) -> Option<&'static digest::Algorithm> {
+    hash(name).map(|h| h.digest)
+}
+
 pub fn digest(name: &str, data: &[u8]) -> Option<Vec<u8>> {
     hash(name).map(|h| digest::digest(h.digest, data).as_ref().to_vec())
 }

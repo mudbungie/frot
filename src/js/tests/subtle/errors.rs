@@ -179,17 +179,14 @@ fn a_key_only_does_what_it_was_made_for() {
     }
 }
 
-/// Where frot stops short of Firefox it says so: a key of any of these
-/// public-key algorithms can be imported or generated on 153.0esr, and here
-/// each rejects `NotSupportedError` — never a wrong answer (`bl-db8f`).
+/// Where frot stops short of Firefox it says so: a key of any of the RSA
+/// algorithms can be imported or generated on 153.0esr, and here each rejects
+/// `NotSupportedError` — never a wrong answer (`bl-db8f`; the elliptic-curve
+/// ones are real since `bl-0cae`).
 #[test]
 fn what_is_not_implemented_rejects_not_supported() {
     let s = page();
     for alg in [
-        "'Ed25519'",
-        "'X25519'",
-        "{name:'ECDSA',namedCurve:'P-256'}",
-        "{name:'ECDH',namedCurve:'P-256'}",
         "{name:'RSA-OAEP',hash:'SHA-256'}",
         "{name:'RSA-PSS',hash:'SHA-256'}",
         "{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'}",

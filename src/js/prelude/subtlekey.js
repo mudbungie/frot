@@ -115,6 +115,46 @@
     return new Uint8Array(out);
   }
 
+
+  // --- DER (bl-0cae) -------------------------------------------------------------
+  // Just enough to write and read the `spki`/`pkcs8` containers subtlepk.js needs.
+  function hexb(h) {
+    return h.match(/../g).map(function (x) {
+      return parseInt(x, 16);
+    });
+  }
+  function tlv(tag, body) {
+    var n = body.length;
+    return [tag].concat(n < 128 ? [n] : n < 256 ? [0x81, n] : [0x82, n >> 8, n & 255],
+      Array.from(body));
+  }
+  // The TLVs `bytes` holds, as [tag, body]: the first `min` of `tags` in
+  // order, then any of the rest, still in order. Anything else is DataError.
+  function items(bytes, tags, min) {
+    var out = [];
+    for (var i = 0; i < bytes.length;) {
+      var n = bytes[i + 1], at = i + 2, w = n & 0x7f;
+      if (n > 0x80 && w < 3) {
+        for (n = 0; w--;) n = n * 256 + bytes[at++];
+      }
+      if (!(n < 0x80 || w === -1) || !(at + n <= bytes.length)) throw fail('DataError');
+      out.push([bytes[i], bytes.subarray(at, at + n)]);
+      i = at + n;
+    }
+    var j = 0;
+    out.forEach(function (t) {
+      while (j < tags.length && tags[j] !== t[0] && j >= min) j++;
+      if (tags[j++] !== t[0]) throw fail('DataError');
+    });
+    if (out.length < min) throw fail('DataError');
+    return out;
+  }
+  function same(a, b) {
+    return a.length === b.length && Array.prototype.every.call(a, function (x, i) {
+      return x === b[i];
+    });
+  }
+
   // --- CryptoKey ---------------------------------------------------------------
   // The four attributes read the instance's backing slots; the key bytes sit in
   // a fifth slot no attribute exposes, so the instance owns nothing (measured).
@@ -129,7 +169,7 @@
   }
   function keyArg(key, where) {
     var s = slots(key);
-    if (!s.bytes) {
+    if (!s.type) {
       throw new TypeError('SubtleCrypto.' + where + ' does not implement interface CryptoKey.');
     }
     return s;
@@ -158,7 +198,7 @@
       fail: fail, normalize: normalize, hashName: hashName, isBuffer: isBuffer, copy: copy,
       buf: buf, sequence: sequence, usageList: usageList, known: known, has: has,
       enforce: enforce, b64url: b64url, unb64url: unb64url, makeKey: makeKey, keyArg: keyArg,
-      HASH: HASH, KEYED: KEYED, FORMATS: FORMATS,
+      HASH: HASH, KEYED: KEYED, FORMATS: FORMATS, hexb: hexb, tlv: tlv, items: items, same: same,
     },
   });
 })(globalThis);

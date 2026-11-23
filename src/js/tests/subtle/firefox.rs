@@ -27,10 +27,10 @@ var __out;\
 function probe(src){__out='pending';Promise.resolve().then(function(){return (0,eval)(src)})\
 .then(function(v){__out=show(v)},function(e){__out=e.name+': '+e.message})}";
 
-#[test]
-fn every_captured_call_settles_as_it_does_on_firefox_153() {
-    let mut checked = 0;
-    for block in CAPTURE.split("\n---\n").skip(1) {
+/// Every line of one capture, run in frot: the lines frot answers otherwise.
+fn mismatches(capture: &str) -> (usize, Vec<String>) {
+    let (mut checked, mut wrong) = (0, Vec::new());
+    for block in capture.split("\n---\n").skip(1) {
         let (preamble, probes) = block.split_once("\n===\n").unwrap();
         let s = sess("<html><body></body></html>");
         s.eval(HELPERS).unwrap();
@@ -39,10 +39,32 @@ fn every_captured_call_settles_as_it_does_on_firefox_153() {
             let (expr, want) = line.split_once(" => ").unwrap();
             let quoted = serde_json::to_string(expr).unwrap();
             s.eval(&format!("probe({quoted});0")).unwrap();
-            assert_eq!(s.eval("__out").unwrap(), want, "{expr}");
+            let got = s.eval("__out").unwrap();
+            if got != want {
+                wrong.push(format!("{expr}\n  frot:    {got}\n  firefox: {want}"));
+            }
             checked += 1;
         }
     }
-    assert_eq!(checked, CAPTURE.matches(" => ").count());
+    assert_eq!(checked, capture.matches(" => ").count());
+    (checked, wrong)
+}
+
+#[test]
+fn every_captured_call_settles_as_it_does_on_firefox_153() {
+    let (checked, wrong) = mismatches(CAPTURE);
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     assert!(checked > 400, "{checked}");
+}
+
+/// The public-key half (`bl-0cae`): ECDSA, ECDH, Ed25519 and X25519.
+#[test]
+fn every_captured_public_key_call_settles_as_it_does_on_firefox_153() {
+    let (checked, wrong) = mismatches(include_str!("firefox153pk.txt"));
+    assert!(
+        wrong.is_empty(),
+        "{} of {checked}:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
 }

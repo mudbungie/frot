@@ -10,9 +10,10 @@
 // Implemented: digest SHA-1/256/384/512; AES-CBC, AES-CTR and AES-GCM (any iv,
 // seven tag lengths) encrypt/decrypt; AES-KW; HMAC sign/verify; PBKDF2 and HKDF
 // deriveBits/deriveKey; wrapKey/unwrapKey under the four AES modes;
-// importKey/exportKey (`raw`, `jwk`) and generateKey for all of them. The
-// public-key algorithms Firefox 153 has (RSA*, ECDSA, ECDH, Ed25519, X25519)
-// reject — the declared residual.
+// importKey/exportKey (`raw`, `jwk`) and generateKey for all of them; and
+// (bl-0cae, subtlepk.js) ECDSA, ECDH, Ed25519 and X25519 — key pairs, `spki`,
+// `pkcs8`, sign/verify, deriveBits/deriveKey. RSA* rejects — the declared
+// residual, bl-2763.
 //
 // Shapes, member order, `.length`s, usage order, JWK key order and every error
 // name, message and ORDER below were READ off Firefox 153.0esr. `[SecureContext]`:
@@ -49,10 +50,14 @@
       return run(normalize(algorithm, CIPHERS), open, s, bytes).buffer;
     };
   }
-  // The HMAC of `data` under a key that may `usage` it.
-  function mac(algorithm, s, usage, data) {
+  // The algorithm a key that may `usage` signs under — the key's own.
+  function signer(algorithm, s, usage) {
     has(s, usage);
-    if (normalize(algorithm, SIGNS).name !== s.algorithm.name) throw fail('InvalidAccessError');
+    var n = normalize(algorithm, SIGNS);
+    if (n.name !== s.algorithm.name) throw fail('InvalidAccessError');
+    return n;
+  }
+  function mac(s, data) {
     return g.__frot_subtle_hmac(s.algorithm.hash.name, s.bytes, data);
   }
   // A key from its bytes or its JWK. Firefox reads the DATA, not the format, to
@@ -79,6 +84,7 @@
   // A key's bytes, or its JWK (members in Firefox's order; no `alg` where the
   // algorithm has none).
   function exported(format, s) {
+    if (s.pk) return k.pkExport(format, s);
     if (format === 'raw') return copy(s.bytes);
     if (format !== 'jwk') throw fail('NotSupportedError');
     var alg = ALG[s.algorithm.name].jwk(s.algorithm);
@@ -92,12 +98,15 @@
     decrypt: [3, cipher('decrypt', true)],
     sign: [3, function (algorithm, key, data) {
       var s = keyArg(key, 'sign: Argument 2');
-      return mac(algorithm, s, 'sign', buf(data, 'sign: Argument 3')).buffer;
+      var bytes = buf(data, 'sign: Argument 3'), n = signer(algorithm, s, 'sign');
+      return (s.pk ? k.pkSign(n, s, bytes) : mac(s, bytes)).buffer;
     }],
     verify: [4, function (algorithm, key, signature, data) {
       var s = keyArg(key, 'verify: Argument 2');
       var sig = buf(signature, 'verify: Argument 3');
-      var want = mac(algorithm, s, 'verify', buf(data, 'verify: Argument 4'));
+      var bytes = buf(data, 'verify: Argument 4'), n = signer(algorithm, s, 'verify');
+      if (s.pk) return k.pkVerify(n, s, sig, bytes);
+      var want = mac(s, bytes);
       var diff = sig.length ^ want.length;
       for (var i = 0; i < want.length; i++) diff |= sig[i] ^ want[i];
       return diff === 0;
@@ -109,6 +118,7 @@
     generateKey: [3, function (algorithm, extractable, usages) {
       var list = sequence(usages, 'generateKey: Argument 3');
       var n = keyed(algorithm);
+      if (n.impl.pk) return k.pkGenerate(n, extractable, list);
       var made = n.impl.generated(n.p, n.impl.params(n.p));
       var use = usageList(list, n.impl.usages);
       return makeKey(made[0], extractable, use, Uint8Array.from(g.__frot_random_bytes(made[1])));
@@ -127,7 +137,9 @@
         throw fail('SyntaxError');
       }
       t = keyed(type);
-      var bits = t.impl.generated(t.p, t.impl.params(t.p))[0].length;
+      // An agreement takes a derivation key's whole secret (measured: HKDF).
+      var bits = t.impl.kdf && ALG[n.name].pk ? null
+        : t.impl.generated(t.p, t.impl.params(t.p))[0].length;
       return imported('raw', k.derive(n, s, bits), t, extractable, list);
     }],
     deriveBits: [2, function (algorithm, key, length) {
@@ -141,6 +153,7 @@
       var list = sequence(usages, 'importKey: Argument 5');
       var n = keyed(algorithm);
       if (FORMATS.indexOf(format) < 0) throw fail('SyntaxError');
+      if (n.impl.pk) return k.pkImport(format, keyData, n, extractable, list);
       if (format !== 'raw' && format !== 'jwk') throw fail('NotSupportedError');
       return imported(format, keyData, n, extractable, list);
     }],
@@ -150,7 +163,7 @@
       if (!s.extractable) throw fail('InvalidAccessError');
       if (ALG[s.algorithm.name].sealed) throw fail('NotSupportedError');
       var out = exported(format, s);
-      return format === 'raw' ? out.buffer : out;
+      return out instanceof Uint8Array ? out.buffer : out;
     }],
     // export, then encrypt: the format is judged before the wrapping key is
     // compared with the algorithm, and a JWK travels as its JSON text.
@@ -162,7 +175,7 @@
       if (!s.extractable) throw fail('InvalidAccessError');
       var n = normalize(wrapAlgorithm, WRAPS);
       var out = exported(format, s);
-      return run(n, false, w, format === 'raw' ? out : ascii(JSON.stringify(out))).buffer;
+      return run(n, false, w, out instanceof Uint8Array ? out : ascii(JSON.stringify(out))).buffer;
     }],
     // decrypt, then import — every importKey rule applies to what comes out,
     // except that an unusable format is NotSupportedError here.
@@ -176,14 +189,16 @@
       var t = keyed(type);
       if (t.name === 'PBKDF2') throw fail('NotSupportedError'); // measured; HKDF is fine
       var data = run(normalize(unwrapAlgorithm, WRAPS), true, w, bytes);
-      if (format === 'raw') return imported(format, data, t, extractable, list);
-      if (format !== 'jwk') throw fail('NotSupportedError');
-      try {
-        data = JSON.parse(String.fromCharCode.apply(null, data));
-      } catch (e) {
-        data = null;
+      if (format === 'jwk') {
+        try {
+          data = Object(JSON.parse(String.fromCharCode.apply(null, data)));
+        } catch (e) {
+          data = {};
+        }
       }
-      return imported(format, Object(data), t, extractable, list);
+      if (t.impl.pk) return k.pkImport(format, data, t, extractable, list);
+      if (format !== 'raw' && format !== 'jwk') throw fail('NotSupportedError');
+      return imported(format, data, t, extractable, list);
     }],
   };
 

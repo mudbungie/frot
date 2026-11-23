@@ -42,7 +42,7 @@
   // and so cannot be what deriveKey derives either.
   function kdf(name, sealed) {
     return {
-      usages: ['deriveKey', 'deriveBits'], usagesFirst: true, sealed: sealed,
+      usages: ['deriveKey', 'deriveBits'], usagesFirst: true, sealed: sealed, kdf: true,
       params: function () {},
       imported: function () {
         return { name: name };
@@ -81,8 +81,8 @@
     HKDF: kdf('HKDF', true),
     PBKDF2: kdf('PBKDF2', false),
   };
-  // An algorithm a key can be OF. The names Firefox has and frot does not
-  // (RSA*, ECDSA, ECDH, Ed25519, X25519) are the declared residual, bl-0cae.
+  // An algorithm a key can be OF. The elliptic-curve four join from
+  // subtlepk.js; RSA*, which Firefox has and frot does not, is the residual.
   k.ALG = ALG;
   k.keyed = function (alg) {
     var n = k.normalize(alg, k.KEYED);
@@ -165,7 +165,8 @@
       return g.__frot_subtle_hkdf(hash, s.bytes, copy(p.salt), copy(p.info), n);
     },
   };
-  // ECDH and X25519 are names deriveBits accepts, and no frot key is one.
+  // ECDH and X25519 join from subtlepk.js.
+  k.DERIVE = DERIVE;
   k.derive = function (n, s, length) {
     mine(n, s);
     var out = DERIVE[n.name](s, n.p, length);

@@ -21,6 +21,7 @@ use super::Host;
 
 mod aes;
 mod alg;
+mod pk;
 
 macro_rules! bind {
     ($ctx:expr, $g:expr, $name:literal, $f:expr) => {
@@ -118,6 +119,69 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, _host: &Host) -> rquickjs::
             out(ctx, run(bytes(&key), bytes(&data)))
         }
     );
+    public_key(ctx, g)
+}
+
+/// The public-key table over [`pk`] (`bl-0cae`): `pk_generate(curve)` answers
+/// `[private, public]` (as two arrays of bytes); `pk_public(curve, private)`, `pk_point(curve, bytes)` (the point uncompressed, if it is one);
+/// `ecdsa_sign(curve, hash, d, data)`, `ecdsa_verify(curve, hash, point, sig, data)`, `ed25519_sign(seed,
+/// data)`, `ed25519_verify(public, sig, data)`, `agree(curve, private, peer)`.
+fn public_key<'js>(ctx: &Ctx<'js>, g: &Object<'js>) -> rquickjs::Result<()> {
+    // Two arrays of bytes, which the prelude makes `Uint8Array`s.
+    bind!(ctx, g, "__frot_subtle_pk_generate", |c: String| {
+        pk::generate(&c).map(Vec::from)
+    });
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_pk_public",
+        |ctx: Ctx<'js>, c: String, private: Bytes<'js>| out(ctx, pk::public(&c, bytes(&private)))
+    );
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_pk_point",
+        |ctx: Ctx<'js>, c: String, p: Bytes<'js>| out(ctx, pk::point(&c, bytes(&p)))
+    );
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_ecdsa_sign",
+        |ctx: Ctx<'js>, c: String, h: String, d: Bytes<'js>, data: Bytes<'js>| {
+            out(ctx, pk::ecdsa_sign(&c, &h, bytes(&d), bytes(&data)))
+        }
+    );
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_ecdsa_verify",
+        |c: String, h: String, p: Bytes<'js>, sig: Bytes<'js>, data: Bytes<'js>| {
+            pk::ecdsa_verify(&c, &h, bytes(&p), bytes(&sig), bytes(&data))
+        }
+    );
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_ed25519_sign",
+        |ctx: Ctx<'js>, seed: Bytes<'js>, data: Bytes<'js>| {
+            out(ctx, pk::ed25519_sign(bytes(&seed), bytes(&data)))
+        }
+    );
+    bind!(ctx, g, "__frot_subtle_ed25519_verify", |p: Bytes<'js>,
+                                                   sig: Bytes<'js>,
+                                                   data: Bytes<
+        'js,
+    >| {
+        pk::ed25519_verify(bytes(&p), bytes(&sig), bytes(&data))
+    });
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_agree",
+        |ctx: Ctx<'js>, c: String, private: Bytes<'js>, peer: Bytes<'js>| {
+            out(ctx, pk::agree(&c, bytes(&private), bytes(&peer)))
+        }
+    );
     Ok(())
 }
 
@@ -134,3 +198,6 @@ fn out<'js>(ctx: Ctx<'js>, result: Option<Vec<u8>>) -> rquickjs::Result<Option<B
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod pk_tests;
