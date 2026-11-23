@@ -79,13 +79,18 @@ pub fn accessible_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> O
 /// it for a `caption` — `<caption title=T></caption>` and `<div role=caption
 /// title=T>` are `caption ""`, though `<figcaption title=T>` is "T" — or for
 /// a table or fieldset whose caption or legend is its whole name
-/// ([`related::names_it_alone`]; both `bl-dfc3`).
+/// ([`related::names_it_alone`]; both `bl-dfc3`), or for an `<img>` whose
+/// `alt` said nothing: `<img alt="" title=T>` keeps its node, named ""
+/// (`bl-e88d`).
 fn title_names(
     doc: &Document,
     id: NodeId,
     el: &crate::dom::Element,
     styles: Option<&Styles>,
 ) -> bool {
+    if el.name == "img" && el.attr("alt").is_some() {
+        return false;
+    }
     match crate::ax::role(doc, id) {
         Some(r) if UNTITLED.contains(&r) => false,
         Some("caption") => el.name == "figcaption",

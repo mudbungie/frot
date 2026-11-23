@@ -390,7 +390,9 @@ other options might have belonged with `<video>`'s prose. Measured in Chrome
   `label` attribute > `title`, and an unlabelled `<optgroup title>` is named by
   it). And "said nothing" is a test of the text, not of whether a source
   matched: `<img alt="" title=T>` is "T", because the empty alternative is
-  still nothing said.
+  still nothing said. (That is the image read *inside* a name. Its own name
+  is "": `title` does not follow an `alt` that says nothing at the node
+  itself — 2026-11-23, `bl-e88d`, `ax/name.rs` `title_names`.)
 
   Which *roles* `title` names is a separate fact (2026-11-23, `bl-84fc`,
   Chrome 158): never a `paragraph`, `term`, `definition`, `code`, `emphasis`,

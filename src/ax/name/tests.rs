@@ -90,10 +90,14 @@ fn img_alt_is_name() {
 }
 
 #[test]
-fn img_empty_alt_is_some_empty_then_falls_to_title() {
-    // empty alt produces an empty native name; algorithm falls through to title
+fn an_alt_that_says_nothing_is_not_followed_by_title() {
+    // Chrome 158 (`bl-e88d`): the image keeps its node, named "".
+    for alt in ["''", "' '"] {
+        let html = format!("<img src='x.png' alt={alt} title='Tip'>");
+        assert_eq!(name(&html, "img"), None, "{html}");
+    }
     assert_eq!(
-        name("<img src='x.png' alt='' title='Tip'>", "img"),
+        name("<img src='x.png' title='Tip'>", "img"),
         Some("Tip".into())
     );
 }
