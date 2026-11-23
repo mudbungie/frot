@@ -114,7 +114,7 @@ fn an_svg_part_is_named_from_its_title_child() {
     }
     // A nested graphic is such a part too.
     let d = Document::parse("<svg><svg id=i><title>inner</title></svg></svg>");
-    let inner = find_by_id(&d, "i").unwrap();
+    let inner = d.element_by_id("i").unwrap();
     assert_eq!(accessible_name(&d, inner, None), Some("inner".into()));
 }
 

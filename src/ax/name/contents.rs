@@ -245,7 +245,7 @@ fn labelledby(w: &Walk, el: &Element, visited: &mut Vec<NodeId>) -> Option<Strin
     let mut out = String::new();
     for target in raw
         .split_whitespace()
-        .filter_map(|t| super::find_by_id(w.doc, t))
+        .filter_map(|t| w.doc.element_by_id(t))
     {
         node_text(w, target, visited, &mut out);
     }

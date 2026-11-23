@@ -188,21 +188,14 @@ fn checked(doc: &Document, id: NodeId, el: &Element) -> bool {
     }
 }
 
-/// A radio's group: its name and its form. Unnamed radios are each alone.
-/// The form is the `form` attribute as written, else the nearest `<form>`
-/// above — so `form=f` and a radio inside `<form id=f>` count as two groups,
-/// which a browser makes one.
-fn group<'a>(
-    doc: &Document,
-    id: NodeId,
-    el: &'a Element,
-) -> Option<(&'a str, Result<NodeId, &'a str>)> {
+/// A radio's group: its name and its form owner ([`Document::form_owner`]),
+/// which for a radio no form owns is the tree. Unnamed radios are each
+/// alone. A radio with `form=f` and one inside `<form id=f>` are one group,
+/// and a `form` attribute that names no form puts a radio with the unowned
+/// ones (Chrome 158, `bl-e8fa`).
+fn group<'a>(doc: &Document, id: NodeId, el: &'a Element) -> Option<(&'a str, Option<NodeId>)> {
     let name = el.attr("name").filter(|n| !n.is_empty())?;
-    let above = ancestors(doc, id).find(|(_, e)| e.name == "form");
-    let form = el
-        .attr("form")
-        .map_or(Ok(above.map_or(Document::ROOT, |(f, _)| f)), Err);
-    Some((name, form))
+    Some((name, doc.form_owner(id)))
 }
 
 /// No radio after `id` in tree order has `checked` and `id`'s group.

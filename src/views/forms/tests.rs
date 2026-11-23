@@ -157,3 +157,23 @@ fn unparseable_page_url_leaves_action_as_is() {
     let r = run("<form action='/x'></form>", "not a url");
     assert_eq!(r[0]["action"], "/x");
 }
+
+/// Chrome 158 `form.elements` (`bl-e8fa`).
+#[test]
+fn the_form_attribute_moves_a_control_to_the_form_it_names() {
+    let r = run(
+        "<input name=before form=f2>\
+         <form id=f1><input name=in1><input name=moved form=f2><input name=empty form=''>\
+         <input name=missing form=nope><input name=self form=f1></form>\
+         <form id=f2><input name=in2></form>\
+         <select name=sel form=f2></select><textarea name=ta form=f2></textarea>\
+         <button name=bt form=f2></button><input name=orphan>",
+        "https://example.com/",
+    );
+    let names = |f: &Value| -> Vec<String> {
+        let fields = f["fields"].as_array().unwrap().iter();
+        fields.map(|x| x["name"].as_str().unwrap().into()).collect()
+    };
+    assert_eq!(names(&r[0]), ["in1", "self"]);
+    assert_eq!(names(&r[1]), ["before", "moved", "in2", "sel", "ta", "bt"]);
+}

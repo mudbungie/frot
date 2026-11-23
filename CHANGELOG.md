@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out forms`: the `form=` attribute associates a control with its
+  form.** A form's `fields` are now the controls it owns, in document order:
+  a control anywhere in the page whose `form` attribute names the form's id
+  is listed, and a control inside one form that names another is listed
+  there instead. A `form` attribute that names no form (empty, an id nothing
+  has, an id a non-form element has first) leaves the control in no form, as
+  in Chrome's `form.elements`. `:checked` under `--css` reads radio groups by
+  the same owner, so a radio with `form=f` and one inside `<form id=f>` are
+  one group. [bl-e8fa]
+
 - **`--css`: `display` values that are not block-level stop breaking the
   line**, a regression since `bl-fe2c`, where every value outside seven
   keywords was read as `block`. Measured per value in Chrome 158. [bl-e3a0]

@@ -242,6 +242,7 @@ fn node_data_to_kind(data: &NodeData) -> NodeKind {
 }
 
 mod conceal;
+mod form;
 mod hierarchy;
 mod mutate;
 mod select;

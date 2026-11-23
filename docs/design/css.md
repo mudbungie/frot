@@ -127,7 +127,10 @@ Chrome 158 and is held in `tests/fixtures/fidelity/state.html` and
 - **`:link`, `:any-link`, `:-webkit-any-link`** — an `<a>` or `<area>` with
   `href` (an SVG `<a>` with `xlink:href` too).
 - **`:checked`** — a checkbox with `checked`; a radio with `checked` unless a
-  later radio of the same name and form has it too; an option its select
+  later radio of the same name and form has it too (the form is the radio's
+  *form owner*, `dom/form.rs`: the `form=` attribute when it names a form,
+  else the nearest `<form>` above — since 2026-11-22, `bl-e8fa`; before, the
+  attribute as written, which split one group in two); an option its select
   picks: with `multiple`, each one with `selected`; otherwise the last one
   with `selected`, else — in a drop-down, not a list box (`size` above 1) —
   the first that is neither `disabled` nor in a disabled `<optgroup>`.

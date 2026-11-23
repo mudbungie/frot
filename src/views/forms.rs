@@ -1,5 +1,10 @@
 //! `--out forms`: extract `<form>` elements and their controls.
 //!
+//! A form's fields are the controls it *owns* ([`Document::form_owner`]), in
+//! tree order: the ones inside it, less any whose `form` attribute points
+//! elsewhere, plus any outside it whose `form` attribute names it
+//! (`bl-e8fa`).
+//!
 //! Output shape: an array of form objects.
 //! ```text
 //! { "action": <abs url>, "method": "get"|"post"|...,
@@ -19,18 +24,30 @@ use url::Url;
 
 pub fn forms(doc: &Document, page_url: &str) -> Value {
     let base_url = base::base_url(doc, page_url);
-    let mut out = Vec::new();
+    // Every control with the form that owns it, in tree order: a form's
+    // fields are the controls it owns, wherever they stand.
+    let mut controls = Vec::new();
+    let mut found = Vec::new();
     doc.walk(None, &mut |ev, e| {
         if let (WalkEvent::Enter(id), NodeKind::Element(el)) = (ev, &e.kind) {
-            if el.name == "form" {
-                out.push(build_form(doc, id, el, base_url.as_ref()));
+            match el.name.as_str() {
+                "form" => found.push((id, build_form(el, base_url.as_ref()))),
+                "input" | "textarea" | "select" | "button" => {
+                    controls.push((doc.form_owner(id), build_field(doc, id, el)));
+                }
+                _ => {}
             }
         }
     });
-    Value::Array(out)
+    let form = |(id, mut form): (NodeId, Value)| {
+        let owned = controls.iter().filter(|(owner, _)| *owner == Some(id));
+        form["fields"] = owned.map(|(_, field)| field.clone()).collect();
+        form
+    };
+    Value::Array(found.into_iter().map(form).collect())
 }
 
-fn build_form(doc: &Document, id: NodeId, form_el: &Element, base: Option<&Url>) -> Value {
+fn build_form(form_el: &Element, base: Option<&Url>) -> Value {
     let action_raw = form_el.attr("action").unwrap_or("");
     let action = base::resolve(base, action_raw);
     let method = form_el
@@ -42,20 +59,10 @@ fn build_form(doc: &Document, id: NodeId, form_el: &Element, base: Option<&Url>)
         .map(|s| s.to_string())
         .unwrap_or_else(|| "application/x-www-form-urlencoded".to_string());
 
-    let mut fields = Vec::new();
-    doc.walk(Some(id), &mut |ev, e| {
-        if let (WalkEvent::Enter(node_id), NodeKind::Element(el)) = (ev, &e.kind) {
-            if matches!(el.name.as_str(), "input" | "textarea" | "select" | "button") {
-                fields.push(build_field(doc, node_id, el));
-            }
-        }
-    });
-
     json!({
         "action": action,
         "method": method,
         "enctype": enctype,
-        "fields": fields,
     })
 }
 

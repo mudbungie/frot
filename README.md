@@ -33,7 +33,7 @@ Each invocation returns exactly one view, selected with `--out`:
 - `dom` — the parsed document tree, as JSON nodes (`element`, `text`, `comment`, `doctype`)
 - `text` — readable content in source order; whitespace collapsed, `<pre>` preserved
 - `links` — every `<a>`, `<area>`, and `<link>`, with absolute hrefs and `rel` tokens
-- `forms` — `<form>` actions, methods, enctypes, and structured field lists
+- `forms` — `<form>` actions, methods, enctypes, and structured field lists (a form's fields are the controls it owns: a `form=` attribute moves a control to the form it names)
 - `meta` — `<title>`, `<html lang>`, charset, canonical link, and `<meta>` entries
 - `ax` — accessibility tree (roles, accessible names, levels)
 - `bboxes` — per-element geometry: a flat array in reading order, one entry per rendered element (`{i, tag, rect:{x,y,w,h}, text}`), laid out at a fixed 1280px viewport

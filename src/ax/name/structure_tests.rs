@@ -225,7 +225,7 @@ fn a_table_cell_boundary_is_a_space_and_an_inline_gridcell_is_not() {
     let spans = "<div role=grid><div role=row id=r><span role=gridcell>a</span>\
                  <span role=gridcell>b</span></div></div>";
     let d = Document::parse(spans);
-    let row = find_by_id(&d, "r").unwrap();
+    let row = d.element_by_id("r").unwrap();
     assert_eq!(accessible_name(&d, row, None), Some("ab".into()));
 }
 

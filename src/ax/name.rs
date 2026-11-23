@@ -36,7 +36,7 @@ mod from_contents;
 mod related;
 
 use crate::css::Styles;
-use crate::dom::{Document, NodeId, NodeKind, WalkEvent};
+use crate::dom::{Document, NodeId, NodeKind};
 use from_contents::names_from_contents;
 use related::{control_label_text, fieldset_legend_text, table_caption_text};
 
@@ -107,7 +107,7 @@ fn labelledby_text(
     let raw = el.attr("aria-labelledby")?;
     let parts: Vec<String> = raw
         .split_whitespace()
-        .filter_map(|target| find_by_id(doc, target))
+        .filter_map(|target| doc.element_by_id(target))
         .map(|id| collapse_whitespace(&contents::referenced_name(doc, id, styles)))
         .filter(|s| !s.is_empty())
         .collect();
@@ -197,21 +197,6 @@ fn input_name(
         "image" => el.attr("alt").map(str::to_string),
         _ => control_label_text(doc, id, el, styles),
     }
-}
-
-fn find_by_id(doc: &Document, target: &str) -> Option<NodeId> {
-    let mut found = None;
-    doc.walk(None, &mut |ev, e| {
-        if found.is_some() {
-            return;
-        }
-        if let (WalkEvent::Enter(id), NodeKind::Element(el)) = (ev, &e.kind) {
-            if el.attr("id") == Some(target) {
-                found = Some(id);
-            }
-        }
-    });
-    found
 }
 
 /// A name's white space, collapsed: runs of HTML's ASCII white space (space,

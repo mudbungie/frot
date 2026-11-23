@@ -46,8 +46,6 @@ const fn row(fixture: &'static str, channel: &'static str, delta: &'static str, 
 /// `text-transform` is not applied.
 const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
 
-/// The `form=` attribute does not associate a control with its form.
-const FORM_ATTR: Why = Why::Defect("bl-e8fa");
 /// Chrome makes a span carrying `autofocus` a group.
 const AUTOFOCUS_GROUP: Why = Why::Defect("bl-0725");
 
@@ -62,12 +60,6 @@ pub const LEDGER: &[Row] = &[
     row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
-    row(
-        "state",
-        "forms",
-        "-   input type=\"radio\" name=\"g\"",
-        FORM_ATTR,
-    ),
     // ax
     row("focus", "ax", "- group \"\"", AUTOFOCUS_GROUP),
     row("focus", "ax", "- group \"\"", AUTOFOCUS_GROUP),

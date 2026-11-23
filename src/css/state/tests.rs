@@ -54,7 +54,16 @@ fn checked_reads_checkboxes_and_radio_groups() {
                 <input id=r6 type=radio checked><input id=r7 type=radio name='' checked>\
                 <input id=r8 type=radio checked><button id=x type=radio name=g checked></button>\
                 </form><input id=r9 type=radio name=g checked><input id=r10 type=radio name=g checked>";
-    assert_eq!(ids(html, ":checked"), "a r2 r4 r5 r6 r7 r8 r10");
+    // r5 names a form that is not there: it is unowned, like r9 and r10.
+    assert_eq!(ids(html, ":checked"), "a r2 r4 r6 r7 r8 r10");
+    // One group across the `form` attribute and ancestry; a second form with
+    // the same id is another form.
+    let html = "<form id=f><input type=radio name=g checked id=a></form>\
+                <input type=radio name=g checked form=f id=b>\
+                <input type=radio name=g checked form=nope id=c><input type=radio name=g checked id=d>\
+                <input type=radio name=g checked form='' id=e>\
+                <form id=f><input type=radio name=g checked id=h></form>";
+    assert_eq!(ids(html, ":checked"), "b e h");
 }
 
 #[test]
