@@ -231,8 +231,9 @@ fn author_display_rule_overrides_implicit_and_is_coerced() {
          <span>a</span><div>b</div><ul><li>c</li></ul>",
     );
     assert_eq!(s.display(first_tag(&doc, "span")), Display::InlineFlex);
-    // `grid` coerces to Block (§2), applied once in the cascade.
-    assert_eq!(s.display(first_tag(&doc, "div")), Display::Block);
+    // `grid` is laid out as a block (§2) but kept apart: its children are
+    // grid items.
+    assert_eq!(s.display(first_tag(&doc, "div")), Display::Grid);
     // An author rule on an `li` overrides its implicit ListItem.
     assert_eq!(s.display(first_tag(&doc, "li")), Display::Block);
 }

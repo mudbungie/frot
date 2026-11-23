@@ -18,6 +18,13 @@ pub enum Display {
     ListItem,
     Flex,
     InlineFlex,
+    /// A grid container: laid out as a block, but its children are grid
+    /// items, which CSS blockifies.
+    Grid,
+    InlineGrid,
+    /// `table-column` / `table-column-group`: a box that starts and ends a
+    /// line and paints none of its content (Chrome 158, `bl-9dec`).
+    TableColumn,
     /// No box of its own: the children stand in the parent's flow.
     Contents,
     /// A table cell: laid out as a block, and in `text` set off only from
@@ -34,20 +41,32 @@ impl Display {
     /// value frot has no algorithm for takes the nearest box it has — a grid
     /// or a table is a block, their inline twins an inline-block, a ruby an
     /// inline (the layout §2 coercion, applied once here). Measured in
-    /// Chrome 158 (`bl-e3a0`).
+    /// Chrome 158 (`bl-e3a0`). The keywords of a multi-keyword value come in
+    /// any order (`flex inline`, `list-item block`; `bl-9dec`).
     pub fn parse(value: &str) -> Option<Self> {
-        Some(match value.trim().to_ascii_lowercase().as_str() {
+        Some(match canonical(value)?.as_str() {
             "none" => Display::None,
-            "block" | "flow" | "flow-root" | "grid" | "table" | "table-caption"
-            | "table-column" | "table-column-group" | "-webkit-box" | "block flow"
-            | "block flow-root" | "block grid" | "block table" | "block ruby" | "block math" => {
+            "block" | "flow" | "flow-root" | "table" | "table-caption" | "-webkit-box"
+            | "block flow" | "block flow-root" | "block table" | "block ruby" | "block math" => {
                 Display::Block
             }
-            "inline" | "ruby" | "ruby-text" | "math" | "inline flow" | "inline ruby"
-            | "inline math" | "inline list-item" | "initial" | "unset" => Display::Inline,
-            "inline-block" | "inline-grid" | "inline-table" | "-webkit-inline-box"
-            | "inline flow-root" | "inline grid" | "inline table" => Display::InlineBlock,
-            "list-item" | "block list-item" | "flow-root list-item" => Display::ListItem,
+            "grid" | "block grid" => Display::Grid,
+            "inline-grid" | "inline grid" => Display::InlineGrid,
+            "table-column" | "table-column-group" => Display::TableColumn,
+            "inline"
+            | "ruby"
+            | "ruby-text"
+            | "math"
+            | "inline flow"
+            | "inline ruby"
+            | "inline math"
+            | "inline list-item"
+            | "inline flow-root list-item"
+            | "initial"
+            | "unset" => Display::Inline,
+            "inline-block" | "inline-table" | "-webkit-inline-box" | "inline flow-root"
+            | "inline table" => Display::InlineBlock,
+            "list-item" | "block list-item" | "block flow-root list-item" => Display::ListItem,
             "flex" | "-webkit-flex" | "block flex" => Display::Flex,
             "inline-flex" | "-webkit-inline-flex" | "inline flex" => Display::InlineFlex,
             "contents" => Display::Contents,
@@ -70,7 +89,24 @@ impl Display {
     /// inline-level boxes are `inline`, `inline-block` and `inline-flex`; a
     /// table part is neither, and `contents` is no box.
     pub fn block_level(self) -> bool {
-        matches!(self, Display::Block | Display::ListItem | Display::Flex)
+        matches!(
+            self,
+            Display::Block
+                | Display::ListItem
+                | Display::Flex
+                | Display::Grid
+                | Display::TableColumn
+        )
+    }
+
+    /// Whether the box's children are flex or grid items, which CSS
+    /// blockifies as it does a box taken out of flow (Chrome 158: a span in a
+    /// flex or a grid computes `block`, `bl-9dec`).
+    pub fn has_items(self) -> bool {
+        matches!(
+            self,
+            Display::Flex | Display::InlineFlex | Display::Grid | Display::InlineGrid
+        )
     }
 
     /// Whether layout stacks the box as a block: the block-level boxes, and
@@ -97,6 +133,7 @@ impl Display {
                 Display::Block
             }
             Display::InlineFlex if out_of_flow => Display::Flex,
+            Display::InlineGrid if out_of_flow => Display::Grid,
             other => other,
         }
     }
@@ -112,6 +149,37 @@ impl Display {
             None => Display::Inline,
         }
     }
+}
+
+/// `value` lower-cased and trimmed, its keywords in the order the table in
+/// [`Display::parse`] spells them: the outer (`block`, `inline`), then the
+/// inner (`flow`, `flow-root`, `flex`, …), then `list-item`; a list item's
+/// `flow` dropped and its missing outer taken as `block`. `None` for a
+/// keyword given twice. A single keyword passes through.
+fn canonical(value: &str) -> Option<String> {
+    let value = value.trim().to_ascii_lowercase();
+    let words: Vec<&str> = value.split_ascii_whitespace().collect();
+    if words.len() < 2 {
+        return Some(value);
+    }
+    let rank = |w: &&str| match *w {
+        "block" | "inline" => 0,
+        "list-item" => 2,
+        _ => 1,
+    };
+    let mut sorted = words.clone();
+    sorted.sort_by_key(rank);
+    sorted.dedup_by_key(|w| rank(w));
+    if sorted.len() != words.len() {
+        return None;
+    }
+    if sorted.last() == Some(&"list-item") {
+        sorted.retain(|w| *w != "flow");
+        if rank(&sorted[0]) != 0 {
+            sorted.insert(0, "block");
+        }
+    }
+    Some(sorted.join(" "))
 }
 
 #[cfg(test)]

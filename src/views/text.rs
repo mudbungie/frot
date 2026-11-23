@@ -259,11 +259,13 @@ fn emit(
             }
             state.close(display);
         }
-        // A text node needs no gate of its own: an element the cascade hides
-        // returns above before the recursion reaches its children, and a node
-        // the *parent's* box swallows never comes out of `painted_children`.
+        // An element the cascade hides returns above before the recursion
+        // reaches its children, and a node the *parent's* box swallows never
+        // comes out of `painted_children`. What is left is a box that paints
+        // none of its content though it is drawn itself — a table column
+        // (`bl-9dec`) — which the cascade marks on the text node.
         NodeKind::Text(t) => {
-            if parent_visible {
+            if parent_visible && !styles.is_some_and(|s| s.display_none(id)) {
                 state.push_text(styles.map_or(t, |s| s.text(id, t)));
             }
         }

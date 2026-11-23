@@ -172,6 +172,8 @@ stay out (table row groups, whose rows already break the line).
 | `none` | no box; subtree skipped (already the `display_none` behavior) |
 | `contents` | no box; the children are laid out in the parent's flow |
 | `table-cell`, `table-row` | block flow, and its own rule in `text` (below) |
+| `grid`, `inline-grid` | laid out as `block` / `inline-block`, kept apart because a grid's children are grid items (below) |
+| `table-column`, `table-column-group` | a block that paints none of its content: the content gets no box, no text, no AX node (`bl-9dec`) |
 
 **Coerced (accepted, approximated):** a value frot has no algorithm for takes
 the nearest box it has — nearest in *level* first, because the level is what
@@ -179,16 +181,30 @@ the nearest box it has — nearest in *level* first, because the level is what
 
 | Input | Coerced to | Because |
 |---|---|---|
-| `grid`, `table`, `table-caption`, `flow-root`, `-webkit-box`, `block ruby`, `block math` | block | grid and table layout are non-goals (§6); all block-level |
-| `inline-grid`, `inline-table`, `-webkit-inline-box` | inline-block | the same, inline-level: an atomic box on the line it is written in |
+| `table`, `table-caption`, `flow-root`, `-webkit-box`, `block ruby`, `block math` | block | table layout is a non-goal (§6); all block-level |
+| `inline-table`, `-webkit-inline-box` | inline-block | the same, inline-level: an atomic box on the line it is written in |
 | `ruby`, `ruby-text`, `math`, `inline list-item` | inline | inline-level and not atomic (Chrome names `va<span style="display:ruby">vb</span>vc` "vavbvc") |
 | `table-row-group`, `table-header-group`, `table-footer-group` | table-row | a group separates the way its rows do |
-| `table-column`, `table-column-group` | block | Chrome paints none of its content; frot does (`bl-e3a0` leftovers) |
-| the two-keyword forms (`inline flex`, `block flow`, `inline flow-root`, …) | their one-keyword twin | CSS Display 3 §2.5; outer keyword first only |
+| the multi-keyword forms (`inline flex`, `flex inline`, `list-item block`, `inline flow list-item`, …) | their one-keyword twin | CSS Display 3 §2.5; the keywords in any order, each kind once |
 | `initial`, `unset` | inline | the property's initial value; `display` is not inherited |
+| `inherit` | the parent's computed `display` | measured: a `<p style="display:inherit">` in a `<span>` is inline |
+
+**UA rules and blockification** (`bl-9dec`, Chrome 158, the end of
+`display.html`). A `<dialog>` without `open` is `display: none` unless an
+author rule says otherwise; an `<audio>` without `controls` is `display: none
+!important` — no author rule renders it. A child of a flex or grid container
+(`flex`, `inline-flex`, `grid`, `inline-grid`) is blockified as an
+out-of-flow box is: a span in a flex computes `block`, an `inline-flex` child
+`flex`, `contents` stays `contents`; so each item, and each run of bare text
+between items, is a line of `text`.
 
 Coercion is deterministic and documented; it is not a silent failure (§6, honest
 signals).
+
+> **Superseded 2026-11-22 (`bl-9dec`).** The coercion table sent `grid` to
+> block, `inline-grid` to inline-block and the table-column values to a block
+> that painted its content; it matched two-keyword forms outer-keyword first
+> only and dropped `inherit`.
 
 > **Superseded 2026-11-22 (`bl-e3a0`).** This table used to send every value
 > outside the seven keywords — `contents`, `inline-grid`, `inline-table`,
@@ -486,8 +502,8 @@ in-flow block/inline so the page still lays out approximately:
   around them.
 - **Positioning** (`position: absolute|fixed|sticky|relative`) — laid out as
   `static`; `top/left/right/bottom` and relative offsets ignored.
-- **CSS Grid** (`display:grid`) — coerced to block (`inline-grid` to
-  inline-block, §2).
+- **CSS Grid** (`display:grid`) — laid out as a block (`inline-grid` as an
+  inline-block, §2); its items are blockified, nothing more.
 - **Tables as layout** (`display:table*`, the table sizing algorithm) — coerced
   to block; cells stack as blocks. (Complements, but is separate from, the AX
   layout-table demotion in Phase 2.5 / bl-ab78.)

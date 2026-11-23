@@ -63,7 +63,11 @@ pub fn ignored(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>
 pub fn kept(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
     let line = || match Display::of(styles, id, &el.name) {
         Display::ListItem => true,
-        Display::Block | Display::InlineBlock | Display::TableCell => has_line(doc, id, styles),
+        Display::Block
+        | Display::InlineBlock
+        | Display::Grid
+        | Display::InlineGrid
+        | Display::TableCell => has_line(doc, id, styles),
         _ => false,
     };
     let authored = || crate::ax::role::explicit(doc, id, el).is_some();

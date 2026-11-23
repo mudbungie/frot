@@ -70,7 +70,8 @@ fn walk(
     nodes: &mut [ComputedStyle],
 ) {
     let entry = doc.node(id);
-    let concealed = doc.concealed(id);
+    // A table column paints none of its content (`bl-9dec`).
+    let concealed = doc.concealed(id) || parent.display == Display::TableColumn;
     let NodeKind::Element(el) = &entry.kind else {
         let mut cs = conceal(ComputedStyle::default(), concealed);
         if let NodeKind::Text(t) = &entry.kind {

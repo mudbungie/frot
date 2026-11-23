@@ -44,7 +44,7 @@ pub fn reduce(
         parent.text_transform,
     );
     ComputedStyle {
-        display: display(applied, el, js),
+        display: display(applied, el, js, parent.display),
         order: order_value(applied),
         flex_direction: flex_direction(applied),
         visibility: visibility(applied, parent.visibility),
@@ -79,32 +79,37 @@ fn flex_direction(applied: &[Applied]) -> FlexDirection {
 }
 
 /// The winning `display`, blockified when the box is out of flow
-/// ([`out_of_flow`]): a matched author/inline rule ([`display_winner`]),
-/// else the tag's UA-implicit display — but `<noscript>` is UA-implicit `none`
-/// once `--js` ran (js.md §4: scripting hides noscript), and `[hidden]` is
-/// UA-implicit `none` always ([`Element::hidden`]). Both are author-overridable:
+/// ([`out_of_flow`]) or a flex or grid item (its parent's `display`
+/// [`Display::has_items`]): a matched author/inline rule ([`display_winner`];
+/// `inherit` is the parent's), else the tag's UA-implicit display — but
+/// `<noscript>` is UA-implicit `none` once `--js` ran (js.md §4: scripting
+/// hides noscript), and `[hidden]` and a `<dialog>` without `open` are
+/// UA-implicit `none` always ([`Element::hidden`]). All are author-overridable:
 /// a matched author/inline `display` is the `Some` arm and wins, exactly as a
 /// UA-origin declaration loses to the author origin.
 ///
-/// [`Element::hidden_input`] is the exception that proves it: the UA sheet
-/// marks `input[type=hidden]` `!important`, so it is decided *before* the
-/// author cascade is consulted and nothing can render it.
-fn display(applied: &[Applied], el: &Element, js: bool) -> Display {
-    if el.hidden_input() {
+/// [`Element::hidden_input`] and an `<audio>` without `controls` are the
+/// exceptions that prove it: the UA sheet marks both `display: none
+/// !important`, so they are decided *before* the author cascade is consulted
+/// and nothing can render them (Chrome 158, `bl-9dec`).
+fn display(applied: &[Applied], el: &Element, js: bool, parent: Display) -> Display {
+    let controls = el.attr("controls").is_some();
+    if el.hidden_input() || (el.name == "audio" && !controls) {
         return Display::None;
     }
-    let display = match display_winner(applied, None) {
+    let closed = el.name == "dialog" && el.attr("open").is_none();
+    let display = match display_winner(applied, None, parent) {
         Some(d) => d,
-        None if el.hidden() || (js && el.name == "noscript") => Display::None,
+        None if el.hidden() || closed || (js && el.name == "noscript") => Display::None,
         None => implicit_display(&el.name),
     };
-    display.blockified(out_of_flow(applied, None))
+    display.blockified(out_of_flow(applied, None) || parent.has_items())
 }
 
 /// The computed `display` of a pseudo-element's box: its own declaration,
 /// else `inline`, blockified when the pseudo-element is out of flow.
 fn pseudo_display(applied: &[Applied], pseudo: Pseudo) -> Display {
-    display_winner(applied, Some(pseudo))
+    display_winner(applied, Some(pseudo), Display::Inline)
         .unwrap_or_default()
         .blockified(out_of_flow(applied, Some(pseudo)))
 }
@@ -174,13 +179,20 @@ fn winner<'b>(applied: &'b [Applied], pseudo: Option<Pseudo>, name: &str) -> Opt
 /// inline-block (Chrome 158, `bl-e3a0`).
 ///
 /// `display: revert` is kept and computes to nothing here, which leaves the
-/// caller with the user agent's value, as it asks.
-fn display_winner(applied: &[Applied], pseudo: Option<Pseudo>) -> Option<Display> {
+/// caller with the user agent's value, as it asks. `display: inherit` is the
+/// `inherited` display — the parent's (Chrome 158, `bl-9dec`); a
+/// pseudo-element's is not modelled and reads as `inline`.
+fn display_winner(
+    applied: &[Applied],
+    pseudo: Option<Pseudo>,
+    inherited: Display,
+) -> Option<Display> {
     applied
         .iter()
         .filter(|a| a.pseudo == pseudo && a.name == "display")
         .filter_map(|a| {
-            let display = Display::parse(&a.value);
+            let inherit = a.value.trim().eq_ignore_ascii_case("inherit");
+            let display = Display::parse(&a.value).or(inherit.then_some(inherited));
             (display.is_some() || Display::reverts(&a.value)).then_some((a.key(), display))
         })
         .max_by_key(|(key, _)| *key)
@@ -202,7 +214,7 @@ fn visibility(applied: &[Applied], parent_vis: Visibility) -> Visibility {
 }
 
 fn generated(applied: &[Applied], pseudo: Pseudo, el: &Element) -> Option<String> {
-    if display_winner(applied, Some(pseudo)) == Some(Display::None) {
+    if display_winner(applied, Some(pseudo), Display::Inline) == Some(Display::None) {
         return None;
     }
     let raw = winner(applied, Some(pseudo), "content")?;
