@@ -45,6 +45,7 @@
 //! - **`<svg>` and its parts** — `super::svg`.
 //! - **`<div>`, `<span>` and the tags with no role at all** — a `group` when
 //!   `autofocus` or `draggable` marks one Chrome keeps (`super::marked`).
+//! - **`<address>`** — a `group` only where Chrome keeps it ([`address`]).
 //! - **`<caption>`** — always a `caption` here; the one with no line in it is
 //!   left out by the tree, which has the cascade (`ax/tree/lineless.rs`).
 //!
@@ -52,6 +53,7 @@
 //! against the HTML-AAM and carries no condition.
 
 use super::{context, marked, svg};
+use crate::ax::tree::lineless;
 use crate::css::Styles;
 use crate::dom::{Document, Element, NodeId};
 
@@ -82,6 +84,7 @@ pub fn role(
         "tbody" | "td" | "tfoot" | "th" | "thead" | "tr" => {
             return Some(context::table_part(doc, id, table_part(doc, id, el)))
         }
+        "address" => return Some(address(doc, id, el, styles)),
         "article" => "article",
         "blockquote" => "blockquote",
         "body" => "generic",
@@ -96,7 +99,7 @@ pub fn role(
         "details" | "fieldset" | "hgroup" | "optgroup" => "group",
         "dfn" | "dt" => "term",
         "dialog" => "dialog",
-        "dl" | "menu" | "ol" | "ul" => "list",
+        "dir" | "dl" | "menu" | "ol" | "ul" => "list",
         "em" => "emphasis",
         "figure" => "figure",
         "form" => "form",
@@ -122,6 +125,19 @@ pub fn role(
         _ => return svg::part(doc, id, el).or_else(|| marked::group(doc, id, el, styles)),
     };
     Some(fixed)
+}
+
+/// `<address>`: a `group` where Chrome keeps the node at all — its box holds
+/// a line, or the author holds it ([`lineless::kept`]). Measured in Chrome
+/// 158 (`bl-c837`): `<address>x</address>`, one holding a link, an empty one
+/// with an `id` or `title` are groups; an empty one, one holding only a
+/// `<p>`, and a `display:inline` one are no node.
+fn address(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>) -> &'static str {
+    if lineless::kept(doc, id, el, styles) {
+        "group"
+    } else {
+        "generic"
+    }
 }
 
 fn link_or_generic(el: &Element) -> &'static str {

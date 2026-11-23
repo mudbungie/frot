@@ -145,3 +145,27 @@ fn a_summary_is_a_button_only_as_a_child_of_details() {
         Some("generic")
     );
 }
+
+/// `bl-c837`, Chrome 158: `<address>` is a `group` where Chrome keeps it, and
+/// `<dir>` is a `list`.
+#[test]
+fn address_is_a_kept_group_and_dir_a_list() {
+    for html in [
+        "<address id=t>x</address>",
+        "<address id=t><a href=#x>l</a></address>",
+        "<address id=t></address>",
+        "<address id=t aria-label=A>x</address>",
+    ] {
+        assert_eq!(r(html), Some("group"), "{html}");
+    }
+    for html in [
+        "<address class=t></address>",
+        "<address class=t><p>p</p></address>",
+    ] {
+        let doc = Document::parse(html);
+        let at = doc.find_by_tag("address")[0];
+        assert_eq!(role(&doc, at), Some("generic"), "{html}");
+    }
+    assert_eq!(r("<dir id=t><li>x</li></dir>"), Some("list"));
+    assert_eq!(r("<dir><li id=t>x</li></dir>"), Some("listitem"));
+}
