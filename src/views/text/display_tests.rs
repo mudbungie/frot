@@ -2,7 +2,7 @@
 //! (`bl-e3a0`). The corpus page `display.html` holds the same cases against
 //! the recorded capture.
 
-use super::tests::t_css;
+use super::tests::{t, t_css};
 
 fn one(display: &str) -> String {
     t_css(&format!(
@@ -109,4 +109,24 @@ fn generated_content_follows_its_own_display() {
         assert_eq!(g(display), "g1Bg2g3", "{display}");
     }
     assert_eq!(g("grid"), "g1\nB\ng2g3");
+}
+
+/// The tags Chrome 158's UA sheet makes block-level that `tags::BLOCK_TAGS`
+/// had missed (`bl-bccf`): each stands on a line of its own, with a cascade
+/// and without one.
+#[test]
+fn a_legend_and_the_other_ua_blocks_stand_on_their_own_line() {
+    let fieldset = "<fieldset disabled><legend>Off</legend><button>off</button></fieldset>";
+    assert_eq!(t_css(fieldset), "Off\noff");
+    assert_eq!(t(fieldset), "Off\noff");
+    for tag in [
+        "legend", "center", "dir", "hgroup", "listing", "menu", "search", "xmp",
+    ] {
+        let html = format!("<div>a<{tag}>b</{tag}>c</div>");
+        assert_eq!(t_css(&html), "a\nb\nc", "{tag}");
+        assert_eq!(t(&html), "a\nb\nc", "{tag}");
+    }
+    assert_eq!(t_css("<div>a<plaintext>b"), "a\nb");
+    // `<marquee>` is an inline-block.
+    assert_eq!(t_css("<div>a<marquee>b</marquee>c</div>"), "abc");
 }

@@ -21,11 +21,13 @@ pub const BLOCK_TAGS: &[&str] = &[
     "body",
     // `display: table-caption`: a block container on a line of its own.
     "caption",
+    "center",
     "dd",
     // `<details>` computes `block`; its `<summary>` `list-item` inside it
     // and `block` anywhere else (Chrome 158, `bl-788d`) — block-level both.
     "details",
     "dialog",
+    "dir",
     "div",
     "dl",
     "dt",
@@ -41,14 +43,25 @@ pub const BLOCK_TAGS: &[&str] = &[
     "h5",
     "h6",
     "header",
+    "hgroup",
     "hr",
     "html",
+    // `<legend>` computes `block` inside a `<fieldset>` and outside one, so
+    // `<legend>Off</legend><button>off</button>` is two tokens (`bl-bccf`).
+    // With it came the other tags Chrome 158's UA sheet makes block-level
+    // and this set had missed: `center`, `dir`, `hgroup`, `listing`, `menu`,
+    // `plaintext`, `search`, `xmp`.
+    "legend",
     "li",
+    "listing",
     "main",
+    "menu",
     "nav",
     "ol",
     "p",
+    "plaintext",
     "pre",
+    "search",
     "section",
     "summary",
     "table",
@@ -56,6 +69,7 @@ pub const BLOCK_TAGS: &[&str] = &[
     "td",
     "th",
     "ul",
+    "xmp",
     // The `<select>` subtree (`bl-66ed`). Chrome 139 computes `display: block`
     // for `<option>` and `<optgroup>` in every arrangement measured — a
     // collapsed `size=1` select, an open `size=4` listbox, a `multiple` one,

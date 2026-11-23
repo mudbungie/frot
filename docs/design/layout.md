@@ -156,6 +156,10 @@ open `size=4` listbox, a `multiple` one, and outside any select at all, so it is
 the tag's own display and not a fact about its parent — which is what stops
 `<option>a</option><option>b</option>` extracting as the invented token `ab`.
 `<select>` itself is not in the set; it computes `inline-block`.
+The set was checked tag by tag against Chrome 158's computed `display` on
+2026-11-22 (`bl-bccf`), which added `legend`, `center`, `dir`, `hgroup`,
+`listing`, `menu`, `plaintext`, `search` and `xmp`; `thead`/`tbody`/`tfoot`
+stay out (table row groups, whose rows already break the line).
 
 **Computed by Phase 3 layout:**
 

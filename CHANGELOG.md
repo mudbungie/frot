@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`<legend>` is block-level**, and with it the other tags Chrome's UA
+  stylesheet makes block-level that frot had as inline: `<center>`, `<dir>`,
+  `<hgroup>`, `<listing>`, `<menu>`, `<plaintext>`, `<search>`, `<xmp>`. In
+  `--out text` each stands on its own line, with or without `--css`
+  (`<legend>Off</legend><button>off</button>` was the fused token `Offoff`),
+  an accessible name spaces one off, and `bboxes` lays it out as a block.
+  [bl-bccf]
+
 - **`--out ax`: `autofocus` or `draggable` makes a plain container a
   `group`**, as Chrome does. A `<div>`, a `<span>` or another element with no
   role of its own (`<b>`, `<i>`, `<pre>`, …) that carries either attribute —
