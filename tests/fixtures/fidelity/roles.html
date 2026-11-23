@@ -34,5 +34,25 @@
 <b autofocus style="display:block"><a href="m.html">block b</a></b>
 <section autofocus><a href="m.html">plain section</a></section>
 <pre autofocus><a href="m.html">pre</a></pre>
+<h2>Presentation overruled</h2>
+<table role="presentation" aria-label="Overruled table"><tr><th>head</th><td>data</td></tr></table>
+<ul role="presentation" aria-label="Overruled list"><li>item under a labelled list</li></ul>
+<table role="presentation" title="T"><tr><th>title</th><td>is no conflict</td></tr></table>
+<div role="presentation" aria-label="L">generic stays out</div>
+<ul role="none" aria-describedby="pd" aria-live="polite"><li>described</li></ul>
+<ul role="none" aria-hidden="false" aria-invalid="true"><li>not global</li></ul>
+<ul role="none" tabindex="0"><li>focusable list</li></ul>
+<h3 role="none" tabindex="-1">focusable heading</h3>
+<h3 role="none" tabindex="foo">not an integer</h3>
+<h3 role="presentation button" aria-label="Native, not the next token">next</h3>
+<button role="none">focusable button</button>
+<button role="none" disabled>disabled button</button>
+<a role="none" href="m.html">focusable link</a>
+<input role="none" value="input"> <input role="none" type="HIDDEN">
+<details open><summary role="none">first summary</summary><summary role="none">second summary</summary>body</details>
+<ul role="foo"><li>foo list item</li></ul>
+<ul role=""><li>empty role item</li></ul>
+<ul role="LIST"><li>upper list item</li></ul>
+<p id="pd">description</p>
 </body>
 </html>

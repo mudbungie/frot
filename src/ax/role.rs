@@ -22,6 +22,7 @@
 use crate::css::Styles;
 use crate::dom::{Document, Element, NodeId, NodeKind};
 
+mod conflict;
 mod context;
 mod implicit;
 mod marked;
@@ -43,7 +44,9 @@ pub fn role_under(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Option
     let NodeKind::Element(el) = &doc.node(id).kind else {
         return None;
     };
-    explicit(doc, el).or_else(|| implicit::role(doc, id, el, styles))
+    explicit(doc, el)
+        .filter(|r| !matches!(*r, "none" | "presentation") || !conflict::overruled(doc, id, el))
+        .or_else(|| implicit::role(doc, id, el, styles))
 }
 
 /// An author `role=` attribute, resolved to its first **usable** token; with
@@ -57,6 +60,8 @@ pub fn role_under(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Option
 ///   `aria-labelledby` or a `title` attribute — even an empty one
 ///   ([`context::claims_landmark`]) — the landmark stands. The element `<form>`
 ///   needs no name — that is its implicit role, not this rule.
+///
+/// A usable `none`/`presentation` can still be overruled ([`conflict`]).
 fn explicit(doc: &Document, el: &Element) -> Option<&'static str> {
     el.attr("role")?
         .split_whitespace()

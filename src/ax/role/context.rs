@@ -100,39 +100,36 @@ pub fn summary(doc: &Document, id: NodeId) -> &'static str {
     }
 }
 
-/// `<li>`: a list item only inside a list — a `<ul>`, `<ol>` or `<menu>` that
-/// still *is* a list ([`owned`]).
+/// `<li>`: a list item only inside a `<ul>`, `<ol>` or `<menu>` whose `role`
+/// attribute, if it has one, says exactly `list`, `directory` or nothing.
+/// Measured in Chrome 158 (`bl-89a6`): the attribute decides, not the list's
+/// role — under `role=foo`, `role=" "`, `role=LIST`, `role="foo list"` or a
+/// `role=none` that a label overrules, the list stands and its items have no
+/// node; under `role=""` they are list items.
 pub fn listitem_or_generic(doc: &Document, id: NodeId) -> &'static str {
-    let list = doc
-        .node(id)
-        .parent
-        .filter(|&p| matches!(tag(doc, p), Some("ul" | "ol" | "menu")));
-    owned(doc, list, &["list", "directory"], "listitem")
+    let list = doc.node(id).parent.and_then(|p| match &doc.node(p).kind {
+        NodeKind::Element(e) if matches!(e.name.as_str(), "ul" | "ol" | "menu") => Some(e),
+        _ => None,
+    });
+    match list.map(|e| e.attr("role")) {
+        Some(None | Some("" | "list" | "directory")) => "listitem",
+        _ => "generic",
+    }
 }
 
 /// A part of a `<table>` — a row group, a row, a cell — has `role` only while
-/// its table, the nearest `<table>` ancestor, still is one ([`owned`]).
+/// its table, the nearest `<table>` ancestor, still is a table, grid or
+/// treegrid, else `generic`. Measured in Chrome 158 (`bl-2ea9`): under
+/// `<table role=presentation>` — and equally `role=none`, `group` or `list` —
+/// no `<thead>`, `<tr>`, `<td>` or `<th>` has a node, named or not; under a
+/// `role=presentation` a label overrules they do (`bl-89a6`), unlike the
+/// items of a list ([`listitem_or_generic`]). An author role on the part
+/// itself is not this rule's (`<tr role=row>` stays a row), a nested
+/// `<table>` starts over, and a `<caption>` keeps its node.
 pub fn table_part(doc: &Document, id: NodeId, role: &'static str) -> &'static str {
     let table = ancestors(doc, id).find(|&a| tag(doc, a) == Some("table"));
-    owned(doc, table, &["table", "grid", "treegrid"], role)
-}
-
-/// `role` for an element whose `owner` holds one of the roles that give it
-/// its context, `generic` otherwise: the owner is missing, or an author role
-/// took its semantics away. Measured in Chrome 158 (`bl-2ea9`): under
-/// `<table role=presentation>` — and equally `role=none`, `group` or `list` —
-/// no `<thead>`, `<tr>`, `<td>` or `<th>` has a node, named or not, and under
-/// `<ul role=none>`, `role=group` or `role=menu` no `<li>` has one. An author
-/// role on the part itself is not this rule's (`<tr role=row>` stays a row),
-/// a nested `<table>` starts over, and a `<caption>` keeps its node.
-fn owned(
-    doc: &Document,
-    owner: Option<NodeId>,
-    owners: &[&str],
-    role: &'static str,
-) -> &'static str {
-    match owner.and_then(|o| super::role(doc, o)) {
-        Some(r) if owners.contains(&r) => role,
+    match table.and_then(|t| super::role(doc, t)) {
+        Some("table" | "grid" | "treegrid") => role,
         _ => "generic",
     }
 }

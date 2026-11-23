@@ -29,8 +29,9 @@
 //! - **`<th>`** — `rowheader` or `columnheader` from `scope`, else from its
 //!   position in the row (Wikipedia: 14 `scope=row` cells are rowheaders).
 //! - **`<td>`/`<th>`** — `cell`/`gridcell` follows the ancestor table's role.
-//! - **`<li>`** — `listitem` only inside a `<ul>`/`<ol>`/`<menu>` that is still
-//!   a list; **`<thead>`/`<tbody>`/`<tfoot>`/`<tr>`/`<td>`/`<th>`** — their
+//! - **`<li>`** — `listitem` only inside a `<ul>`/`<ol>`/`<menu>` whose `role`
+//!   attribute is absent, empty, `list` or `directory`
+//!   ([`context::listitem_or_generic`], `bl-89a6`); **`<thead>`/`<tbody>`/`<tfoot>`/`<tr>`/`<td>`/`<th>`** — their
 //!   roles only inside a `<table>` that is still a table or grid. An author
 //!   `role=presentation` (or any other role) on the owner takes the parts'
 //!   roles with it ([`context::table_part`], `bl-2ea9`).

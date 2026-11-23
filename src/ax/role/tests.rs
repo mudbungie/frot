@@ -264,4 +264,5 @@ fn misc_roles() {
 }
 
 mod conditions;
+mod conflict;
 mod more;
