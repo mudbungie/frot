@@ -724,7 +724,7 @@ structural shapes (`Worker.prototype` flattening EventTarget, `IDBKeyRange`'s
 missing statics, and `crypto.subtle`, which `crypto.js` calls a §11 residual
 though §11 has no such row — **that last clause is wrong; see §3.14**) — `bl-6438`; and `innerHeight === outerHeight`, a
 window with no browser chrome, which is a deliberate model choice worth deciding
-explicitly — `bl-9663`. All three carry their measurements, so whoever takes them
+explicitly — `bl-9663` *(done 2026-11-23: §8, "Screen geometry")*. All three carry their measurements, so whoever takes them
 starts from a read rather than a rebuild of the rig. The canvas one is now
 written — §3.13.
 
@@ -2429,7 +2429,16 @@ is not the honest choice either — pin a common desktop constant.
 viewport constant (`layout.rs`), and `screen.*`/`window.*` derive from **it**, not
 from the profile. Two viewport constants would be exactly the duplication this
 design exists to prevent, and the existing `inner == outer` (no chrome) choice
-stays as documented in `js.md` §7.
+stays as documented in `js.md` §7. *(Superseded 2026-11-23, `bl-9663`: the
+viewport stays the one constant and `innerWidth`/`innerHeight`/`outerWidth`
+report it, but `outerHeight` is now that plus `chrome_height`, a pinned 86 —
+what 153.0esr reports at the persona's own window size, read on the §3.19 rig:
+`--width 1280 --height 806` gives inner 1280×720, outer 1280×806, and the
+toolbar is 86px at 1366×768 and 1280×720 windows alike. `inner == outer` was a
+window no real browser has. The screen is untouched (still the 1280×720
+viewport), so `outerHeight` 806 exceeds `screen.height`/`availHeight` 720 —
+as on the reference itself, whose headless screen (1366×768) is shorter than
+that window too; a coherent screen is a change to the screen pin, `bl-ca20`.)*
 
 **LANDED (`bl-3972`, the Phase-5 framework task).** The whole supported subset
 above is built and gated. All facts flow through **one** channel —

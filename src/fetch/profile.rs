@@ -5,10 +5,9 @@
 //! §4.1 table and live alone in `pin.rs` (`bl-7523`), so §4.2's "a pin change is
 //! an edit to §4.1 and nothing else" is one file's edit rather than a claim.
 //!
-//! This ball (`bl-abca`) landed the **transport subset** (version, EOL tripwire
-//! I8, ALPN order, TLS targets, h2 facts). The struct extends *additively* —
-//! `bl-20ec` request headers, `bl-3972` the JS `navigator` facts, `bl-e707` clock
-//! precision, `bl-05e6` the canvas seed. New fields, not new files.
+//! `bl-abca` landed the **transport subset** (version, EOL tripwire I8, ALPN, TLS,
+//! h2); the struct extends *additively* (`bl-20ec` headers, `bl-3972` navigator,
+//! `bl-e707` clock, `bl-05e6` canvas seed, `bl-9663` chrome). New fields, not files.
 //!
 //! ## What Option C (Mark, 2026-07-21) makes this const mean
 //!
@@ -24,9 +23,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::Intent;
 
-/// The Mozilla-compatibility version, the `5.0` opening both the `User-Agent`
-/// and `navigator.appVersion`. Frozen web-wide since 1998, so it is a fact of the
-/// *derivations*, not of the pin — but it has one definition site all the same (I1).
+/// The Mozilla-compatibility `5.0` opening the `User-Agent` and `appVersion`: frozen
+/// since 1998, a fact of the *derivations*, not the pin — one definition site (I1).
 const MOZILLA_COMPAT: &str = "5.0";
 
 /// The h2 wire facts of the persona (identity.md §3.1 akamai text, §12). Each
@@ -121,6 +119,8 @@ pub struct BrowserProfile {
     pub hardware_concurrency: u8,
     /// JS `screen.colorDepth`/`pixelDepth` — 24-bit truecolor (identity.md §8).
     pub color_depth: u8,
+    /// `outerHeight - innerHeight`, px: the toolbars above the viewport (`bl-9663`).
+    pub chrome_height: u16,
     /// JS 2D-canvas fingerprint digest seed (`bl-05e6`, identity.md §11): a FIXED
     /// persona const (never host entropy) so `toDataURL`/`getImageData` are a
     /// deterministic function of (seed + draw sequence), stable across invocations.

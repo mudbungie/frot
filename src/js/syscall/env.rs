@@ -149,6 +149,7 @@ fn persona(ua: &str, accept_language: &str) -> String {
         "onLine": true,
         "pdfViewerEnabled": true,
         "colorDepth": p.color_depth,
+        "chromeHeight": p.chrome_height,
         // The FIXED 2D-canvas digest seed (bl-05e6, identity.md §11): the one
         // channel canvas.js draws its determinism from. A profile const, never
         // host entropy, so `toDataURL`/`getImageData` match across invocations.

@@ -61,14 +61,18 @@
   // A fixed 1280×720 viewport (layout.rs VIEWPORT_WIDTH/VIEWPORT_HEIGHT). Pages
   // gate desktop chrome on width — mdbook reads window.innerWidth, and a NaN
   // compare takes the mobile branch and strips its sidebar — so the widths frot
-  // already knows are exposed honestly. window inner == outer (no browser
-  // chrome). Element clientWidth/clientHeight == offsetWidth/offsetHeight
+  // already knows are exposed honestly. The window is the viewport plus the
+  // persona's browser chrome above it (bl-9663): no side borders, and
+  // `outerHeight - innerHeight` is the measured toolbar height, so the layout
+  // viewport — and every geometry — is untouched. Element clientWidth/
+  // clientHeight == offsetWidth/offsetHeight
   // (borderless, scrollbar-less model, §8). The documentElement reports the
   // viewport itself, as browsers do — the primary way a page reads viewport size.
   var VW = g.__frot_viewport_width();
   var VH = g.__frot_viewport_height();
   g.innerWidth = g.outerWidth = VW;
-  g.innerHeight = g.outerHeight = VH;
+  g.innerHeight = VH;
+  g.outerHeight = VH + JSON.parse(g.__frot_env_profile()).chromeHeight;
   g.__frot_ifaceattrs(g.Element.prototype, {
     clientWidth: function () {
       return this === g.document.documentElement ? VW : g.__frot_rect(slots(this).id)[2];

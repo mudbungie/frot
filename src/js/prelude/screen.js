@@ -1,9 +1,10 @@
 // screen / devicePixelRatio / visibility (identity.md §8, js.md §7/§8, bl-3972 /
 // bl-1cb7). Geometry derives from the ONE layout viewport constant (1280×720,
 // __frot_viewport_*), never a second screen constant — depth/DPR from the persona
-// profile. Everything is coherent by construction: screen == avail == the
-// viewport (no chrome, no taskbar in frot's model), DPR 1, 24-bit colour, and a
-// visible/focused document, so a page cannot catch screen and window disagreeing.
+// profile: screen == avail == the viewport (no taskbar), DPR 1, 24-bit colour,
+// and a visible/focused document. One disagreement is declared: the window adds
+// 86px of chrome above the viewport (bl-9663), so outerHeight exceeds
+// screen.height — a screen pin question, bl-ca20.
 // Runs after brand.js (needs __frot_iface) and dom.js (extends document).
 (function (g) {
   'use strict';

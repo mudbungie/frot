@@ -21,6 +21,10 @@ pub const FIREFOX_153_ESR: BrowserProfile = BrowserProfile {
     build_id: "20181001000000",
     hardware_concurrency: 8,
     color_depth: 24,
+    // Measured, not chosen: a fresh profile's tab strip + navigation toolbar.
+    // At the persona's own viewport (inner 1280×720) 153.0esr's window is
+    // 1280×806; at 1366×768 it is 1366×682 inside (identity.md §3.12, §8).
+    chrome_height: 86,
     canvas_seed: 0x_f00d_c0de, // opaque fixed seed; mixed with draws, never raw.
     timer_precision_us: 1_000, // 1 ms — Firefox's reduceTimerPrecision default
     // ESR 153 branched 2026-07-21 and is the current line (`FIREFOX_ESR`

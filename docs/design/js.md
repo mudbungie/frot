@@ -947,7 +947,9 @@ that, a page walking any of them read frot's implementation instead.
   its `search`/`href` (string surgery on the authoritative href, not a re-parse).
 - Viewport size is a fixed **1280×720** (`layout.rs`
   `VIEWPORT_WIDTH`/`VIEWPORT_HEIGHT`; a constant, not a flag). `window.inner*`
-  and `window.outer*` report it (inner == outer — no browser chrome); pages that
+  and `window.outerWidth` report it; `outerHeight` is it plus the persona's
+  86px of browser chrome (`bl-9663`, 2026-11-23 — was inner == outer, a window
+  no browser has; identity.md §8); pages that
   gate desktop chrome on `window.innerWidth` (mdbook does) get the honest width
   instead of `undefined`/NaN → the mobile branch.
 - `matchMedia`: delegates to the CSS engine's media-query evaluator

@@ -229,11 +229,11 @@ fn viewport_height_syscall_and_the_width_surface() {
     // The new height syscall mirrors the width one (js.md §7/§8).
     let vh = crate::layout::VIEWPORT_HEIGHT.to_string();
     assert_eq!(s.eval("String(__frot_viewport_height())").unwrap(), vh);
-    // window inner == outer report the fixed viewport.
+    // inner is the viewport; outer adds 86px of chrome (bl-9663), as 153.0esr.
     assert_eq!(s.eval("window.innerWidth").unwrap(), "1280");
     assert_eq!(s.eval("window.outerWidth").unwrap(), "1280");
     assert_eq!(s.eval("window.innerHeight").unwrap(), "720");
-    assert_eq!(s.eval("window.outerHeight").unwrap(), "720");
+    assert_eq!(s.eval("window.outerHeight").unwrap(), "806");
     // documentElement is special-cased to the viewport (the root reports it).
     assert_eq!(
         s.eval("document.documentElement.clientWidth").unwrap(),
