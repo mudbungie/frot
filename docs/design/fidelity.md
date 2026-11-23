@@ -718,7 +718,9 @@ an authored page (`reach.html` for the stylesheet ones, `roles.html` for the
 cause under-application, which leaves content visible"): under-applying a
 rule that *reveals* hides.
 
-**One projection fix, no residual.** Chrome's `Abbr` — its internal role for
+**One projection fix, no residual.** (Joined 2026-11-23, `bl-4991`, on the
+same grounds: `Ruby`, `Iframe`, `IframePresentational` and MathML's parts are
+spliced, and `MathMLMath` is `math`.) Chrome's `Abbr` — its internal role for
 `<abbr title>` — joined the roles the `ax` projection splices: HTML-AAM gives
 `<abbr>` no role, so frot's vocabulary has no word for it. No residual row
 was added: all 68 new rows are defect rows, 25 of them on the two real

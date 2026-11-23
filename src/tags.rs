@@ -160,11 +160,17 @@ pub fn is_source(name: &str) -> bool {
 ///   configuration and its `<img>` *is* the rendered element; text sitting
 ///   directly inside a `<picture>` paints and is exposed exactly like text in a
 ///   `<span>` (measured), which is what frot already does.
+///
+/// `<meter>` and `<progress>` joined on measurement (Chrome 158, `bl-4991`):
+/// `a<meter value=.5>half</meter>c<progress>p</progress>d` paints "acd", the
+/// gauge standing where the fallback would.
 const FALLBACK_TAGS: &[(&str, bool)] = &[
     ("video", false),
     ("audio", false),
     ("iframe", false),
     ("canvas", true),
+    ("meter", false),
+    ("progress", false),
 ];
 
 /// `name`'s entry in [`FALLBACK_TAGS`] — `Some(exposed_to_ax)` for a

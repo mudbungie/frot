@@ -37,6 +37,12 @@ fn fate(role: &str) -> Option<Fate> {
         "LabelText" | "Legend" | "Canvas" | "Video" | "Audio" | "MenuListPopup" | "Abbr" => {
             Fate::Splice
         }
+        // The same for `<ruby>`, an `<iframe>` (frot does not load one, and
+        // HTML-AAM maps it to no role) and MathML's parts (`bl-4991`); the
+        // `<math>` root is ARIA's `math`.
+        "Ruby" | "Iframe" | "IframePresentational" => Fate::Splice,
+        "MathMLMath" => Fate::Keep("math"),
+        r if r.starts_with("MathML") => Fate::Splice,
         // Chrome's verdict that a table is layout, which frot renders as
         // demotion to presentation: the scaffolding collapses.
         "LayoutTable" | "LayoutTableRow" | "LayoutTableCell" => Fate::Splice,
