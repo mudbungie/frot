@@ -11,7 +11,7 @@ const CONSTRUCTABLE: &str = "Event CustomEvent FileReader ProgressEvent Blob Hea
     Request XMLHttpRequest AbortController TextEncoder TextDecoder Text Comment DocumentFragment \
     MutationObserver IntersectionObserver ResizeObserver EventTarget URL URLSearchParams Worker \
     SharedWorker Notification FormData Image AudioContext OfflineAudioContext OscillatorNode \
-    ImageData IDBVersionChangeEvent PerformanceObserver";
+    ImageData IDBVersionChangeEvent PerformanceObserver DOMRect DOMRectReadOnly";
 
 const ILLEGAL: &str = "Node Element Storage Navigator NodeList CryptoKey AbortSignal Location \
     CSSStyleDeclaration";

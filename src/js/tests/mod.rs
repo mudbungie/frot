@@ -16,6 +16,7 @@ mod clock;
 mod currentscript;
 mod docnode;
 mod domiface;
+mod domrect;
 mod encoding;
 mod envgold;
 mod evloop;

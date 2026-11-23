@@ -14,7 +14,6 @@
   var slots = g.__frot_slots;
   var iface = g.__frot_iface;
   var attrs = g.__frot_ifaceattrs;
-  var rw = g.__frot_rwattrs;
   var ops = g.__frot_ifaceops;
   var brand = g.__frot_brand;
 
@@ -31,28 +30,73 @@
   // --- DOMRect ---------------------------------------------------------------
   // Measured: `DOMRectReadOnly.prototype` carries `toJSON`, then x, y, width,
   // height, top, right, bottom, left as getter-only accessors; `DOMRect`
-  // inherits from it and re-declares only the four settable ones. y grows
-  // downward, so top/left are the origin and right/bottom the far edges —
-  // derived from the four, never stored beside them (two representations of one
-  // fact drift).
+  // inherits from it and re-declares only the four settable ones. Both are
+  // constructable (`bl-e65f`): four unrestricted doubles, each defaulting to 0,
+  // and a static `fromRect(dict)` on each. A rect's state is those four in its
+  // slot and the interface it was made as; the edges are derived, never stored
+  // (two representations of one fact drift), with Gecko's NaN-safe min/max — a
+  // negative size flips the edges, any NaN makes the edge NaN, and `-0` survives.
   var CORNERS = ['x', 'y', 'width', 'height'];
+  function min(a, b) {
+    return a !== a || b !== b ? NaN : b < a ? b : a;
+  }
+  function max(a, b) {
+    return a !== a || b !== b ? NaN : a < b ? b : a;
+  }
   var EDGES = {
-    top: function (s) {
-      return s.y;
+    top: function (r) {
+      return min(r[1], r[1] + r[3]);
     },
-    right: function (s) {
-      return s.x + s.width;
+    right: function (r) {
+      return max(r[0], r[0] + r[2]);
     },
-    bottom: function (s) {
-      return s.y + s.height;
+    bottom: function (r) {
+      return max(r[1], r[1] + r[3]);
     },
-    left: function (s) {
-      return s.x;
+    left: function (r) {
+      return min(r[0], r[0] + r[2]);
     },
   };
-  var DOMRectReadOnly = iface('DOMRectReadOnly');
+  // The rect `obj` holds, or Gecko's receiver error. A DOMRect setter needs a
+  // rect made as a DOMRect; every other member takes either.
+  function held(obj, member, name) {
+    var st = slots(obj);
+    if (st.rect && (name !== 'DOMRect' || st.iface === name)) return st.rect;
+    throw new TypeError("'" + member + "' called on an object that does not implement interface " +
+      name + '.');
+  }
+  // WebIDL `unrestricted double`: ToNumber, `undefined` the member's default 0.
+  function dbl(v) {
+    return v === undefined ? 0 : +v;
+  }
+  function shape(inst, name, x, y, w, h) {
+    slots(inst).rect = [dbl(x), dbl(y), dbl(w), dbl(h)];
+    slots(inst).iface = name;
+    return inst;
+  }
+  function rectIface(name) {
+    var C = iface(name, {}, function (inst, args) {
+      shape(inst, name, args[0], args[1], args[2], args[3]);
+    });
+    // DOMRectInit's members are read in lexicographic order (measured).
+    // The dictionary is optional, so `fromRect.length` is 0 (measured).
+    C.fromRect = brand(function fromRect() {
+      var init = arguments[0];
+      var d = init === undefined || init === null ? {} : init;
+      if (typeof d !== 'object' && typeof d !== 'function') {
+        throw new TypeError(name + ".fromRect: Argument 1 can't be converted to a dictionary.");
+      }
+      var h = d.height;
+      var w = d.width;
+      var x = d.x;
+      return shape(Object.create(C.prototype), name, x, d.y, w, h);
+    }, 'fromRect');
+    return C;
+  }
+  var DOMRectReadOnly = rectIface('DOMRectReadOnly');
   ops(DOMRectReadOnly.prototype, {
     toJSON: function toJSON() {
+      held(this, 'toJSON', 'DOMRectReadOnly');
       var self = this;
       var o = {};
       CORNERS.concat(Object.keys(EDGES)).forEach(function (k) {
@@ -61,27 +105,37 @@
       return o;
     },
   });
-  attrs(DOMRectReadOnly.prototype, CORNERS);
-  var edgeAttrs = {};
-  Object.keys(EDGES).forEach(function (k) {
-    edgeAttrs[k] = function () {
-      return EDGES[k](slots(this));
+  var readers = {};
+  CORNERS.forEach(function (k, i) {
+    readers[k] = function () {
+      return held(this, 'get ' + k, 'DOMRectReadOnly')[i];
     };
   });
-  attrs(DOMRectReadOnly.prototype, edgeAttrs);
+  Object.keys(EDGES).forEach(function (k) {
+    readers[k] = function () {
+      return EDGES[k](held(this, 'get ' + k, 'DOMRectReadOnly'));
+    };
+  });
+  attrs(DOMRectReadOnly.prototype, readers);
 
-  var DOMRect = iface('DOMRect');
-  Object.setPrototypeOf(DOMRect.prototype, DOMRectReadOnly.prototype);
-  rw(DOMRect.prototype, CORNERS);
+  var DOMRect = rectIface('DOMRect');
+  g.__frot_extends(DOMRect, DOMRectReadOnly);
+  CORNERS.forEach(function (k, i) {
+    Object.defineProperty(DOMRect.prototype, k, {
+      get: brand(function () {
+        return held(this, 'get ' + k, 'DOMRect')[i];
+      }, 'get ' + k),
+      set: brand(function (v) {
+        held(this, 'set ' + k, 'DOMRect')[i] = +v;
+      }, 'set ' + k),
+      enumerable: true,
+      configurable: true,
+    });
+  });
 
   P.getBoundingClientRect = function () {
     var r = box(slots(this).id);
-    var rect = Object.create(DOMRect.prototype);
-    var st = slots(rect);
-    CORNERS.forEach(function (k, i) {
-      st[k] = r[i];
-    });
-    return rect;
+    return shape(Object.create(DOMRect.prototype), 'DOMRect', r[0], r[1], r[2], r[3]);
   };
 
   function offset(index) {

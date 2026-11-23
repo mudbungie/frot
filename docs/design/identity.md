@@ -1325,6 +1325,18 @@ and `Illegal constructor.` in frot (`bl-e65f`); the engine's own built-ins
 (`Promise()`, `Map()`) say `must be called with new` where SpiderMonkey says
 `calling a builtin Promise constructor without new is forbidden` — the
 engine's message, not a prelude one.
+*(2026-11-23, `bl-e65f`: both rect interfaces are now constructable, as read
+off the binary — four `unrestricted double`s defaulting to 0 (`undefined` → 0,
+`null` → 0, anything else `ToNumber`); a static `fromRect` on each (`length`
+0, reading `height`, `width`, `x`, `y` in that order; `null`/`undefined` the
+empty dictionary; a primitive `TypeError: DOMRect.fromRect: Argument 1 can't
+be converted to a dictionary.`); `Object.getPrototypeOf(DOMRect) ===
+DOMRectReadOnly`; the edges with Gecko's NaN-safe min/max (a negative size
+flips them, any NaN or `Infinity + -Infinity` gives NaN, `-0` survives); a
+`DOMRect` setter `ToNumber`s (`undefined` → NaN); every member checks its
+receiver (`'get x' called on an object that does not implement interface
+DOMRectReadOnly.`, and a `DOMRect` member refuses a `DOMRectReadOnly`).
+`src/js/tests/domrect.rs`.)*
 
 **`PerformanceObserver` (`bl-b129`, 2026-11-22).**
 
