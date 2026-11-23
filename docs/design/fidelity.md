@@ -627,6 +627,17 @@ real. The insertion can in principle disturb a structural selector
 (`:empty`, `:first-child`) on the element it lands in; nothing in the corpus
 does, and a page where it did would show up as a delta, not hide one.
 
+> **A limit of this probe (2026-11-22, `bl-082b`).** The stand-in is inserted
+> as a *child*, so it paints only where a child would. That is right for the
+> boxes that take no children — a text `<input>`, `<textarea>`, `<br>`,
+> `<video>`, `<canvas>`, `<svg>` — where Chrome builds no `::before` /
+> `::after` box either (measured with `DOM.getBoxModel` on the pseudo-element;
+> the table is `src/dom/pseudo.rs`), and those are in `generated.html`. It is
+> blind in two places, both left out of the corpus and held by unit tests
+> instead: `input[type=checkbox]::before` *is* painted and the child stand-in
+> is not; and an `<option>` in a menu-list `<select>` has no pseudo box, yet
+> `innerText` reads the option's text content, stand-in included.
+
 The seven rows that became equalities: `article` `By`; `generated` `NEW:`
 (twice), `(done)` and the private-use icon glyph U+E609; `forms` `draft`
 `text` (the textarea). The icon glyph needed no decision: Chrome's computed

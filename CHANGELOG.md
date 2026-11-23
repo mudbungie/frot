@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--css`: `::before`/`::after` generate nothing on a box that takes no
+  children**, as in Chrome, which builds no pseudo-element box there:
+  `<img>`, `<br>`, `<wbr>`, `<video>`, `<audio>`, `<canvas>`, `<iframe>`,
+  `<embed>`, `<textarea>`, a text or button `<input>` (a checkbox, radio,
+  range, color, file or date input still has them), a menu-list `<select>`
+  and its options, and `<svg>` with its contents down to a
+  `<foreignObject>`. `input.auto::after { content: " unfocused" }` used to
+  put `unfocused` into `--out text`, an accessible name and the layout.
+  [bl-082b]
+
 - **`<legend>` is block-level**, and with it the other tags Chrome's UA
   stylesheet makes block-level that frot had as inline: `<center>`, `<dir>`,
   `<hgroup>`, `<listing>`, `<menu>`, `<plaintext>`, `<search>`, `<xmp>`. In

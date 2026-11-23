@@ -67,7 +67,12 @@ fn walk(
         nodes[id as usize] = conceal(ComputedStyle::default(), concealed);
         return;
     };
-    let cs = conceal(resolve(doc, id, el, index, parent_vis, js), concealed);
+    let mut cs = conceal(resolve(doc, id, el, index, parent_vis, js), concealed);
+    // A box that takes no children holds no generated ones either.
+    if !doc.holds_generated(id, el) {
+        cs.before = None;
+        cs.after = None;
+    }
     let vis = cs.visibility;
     nodes[id as usize] = cs;
     for &c in &entry.children {

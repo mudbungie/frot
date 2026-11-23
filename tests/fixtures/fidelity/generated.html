@@ -8,6 +8,8 @@
 .done::after { content: " (done)"; }
 .icon::before { content: "\e609"; }
 q { quotes: "<<" ">>"; }
+.none::before { content: "NB"; }
+.none::after { content: "NA"; }
 </style>
 </head>
 <body>
@@ -20,5 +22,14 @@ q { quotes: "<<" ">>"; }
 <p><a href="settings.html"><i class="icon"></i> Settings</a></p>
 <p>She said <q>quoted words</q> and left.</p>
 <button class="new">Release</button>
+<h2>Boxes that take no children</h2>
+<p>input <input class="none" aria-label="text input"> end</p>
+<p>submit <input class="none" type="submit" value="Go"> end</p>
+<p>area <textarea class="none" aria-label="area"></textarea> end</p>
+<p>menu <select class="none" aria-label="menu"><option>one</option></select> end</p>
+<p>break<br class="none">after</p>
+<p>video <video class="none"></video> canvas <canvas class="none"></canvas> end</p>
+<p>graphic <svg class="none" width="40" height="20"><text class="none" x="0" y="12">st</text></svg> end</p>
+<p>held <span class="none">span</span> <button class="none">button</button> end</p>
 </body>
 </html>

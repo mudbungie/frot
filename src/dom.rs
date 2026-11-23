@@ -245,6 +245,7 @@ mod conceal;
 mod form;
 mod hierarchy;
 mod mutate;
+mod pseudo;
 mod select;
 
 #[cfg(test)]

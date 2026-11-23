@@ -9,7 +9,7 @@
 //! the attribute is owned by its nearest `<form>` ancestor. Measured in
 //! Chrome 158 `form.elements` (`bl-e8fa`); ids compare case-sensitively.
 
-use super::{Document, NodeId, NodeKind, WalkEvent};
+use super::{Document, Element, NodeId, NodeKind, WalkEvent};
 
 impl Document {
     /// The first element in tree order whose `id` is `target`.
@@ -27,11 +27,8 @@ impl Document {
 
     /// The form that owns the element `id` (module docs), if any.
     pub fn form_owner(&self, id: NodeId) -> Option<NodeId> {
-        let is_form = |&n: &NodeId| self.tag(n) == Some("form");
-        let NodeKind::Element(el) = &self.node(id).kind else {
-            return None;
-        };
-        match el.attr("form") {
+        let is_form = |&n: &NodeId| self.element(n).is_some_and(|e| e.name == "form");
+        match self.element(id)?.attr("form") {
             Some("") => None,
             Some(target) => self.element_by_id(target).filter(is_form),
             None => {
@@ -40,9 +37,10 @@ impl Document {
         }
     }
 
-    fn tag(&self, id: NodeId) -> Option<&str> {
+    /// The element at `id`, if it is one.
+    pub fn element(&self, id: NodeId) -> Option<&Element> {
         match &self.node(id).kind {
-            NodeKind::Element(el) => Some(el.name.as_str()),
+            NodeKind::Element(el) => Some(el),
             _ => None,
         }
     }

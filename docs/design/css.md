@@ -170,6 +170,12 @@ paragraph gave `p:is(:hover)` as the selector that throws.)
 **Properties.** `display`, `visibility` (inherited), `content` on
 `::before`/`::after`, `flex-direction` and `order`.
 
+`content` generates nothing on an element whose box takes no children
+(2026-11-22, `bl-082b`; until then every element generated it): a replaced
+element or line break, a `<textarea>` or a text or button `<input>`, a
+menu-list `<select>` and its options, `<svg>` and what is inside it. The
+table and its Chrome 158 measurements are `src/dom/pseudo.rs`.
+
 ## Finding 1 — wall-clock cost: two additive, independent causes
 
 `--css` has no single bottleneck; it has two, and which dominates depends on
