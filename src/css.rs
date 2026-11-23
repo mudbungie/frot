@@ -13,11 +13,14 @@
 mod cascade;
 mod computed;
 mod content;
+mod control;
 mod display;
 mod escape;
 mod focus;
+mod has;
 mod import;
 mod index;
+mod lang;
 pub mod media;
 mod nth;
 mod parse;

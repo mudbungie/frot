@@ -6,13 +6,15 @@
 //! `:is()` / `:where()` / `:not()` over complex selector lists
 //! ([`super::pseudo`]), `:nth-child()` and its family ([`Nth`]), the state
 //! pseudo-classes ([`State`]; `:hover` and its kind are [`Simple::Never`]),
-//! and the `::before` / `::after` pseudo-elements (legacy single-colon
-//! spelling too). Any other pseudo (`:has(...)`, `:nth-col()`,
+//! `:scope`, `:has()` ([`super::has`]), `:lang()` and `:dir()`
+//! ([`super::lang`]), and the `::before` / `::after` pseudo-elements (legacy
+//! single-colon spelling too). Any other pseudo (`:nth-col()`,
 //! `::first-line`, …) parses into a [`Simple::Unsupported`] marker so the
 //! whole compound fails to match — a rule we cannot evaluate must never apply.
 
 use super::nth::Nth;
 use super::state::State;
+use super::{has, lang};
 use crate::dom::{Document, Element, NodeId, NodeKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +55,15 @@ pub enum Simple {
     Nth(Nth),
     /// A state computed from the DOM ([`State`]).
     State(State),
+    /// `:scope`: the element a query was made on, else the root element.
+    Scope,
+    /// `:has(…)`: a relative selector list, each one's leading combinator in
+    /// `parts[0].0` ([`super::has`]).
+    Has(Vec<Selector>),
+    /// `:lang(range)`, the range lower-cased ([`super::lang`]).
+    Lang(String),
+    /// `:dir(rtl)` (`true`) or `:dir(ltr)`.
+    Dir(bool),
     /// A pseudo-class known to be false in an unattended load (`:hover`):
     /// unlike [`Simple::Unsupported`] its negation is known too.
     Never,
@@ -94,7 +105,7 @@ impl Selector {
         let simples = self.parts.iter().flat_map(|(_, c)| &c.simples);
         simples.into_iter().all(|s| match s {
             Simple::Unsupported => false,
-            Simple::Is(list) | Simple::Where(list) | Simple::Not(list) => {
+            Simple::Is(list) | Simple::Where(list) | Simple::Not(list) | Simple::Has(list) => {
                 list.iter().all(Selector::evaluable)
             }
             Simple::Nth(nth) => nth.of().iter().all(Selector::evaluable),
@@ -109,14 +120,15 @@ impl Selector {
                 match simple {
                     Simple::Id(_) => s.0 += 1,
                     Simple::Class(_) | Simple::Attr { .. } => s.1 += 1,
-                    Simple::State(_) | Simple::Never => s.1 += 1,
+                    Simple::State(_) | Simple::Never | Simple::Scope => s.1 += 1,
+                    Simple::Lang(_) | Simple::Dir(_) => s.1 += 1,
                     Simple::Nth(nth) => {
                         let most = nth.of().iter().map(Selector::specificity).max();
                         let Specificity(a, b, c) = most.unwrap_or_default();
                         s = Specificity(s.0 + a, s.1 + b + 1, s.2 + c);
                     }
                     Simple::Type(_) => s.2 += 1,
-                    Simple::Is(list) | Simple::Not(list) => {
+                    Simple::Is(list) | Simple::Not(list) | Simple::Has(list) => {
                         let most = list.iter().map(Selector::specificity).max();
                         let Specificity(a, b, c) = most.unwrap_or_default();
                         s = Specificity(s.0 + a, s.1 + b, s.2 + c);
@@ -138,13 +150,28 @@ fn class_list(el: &Element) -> Vec<&str> {
         .unwrap_or_default()
 }
 
-fn compound_matches(c: &Compound, doc: &Document, id: NodeId, el: &Element) -> bool {
-    let any = |list: &[Selector]| list.iter().any(|s| matches(s, doc, id));
+/// Where a selector is matched: the document, and the element `:scope`
+/// names — `None` in a stylesheet and a document-wide query, where `:scope`
+/// is the root element (Chrome 158).
+#[derive(Clone, Copy)]
+pub struct Context<'a> {
+    pub doc: &'a Document,
+    pub scope: Option<NodeId>,
+}
+
+fn compound_matches(c: &Compound, cx: Context, id: NodeId, el: &Element) -> bool {
+    let doc = cx.doc;
+    let any = |list: &[Selector]| list.iter().any(|s| matches_in(s, cx, id));
+    let root = || doc.node(id).parent == Some(Document::ROOT);
     c.simples.iter().all(|s| match s {
         Simple::Is(list) | Simple::Where(list) => any(list),
         Simple::Not(list) => !any(list),
-        Simple::Nth(nth) => nth.holds(doc, id, el),
+        Simple::Nth(nth) => nth.holds(cx, id, el),
         Simple::State(state) => state.holds(doc, id, el),
+        Simple::Scope => cx.scope.map_or_else(root, |s| s == id),
+        Simple::Has(list) => has::holds(list, cx, id),
+        Simple::Lang(range) => lang::lang(doc, id, range),
+        Simple::Dir(rtl) => lang::rtl(doc, id) == *rtl,
         Simple::Universal => true,
         Simple::Unsupported | Simple::Never => false,
         Simple::Type(t) => el.name == *t,
@@ -201,26 +228,53 @@ pub(super) fn later_siblings(doc: &Document, id: NodeId) -> impl Iterator<Item =
 /// can match. The subject compound's pseudo-element is ignored here; the
 /// cascade routes its declarations to the right pseudo bucket.
 pub fn matches(sel: &Selector, doc: &Document, id: NodeId) -> bool {
-    matches_at(&sel.parts, sel.parts.len() - 1, doc, id)
+    matches_in(sel, Context { doc, scope: None }, id)
 }
 
-fn matches_at(parts: &[(Combinator, Compound)], i: usize, doc: &Document, id: NodeId) -> bool {
+/// [`matches`] in the context `cx`.
+pub fn matches_in(sel: &Selector, cx: Context, id: NodeId) -> bool {
+    matches_at(&sel.parts, sel.parts.len() - 1, cx, id, None)
+}
+
+/// Does the relative selector `rel` match `id` with its leftmost compound
+/// standing where `rel.parts[0].0` says from `anchor` (`:has()`)?
+pub(super) fn anchored(rel: &Selector, cx: Context, id: NodeId, anchor: NodeId) -> bool {
+    let last = rel.parts.len() - 1;
+    matches_at(&rel.parts, last, cx, id, Some((rel.parts[0].0, anchor)))
+}
+
+/// Match `parts[..=i]` with `parts[i]` on `id`. With an `anchor`, the leftmost
+/// compound must stand in that relation to that element.
+fn matches_at(
+    parts: &[(Combinator, Compound)],
+    i: usize,
+    cx: Context,
+    id: NodeId,
+    anchor: Option<(Combinator, NodeId)>,
+) -> bool {
+    let doc = cx.doc;
     let Some(el) = element(doc, id) else {
         return false;
     };
-    if !compound_matches(&parts[i].1, doc, id, el) {
+    if !compound_matches(&parts[i].1, cx, id, el) {
         return false;
     }
     if i == 0 {
-        return true;
+        return anchor.is_none_or(|(comb, a)| step(doc, comb, id).any(|n| n == a));
     }
-    let rest = |n: NodeId| matches_at(parts, i - 1, doc, n);
-    let mut above = ancestors(doc, id).map(|(a, _)| a);
-    match parts[i].0 {
-        Combinator::Child => above.take(1).any(rest),
-        Combinator::Descendant => above.any(rest),
-        Combinator::NextSibling => earlier_siblings(doc, id).take(1).any(rest),
-        Combinator::SubsequentSibling => earlier_siblings(doc, id).any(rest),
+    let rest = |n: NodeId| matches_at(parts, i - 1, cx, n, anchor);
+    step(doc, parts[i].0, id).any(rest)
+}
+
+/// The elements `comb` reaches back to from `id`: its parent, its ancestors,
+/// the element sibling before it, or every element sibling before it.
+fn step(doc: &Document, comb: Combinator, id: NodeId) -> Box<dyn Iterator<Item = NodeId> + '_> {
+    let above = ancestors(doc, id).map(|(a, _)| a);
+    match comb {
+        Combinator::Child => Box::new(above.take(1)),
+        Combinator::Descendant => Box::new(above),
+        Combinator::NextSibling => Box::new(earlier_siblings(doc, id).take(1)),
+        Combinator::SubsequentSibling => Box::new(earlier_siblings(doc, id)),
     }
 }
 

@@ -559,7 +559,8 @@ Added since (2026-11-20, Chrome 158): `select` (select modes, `bl-2932`) and
 `names` (accessible-name and role edge cases, one section per ball:
 `bl-fb69` separators, `bl-07bd` SVG, `bl-2b09` table summary, `bl-fe88` empty
 caption, `bl-c5a6` unnamed form/region roles, `bl-0794` titled term). And
-(2026-11-22) `display` — one line per `display` value in `text`, names,
+(2026-11-22) `pseudo` — the pseudo-classes of `bl-2a85`, one marker per
+case; and `display` — one line per `display` value in `text`, names,
 paragraphs and boxes (`bl-e3a0`, layout.md §2). And (2026-11-22) `tables` — the
 data-table signals Chrome reads and the `<th>` header axis (`bl-7f3a`).
 

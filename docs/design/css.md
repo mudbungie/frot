@@ -50,7 +50,8 @@ fetches them).
 compounds of those, all four combinators — descendant (space), child (`>`),
 next-sibling (`+`) and subsequent-sibling (`~`; `bl-6363`) —
 `:is()` / `:where()` / `:not()` (below), the child-indexed pseudo-classes
-(below; `bl-e987`, `bl-00d1`), the state pseudo-classes (below; `bl-1508`),
+(below; `bl-e987`, `bl-00d1`), the state pseudo-classes (below; `bl-1508`,
+`bl-2a85`), `:has()`, `:scope`, `:lang()` and `:dir()` (below; `bl-2a85`),
 and `::before` / `::after`. Any other pseudo-class, pseudo-element or
 attribute operator makes its selector never match. (**Superseded 2026-11-22,
 `bl-00d1`:** this sentence went on "the other structural pseudo-classes
@@ -114,7 +115,9 @@ Chrome 158 and is held in `tests/fixtures/fidelity/state.html` and
 
 - **Always false:** `:hover`, `:active`, `:visited`, `:popover-open`,
   `:modal`, `:fullscreen`, `:picture-in-picture`, `:autofill`,
-  `:-webkit-autofill`, `:user-valid`, `:user-invalid`.
+  `:-webkit-autofill`, `:user-valid`, `:user-invalid`, and the media states
+  `:playing`, `:seeking`, `:buffering`, `:stalled`, `:volume-locked`
+  (`bl-2a85`).
   `.menu:not(:hover) { display: none }` hides the menu, as in Chrome.
 - **`:focus`, `:focus-visible`** — the first element in tree order that has
   `autofocus` and can take focus: a button, select, textarea or input that is
@@ -163,13 +166,44 @@ leaving an attribute — `el.focus()`, `input.checked = true`, `showModal()` —
 is not seen, and an `autofocus` element hidden only by a stylesheet still
 counts as focused (`bl-bc6d`).
 
+- **`:open`** — a `<details>` or `<dialog>` with `open`. **`:paused`** —
+  every `<video>` and `<audio>`; **`:muted`** — one with `muted`.
+- **`:default`, `:indeterminate`, `:placeholder-shown`, `:defined`**
+  (`bl-2a85`; `src/css/control.rs`, whose module doc holds the rules): the
+  checked, selected and default-button controls; a valueless `<progress>` and
+  a radio group nobody checked; a text-taking control with a `placeholder`
+  and an empty (sanitized) value; every element but an HTML one with a
+  custom element name or an `is` attribute — frot registers none.
+
+**`:has()`, `:scope`, `:lang()`, `:dir()`** (`bl-2a85`; `src/css/has.rs`,
+`lang.rs`, measured in Chrome 158 and held in
+`tests/fixtures/fidelity/pseudo.html`).
+
+- **`:has(S)`** takes relative selectors (`b`, `> b`, `+ b`, `~ b`) whose
+  leftmost compound is anchored at the element: `:has(p b)` wants the `p`
+  inside it. The list is not forgiving; a pseudo-element, an empty argument
+  or a nested `:has()` voids it (a query throws). It weighs as its most
+  specific argument. A selector is matched right to left with an optional
+  anchor for the leftmost compound (`selector::anchored`); `:has()` tries
+  every element below the anchor (or after it, for `+` / `~`).
+- **`:scope`** — the element `querySelector` / `matches` was called on
+  (`selector::Context`, passed through every match); in a stylesheet and a
+  document-wide query, the root element.
+- **`:lang(x)`** — one identifier; the nearest `lang` (an SVG `xml:lang`
+  too), else the last `<meta http-equiv=content-language>`, equals `x` or
+  begins `x-`, in any case. `lang=""` matches nothing. The HTTP
+  `Content-Language` header is not read.
+- **`:dir(rtl)` / `:dir(ltr)`** — the HTML `dir` attribute, inherited;
+  `dir=auto` and `<bdi>` read the first strongly directional letter;
+  `type=tel` is `ltr`; SVG and MathML ignore `dir`. Any other identifier is
+  valid and matches nothing.
+
 Still unsupported, so never matching and failing closed under `:not()`:
-`:has()`,
-`:lang()`, `:dir()`, `:scope`, `:open`, `:defined`, `:default`,
-`:indeterminate`, `:placeholder-shown`, `:valid` / `:invalid`, `:in-range` /
-`:out-of-range`, the media-element states (`bl-2a85`). (**Superseded
-2026-11-22, `bl-5852`:** this list began with `:target`, "the engine is not
-given the URL".)
+`:valid` / `:invalid` and `:in-range` / `:out-of-range` (`bl-51e9`), and
+any pseudo-class Chrome does not know. (**Superseded 2026-11-22,
+`bl-2a85`:** the list held `:has()`, `:lang()`, `:dir()`, `:scope`, `:open`,
+`:defined`, `:default`, `:indeterminate`, `:placeholder-shown` and the
+media-element states; and, before `bl-5852`, `:target`.)
 
 JS `querySelector` / `querySelectorAll` / `matches` / `closest` share this
 grammar through `css::query_all`: the combinators, the three logical

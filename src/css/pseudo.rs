@@ -23,6 +23,7 @@
 //!   Inside `:is()` / `:where()` an unsupported argument simply never matches
 //!   and the other arguments still can.
 
+use super::has;
 use super::nth::Nth;
 use super::selector::{Pseudo, Selector, Simple};
 use super::selparse::{ident, parse_selector, split_top};
@@ -64,6 +65,7 @@ pub(super) fn parse_pseudo(b: &[char], start: usize) -> (PseudoTok, usize) {
     let tok = match (name.as_str(), double) {
         ("before", _) => PseudoTok::Element(Pseudo::Before),
         ("after", _) => PseudoTok::Element(Pseudo::After),
+        ("scope", false) => PseudoTok::Class(Simple::Scope),
         (name, false) if NEVER.contains(&name) => PseudoTok::Class(Simple::Never),
         (name, false) => {
             let state = || State::named(name).map_or(Simple::Unsupported, Simple::State);
@@ -76,9 +78,9 @@ pub(super) fn parse_pseudo(b: &[char], start: usize) -> (PseudoTok, usize) {
 
 /// Pseudo-classes that are false for every element of a page nobody is
 /// using: no pointer, no history, no popover, dialog or full-screen request,
-/// no autofill, no user edit. Measured in headless Chrome 158
-/// (`tests/fixtures/fidelity/state.html`).
-const NEVER: [&str; 11] = [
+/// no autofill, no user edit, no media playing. Measured in headless Chrome
+/// 158 (`tests/fixtures/fidelity/state.html`, `pseudo.html`).
+const NEVER: [&str; 16] = [
     "hover",
     "active",
     "visited",
@@ -90,6 +92,11 @@ const NEVER: [&str; 11] = [
     "-webkit-autofill",
     "user-valid",
     "user-invalid",
+    "playing",
+    "seeking",
+    "buffering",
+    "stalled",
+    "volume-locked",
 ];
 
 /// The functional pseudo-class `:name(args)`, or [`Simple::Unsupported`]
@@ -101,9 +108,25 @@ fn logical(name: &str, args: &str, double: bool) -> Simple {
         ("not", false) => list(args)
             .filter(|list| list.iter().all(Selector::evaluable))
             .map_or(Simple::Unsupported, Simple::Not),
+        ("has", false) => has::parse(args).map_or(Simple::Unsupported, Simple::Has),
+        ("lang", false) => word(args).map_or(Simple::Unsupported, Simple::Lang),
+        // Any other identifier is valid and names no direction (Chrome 158).
+        ("dir", false) => match word(args).as_deref() {
+            Some("rtl") => Simple::Dir(true),
+            Some("ltr") => Simple::Dir(false),
+            Some(_) => Simple::Never,
+            None => Simple::Unsupported,
+        },
         (name, false) => Nth::function(name, args).map_or(Simple::Unsupported, Simple::Nth),
         _ => Simple::Unsupported,
     }
+}
+
+/// The one identifier `args` holds, lower-cased.
+fn word(args: &str) -> Option<String> {
+    let b: Vec<char> = args.trim().chars().collect();
+    let (word, end) = ident(&b, 0);
+    (!word.is_empty() && end == b.len()).then(|| word.to_ascii_lowercase())
 }
 
 /// A comma-separated list of complex selectors, parsed unforgivingly: `None`

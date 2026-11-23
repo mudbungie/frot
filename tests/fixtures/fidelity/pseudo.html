@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" id="html">
+<head>
+<meta charset="utf-8">
+<title>More pseudo-classes</title>
+<style>
+b::after { content: " no"; }
+:scope > body > b.scope::after, :open + b.open::after, :placeholder-shown + b.ph::after,
+:default + b.def::after, :indeterminate + b.ind::after, :not(:defined) + b.def-el::after,
+:paused + b.paused::after, :muted + b.muted::after, :playing + b.playing::after,
+p:lang(fr) > b::after, p:dir(rtl) > b::after, p:dir(auto) > b::after,
+div:has(> i) > b::after, div:has(+ hr) > b::after { content: " yes"; }
+.list:has(li.gone) { display: none; }
+</style>
+</head>
+<body>
+<b class="scope">scope</b>
+<div><details open><summary>d1</summary></details><b class="open">open</b> <details><summary>d2</summary></details><b class="open">closed</b>
+<dialog open>dlg</dialog><b class="open">dialog</b></div>
+<div><input placeholder="p1" aria-label="i1"><b class="ph">empty</b> <input placeholder="p2" value="v" aria-label="i2"><b class="ph">valued</b>
+<input type="number" placeholder="p3" value="abc" aria-label="i3"><b class="ph">number</b>
+<input type="checkbox" placeholder="p4" aria-label="i4"><b class="ph">box</b> <textarea placeholder="p5" aria-label="t1"></textarea><b class="ph">area</b></div>
+<form><div><input type="checkbox" checked aria-label="c1"><b class="def">checked</b> <input type="checkbox" aria-label="c2"><b class="def">unchecked</b>
+<button type="button">plain</button><b class="def">plain</b> <button>first</button><b class="def">first</b> <button>second</button><b class="def">second</b></div></form>
+<div><progress></progress><b class="ind">bar</b> <progress value="1" max="2"></progress><b class="ind">valued-bar</b>
+<input type="radio" name="g" aria-label="r1"><b class="ind">r1</b> <input type="radio" name="g" aria-label="r2"><b class="ind">r2</b>
+<input type="radio" name="h" checked aria-label="r3"><b class="ind">r3</b> <input type="radio" name="h" aria-label="r4"><b class="ind">r4</b></div>
+<div><my-el>custom</my-el><b class="def-el">my-el</b> <span is="x-y">is</span><b class="def-el">is</b> <font-face>reserved</font-face><b class="def-el">reserved</b></div>
+<div><video></video><b class="paused">paused</b> <span></span><b class="paused">span</b> <video muted></video><b class="muted">muted</b> <video controls></video><b class="muted">loud</b> <video></video><b class="playing">playing</b></div>
+<div lang="fr-CA"><p>fr<b>fr</b></p><p lang="en">en<b>en</b></p></div>
+<div dir="rtl"><p>rtl<b>rtl</b></p><p dir="ltr">ltr<b>ltr</b></p><p dir="auto">abc<b>auto-ltr</b></p></div>
+<p dir="auto">&#x5e9;<b>auto-rtl</b></p>
+<div><i>i</i><b>has-child</b></div> <div><span>s</span><b>no-child</b></div> <div><b>has-next</b></div><hr>
+<ul class="list"><li>kept</li><li class="gone">gone</li></ul>
+<ul class="list"><li>shown</li></ul>
+</body>
+</html>

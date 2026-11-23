@@ -31,6 +31,10 @@ fn specificity_counts_each_class() {
     assert_eq!(sel("p::before").specificity(), Specificity(0, 0, 2));
     assert_eq!(sel(":unknown").specificity(), Specificity(0, 0, 0));
     assert_eq!(sel(":target").specificity(), Specificity(0, 1, 0));
+    assert_eq!(
+        sel(":scope:lang(x):dir(rtl)").specificity(),
+        Specificity(0, 3, 0)
+    );
     assert!(sel("#i").specificity() > sel(".c.d").specificity());
 }
 

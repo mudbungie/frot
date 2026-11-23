@@ -127,7 +127,7 @@ fn an_unsupported_selector_inside_a_logical_pseudo_class_is_an_error() {
     let doc = Document::parse("<p>a</p>");
     for bad in [
         "p:is(:unknown)",
-        ":where(p, :has(a))",
+        ":where(p, :nth-col(1))",
         "p:not(:unknown)",
         ":is(p::before)",
     ] {
@@ -165,7 +165,23 @@ fn first_and_last_child_are_queryable() {
     assert_eq!(texts("li:last-child"), ["c"]);
     assert_eq!(texts("li:not(:first-child, :last-child)"), ["b"]);
     assert_eq!(
-        query_all(&doc, Document::ROOT, "li:lang(en)"),
+        query_all(&doc, Document::ROOT, "li:nth-col(1)"),
         Err(UnsupportedSelector)
     );
+}
+
+#[test]
+fn scope_is_the_queried_element_else_the_root() {
+    // Measured in Chrome 158 (`bl-2a85`).
+    let doc = Document::parse("<ul><li>1</li><li>2</li></ul>");
+    let ul = doc.find_by_tag("ul")[0];
+    let li = doc.find_by_tag("li")[0];
+    let tags = |root, list| ids_to_tags(&doc, &query_all(&doc, root, list).unwrap());
+    assert_eq!(tags(Document::ROOT, ":scope"), ["html"]);
+    assert_eq!(tags(Document::ROOT, ":scope > body"), ["body"]);
+    assert_eq!(tags(ul, ":scope > li"), ["li", "li"]);
+    assert_eq!(tags(ul, ":scope"), Vec::<String>::new());
+    assert_eq!(tags(ul, "li:not(:scope li)"), Vec::<String>::new());
+    assert_eq!(matches_any(&doc, li, ":scope"), Ok(true));
+    assert_eq!(matches_any(&doc, li, "html:scope"), Ok(false));
 }

@@ -5,6 +5,7 @@
 //! attributes, never script-set properties: `input.checked = true` leaves no
 //! mark in the tree, so it is not seen here (`bl-bc6d`).
 
+use super::control;
 use super::focus::{focus_within, focused};
 use super::selector::ancestors;
 use crate::dom::{Document, Element, NodeId, NodeKind, WalkEvent};
@@ -31,6 +32,18 @@ pub enum State {
     Optional,
     ReadOnly,
     ReadWrite,
+    /// `:open`: a `<details>` or `<dialog>` with `open`.
+    Open,
+    /// `:defined` ([`control::defined`]).
+    Defined,
+    /// `:default`, `:indeterminate`, `:placeholder-shown` ([`super::control`]).
+    Default,
+    Indeterminate,
+    PlaceholderShown,
+    /// `:paused`: every `<video>` and `<audio>` — nothing plays unattended.
+    Paused,
+    /// `:muted`: a `<video>` or `<audio>` with `muted`.
+    Muted,
 }
 
 /// `<input>` types `required` does not apply to.
@@ -57,6 +70,13 @@ impl State {
             "optional" => State::Optional,
             "read-only" => State::ReadOnly,
             "read-write" => State::ReadWrite,
+            "open" => State::Open,
+            "defined" => State::Defined,
+            "default" => State::Default,
+            "indeterminate" => State::Indeterminate,
+            "placeholder-shown" => State::PlaceholderShown,
+            "paused" => State::Paused,
+            "muted" => State::Muted,
             _ => return None,
         })
     }
@@ -96,6 +116,13 @@ impl State {
             }
             State::ReadOnly => !read_write(doc, id, el),
             State::ReadWrite => read_write(doc, id, el),
+            State::Open => matches!(name, "details" | "dialog") && has(el, "open"),
+            State::Defined => control::defined(doc, id, el),
+            State::Default => control::default(doc, id, el),
+            State::Indeterminate => control::indeterminate(doc, id, el),
+            State::PlaceholderShown => control::placeholder_shown(doc, id, el),
+            State::Paused => matches!(name, "video" | "audio"),
+            State::Muted => matches!(name, "video" | "audio") && has(el, "muted"),
         }
     }
 }
@@ -104,7 +131,7 @@ pub(super) fn has(el: &Element, attr: &str) -> bool {
     el.attr(attr).is_some()
 }
 
-fn input_type(el: &Element) -> String {
+pub(super) fn input_type(el: &Element) -> String {
     el.attr("type").unwrap_or_default().to_ascii_lowercase()
 }
 
@@ -197,7 +224,11 @@ fn checked(doc: &Document, id: NodeId, el: &Element) -> bool {
 /// alone. A radio with `form=f` and one inside `<form id=f>` are one group,
 /// and a `form` attribute that names no form puts a radio with the unowned
 /// ones (Chrome 158, `bl-e8fa`).
-fn group<'a>(doc: &Document, id: NodeId, el: &'a Element) -> Option<(&'a str, Option<NodeId>)> {
+pub(super) fn group<'a>(
+    doc: &Document,
+    id: NodeId,
+    el: &'a Element,
+) -> Option<(&'a str, Option<NodeId>)> {
     let name = el.attr("name").filter(|n| !n.is_empty())?;
     Some((name, doc.form_owner(id)))
 }

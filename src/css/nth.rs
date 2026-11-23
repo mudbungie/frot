@@ -9,8 +9,8 @@
 //! Chrome 158 accepts (`tests/fixtures/fidelity/structural.html`).
 
 use super::pseudo::list;
-use super::selector::{earlier_siblings, later_siblings, matches, Selector};
-use crate::dom::{Document, Element, NodeId, NodeKind};
+use super::selector::{earlier_siblings, later_siblings, matches_in, Context, Selector};
+use crate::dom::{Element, NodeId, NodeKind};
 
 /// Which siblings are counted.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,13 +94,14 @@ impl Nth {
     }
 
     /// Whether the element `el` at `id` stands at a matching position.
-    pub fn holds(&self, doc: &Document, id: NodeId, el: &Element) -> bool {
+    pub fn holds(&self, cx: Context, id: NodeId, el: &Element) -> bool {
+        let doc = cx.doc;
         let counts = |s: &NodeId| match &self.among {
             Among::Children => true,
             Among::Type => {
                 matches!(&doc.node(*s).kind, NodeKind::Element(e) if e.name == el.name)
             }
-            Among::Of(list) => list.iter().any(|sel| matches(sel, doc, *s)),
+            Among::Of(list) => list.iter().any(|sel| matches_in(sel, cx, *s)),
         };
         let at = |position: usize| {
             let over = position as i64 - i64::from(self.b);

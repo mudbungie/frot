@@ -37,15 +37,15 @@ fn a_logical_pseudo_class_the_engine_cannot_answer_is_unsupported() {
         ":not(:unknown)",
         ":not(a, b:unknown)",
         ":not(:is(a, :unknown))",
-        ":not(:where(:lang(en)))",
+        ":not(:where(:nth-col(1)))",
         ":not(:not(:unknown))",
-        ":has(a)",
+        ":has(a::before)",
         "::is(a)",
         "::where(a)",
         "::not(a)",
         "::first-child",
         "::last-child",
-        ":lang(en)",
+        ":nth-col(1)",
     ] {
         assert_eq!(first(bad), Simple::Unsupported, "{bad}");
     }
