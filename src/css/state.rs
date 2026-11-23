@@ -22,6 +22,8 @@ pub enum State {
     /// `:focus` / `:focus-visible` ([`super::focus`]).
     Focus,
     FocusWithin,
+    /// `:target`: the document's target element ([`Document::target`]).
+    Target,
     Checked,
     Disabled,
     Enabled,
@@ -47,6 +49,7 @@ impl State {
             "link" | "any-link" | "-webkit-any-link" => State::AnyLink,
             "focus" | "focus-visible" => State::Focus,
             "focus-within" => State::FocusWithin,
+            "target" => State::Target,
             "checked" => State::Checked,
             "disabled" => State::Disabled,
             "enabled" => State::Enabled,
@@ -77,6 +80,7 @@ impl State {
             }
             State::Focus => focused(doc, id, el),
             State::FocusWithin => focus_within(doc, id),
+            State::Target => doc.target() == Some(id),
             State::Checked => checked(doc, id, el),
             State::Disabled => disabled(doc, id, el),
             State::Enabled => {

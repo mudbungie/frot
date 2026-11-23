@@ -15,7 +15,7 @@ const SHEET: &str = "
     span+b{display:none} p~em{display:none} :is(a,i){display:none} em+:not(p){display:none}
     p{display:none} p span{display:block}
     *{visibility:visible} [data-x]{display:none} [data-x=1]{display:block}
-    :target{display:none} a:nth-child(2){display:none}
+    :unknown{display:none} a:nth-child(2){display:none}
     .k,#hero,em{content:'x'} b::before{content:'y'}
 ";
 
@@ -83,7 +83,7 @@ fn candidates_are_in_flat_scan_order() {
 #[test]
 fn keyless_selectors_land_in_others() {
     let sheets = vec![Stylesheet::parse(
-        "*{display:none} [data-x]{display:none} :target{color:x}",
+        "*{display:none} [data-x]{display:none} :unknown{color:x}",
     )];
     let index = Index::build(&sheets);
     assert_eq!(index.others.len(), 3);

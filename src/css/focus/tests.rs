@@ -3,7 +3,13 @@ use crate::dom::{Document, NodeKind};
 
 /// The ids `selector` matches in `html`, in tree order.
 fn ids(html: &str, selector: &str) -> String {
-    let doc = Document::parse(html);
+    ids_at(html, "", selector)
+}
+
+/// [`ids`] with the page at a URL ending in `fragment`.
+fn ids_at(html: &str, fragment: &str, selector: &str) -> String {
+    let mut doc = Document::parse(html);
+    doc.set_url(&format!("https://example.com/{fragment}"));
     let hits = query_all(&doc, Document::ROOT, selector).unwrap();
     let id = |&n: &u32| match &doc.node(n).kind {
         NodeKind::Element(e) => e.attr("id").unwrap_or("-").to_string(),
@@ -62,4 +68,14 @@ fn every_focusable_kind_is_a_candidate() {
         let html = format!("{taken}<input id=b autofocus>");
         assert_eq!(ids(&html, ":focus"), "a", "{taken}");
     }
+}
+
+#[test]
+fn the_fragment_names_the_target_and_a_target_stops_autofocus() {
+    let html = "<a id=t name=n>x</a><p id=u>u</p><input id=f autofocus>";
+    assert_eq!(ids_at(html, "#u", ":target"), "u");
+    assert_eq!(ids_at(html, "#n", ":target"), "t");
+    assert_eq!(ids_at(html, "#u", "p:not(:target), :focus"), "");
+    assert_eq!(ids_at(html, "#nothing", ":target, :focus"), "f");
+    assert_eq!(ids(html, ":target, :focus"), "f");
 }

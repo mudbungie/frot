@@ -18,7 +18,8 @@ fn only_state_pseudo_classes_are_named() {
     assert_eq!(State::named("link"), Some(State::AnyLink));
     assert_eq!(State::named("-webkit-any-link"), Some(State::AnyLink));
     assert_eq!(State::named("focus-visible"), Some(State::Focus));
-    assert_eq!(State::named("target"), None);
+    assert_eq!(State::named("target"), Some(State::Target));
+    assert_eq!(State::named("unknown"), None);
 }
 
 #[test]

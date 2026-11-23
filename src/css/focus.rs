@@ -5,7 +5,9 @@
 //! (`tests/fixtures/fidelity/focus.html`): candidates are tried in tree
 //! order, and one that cannot take focus is skipped — a disabled or
 //! `type=hidden` control, an element that is not focusable at all, one under
-//! `hidden` or `inert`, one inside a closed `<details>`.
+//! `hidden` or `inert`, one inside a closed `<details>`. A page whose URL
+//! names a target element (`#id`, [`Document::target`]) is scrolled to it and
+//! autofocuses nothing (`bl-5852`).
 //!
 //! Three limits, each a filed difference rather than a guess (`bl-bc6d`):
 //! focus a script moves is not seen; a candidate hidden only by a stylesheet
@@ -19,7 +21,7 @@ use crate::dom::{Document, Element, NodeId, NodeKind, WalkEvent};
 
 /// `:focus` / `:focus-visible`: `id` is the element focus landed on.
 pub fn focused(doc: &Document, id: NodeId, el: &Element) -> bool {
-    if !candidate(doc, id, el) {
+    if !candidate(doc, id, el) || doc.target().is_some() {
         return false;
     }
     let mut first = None;

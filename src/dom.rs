@@ -97,6 +97,10 @@ pub struct Document {
     /// `Styles`/`Layout` caches downstream invalidate when it changes; a freshly
     /// parsed document sits at generation 0.
     generation: u64,
+    /// The fragment of the document's URL, as written (still
+    /// percent-encoded): what [`Document::target`] resolves. `None` for a URL
+    /// with no `#`.
+    fragment: Option<String>,
 }
 
 /// The empty document: the document node alone.
@@ -109,6 +113,7 @@ impl Default for Document {
                 parent: None,
             }],
             generation: 0,
+            fragment: None,
         }
     }
 }
@@ -247,6 +252,7 @@ mod hierarchy;
 mod mutate;
 mod pseudo;
 mod select;
+mod target;
 
 #[cfg(test)]
 mod tests;

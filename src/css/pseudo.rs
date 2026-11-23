@@ -16,9 +16,9 @@
 //!   grammar forbids one there) — the list is not parsed forgivingly;
 //! - an unterminated argument list;
 //! - for `:not()` only, an argument holding an unsupported simple at any
-//!   depth. "Never matches" is a safe reading of `:target`, whose answer the
-//!   engine does not know, but its negation would be "always matches" —
-//!   `:not(:target)` must fail closed, not open. (`:not(:hover)` is another
+//!   depth. "Never matches" is a safe reading of `:nth-col()`, whose answer
+//!   the engine does not know, but its negation would be "always matches" —
+//!   `:not(:nth-col(1))` must fail closed, not open. (`:not(:hover)` is another
 //!   matter: `:hover` is known to be false, so its negation matches.)
 //!   Inside `:is()` / `:where()` an unsupported argument simply never matches
 //!   and the other arguments still can.

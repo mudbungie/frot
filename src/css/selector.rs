@@ -7,7 +7,7 @@
 //! ([`super::pseudo`]), `:nth-child()` and its family ([`Nth`]), the state
 //! pseudo-classes ([`State`]; `:hover` and its kind are [`Simple::Never`]),
 //! and the `::before` / `::after` pseudo-elements (legacy single-colon
-//! spelling too). Any other pseudo (`:target`, `:has(...)`,
+//! spelling too). Any other pseudo (`:has(...)`, `:nth-col()`,
 //! `::first-line`, …) parses into a [`Simple::Unsupported`] marker so the
 //! whole compound fails to match — a rule we cannot evaluate must never apply.
 

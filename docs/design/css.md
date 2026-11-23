@@ -121,7 +121,17 @@ Chrome 158 and is held in `tests/fixtures/fidelity/state.html` and
   not disabled (nor `type=hidden`), an `<a href>`, an element with an integer
   `tabindex`, a `contenteditable` host; and that is not under `hidden` or
   `inert` or inside a closed `<details>`. With no such element, nothing is
-  focused. **`:focus-within`** — that element and its ancestors.
+  focused; with a `:target`, nothing is either (measured: a page loaded at
+  `#id` scrolls to it and autofocuses nothing). **`:focus-within`** — that
+  element and its ancestors.
+- **`:target`** (`bl-5852`; `src/dom/target.rs`) — the element the page
+  URL's fragment names: the first with that `id`, else the first `<a>` with
+  that `name`; tried with the fragment as written, then percent-decoded. No
+  fragment, an empty one, or a name nothing carries: no element. The URL is
+  the document's (`Document::set_url`, from the final URL of the
+  navigation), so the cascade, `querySelector` and focus read one answer.
+  Chrome sets it when parsing ends, so a script running mid-parse sees no
+  target there; frot's scripts see it throughout.
 - **`:root`** — the document's root element. **`:empty`** — no element child
   and no text (whitespace is text; comments are not).
 - **`:link`, `:any-link`, `:-webkit-any-link`** — an `<a>` or `<area>` with
@@ -154,16 +164,18 @@ is not seen, and an `autofocus` element hidden only by a stylesheet still
 counts as focused (`bl-bc6d`).
 
 Still unsupported, so never matching and failing closed under `:not()`:
-`:target` (the engine is not given the URL; `bl-5852`), and `:has()`,
+`:has()`,
 `:lang()`, `:dir()`, `:scope`, `:open`, `:defined`, `:default`,
 `:indeterminate`, `:placeholder-shown`, `:valid` / `:invalid`, `:in-range` /
-`:out-of-range`, the media-element states (`bl-2a85`).
+`:out-of-range`, the media-element states (`bl-2a85`). (**Superseded
+2026-11-22, `bl-5852`:** this list began with `:target`, "the engine is not
+given the URL".)
 
 JS `querySelector` / `querySelectorAll` / `matches` / `closest` share this
 grammar through `css::query_all`: the combinators, the three logical
 pseudo-classes, the child-indexed and the state pseudo-classes
 are accepted — `querySelector(":hover")` returns `null`, as in a browser. A
-selector holding an unsupported piece at any depth (`p:is(:target)`) throws
+selector holding an unsupported piece at any depth (`p:is(:has(b))`) throws
 `SyntaxError` as before. (**Superseded 2026-11-22, `bl-1508`:** this
 paragraph gave `p:is(:hover)` as the selector that throws.)
 

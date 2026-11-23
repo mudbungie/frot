@@ -182,6 +182,9 @@ fn it_weighs_as_a_class_plus_its_of_list_and_fails_closed_on_an_unknown() {
     assert_eq!(spec("li:only-of-type"), Specificity(0, 1, 1));
     assert_eq!(spec(":nth-child(2 of #a, .b)"), Specificity(1, 1, 0));
     assert!(sel(":not(:nth-child(2 of .x))").evaluable());
-    assert!(!sel(":nth-child(2 of :target)").evaluable());
-    assert_eq!(first(":not(:nth-child(2 of :target))"), Simple::Unsupported);
+    assert!(!sel(":nth-child(2 of :unknown)").evaluable());
+    assert_eq!(
+        first(":not(:nth-child(2 of :unknown))"),
+        Simple::Unsupported
+    );
 }

@@ -29,7 +29,8 @@ fn specificity_counts_each_class() {
     assert_eq!(sel("[x=y]").specificity(), Specificity(0, 1, 0));
     assert_eq!(sel("#i").specificity(), Specificity(1, 0, 0));
     assert_eq!(sel("p::before").specificity(), Specificity(0, 0, 2));
-    assert_eq!(sel(":target").specificity(), Specificity(0, 0, 0));
+    assert_eq!(sel(":unknown").specificity(), Specificity(0, 0, 0));
+    assert_eq!(sel(":target").specificity(), Specificity(0, 1, 0));
     assert!(sel("#i").specificity() > sel(".c.d").specificity());
 }
 
@@ -51,7 +52,7 @@ fn classless_element_has_empty_class_list() {
 
 #[test]
 fn unsupported_pseudo_never_matches() {
-    assert!(!hit("p:target", "<p id=t>x</p>"));
+    assert!(!hit("p:unknown", "<p id=t>x</p>"));
 }
 
 #[test]

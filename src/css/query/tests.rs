@@ -74,7 +74,7 @@ fn a_detached_subtree_is_queried_from_its_own_top() {
 fn unsupported_pseudo_class_is_an_error() {
     let doc = Document::parse("<p>a</p>");
     assert_eq!(
-        query_all(&doc, Document::ROOT, "p:target"),
+        query_all(&doc, Document::ROOT, "p:unknown"),
         Err(UnsupportedSelector)
     );
 }
@@ -126,9 +126,9 @@ fn logical_pseudo_classes_are_queryable() {
 fn an_unsupported_selector_inside_a_logical_pseudo_class_is_an_error() {
     let doc = Document::parse("<p>a</p>");
     for bad in [
-        "p:is(:target)",
+        "p:is(:unknown)",
         ":where(p, :has(a))",
-        "p:not(:target)",
+        "p:not(:unknown)",
         ":is(p::before)",
     ] {
         assert_eq!(

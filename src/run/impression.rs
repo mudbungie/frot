@@ -24,13 +24,15 @@ pub(super) struct Landed {
 /// detection, then the requested view.
 pub(super) fn impression(
     args: &cli::Args,
-    doc: Document,
+    mut doc: Document,
     landed: Landed,
     session: &fetch::FetchSession,
     bounds: Bounds,
 ) -> Envelope {
     let Landed { url, http, fetched } = landed;
     let fetched = &fetched;
+    // The URL's fragment names the target element (`:target`, autofocus).
+    doc.set_url(&fetched.final_url);
     // §9: JS runs before needs/CSS/layout/views, so everything downstream
     // consumes the post-JS document exactly as it consumes a static one.
     let (doc, js) = run_scripts(args, doc, fetched, session, bounds);

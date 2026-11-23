@@ -34,11 +34,11 @@ fn a_logical_pseudo_class_the_engine_cannot_answer_is_unsupported() {
         ":is(a::before)",
         ":not(a::after)",
         ":where(a",
-        ":not(:target)",
-        ":not(a, b:target)",
-        ":not(:is(a, :target))",
+        ":not(:unknown)",
+        ":not(a, b:unknown)",
+        ":not(:is(a, :unknown))",
         ":not(:where(:lang(en)))",
-        ":not(:not(:target))",
+        ":not(:not(:unknown))",
         ":has(a)",
         "::is(a)",
         "::where(a)",
@@ -51,8 +51,8 @@ fn a_logical_pseudo_class_the_engine_cannot_answer_is_unsupported() {
     }
     // Inside :is()/:where() an unsupported argument just never matches.
     assert_eq!(
-        first(":is(a, :target)"),
-        Simple::Is(vec![sel("a"), sel(":target")])
+        first(":is(a, :unknown)"),
+        Simple::Is(vec![sel("a"), sel(":unknown")])
     );
 }
 
@@ -79,8 +79,8 @@ fn matching_follows_the_arguments() {
     assert!(hit(":not(.nope) > :is(p)"));
     assert!(!hit(":not(.wrap) > p"));
     // An unsupported argument never matches; a supported sibling still can.
-    assert!(hit(":is(:target, p)"));
-    assert!(!hit(":is(:target)"));
+    assert!(hit(":is(:unknown, p)"));
+    assert!(!hit(":is(:unknown)"));
     assert!(hit(":not(:not(p))"));
 }
 
@@ -97,9 +97,9 @@ fn specificity_is_the_most_specific_argument_and_zero_for_where() {
 #[test]
 fn evaluable_sees_unsupported_at_any_depth() {
     assert!(sel("a:is(b, :where(.c)):not(d)").evaluable());
-    assert!(!sel("a:target").evaluable());
-    assert!(!sel("a :is(b, :target)").evaluable());
-    assert!(!sel(":where(:is(:target))").evaluable());
+    assert!(!sel("a:unknown").evaluable());
+    assert!(!sel("a :is(b, :unknown)").evaluable());
+    assert!(!sel(":where(:is(:unknown))").evaluable());
     assert!(sel("a::before").pseudo_element());
     assert!(sel("a::before b").pseudo_element());
     assert!(!sel("a b").pseudo_element());

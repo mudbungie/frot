@@ -103,3 +103,16 @@ fn remote_page_cannot_pull_a_file_stylesheet() {
     assert!(text.contains("secret"), "file sheet was applied: {}", text);
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn the_url_fragment_names_the_css_target() {
+    let dir = tmp_dir("target");
+    let page = dir.join("page.html");
+    let html = "<style>p{display:none} :target{display:block}</style><p id=t>shown</p><p>gone</p>";
+    std::fs::write(&page, html).unwrap();
+    let url = format!("{}#t", file_url(&page));
+    let (code, out, _) = run_capture(&[&url, "--css", "--out", "text"]);
+    assert_eq!(code, 0);
+    assert_eq!(parse_envelope(&out)["out"], "shown");
+    std::fs::remove_dir_all(&dir).unwrap();
+}

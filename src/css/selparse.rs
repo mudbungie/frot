@@ -16,8 +16,8 @@ pub fn parse_selector_list(s: &str) -> Vec<Selector> {
 /// Parse a selector list for `querySelector` (js.md §3). Unlike
 /// [`parse_selector_list`], which silently drops unparseable selectors, this
 /// returns `None` if **any** selector fails to parse or is unqueryable — one
-/// carrying an unsupported simple at any depth (`:target`, `:has(…)`,
-/// `:is(:target)`) or a pseudo-element (`::before` matches no real element).
+/// carrying an unsupported simple at any depth (`:has(…)`, `:nth-col()`,
+/// `:is(:has(b))`) or a pseudo-element (`::before` matches no real element).
 /// The caller turns `None` into a thrown, counted error rather than a silent
 /// empty match.
 pub fn parse_query(list: &str) -> Option<Vec<Selector>> {

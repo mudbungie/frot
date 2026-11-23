@@ -9,20 +9,12 @@
 //! the attribute is owned by its nearest `<form>` ancestor. Measured in
 //! Chrome 158 `form.elements` (`bl-e8fa`); ids compare case-sensitively.
 
-use super::{Document, Element, NodeId, NodeKind, WalkEvent};
+use super::{Document, Element, NodeId, NodeKind};
 
 impl Document {
     /// The first element in tree order whose `id` is `target`.
     pub fn element_by_id(&self, target: &str) -> Option<NodeId> {
-        let mut found = None;
-        self.walk(None, &mut |ev, e| {
-            if let (WalkEvent::Enter(id), NodeKind::Element(el)) = (ev, &e.kind) {
-                if found.is_none() && el.attr("id") == Some(target) {
-                    found = Some(id);
-                }
-            }
-        });
-        found
+        self.first(|el| el.attr("id") == Some(target))
     }
 
     /// The form that owns the element `id` (module docs), if any.

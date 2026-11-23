@@ -103,7 +103,7 @@ fn pseudo_elements_and_unsupported_pseudos() {
     assert_eq!(one("p::after").pseudo(), Some(Pseudo::After));
     assert_eq!(one("::before").pseudo(), Some(Pseudo::Before));
     // unsupported pseudo-classes become an Unsupported simple, no pseudo.
-    let s = one("p:target");
+    let s = one("p:unknown");
     assert_eq!(s.pseudo(), None);
     assert!(s.parts[0].1.simples.contains(&Simple::Unsupported));
     assert!(one("p::first-line").parts[0]
