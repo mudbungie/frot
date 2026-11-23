@@ -34,11 +34,11 @@ fn a_logical_pseudo_class_the_engine_cannot_answer_is_unsupported() {
         ":is(a::before)",
         ":not(a::after)",
         ":where(a",
-        ":not(:hover)",
-        ":not(a, b:hover)",
-        ":not(:is(a, :hover))",
+        ":not(:target)",
+        ":not(a, b:target)",
+        ":not(:is(a, :target))",
         ":not(:where(:nth-child(2)))",
-        ":not(:not(:hover))",
+        ":not(:not(:target))",
         ":has(a)",
         "::is(a)",
         "::where(a)",
@@ -53,8 +53,8 @@ fn a_logical_pseudo_class_the_engine_cannot_answer_is_unsupported() {
     }
     // Inside :is()/:where() an unsupported argument just never matches.
     assert_eq!(
-        first(":is(a, :hover)"),
-        Simple::Is(vec![sel("a"), sel(":hover")])
+        first(":is(a, :target)"),
+        Simple::Is(vec![sel("a"), sel(":target")])
     );
 }
 
@@ -81,8 +81,8 @@ fn matching_follows_the_arguments() {
     assert!(hit(":not(.nope) > :is(p)"));
     assert!(!hit(":not(.wrap) > p"));
     // An unsupported argument never matches; a supported sibling still can.
-    assert!(hit(":is(:hover, p)"));
-    assert!(!hit(":is(:hover)"));
+    assert!(hit(":is(:target, p)"));
+    assert!(!hit(":is(:target)"));
     assert!(hit(":not(:not(p))"));
 }
 
@@ -99,9 +99,9 @@ fn specificity_is_the_most_specific_argument_and_zero_for_where() {
 #[test]
 fn evaluable_sees_unsupported_at_any_depth() {
     assert!(sel("a:is(b, :where(.c)):not(d)").evaluable());
-    assert!(!sel("a:hover").evaluable());
-    assert!(!sel("a :is(b, :hover)").evaluable());
-    assert!(!sel(":where(:is(:hover))").evaluable());
+    assert!(!sel("a:target").evaluable());
+    assert!(!sel("a :is(b, :target)").evaluable());
+    assert!(!sel(":where(:is(:target))").evaluable());
     assert!(sel("a::before").pseudo_element());
     assert!(sel("a::before b").pseudo_element());
     assert!(!sel("a b").pseudo_element());
@@ -150,4 +150,48 @@ fn a_node_that_is_not_in_the_tree_has_no_siblings() {
     assert!(matches(&sel("i:first-child:last-child"), &doc, loose));
     assert!(!matches(&sel("* + i"), &doc, loose));
     assert!(!matches(&sel("* ~ i"), &doc, loose));
+}
+
+#[test]
+fn a_known_false_pseudo_class_is_false_and_its_negation_true() {
+    for name in [
+        "hover",
+        "ACTIVE",
+        "visited",
+        "popover-open",
+        "modal",
+        "fullscreen",
+        "picture-in-picture",
+        "autofill",
+        "-webkit-autofill",
+        "user-valid",
+        "user-invalid",
+    ] {
+        assert_eq!(first(&format!(":{name}")), Simple::Never, "{name}");
+    }
+    let doc = Document::parse("<p class=x>t</p>");
+    let p = doc.find_by_tag("p")[0];
+    let hit = |s: &str| matches(&sel(s), &doc, p);
+    assert!(!hit("p:hover"));
+    assert!(hit("p:not(:hover)"));
+    assert!(hit("p:not(:is(:active, :visited))"));
+    assert!(hit(":is(:hover, .x)"));
+    assert!(sel("p:not(:hover)").evaluable());
+    // It weighs as the class it is, matched or not.
+    assert_eq!(sel("p:hover").specificity(), Specificity(0, 1, 1));
+    assert_eq!(sel("p:not(:hover)").specificity(), Specificity(0, 1, 1));
+    // Not a pseudo-element, and not a function.
+    assert_eq!(first("::hover"), Simple::Unsupported);
+    assert_eq!(first(":hover()"), Simple::Unsupported);
+}
+
+#[test]
+fn a_state_pseudo_class_parses_to_its_state_and_weighs_as_a_class() {
+    use crate::css::state::State;
+    assert_eq!(first(":Root"), Simple::State(State::Root));
+    assert_eq!(first(":checked"), Simple::State(State::Checked));
+    assert_eq!(first("::root"), Simple::Unsupported);
+    assert_eq!(first(":root()"), Simple::Unsupported);
+    assert_eq!(sel("a:link").specificity(), Specificity(0, 1, 1));
+    assert!(sel(":not(:focus)").evaluable());
 }

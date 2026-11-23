@@ -2,10 +2,12 @@
 //!
 //! Supported: the `::before` / `::after` pseudo-elements (legacy single-colon
 //! spelling too), the structural pseudo-classes `:first-child` and
-//! `:last-child`, and the logical pseudo-classes `:is(…)`, `:where(…)` and
-//! `:not(…)`, each over a comma-separated list of complex selectors. Every
-//! other pseudo parses into [`Simple::Unsupported`], which never matches — a
-//! pseudo-class written with two colons (`::first-child`) among them.
+//! `:last-child`, the state pseudo-classes ([`super::state`], and `NEVER`
+//! for those known to be false), and the logical pseudo-classes `:is(…)`,
+//! `:where(…)` and `:not(…)`, each over a comma-separated list of complex
+//! selectors. Every other pseudo parses into [`Simple::Unsupported`], which
+//! never matches — a pseudo-class written with two colons (`::first-child`)
+//! among them.
 //!
 //! A logical pseudo-class is itself [`Simple::Unsupported`] when the engine
 //! could not answer it truthfully:
@@ -14,13 +16,16 @@
 //!   grammar forbids one there) — the list is not parsed forgivingly;
 //! - an unterminated argument list;
 //! - for `:not()` only, an argument holding an unsupported simple at any
-//!   depth. "Never matches" is a safe reading of `:hover`, but its negation
-//!   would be "always matches" — `:not(:hover)` must fail closed, not open.
+//!   depth. "Never matches" is a safe reading of `:target`, whose answer the
+//!   engine does not know, but its negation would be "always matches" —
+//!   `:not(:target)` must fail closed, not open. (`:not(:hover)` is another
+//!   matter: `:hover` is known to be false, so its negation matches.)
 //!   Inside `:is()` / `:where()` an unsupported argument simply never matches
 //!   and the other arguments still can.
 
 use super::selector::{Pseudo, Selector, Simple};
 use super::selparse::{ident, parse_selector, split_top};
+use super::state::State;
 
 pub(super) enum PseudoTok {
     Element(Pseudo),
@@ -60,10 +65,32 @@ pub(super) fn parse_pseudo(b: &[char], start: usize) -> (PseudoTok, usize) {
         ("after", _) => PseudoTok::Element(Pseudo::After),
         ("first-child", false) => PseudoTok::Class(Simple::FirstChild),
         ("last-child", false) => PseudoTok::Class(Simple::LastChild),
+        (name, false) if NEVER.contains(&name) => PseudoTok::Class(Simple::Never),
+        (name, false) => {
+            PseudoTok::Class(State::named(name).map_or(Simple::Unsupported, Simple::State))
+        }
         _ => PseudoTok::Class(Simple::Unsupported),
     };
     (tok, n)
 }
+
+/// Pseudo-classes that are false for every element of a page nobody is
+/// using: no pointer, no history, no popover, dialog or full-screen request,
+/// no autofill, no user edit. Measured in headless Chrome 158
+/// (`tests/fixtures/fidelity/state.html`).
+const NEVER: [&str; 11] = [
+    "hover",
+    "active",
+    "visited",
+    "popover-open",
+    "modal",
+    "fullscreen",
+    "picture-in-picture",
+    "autofill",
+    "-webkit-autofill",
+    "user-valid",
+    "user-invalid",
+];
 
 /// The functional pseudo-class `:name(args)`, or [`Simple::Unsupported`]
 /// (module doc).

@@ -4,12 +4,14 @@
 //! sequences, the descendant (whitespace), child (`>`), next-sibling (`+`)
 //! and subsequent-sibling (`~`) combinators, the logical pseudo-classes
 //! `:is()` / `:where()` / `:not()` over complex selector lists
-//! ([`super::pseudo`]), `:first-child` / `:last-child`, and the `::before` /
-//! `::after` pseudo-elements (legacy single-colon spelling too). Any other pseudo
-//! (`:hover`, `:nth-child(...)`, `::first-line`, …) parses into a
-//! [`Simple::Unsupported`] marker so the whole compound fails to match — a
-//! rule we cannot evaluate must never apply.
+//! ([`super::pseudo`]), `:first-child` / `:last-child`, the state
+//! pseudo-classes ([`State`]; `:hover` and its kind are [`Simple::Never`]),
+//! and the `::before` / `::after` pseudo-elements (legacy single-colon
+//! spelling too). Any other pseudo (`:target`, `:nth-child(...)`,
+//! `::first-line`, …) parses into a [`Simple::Unsupported`] marker so the
+//! whole compound fails to match — a rule we cannot evaluate must never apply.
 
+use super::state::State;
 use crate::dom::{Document, Element, NodeId, NodeKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,6 +52,11 @@ pub enum Simple {
     FirstChild,
     /// `:last-child`: no element sibling after it.
     LastChild,
+    /// A state computed from the DOM ([`State`]).
+    State(State),
+    /// A pseudo-class known to be false in an unattended load (`:hover`):
+    /// unlike [`Simple::Unsupported`] its negation is known too.
+    Never,
     Unsupported,
 }
 
@@ -103,6 +110,7 @@ impl Selector {
                     Simple::Id(_) => s.0 += 1,
                     Simple::Class(_) | Simple::Attr { .. } => s.1 += 1,
                     Simple::FirstChild | Simple::LastChild => s.1 += 1,
+                    Simple::State(_) | Simple::Never => s.1 += 1,
                     Simple::Type(_) => s.2 += 1,
                     Simple::Is(list) | Simple::Not(list) => {
                         let most = list.iter().map(Selector::specificity).max();
@@ -133,8 +141,9 @@ fn compound_matches(c: &Compound, doc: &Document, id: NodeId, el: &Element) -> b
         Simple::Not(list) => !any(list),
         Simple::FirstChild => earlier_siblings(doc, id).next().is_none(),
         Simple::LastChild => later_siblings(doc, id).next().is_none(),
+        Simple::State(state) => state.holds(doc, id, el),
         Simple::Universal => true,
-        Simple::Unsupported => false,
+        Simple::Unsupported | Simple::Never => false,
         Simple::Type(t) => el.name == *t,
         Simple::Class(cl) => class_list(el).contains(&cl.as_str()),
         Simple::Id(id) => el.attr("id") == Some(id.as_str()),
@@ -154,9 +163,9 @@ fn element(doc: &Document, id: NodeId) -> Option<&Element> {
 }
 
 /// `id`'s element ancestors, nearest first.
-fn ancestors(doc: &Document, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+pub(super) fn ancestors(doc: &Document, id: NodeId) -> impl Iterator<Item = (NodeId, &Element)> {
     std::iter::successors(doc.node(id).parent, |&p| doc.node(p).parent)
-        .filter(|&p| element(doc, p).is_some())
+        .filter_map(|p| element(doc, p).map(|el| (p, el)))
 }
 
 /// The nodes on either side of `id` among its parent's children, in document
@@ -203,9 +212,10 @@ fn matches_at(parts: &[(Combinator, Compound)], i: usize, doc: &Document, id: No
         return true;
     }
     let rest = |n: NodeId| matches_at(parts, i - 1, doc, n);
+    let mut above = ancestors(doc, id).map(|(a, _)| a);
     match parts[i].0 {
-        Combinator::Child => ancestors(doc, id).take(1).any(rest),
-        Combinator::Descendant => ancestors(doc, id).any(rest),
+        Combinator::Child => above.take(1).any(rest),
+        Combinator::Descendant => above.any(rest),
         Combinator::NextSibling => earlier_siblings(doc, id).take(1).any(rest),
         Combinator::SubsequentSibling => earlier_siblings(doc, id).any(rest),
     }

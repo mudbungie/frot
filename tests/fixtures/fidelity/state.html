@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en" id="html">
+<head>
+<meta charset="utf-8">
+<title>State pseudo-classes</title>
+<style>
+.k { display: none; }
+.k.hover:not(:hover), .k.active:not(:active), .k.focus:not(:focus),
+.k.focus-within:not(body:focus-within *), .k.focus-visible:not(:focus-visible),
+.k.visited:not(:visited), .k.popover-open:not(:popover-open),
+.k.modal:not(:modal), .k.fullscreen:not(:fullscreen),
+.k.picture-in-picture:not(:picture-in-picture), .k.autofill:not(:autofill),
+.k.webkit-autofill:not(:-webkit-autofill), .k.user-valid:not(:user-valid),
+.k.user-invalid:not(:user-invalid) { display: inline; }
+.menu:hover, .menu:focus-within, .menu:is(:active, :visited) { display: none; }
+:root > body > h1::after { content: " rooted"; }
+.e:empty::after { content: "empty"; }
+.e:not(:empty)::before { content: "full-"; }
+a:link::after { content: " link"; }
+a:not(:any-link)::after { content: " anchor"; }
+:checked + b::after { content: " on"; }
+:disabled + b::after { content: " off"; }
+:enabled:required + b::after { content: " needed"; }
+:read-write:optional + b::after { content: " writable"; }
+p:read-only > i::after { content: " fixed"; }
+</style>
+</head>
+<body>
+<h1>State</h1>
+<p><span class="k hover">hover</span> <span class="k active">active</span> <span class="k focus">focus</span>
+<span class="k focus-within">focus-within</span> <span class="k focus-visible">focus-visible</span>
+<span class="k visited">visited</span> <span class="k popover-open">popover-open</span>
+<span class="k modal">modal</span> <span class="k fullscreen">fullscreen</span>
+<span class="k picture-in-picture">picture-in-picture</span> <span class="k autofill">autofill</span>
+<span class="k webkit-autofill">webkit-autofill</span> <span class="k user-valid">user-valid</span>
+<span class="k user-invalid">user-invalid</span></p>
+<p class="menu">Menu stays.</p>
+<p><span class="e"></span> <span class="e"><!-- note --></span> <span class="e"> </span> <span class="e">text</span> <span class="e"><i></i></span></p>
+<p><a href="state.html">with</a> <a>without</a> <a href="">blank</a></p>
+<p><input type="checkbox" checked aria-label="c1"><b>c1</b> <input type="checkbox" aria-label="c2"><b>c2</b>
+<input disabled aria-label="d1"><b>d1</b> <input required aria-label="r1"><b>r1</b>
+<input readonly aria-label="w1"><b>w1</b> <input aria-label="w2"><b>w2</b> <i>p</i></p>
+<div hidden>
+<a id="a_href" href="x"></a><a id="a_bare"></a><map><area id="area_href" href="y"><area id="area_bare"></map>
+<link id="link_el" rel="help" href="x">
+<svg><a id="svg_a" href="z"></a><a id="svg_xa" xlink:href="z"></a></svg>
+<form id="f2"></form>
+<form id="f1">
+<input id="i_text"><input id="i_req" required><input id="i_ro" readonly><input id="i_dis" disabled><input id="i_dis_ro" disabled readonly>
+<input id="i_hidden" type="hidden" required><input id="i_cb" type="checkbox"><input id="i_cbc" type="CHECKBOX" checked required>
+<input id="i_textc" type="text" checked><input id="i_btn" type="button" required><input id="i_range" type="range" required>
+<input id="i_color" type="color" required><input id="i_submit" type="submit" required>
+<input id="i_reset" type="reset" required><input id="i_file" type="file" required><input id="i_bogus" type="bogus" required>
+<input id="i_email" type="email" required><input id="i_number" type="number"><input id="i_date" type="date" readonly>
+<input id="r1" type="radio" name="g" checked><input id="r2" type="radio" name="g" checked><input id="r3" type="radio" name="g">
+<input id="r5" type="radio" name="h" checked>
+<input id="r6" type="radio" checked><input id="r7" type="radio" checked><input id="r8" type="radio" name="" checked><input id="r9" type="radio" name="" checked>
+<select id="s1"><option id="o1"></option><option id="o2"></option></select>
+<select id="s2"><option id="o3"></option><option id="o4" selected></option><option id="o5" selected></option></select>
+<select id="s3" multiple><option id="o6"></option><option id="o7" selected></option><option id="o8" selected></option></select>
+<select id="s4" required disabled><optgroup id="g1"><option id="o9"></option></optgroup><option id="o10"></option></select>
+<select id="s5"><option id="o11" disabled></option><optgroup id="g2" disabled><option id="o12"></option></optgroup><optgroup id="g3"><option id="o13"></option></optgroup></select>
+<select id="s6" size="3"><option id="o14"></option></select>
+<select id="s7" size="1"><option id="o15"></option></select>
+<select id="s8" size="2"><option id="o16" selected></option><option id="o17" selected></option></select>
+<select id="s9"><option id="o18" disabled></option></select>
+<select id="s10"><option id="o19" selected disabled></option><option id="o20"></option></select>
+<textarea id="t1"></textarea><textarea id="t2" readonly></textarea><textarea id="t3" required></textarea><textarea id="t4" disabled></textarea>
+<button id="b1"></button><button id="b2" disabled></button>
+<fieldset id="fs1" disabled><legend id="lg1"><span><input id="i_leg"></span></legend><legend id="lg2"><input id="i_leg2"></legend>
+<input id="i_fs"><button id="b_fs"></button><fieldset id="fs2"><input id="i_fs2"></fieldset><select id="s11"><option id="o21"></option></select>
+<a id="a_fs" href="q"></a><output id="out"></output><div><legend id="lg3"><textarea id="t_fs"></textarea></legend></div></fieldset>
+<fieldset id="fs3"><input id="i_fs3"></fieldset>
+</form>
+<input id="r4" type="radio" name="g" checked form="f2"><input id="r10" type="radio" name="g" checked><input id="r11" type="radio" name="g" checked>
+<input id="i_image" type="image" required><option id="o22" selected></option><option id="o23"></option>
+<div id="ce" contenteditable><span id="ce_in"></span><b id="ce_no" contenteditable="false"><i id="ce_no_in"></i><u id="ce_back" contenteditable="TRUE"></u></b><input id="ce_ro" readonly><input id="ce_cb" type="checkbox"></div>
+<div id="ce_plain" contenteditable="plaintext-only"></div><div id="ce_bogus" contenteditable="bogus"></div>
+<div id="e1"></div><div id="e2"> </div><div id="e3"><!-- c --></div><div id="e4"><b></b></div><div id="e5">t</div>
+</div>
+<div id="report"></div>
+<script>
+var report = document.getElementById('report');
+[':hover', ':active', ':focus', ':focus-within', ':focus-visible', ':visited',
+  ':popover-open', ':modal', ':fullscreen', ':picture-in-picture', ':autofill',
+  ':-webkit-autofill', ':user-valid', ':user-invalid', ':root', ':Root', ':empty',
+  ':link', ':any-link', ':-webkit-any-link', ':checked', ':disabled', ':enabled',
+  ':required', ':optional', ':read-write', '[contenteditable]:read-only, input:read-only, textarea:read-only',
+  ':not(:hover):root', ':is(:hover, :root)', 'html:not(:focus, :active)'
+].forEach(function (selector) {
+  var line = document.createElement('p');
+  var ids = [];
+  var hits = document.querySelectorAll(selector);
+  for (var i = 0; i < hits.length; i++) {
+    if (hits[i].id) ids.push(hits[i].id);
+  }
+  line.textContent = selector + ' = ' + ids.join(' ');
+  report.appendChild(line);
+});
+</script>
+</body>
+</html>

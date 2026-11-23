@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" id="html">
+<head>
+<meta charset="utf-8">
+<title>Focus at load</title>
+<style>
+:focus + b::after { content: " focused"; }
+input:not(:focus) + b::after { content: " idle"; }
+:focus-visible + b::before { content: "ring "; }
+.box:focus-within > i::after { content: " holds-focus"; }
+.box:not(:focus-within) > i::after { content: " no-focus"; }
+</style>
+</head>
+<body id="body">
+<h1>Focus at load</h1>
+<p>Candidates in tree order; the first that can take focus gets it.</p>
+<p class="box" id="p1"><i>one</i> <input id="c_disabled" autofocus disabled aria-label="disabled"><b>disabled</b>
+<input id="c_hidden_type" type="hidden" autofocus><span id="c_span" autofocus>plain</span>
+<a id="c_anchor" autofocus>anchor</a> <span id="c_tab_word" tabindex="soon" autofocus>word</span></p>
+<div hidden><input id="c_hidden" autofocus></div>
+<div inert><input id="c_inert" autofocus aria-label="inert"></div>
+<details><summary>More</summary><input id="c_closed" autofocus></details>
+<div class="box" id="d1"><i>two</i> <input id="winner" autofocus aria-label="winner"><b>winner</b></div>
+<p class="box" id="p2"><i>three</i> <input id="later" autofocus aria-label="later"><b>later</b>
+<a id="l_link" href="focus.html" autofocus>link</a> <span id="l_tab" tabindex="0" autofocus>tab</span>
+<span id="l_edit" contenteditable autofocus>edit</span></p>
+<div id="report"></div>
+<script>
+setTimeout(function () {
+  var report = document.getElementById('report');
+  [':focus', ':focus-visible', ':focus-within', 'input:not(:focus)', '[autofocus]:not(:focus-visible)'
+  ].forEach(function (selector) {
+    var line = document.createElement('p');
+    var ids = [];
+    var hits = document.querySelectorAll(selector);
+    for (var i = 0; i < hits.length; i++) ids.push(hits[i].id);
+    line.textContent = selector + ' = ' + ids.join(' ');
+    report.appendChild(line);
+  });
+}, 100);
+</script>
+</body>
+</html>

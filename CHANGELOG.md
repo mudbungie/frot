@@ -44,6 +44,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Document.prototype`, in Firefox's order; the object itself owns only
   `location`, as a real one does. [bl-9f79]
 
+- **`--css`: `:not(:hover)` matches, and the state pseudo-classes are real.**
+  frot loads a page nobody is using, so `:hover`, `:active`, `:visited`,
+  `:modal`, `:popover-open`, `:fullscreen`, `:picture-in-picture`,
+  `:autofill` and `:user-valid` / `:user-invalid` are false — and their
+  negations now match (`.menu:not(:hover){display:none}` hides the menu, as
+  in Chrome; it was ignored). Answered from the document, as measured in
+  Chrome 158: `:root`, `:empty`, `:link` / `:any-link`, `:checked`,
+  `:disabled` / `:enabled`, `:required` / `:optional`, `:read-only` /
+  `:read-write`, and `:focus` / `:focus-visible` / `:focus-within` from
+  `autofocus`. `querySelector` and `matches` accept them all instead of
+  throwing. `:target`, `:has()` and the rest stay unsupported. [bl-1508]
+
 - **`<details>` and `<summary>` are block-level**, as in every browser. In
   `--out text` each starts and ends a line, so a summary no longer fuses
   with the text beside its `<details>` (`head<details><summary>four…` was

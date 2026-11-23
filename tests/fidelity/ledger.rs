@@ -48,6 +48,14 @@ const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
 /// An absolutely positioned box fuses with its neighbours.
 const ABSOLUTE: Why = Why::Defect("bl-346e");
 
+/// The `form=` attribute does not associate a control with its form.
+const FORM_ATTR: Why = Why::Defect("bl-e8fa");
+/// Chrome makes a span carrying `autofocus` a group.
+const AUTOFOCUS_GROUP: Why = Why::Defect("bl-0725");
+/// The recorder reads `document.links`, which lists HTML `<a>` / `<area>`
+/// only; an SVG `<a href>` is a link all the same (SVG 2, "Linking").
+const SVG_LINK: Why = Why::Residual("document.links omits SVG <a>; frot lists it");
+
 pub const LEDGER: &[Row] = &[
     // Open divergences, one ball per root cause.
     // text
@@ -66,6 +74,18 @@ pub const LEDGER: &[Row] = &[
     row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
+    row("state", "links", "+ z \"\"", SVG_LINK),
+    row("state", "links", "+ z \"\"", SVG_LINK),
+    row(
+        "state",
+        "forms",
+        "-   input type=\"radio\" name=\"g\"",
+        FORM_ATTR,
+    ),
     // ax
+    row("focus", "ax", "- group \"\"", AUTOFOCUS_GROUP),
+    row("focus", "ax", "- group \"\"", AUTOFOCUS_GROUP),
+    row("focus", "ax", "- group \"\"", AUTOFOCUS_GROUP),
+    row("focus", "ax", "- group \"\"", AUTOFOCUS_GROUP),
     // bboxes
 ];

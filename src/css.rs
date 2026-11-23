@@ -13,6 +13,7 @@ mod cascade;
 mod computed;
 mod content;
 mod escape;
+mod focus;
 mod import;
 mod index;
 pub mod media;
@@ -21,6 +22,7 @@ mod pseudo;
 mod query;
 mod selector;
 mod selparse;
+mod state;
 
 use crate::dom::NodeId;
 

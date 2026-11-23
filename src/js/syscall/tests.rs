@@ -162,8 +162,8 @@ fn query_scopes_document_and_element_and_rejects_unsupported() {
         "2"
     );
     // Both query entrypoints throw a SyntaxError naming the selector.
-    match s.eval("__frot_query(r, 'p:hover')").unwrap_err() {
-        EvalError::Exception(m) => assert!(m.contains("unsupported selector: p:hover"), "{m}"),
+    match s.eval("__frot_query(r, 'p:target')").unwrap_err() {
+        EvalError::Exception(m) => assert!(m.contains("unsupported selector: p:target"), "{m}"),
         e => panic!("expected exception, got {e:?}"),
     }
     assert!(matches!(

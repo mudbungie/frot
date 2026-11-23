@@ -50,10 +50,11 @@ fetches them).
 compounds of those, all four combinators — descendant (space), child (`>`),
 next-sibling (`+`) and subsequent-sibling (`~`; `bl-6363`) —
 `:is()` / `:where()` / `:not()` (below), `:first-child` / `:last-child`
-(`bl-e987`), and `::before` / `::after`. Any other pseudo-class,
-pseudo-element or attribute operator makes its selector never match — the
-other structural pseudo-classes included (`:only-child`, `:nth-child()`,
-`:nth-last-child()`, `:first-of-type` and its family, `:empty`, `:root`; `bl-00d1`).
+(`bl-e987`), the state pseudo-classes (below; `bl-1508`), and `::before` /
+`::after`. Any other pseudo-class, pseudo-element or attribute operator makes
+its selector never match — the other structural pseudo-classes included
+(`:only-child`, `:nth-child()`, `:nth-last-child()`, `:first-of-type` and its
+family; `bl-00d1`).
 `:first-child` / `:last-child` count element siblings only (text and comments
 do not), weigh as a class, and are pseudo-*classes*: the two-colon spelling
 (`::first-child`, `::is(a)`) is invalid CSS and never matches. A selector is matched against the element where it stands in the DOM
@@ -69,17 +70,73 @@ each of which makes the rule never apply rather than apply wrongly:
 - The list is not parsed forgivingly. One argument that does not parse, or
   that carries a pseudo-element, voids the whole pseudo-class (a browser
   drops just that argument of `:is()` / `:where()`).
-- `:not()` over anything the engine cannot answer — `:not(:hover)`,
-  `:not(:is(a, :focus))` — never matches. Reading `:hover` as "false" is
+- `:not()` over anything the engine cannot answer — `:not(:target)`,
+  `:not(:is(a, :has(b)))` — never matches. Reading an unknown as "false" is
   safe; reading its negation as "true" would apply rules a browser does not.
+  **Superseded 2026-11-22 (`bl-1508`)** where this line read "`:not(:hover)`,
+  `:not(:is(a, :focus))` — never matches": `:hover` and `:focus` are not
+  unknown, and their negations now match (next paragraph).
 - Inside `:is()` / `:where()` an unsupported argument never matches; the
-  other arguments still do (`:is(:hover, .open)` matches `.open`).
+  other arguments still do (`:is(:target, .open)` matches `.open`).
+
+**State pseudo-classes** (`bl-1508`; `src/css/pseudo.rs`, `state.rs`,
+`focus.rs`). frot loads a page that nobody is using: no pointer, no keyboard,
+no history. What a browser answers for such a page was measured in headless
+Chrome 158 and is held in `tests/fixtures/fidelity/state.html` and
+`focus.html`. Each of these weighs as a class, and each is *known* — so
+`:not()` of it matches when it does not.
+
+- **Always false:** `:hover`, `:active`, `:visited`, `:popover-open`,
+  `:modal`, `:fullscreen`, `:picture-in-picture`, `:autofill`,
+  `:-webkit-autofill`, `:user-valid`, `:user-invalid`.
+  `.menu:not(:hover) { display: none }` hides the menu, as in Chrome.
+- **`:focus`, `:focus-visible`** — the first element in tree order that has
+  `autofocus` and can take focus: a button, select, textarea or input that is
+  not disabled (nor `type=hidden`), an `<a href>`, an element with an integer
+  `tabindex`, a `contenteditable` host; and that is not under `hidden` or
+  `inert` or inside a closed `<details>`. With no such element, nothing is
+  focused. **`:focus-within`** — that element and its ancestors.
+- **`:root`** — the document's root element. **`:empty`** — no element child
+  and no text (whitespace is text; comments are not).
+- **`:link`, `:any-link`, `:-webkit-any-link`** — an `<a>` or `<area>` with
+  `href` (an SVG `<a>` with `xlink:href` too).
+- **`:checked`** — a checkbox with `checked`; a radio with `checked` unless a
+  later radio of the same name and form has it too; an option its select
+  picks: with `multiple`, each one with `selected`; otherwise the last one
+  with `selected`, else — in a drop-down, not a list box (`size` above 1) —
+  the first that is neither `disabled` nor in a disabled `<optgroup>`.
+- **`:disabled`** — a button, input, select, textarea or fieldset with
+  `disabled`, or inside a disabled `<fieldset>` other than in its first
+  `<legend>` child; an option or optgroup with `disabled`, in a disabled
+  optgroup, or in a disabled select. **`:enabled`** — any of those seven
+  elements that is not `:disabled`.
+- **`:required`** — a select, textarea or input with `required`, except input
+  types `hidden`, `range`, `color`, `submit`, `image`, `reset`, `button`.
+  **`:optional`** — an input, select, textarea or button that is not
+  `:required`.
+- **`:read-write`** — a textarea, or an input of a text-holding type (not the
+  seven above, nor `checkbox`, `radio`, `file`), that is neither `readonly`
+  nor disabled; any other element whose nearest `contenteditable` (its own or
+  an ancestor's) is on. **`:read-only`** — every other element.
+
+All of these read the tree's attributes. What a script changes without
+leaving an attribute — `el.focus()`, `input.checked = true`, `showModal()` —
+is not seen, and an `autofocus` element hidden only by a stylesheet still
+counts as focused (`bl-bc6d`).
+
+Still unsupported, so never matching and failing closed under `:not()`:
+`:target` (the engine is not given the URL; `bl-5852`), and `:has()`,
+`:lang()`, `:dir()`, `:scope`, `:open`, `:defined`, `:default`,
+`:indeterminate`, `:placeholder-shown`, `:valid` / `:invalid`, `:in-range` /
+`:out-of-range`, the media-element states (`bl-2a85`).
 
 JS `querySelector` / `querySelectorAll` / `matches` / `closest` share this
 grammar through `css::query_all`: the combinators, the three logical
-pseudo-classes and `:first-child` / `:last-child` are accepted, and a
-selector holding an unsupported piece at any depth (`p:is(:hover)`) throws
-`SyntaxError` as before.
+pseudo-classes, `:first-child` / `:last-child` and the state pseudo-classes
+are accepted — `querySelector(":hover")` returns `null`, as in a browser. A
+selector holding an unsupported piece at any depth (`p:is(:target)`) throws
+`SyntaxError` as before. (**Superseded 2026-11-22, `bl-1508`:** this
+paragraph gave `p:is(:hover)` as the selector that throws.)
 
 **Properties.** `display`, `visibility` (inherited), `content` on
 `::before`/`::after`, `flex-direction` and `order`.
@@ -322,7 +379,10 @@ raised as suspects for "over-hiding":
   `src/css/selector.rs`'s `compound_matches` maps `Simple::Unsupported =>
   false`: any unrecognized pseudo-class/pseudo-function (`:hover`,
   `:nth-child(...)`, `::first-line`, …) makes the *whole compound* fail to
-  match, never partially match. The module doc states the invariant directly:
+  match, never partially match. (**Superseded 2026-11-22, `bl-1508`:**
+  `:hover` is no longer in that list — it is known-false, which matches
+  nothing just the same but lets `:not(:hover)` match; see "State
+  pseudo-classes" above.) The module doc states the invariant directly:
   "a rule we cannot evaluate must never hide or reveal content." Unsupported
   attribute-selector operators (`^=`, `*=`, `~=`, `$=`, `|=`) aren't parsed by
   `parse_attr` at all, so the whole selector is dropped from the sheet — never
