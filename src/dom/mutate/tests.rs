@@ -94,11 +94,14 @@ fn remove_attr_drops_the_named_attribute() {
 }
 
 #[test]
-fn set_text_replaces_text_node_data() {
+fn set_text_replaces_character_data() {
     let mut doc = Document::default();
     let id = doc.create_text("old");
     doc.set_text(id, "new");
     assert_eq!(doc.node(id).kind, NodeKind::Text("new".into()));
+    let c = doc.create_comment("old");
+    doc.set_text(c, "new");
+    assert_eq!(doc.node(c).kind, NodeKind::Comment("new".into()));
 }
 
 #[test]

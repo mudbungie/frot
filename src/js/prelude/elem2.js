@@ -66,6 +66,15 @@
   // ChildNode is mixed into CharacterData and DocumentType too (measured).
   g.__frot_ifaceops(g.CharacterData.prototype, { remove: remove });
   g.__frot_ifaceops(g.DocumentType.prototype, { remove: remove });
+  g.__frot_ifaceattrs(
+    g.DocumentType.prototype,
+    ['name', 'publicId', 'systemId'].reduce(function (o, k, i) {
+      o[k] = function () {
+        return g.__frot_doctype(slots(this).id)[i];
+      };
+      return o;
+    }, {})
+  );
 
   g.__frot_ifaceattrs(proto, {
     tagName: function () {

@@ -7,6 +7,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use rquickjs::{Ctx, Function, Object};
+
+use super::Host;
+
 /// The first [`MESSAGES_MAX`] captured error messages. A page that reports more
 /// keeps counting into `js.errors`; only the detail is bounded.
 pub const MESSAGES_MAX: usize = 32;
@@ -52,6 +56,25 @@ fn clamp(text: &str) -> String {
         Some((i, _)) => format!("{}\u{2026}", &text[..i]),
         None => text.to_string(),
     }
+}
+
+/// The §10 reported-error syscall: `__frot_report_error(text)` bumps the shared
+/// counter for each unhandled error the prelude surfaces (`reportError` /
+/// `window.onerror` / a dispatched window `'error'` event) and captures its
+/// message into the bounded [`Messages`] sink. Distinct from the §7 navigation
+/// `Denials` sink — this is the caught-and-reported app-failure channel React et al.
+/// route through instead of throwing.
+pub(super) fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, h: &Host) -> rquickjs::Result<()> {
+    let (reported, messages) = (&h.counters.reported, &h.counters.messages);
+    bind!(ctx, g, "__frot_report_error", {
+        let r = reported.clone();
+        let m = messages.clone();
+        move |text: String| {
+            *r.borrow_mut() += 1;
+            push(&m, "report", &text);
+        }
+    });
+    Ok(())
 }
 
 #[cfg(test)]

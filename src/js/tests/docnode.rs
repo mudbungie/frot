@@ -152,7 +152,7 @@ fn the_document_is_shaped_as_the_binarys() {
           D.textContent,D.ownerDocument,D.isConnected,D.hasChildNodes()].map(String)",
          "9,#document,null,null,null,null,null,null,true,true"),
         ("Array.prototype.map.call(D.childNodes,function(n){return n.nodeName+n.nodeType})",
-         "#doctype10,HTML1"),
+         "html10,HTML1"),
         ("[D.firstChild.nodeType,D.lastChild===H,D.contains(D.body),D.contains(D),\
           D.body.contains(D),D.contains(D.createElement('p')),D.getRootNode()===D]",
          "10,true,true,true,false,false,true"),
@@ -184,5 +184,47 @@ fn the_document_is_shaped_as_the_binarys() {
           'addEventListener'))})()", "1false"),
     ] {
         assert_eq!(eval(expr), want.replace("\n          ", ""), "{expr}");
+    }
+}
+
+/// `bl-3d15`, each row read off Firefox 153.0esr: a doctype names itself and
+/// carries its public and system identifiers; `document.doctype` is it, or
+/// `null`; a comment's data is writable like a text node's, `null` writing ''.
+#[test]
+fn a_doctype_and_character_data_read_as_the_binarys() {
+    let old = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/\
+               strict.dtd\"><html><body></body></html>";
+    for (page, want) in [
+        (PAGE, "html,html,,,true,10"),
+        (
+            old,
+            "html,html,-//W3C//DTD HTML 4.01//EN,http://www.w3.org/TR/html4/strict.dtd,true,10",
+        ),
+    ] {
+        let got = sess(page)
+            .eval(
+                "var d=document.doctype;String([d.nodeName,d.name,d.publicId,d.systemId,\
+                 d===document.firstChild,d.nodeType])",
+            )
+            .unwrap();
+        assert_eq!(got, want);
+    }
+    assert_eq!(
+        sess("<p>x</p>").eval("String(document.doctype)").unwrap(),
+        "null"
+    );
+    for (expr, want) in [
+        (
+            "(function(){var c=D.createComment('a');c.data='xyz';return [c.data,c.nodeValue,\
+             c.textContent,c.length]})()",
+            "xyz,xyz,xyz,3",
+        ),
+        (
+            "(function(){var c=D.createComment('a'),x=D.createTextNode('b');c.data=null;\
+             x.nodeValue=null;return JSON.stringify([c.data,x.data])})()",
+            "[\"\",\"\"]",
+        ),
+    ] {
+        assert_eq!(eval(expr), want, "{expr}");
     }
 }

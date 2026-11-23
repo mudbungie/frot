@@ -106,7 +106,7 @@ fn nodes_behave_as_their_interfaces() {
          "[object Text],[object Comment],[object HTMLParagraphElement],[object HTMLElement]"),
         ("[p instanceof HTMLElement,p instanceof Element,p instanceof Node,p instanceof EventTarget,\
           p instanceof Text,t instanceof CharacterData,t instanceof Element,c instanceof Comment,\
-          c instanceof Text,document.doctype===undefined].join()",
+          c instanceof Text,document.doctype instanceof DocumentType].join()",
          "true,true,true,true,false,true,false,true,false,true"),
         ("[t.nodeType,t.nodeName,t.data,t.length,t.nodeValue,c.nodeType,c.nodeName,c.data,\
           String(p.nodeValue)].join()", "3,#text,hi,2,hi,8,#comment,c,null"),

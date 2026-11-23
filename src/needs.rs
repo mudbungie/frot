@@ -183,7 +183,7 @@ fn collect(doc: &Document, id: NodeId, styles: Option<&Styles>, sectioned: bool,
             }
         }
         NodeKind::Text(t) => c.text |= !t.trim().is_empty(),
-        NodeKind::Comment(_) | NodeKind::Doctype | NodeKind::Document | NodeKind::Fragment => {}
+        NodeKind::Comment(_) | NodeKind::Doctype(_) | NodeKind::Document | NodeKind::Fragment => {}
     }
 }
 

@@ -15,6 +15,13 @@ use super::engine::Engine;
 use crate::css::{matches_any, query_all};
 use crate::dom::{Document, NodeKind};
 
+// Defined before the submodules so each group binds with the same shape.
+macro_rules! bind {
+    ($ctx:expr, $g:expr, $name:literal, $f:expr) => {
+        $g.set($name, Function::new($ctx.clone(), $f)?.with_name($name)?)?
+    };
+}
+
 mod cookie;
 mod crypto;
 mod env;
@@ -37,19 +44,13 @@ const GROUPS: &[Group] = &[
     mutations,
     query_and_console,
     geometry,
-    reported_errors,
+    messages::install,
     env::install,
     net::install,
     cookie::install,
     crypto::install,
     subtle::install,
 ];
-
-macro_rules! bind {
-    ($ctx:expr, $g:expr, $name:literal, $f:expr) => {
-        $g.set($name, Function::new($ctx.clone(), $f)?.with_name($name)?)?
-    };
-}
 
 /// Register the whole syscall table on `engine`'s realm, then evaluate the
 /// prelude that builds the web-facing API on top of it. Closures capture clones
@@ -110,6 +111,14 @@ fn reads<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquickjs::
         let d = doc.clone();
         move |id: u32| match &d.borrow().node(id).kind {
             NodeKind::Element(e) => Some(e.name.clone()),
+            _ => None,
+        }
+    });
+    // A doctype's [name, publicId, systemId]; `null` for any other node.
+    bind!(ctx, g, "__frot_doctype", {
+        let d = doc.clone();
+        move |id: u32| match &d.borrow().node(id).kind {
+            NodeKind::Doctype(ids) => Some(ids.to_vec()),
             _ => None,
         }
     });
@@ -235,29 +244,6 @@ fn query_and_console<'js>(
     Ok(())
 }
 
-/// The §10 reported-error syscall: `__frot_report_error(text)` bumps the shared
-/// counter for each unhandled error the prelude surfaces (`reportError` /
-/// `window.onerror` / a dispatched window `'error'` event) and captures its
-/// message into the bounded [`Messages`] sink. Distinct from the §7 navigation
-/// `Denials` sink — this is the caught-and-reported app-failure channel React et al.
-/// route through instead of throwing.
-fn reported_errors<'js>(
-    ctx: &Ctx<'js>,
-    g: &rquickjs::Object<'js>,
-    h: &Host,
-) -> rquickjs::Result<()> {
-    let (reported, messages) = (&h.counters.reported, &h.counters.messages);
-    bind!(ctx, g, "__frot_report_error", {
-        let r = reported.clone();
-        let m = messages.clone();
-        move |text: String| {
-            *r.borrow_mut() += 1;
-            messages::push(&m, "report", &text);
-        }
-    });
-    Ok(())
-}
-
 /// Geometry syscalls (js.md §8): the box read and the computed-style subset,
 /// both routed through the per-generation [`SharedGeometry`] cache. Each is
 /// total over any `NodeId` — a box-less node yields the all-zero rect, an
@@ -282,7 +268,7 @@ fn kind_label(doc: &Document, id: u32) -> &'static str {
         NodeKind::Element(_) => "element",
         NodeKind::Text(_) => "text",
         NodeKind::Comment(_) => "comment",
-        NodeKind::Doctype => "doctype",
+        NodeKind::Doctype(_) => "doctype",
     }
 }
 

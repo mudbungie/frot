@@ -53,6 +53,12 @@
       return st[key] || (st[key] = make());
     };
   }
+  function child(doc, kind) {
+    var kids = g.__frot_children(slots(doc).id).filter(function (id) {
+      return g.__frot_kind(id) === kind;
+    });
+    return wrap(kids[0]);
+  }
   g.__frot_ifaceattrs(P, {
     implementation: once('implementation', function () {
       return {
@@ -83,12 +89,13 @@
     compatMode: function () {
       return 'CSS1Compat';
     },
-    // The document's one element child (the tree holds at most one).
+    // The document's one doctype and one element child (the tree holds at
+    // most one of each).
+    doctype: function () {
+      return child(this, 'doctype');
+    },
     documentElement: function () {
-      var kids = g.__frot_children(slots(this).id).filter(function (id) {
-        return g.__frot_kind(id) === 'element';
-      });
-      return wrap(kids[0]);
+      return child(this, 'element');
     },
     // Advanced by the host lifecycle (loop.js) through the slot.
     readyState: function () {

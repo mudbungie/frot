@@ -32,7 +32,7 @@ fn parse_doctype_node_is_preserved() {
     let mut saw_doctype = false;
     doc.walk(None, &mut |ev, e| {
         if let WalkEvent::Enter(_) = ev {
-            if matches!(e.kind, NodeKind::Doctype) {
+            if matches!(e.kind, NodeKind::Doctype(_)) {
                 saw_doctype = true;
             }
         }
@@ -141,7 +141,12 @@ fn nodekind_equality_works() {
     let a = NodeKind::Text("x".into());
     let b = NodeKind::Text("x".into());
     assert_eq!(a, b);
-    assert_eq!(NodeKind::Doctype, NodeKind::Doctype);
+    let doc = Document::parse("<!DOCTYPE svg PUBLIC \"p\" \"s\"><svg></svg>");
+    let first = doc.node(Document::ROOT).children[0];
+    assert_eq!(
+        doc.node(first).kind,
+        NodeKind::Doctype(["svg".into(), "p".into(), "s".into()])
+    );
     let e1 = NodeKind::Element(Element {
         name: "p".into(),
         attrs: vec![Attr {

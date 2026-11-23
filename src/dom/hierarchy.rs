@@ -52,7 +52,7 @@ impl Document {
         let kind = &self.node(child).kind;
         match kind {
             NodeKind::Document => return Some("May not add a Document as a child".into()),
-            NodeKind::Doctype if !in_document => return Some(misplaced(kind, into)),
+            NodeKind::Doctype(_) if !in_document => return Some(misplaced(kind, into)),
             _ if !in_document => return None,
             _ => {}
         }
@@ -65,7 +65,7 @@ impl Document {
         };
         let is = |k: NodeId, element: bool| match self.node(k).kind {
             NodeKind::Element(_) => element,
-            NodeKind::Doctype => !element,
+            NodeKind::Doctype(_) => !element,
             _ => false,
         };
         if let Some(&text) = moved
@@ -126,7 +126,7 @@ fn interface(kind: &NodeKind) -> &'static str {
         NodeKind::Element(_) => "Element",
         NodeKind::Text(_) => "Text",
         NodeKind::Comment(_) => "Comment",
-        NodeKind::Doctype => "DocumentType",
+        NodeKind::Doctype(_) => "DocumentType",
     }
 }
 

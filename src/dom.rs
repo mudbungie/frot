@@ -70,7 +70,9 @@ pub enum NodeKind {
     Element(Element),
     Text(String),
     Comment(String),
-    Doctype,
+    /// `<!DOCTYPE name PUBLIC "public" "system">`: what `DocumentType`'s
+    /// `name`, `publicId` and `systemId` read (each '' when absent).
+    Doctype([String; 3]),
 }
 
 #[derive(Debug, Clone)]
@@ -237,7 +239,11 @@ fn node_data_to_kind(data: &NodeData) -> NodeKind {
         }),
         NodeData::Text { contents } => NodeKind::Text(contents.borrow().to_string()),
         NodeData::Comment { contents } => NodeKind::Comment(contents.to_string()),
-        NodeData::Doctype { .. } => NodeKind::Doctype,
+        NodeData::Doctype {
+            name,
+            public_id,
+            system_id,
+        } => NodeKind::Doctype([name, public_id, system_id].map(|t| t.to_string())),
         // html5ever in HTML mode never emits Document/PI as a child; we map
         // them to empty comments rather than carry an `Option` everywhere.
         NodeData::Document | NodeData::ProcessingInstruction { .. } => {

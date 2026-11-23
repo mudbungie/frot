@@ -118,9 +118,13 @@
     nodeType: function () {
       return TYPE[kindOf(this)];
     },
+    // An element's upper-cased tag, a doctype's own name (`html`, measured),
+    // else `#text`, `#comment`, `#document`, `#document-fragment`.
     nodeName: function () {
-      var tag = g.__frot_tag(slots(this).id);
-      return tag ? tag.toUpperCase() : '#' + kindOf(this);
+      var id = slots(this).id;
+      var tag = g.__frot_tag(id);
+      var dt = g.__frot_doctype(id);
+      return tag ? tag.toUpperCase() : dt ? dt[0] : '#' + kindOf(this);
     },
     isConnected: function () {
       return this.getRootNode() === g.document;
@@ -161,8 +165,10 @@
   function data(n) {
     return g.__frot_text(slots(n).id);
   }
+  // `null` is the empty string ([LegacyNullToEmptyString] on `data`; `nodeValue`
+  // is nullable), measured on 153.0esr for both.
   function setData(v) {
-    g.__frot_set_text(slots(this).id, String(v));
+    g.__frot_set_text(slots(this).id, v === null ? '' : String(v));
   }
   function rw(proto, key, get, set) {
     Object.defineProperty(proto, key, {

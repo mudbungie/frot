@@ -66,9 +66,10 @@ impl Document {
         self.generation += 1;
     }
 
-    /// Replace the data of a text node; a no-op on any other kind.
+    /// Replace the data of a text or comment node (CharacterData); a no-op on
+    /// any other kind.
     pub fn set_text(&mut self, id: NodeId, text: &str) {
-        if let NodeKind::Text(t) = &mut self.nodes[id as usize].kind {
+        if let NodeKind::Text(t) | NodeKind::Comment(t) = &mut self.nodes[id as usize].kind {
             *t = text.to_string();
         }
         self.generation += 1;

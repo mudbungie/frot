@@ -56,7 +56,7 @@
     DocumentFragment: 'getElementById prepend append querySelector querySelectorAll children',
     Document: 'getElementsByTagName getElementsByClassName createElement createElementNS ' +
       'createDocumentFragment createTextNode createComment getElementsByName hasFocus getElementById ' +
-      'prepend append querySelector querySelectorAll implementation compatMode documentElement cookie ' +
+      'prepend append querySelector querySelectorAll implementation compatMode doctype documentElement cookie ' +
       'readyState body head scripts defaultView onreadystatechange currentScript hidden ' +
       'visibilityState activeElement children',
     HTMLLinkElement: 'disabled href rel relList type',
