@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out bboxes`: `<wbr>` has no entry.** It is a break opportunity, not a
+  box — Chrome gives it no client rects — so the view no longer lists one. A
+  `<br>` keeps its entry. [bl-1d51]
 - **`--out text --css`: line breaks follow the computed `display`, not the
   tag**, as Chrome's `innerText` does. A `display:block`, `flex` or
   `list-item` span now stands on its own line (`x<span

@@ -152,3 +152,14 @@ fn generated_content_gives_an_icon_span_a_real_rect() {
     assert_eq!(span["text"], Value::Null);
     assert_eq!(tag(&out, "h1")["rect"]["h"], 20);
 }
+
+/// `bl-1d51`, Chrome 158: a `<wbr>` has no client rects, whatever its
+/// `display`; a `<br>` has one.
+#[test]
+fn a_wbr_has_no_box_and_a_br_has_one() {
+    let (doc, layout, styles) = full("<h3>word<wbr>break<wbr style='display:block'>a<br>b</h3>");
+    let out = entries(bboxes(&doc, &layout, &styles));
+    let tags: Vec<&str> = out.iter().map(|e| e["tag"].as_str().unwrap()).collect();
+    assert!(!tags.contains(&"wbr"), "{tags:?}");
+    assert!(tags.contains(&"br"), "{tags:?}");
+}

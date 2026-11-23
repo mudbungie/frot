@@ -56,9 +56,12 @@ const GLYPH_ADVANCE: i32 = 8;
 /// differently — e.g. `text` also skips `svg`/`math`, while layout also skips
 /// the non-painting document metadata `head`/`title`/`meta`/`link`/`base`).
 /// `desc` is SVG's description, metadata like its `<title>`: Chrome 158 gives
-/// it no client rects (`bl-07bd`).
+/// it no client rects (`bl-07bd`). `wbr` is a break *opportunity*, not a box:
+/// Chrome 158 gives it no client rects either, even as `display:block`, while
+/// a `<br>` has one (`bl-1d51`).
 const NON_RENDERED_TAGS: &[&str] = &[
     "head", "title", "meta", "link", "base", "style", "script", "template", "noscript", "desc",
+    "wbr",
 ];
 
 /// A box, in px, border-box, viewport coordinates with y increasing downward
