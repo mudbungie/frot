@@ -163,3 +163,76 @@ fn a_challenge_responses_own_cookie_earns_no_second_request() {
     assert!(env.get("out").is_none(), "challenge produced output: {out}");
     page.assert(); // exactly one request — no retry replayed the challenge cookie
 }
+
+/// A declared challenge whose body is `body`, served to a request carrying no
+/// cookie — so a second navigation would be a second hit on this mock.
+fn gate(server: &mut mockito::Server, body: &str) -> mockito::Mock {
+    server
+        .mock("GET", "/")
+        .match_header("cookie", mockito::Matcher::Missing)
+        .with_status(403)
+        .with_header("cf-mitigated", "challenge")
+        .with_header("set-cookie", "srv=1; Path=/")
+        .with_body(body)
+        .expect(1)
+        .create()
+}
+
+#[test]
+fn a_cookie_set_by_a_script_src_response_earns_no_round() {
+    // challenge.md §12 (bl-cc4c): the response to the page's `<script src>`
+    // sets a cookie that rides the re-issue, but the script did nothing — the
+    // server changed the request, so no round, and the challenge is asked once.
+    let mut server = mockito::Server::new();
+    let g = gate(&mut server, "<script src='/c.js'></script>");
+    let js = server
+        .mock("GET", "/c.js")
+        .with_header("set-cookie", "cf=1; Path=/")
+        .with_body("var idle = 1;")
+        .create();
+    let (_, out, _) = run_capture(&[&server.url(), "--js", "--out", "text"]);
+    g.assert();
+    js.assert();
+    let env = parse_envelope(&out);
+    assert_eq!(env["needs"], serde_json::json!(["human"]), "{out}");
+    assert_eq!(env["challenge"]["rounds"], 0);
+}
+
+#[test]
+fn a_cookie_set_by_the_scripts_own_fetch_earns_the_round() {
+    // The same cookie, set on the response to a GET the script issued, is the
+    // script's doing: the request changed because of it, so one round.
+    let mut server = mockito::Server::new();
+    let g = gate(&mut server, "<script>fetch('/t');</script>");
+    let t = server
+        .mock("GET", "/t")
+        .with_header("set-cookie", "cf=1; Path=/")
+        .with_body("{}")
+        .create();
+    let real = server
+        .mock("GET", "/")
+        .match_header("cookie", "srv=1; cf=1")
+        .with_body("<p>the page</p>")
+        .expect(1)
+        .create();
+    let (_, out, _) = run_capture(&[&server.url(), "--js", "--out", "text"]);
+    g.assert();
+    t.assert();
+    real.assert();
+    let env = parse_envelope(&out);
+    assert_eq!(env["out"], "the page", "{out}");
+    assert_eq!(env["challenge"]["rounds"], 1);
+}
+
+#[test]
+fn a_script_rewriting_the_servers_cookie_unchanged_earns_no_round() {
+    // The script wrote, but the request is identical: never re-sent (§4.1).
+    let mut server = mockito::Server::new();
+    let g = gate(
+        &mut server,
+        "<script>document.cookie = 'srv=1; path=/';</script>",
+    );
+    let (_, out, _) = run_capture(&[&server.url(), "--js", "--out", "text"]);
+    g.assert();
+    assert_eq!(parse_envelope(&out)["challenge"]["rounds"], 0, "{out}");
+}

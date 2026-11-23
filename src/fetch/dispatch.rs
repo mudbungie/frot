@@ -93,7 +93,7 @@ pub(crate) fn dispatch(
         let resp = transport.send(&current, &headers, body, MAX_BODY_BYTES, req.timeout)?;
         // Store this hop's Set-Cookie before following the redirect, so a
         // redirect-set cookie rides the landing request (acceptance #1).
-        jar.lock().unwrap().store(&resp.headers, &current);
+        jar.lock().unwrap().store(&resp.headers, &current, intent);
         let Some(next) = redirect_target(resp.status, &resp.headers, &current)? else {
             let content_type = header_value(&resp.headers, "content-type");
             let bytes = decode::inflate(&resp.headers, resp.body)?;

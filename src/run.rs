@@ -97,9 +97,10 @@ fn navigate(args: &cli::Args, bounds: Bounds, challenge: &mut Option<ChallengeIn
             let before = nav.request();
             let doc = Document::parse(&fetched.body);
             let (_, js) = run_scripts(args, doc, &fetched, &session, bounds.clone());
-            // The scripts left the request unchanged — failed, ran out of
-            // budget, or minted nothing: re-sending it would be a retry loop.
-            if nav.request() == before {
+            // The scripts did not change the request — failed, ran out of
+            // budget, minted nothing, or only fetched a resource whose
+            // response set a cookie (§12): re-sending it would be a retry loop.
+            if !nav.request().earned_since(&before) {
                 return verdict(NeedsKind::Human).with_js(js);
             }
             state.rounds += 1;

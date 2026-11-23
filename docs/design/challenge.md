@@ -254,6 +254,13 @@ request.
 > "An identical request is never re-sent" is thereby literal: the comparison
 > *is* the request.
 
+> **Superseded in part 2026-11-22 (`bl-cc4c`, Mark: yes, option b).** "Changed
+> the request" was tested on the whole request, so a cookie the server set on
+> the response to the challenge page's `<script src>` earned a round the script
+> had done nothing for (Cloudflare, §11.5). The test is now *the page's script
+> changed the request*: the request differs **and** so does the share of it
+> the script wrote. The whole rule, its corners and its pins: §12.
+
 ### 4.2 The sequence
 
 ```
@@ -602,8 +609,9 @@ by the sibling-6 capstone **before** the sibling-3 loop assumes them:
    bounds. The scripts may `fetch`/XHR — including a POST with a text body, the
    one new thing they can do. Whatever cookies those responses or
    `document.cookie` set land in the invocation's jar.
-5. Note the request a re-issue would send *now*. Unchanged: stop,
-   `needs:["human"]`, `rounds:0`, with the `js` block of that run.
+5. Note the request a re-issue would send *now*. Unchanged — or changed only
+   by cookies the server set (§12) — stop, `needs:["human"]`, `rounds:0`,
+   with the `js` block of that run.
 6. Changed: GET the caller's URL again (`rounds:1`). That is the only extra
    navigation there will ever be.
 7. Still a declared challenge: stop, `needs:["human"]`, `rounds:1`,
@@ -887,7 +895,8 @@ src>` — it reached the jar, so "the request frot would now send" (§4.1)
 differed. The rule held to its letter; a browser would not have re-navigated.
 The cost is one extra GET, answered by the same challenge, and the verdict is
 still honest. Whether a subresource response's cookie should count is a
-decision, not a fix: `bl-cc4c`.
+decision, not a fix: `bl-cc4c`. *(Decided 2026-11-22: it does not — §12. This
+target now ends at `rounds:0`, one navigation.)*
 
 **Nothing was raised, clicked or solved**, and no vendor-specific code was
 added: the one code change beyond the status rule is a general EventTarget
@@ -951,3 +960,55 @@ resolve it is honoring the script's own request to reload the caller's URL.
 That moves the boundary in §6 and is Mark's call, filed with this evidence as
 `bl-99b7`. Until then frot's answer for this response is unchanged and stated
 plainly: one Amazon run in four or so ends `needs:["js"]` under `--js`.
+
+## 12. What earns a round (`bl-cc4c`, 2026-11-22)
+
+Decided by Mark, 2026-11-22 (`bl-cc4c` option b): a round is earned by **what
+the page's script did**, not by whatever happened to the jar while it ran.
+
+**The rule.** After the challenge document's scripts run, frot re-issues the
+caller's URL iff the page's script changed the request frot would send. A
+cookie is the script's when its last write was the script's:
+
+- a `document.cookie` write, or
+- a `Set-Cookie` on the response to a `fetch`/XHR the script issued (GET or
+  POST, any origin).
+
+Every other `Set-Cookie` is the server's: on the navigation and its redirects,
+on a `<script src>` (a script-inserted one too — it is a script load, not a
+request the script chose to issue), on a stylesheet. It still lands in the jar
+and still rides every later request, the re-issue included; it just does not
+by itself earn one.
+
+**How it is checked.** `Navigation::request()` returns a `Reading`: the sorted
+header set a re-issue would send (as before), plus the `Cookie` line of only
+the cookies the script last wrote (`CookieJar::scripted_for`). It is read
+before and after the run; the round is earned iff **both** differ
+(`Reading::earned_since`). Both, because each alone is wrong once:
+
+| what happened during the run | whole request | script's share | round |
+|---|---|---|---|
+| script `document.cookie` writes a new token | changed | changed | **yes** |
+| script's `fetch`/XHR response sets a token | changed | changed | **yes** |
+| `<script src>` response sets a cookie, script does nothing (Cloudflare) | changed | unchanged | no |
+| script rewrites the server's cookie to the same value | unchanged | changed | no — an identical request is never re-sent |
+| caller's `-H Cookie` masks the jar | unchanged | changed | no |
+| script's cookie scoped to another path | unchanged | unchanged | no |
+
+**Corners, stated.** A cookie is one cell, its last writer wins: a server
+response that re-sets a script-written cookie takes it out of the script's
+share. A script that only *deletes* a cookie changes the request but not its
+share, so it earns nothing. Neither is a measured shape.
+
+**What it changes for a caller.** Only when `rounds` is 1: a declared
+challenge whose script minted nothing but whose subresource set a cookie was
+`rounds:1, passed:false` after two navigations, and is now `rounds:0,
+passed:false` after one — the verdict (`needs:["human"]`) is unchanged. AWS
+WAF's pass is a `document.cookie` write (§11.4), so it is unaffected. No field
+was added, renamed or removed.
+
+Pinned: `src/fetch/cookie/tests.rs`
+(`the_scripted_share_is_the_cookies_the_page_script_last_wrote`) and
+`src/run/cookie_tests.rs` (`a_cookie_set_by_a_script_src_response_earns_no_round`,
+`a_cookie_set_by_the_scripts_own_fetch_earns_the_round`,
+`a_script_rewriting_the_servers_cookie_unchanged_earns_no_round`).

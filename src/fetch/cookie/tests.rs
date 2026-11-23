@@ -7,7 +7,11 @@ use super::*;
 
 /// Store one `Set-Cookie` `line` as received from `url`.
 fn set(j: &mut CookieJar, line: &str, url: &str) {
-    j.store(&[("Set-Cookie".to_string(), line.to_string())], url);
+    j.store(
+        &[("Set-Cookie".to_string(), line.to_string())],
+        url,
+        Intent::Navigation,
+    );
 }
 
 /// A jar seeded from a list of `(Set-Cookie, request-url)`.
@@ -236,6 +240,7 @@ fn store_skips_non_set_cookie_headers() {
             ("Set-Cookie".to_string(), "a=1".to_string()),
         ],
         "https://x.com/",
+        Intent::Navigation,
     );
     assert_eq!(nav(&j, "https://x.com/", None).as_deref(), Some("a=1"));
 }
@@ -248,4 +253,26 @@ fn write_script_ignores_a_nameless_write_and_a_bad_page_url() {
     // A hostless page URL parses but has no host, so the write is dropped.
     j.write_script("a=1", "file:///x");
     assert_eq!(nav(&j, "https://x.com/", None), None);
+}
+
+#[test]
+fn the_scripted_share_is_the_cookies_the_page_script_last_wrote() {
+    // challenge.md §12: `document.cookie` and a fetch/XHR response are the
+    // script's writes; a navigation's or a `<script src>`'s are the server's,
+    // and a server re-set takes a cookie back out of the script's share.
+    let u = "https://x.com/";
+    let mut j = CookieJar::new();
+    let sc = |line: &str| vec![("Set-Cookie".to_string(), line.to_string())];
+    j.store(&sc("nav=1"), u, Intent::Navigation);
+    j.store(&sc("src=1"), u, Intent::ClassicScript);
+    assert_eq!(j.scripted_for(u), None);
+    j.store(&sc("xhr=1"), u, Intent::FetchXhr);
+    j.write_script("doc=1", u);
+    assert_eq!(j.scripted_for(u).as_deref(), Some("xhr=1; doc=1"));
+    j.store(&sc("xhr=2"), u, Intent::Style);
+    assert_eq!(j.scripted_for(u).as_deref(), Some("doc=1"));
+    assert_eq!(
+        nav(&j, u, None).as_deref(),
+        Some("nav=1; src=1; doc=1; xhr=2")
+    );
 }

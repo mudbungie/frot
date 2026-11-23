@@ -41,7 +41,7 @@ use dispatch::redirect_target;
 pub(crate) use dispatch::{dispatch, Request};
 pub(crate) use media::non_document;
 pub use profile::{BrowserProfile, H2Profile, TlsProfile, FIREFOX_153_ESR};
-pub use session::{FetchSession, Intent, Navigation};
+pub use session::{FetchSession, Intent, Navigation, Reading};
 pub(crate) use transport::Transport;
 pub(crate) use webgl::facts as webgl_facts;
 

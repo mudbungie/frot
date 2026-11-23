@@ -215,12 +215,11 @@ impl Navigation {
         self.go(target, Some(from))
     }
 
-    /// The request headers [`load`](Self::load) would send right now — the
-    /// caller's URL, the jar's applicable cookies, the caller `-H` overrides —
-    /// sorted, because it is a reading to compare, not a wire order. Two equal
-    /// readings mean a re-issue would be the same request, and an identical
-    /// request is never re-sent (`docs/design/challenge.md` §4.1).
-    pub fn request(&self) -> Vec<(String, String)> {
+    /// A [`Reading`] of the request [`load`](Self::load) would send right now
+    /// — the caller's URL, the jar's applicable cookies, the caller `-H`
+    /// overrides — sorted, because it is a reading to compare, not a wire
+    /// order, beside the page script's share of its cookies.
+    pub fn request(&self) -> Reading {
         let (jar, anchor) = (self.session.jar.lock().unwrap(), &self.anchor);
         let cookie = jar.header_for(anchor, None, Intent::Navigation);
         let caller = &self.session.headers;
@@ -234,7 +233,8 @@ impl Navigation {
             None,
         );
         headers.sort();
-        headers
+        let scripted = jar.scripted_for(anchor);
+        Reading { headers, scripted }
     }
 
     fn go(&mut self, url: &str, referrer: Option<&str>) -> Result<FetchResult, FetchError> {
@@ -247,6 +247,25 @@ impl Navigation {
             body: None,
         };
         self.session.dispatch(&req, &mut self.hops)
+    }
+}
+
+/// The request a re-issue of the caller's URL would send, read at one moment
+/// (`docs/design/challenge.md` §12).
+#[derive(Debug)]
+pub struct Reading {
+    headers: Vec<(String, String)>,
+    /// The `Cookie` line of the cookies the page script last wrote.
+    scripted: Option<String>,
+}
+
+impl Reading {
+    /// Whether the page's script, since `before`, changed the request: it
+    /// differs, and the script's share of it differs. An identical request is
+    /// never re-sent, and a cookie the server set — on the navigation, a
+    /// `<script src>`, a stylesheet — earns nothing.
+    pub fn earned_since(&self, before: &Reading) -> bool {
+        self.headers != before.headers && self.scripted != before.scripted
     }
 }
 

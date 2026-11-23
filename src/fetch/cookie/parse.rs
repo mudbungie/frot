@@ -47,6 +47,7 @@ pub(super) fn set_cookie(
         same_site: SameSite::Lax,
         expires: None,
         created: 0,
+        scripted: false,
     };
     let (mut max_age, mut expires) = (None, None);
     for attr in rest.split(';') {

@@ -22,12 +22,14 @@
 //! that one line in place — never a duplicate, never sent cross-origin, never
 //! stored in the jar.
 //!
-//! **Challenge boundary** (`docs/design/challenge.md` §4). A declared
+//! **Challenge boundary** (`docs/design/challenge.md` §4, §12). A declared
 //! challenge's `Set-Cookie`, and whatever its own script then writes or earns
-//! from a POST, land here like any other cookie. `run.rs` re-issues the
-//! caller's URL once iff that script changed the request this jar would
-//! produce — never to replay an unchanged one — and the jar still drops with
-//! the session.
+//! from a POST, land here like any other cookie. Each cookie remembers whether
+//! its last write was **the page script's** — `document.cookie`, or a response
+//! to a fetch/XHR the script issued — and `run.rs` re-issues the caller's URL
+//! once iff the script's writes changed the request this jar would produce:
+//! never to replay an unchanged one, and never on a cookie the server set on a
+//! `<script src>` or stylesheet response. The jar still drops with the session.
 
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
@@ -73,6 +75,9 @@ struct Cookie {
     /// absolute expiry used only at insert time to keep-or-drop.
     expires: Option<SystemTime>,
     created: u64,
+    /// Whether the last write was the page script's: `document.cookie`, or the
+    /// response to a fetch/XHR it issued (`challenge.md` §12).
+    scripted: bool,
 }
 
 /// The per-invocation jar. A flat list keyed by (name, domain, path) — the RFC
@@ -90,10 +95,12 @@ impl CookieJar {
     }
 
     /// Store every `Set-Cookie` in `headers` received from `request_url` (a
-    /// redirect hop, the final document, or a subresource). HttpOnly is honoured
-    /// (wire cookies may be HttpOnly); an unparseable line or a `Domain` the host
-    /// cannot set is ignored, exactly as a browser drops it.
-    pub fn store(&mut self, headers: &[(String, String)], request_url: &str) {
+    /// redirect hop, the final document, or a subresource) under `intent`.
+    /// HttpOnly is honoured (wire cookies may be HttpOnly); an unparseable line
+    /// or a `Domain` the host cannot set is ignored, exactly as a browser drops
+    /// it. A response to [`Intent::FetchXhr`] — a request the page's script
+    /// issued — is the script's write; every other is the server's.
+    pub fn store(&mut self, headers: &[(String, String)], request_url: &str, intent: Intent) {
         let now = SystemTime::now();
         let Ok(url) = Url::parse(request_url) else {
             return;
@@ -101,7 +108,7 @@ impl CookieJar {
         for (n, v) in headers {
             if n.eq_ignore_ascii_case("set-cookie") {
                 if let Some(c) = parse::set_cookie(v, &url, now, false) {
-                    self.insert(c, now);
+                    self.insert(c, matches!(intent, Intent::FetchXhr), now);
                 }
             }
         }
@@ -116,7 +123,7 @@ impl CookieJar {
             return;
         };
         if let Some(c) = parse::set_cookie(value, &url, now, true) {
-            self.insert(c, now);
+            self.insert(c, true, now);
         }
     }
 
@@ -131,6 +138,23 @@ impl CookieJar {
         referrer_source: Option<&str>,
         intent: Intent,
     ) -> Option<String> {
+        self.header_where(target, referrer_source, intent, false)
+    }
+
+    /// [`header_for`](Self::header_for) a first-hop navigation of `target`,
+    /// counting only the cookies the page script last wrote — the script's
+    /// share of that request (`docs/design/challenge.md` §12).
+    pub fn scripted_for(&self, target: &str) -> Option<String> {
+        self.header_where(target, None, Intent::Navigation, true)
+    }
+
+    fn header_where(
+        &self,
+        target: &str,
+        referrer_source: Option<&str>,
+        intent: Intent,
+        only_scripted: bool,
+    ) -> Option<String> {
         let url = Url::parse(target).ok()?;
         let ctx = referrer_source.unwrap_or(target);
         let cx = Context {
@@ -139,6 +163,7 @@ impl CookieJar {
             require_same_origin: matches!(intent, Intent::FetchXhr),
             same_origin: same_origin(ctx, target),
             exclude_http_only: false,
+            only_scripted,
         };
         self.serialize(&url, &cx)
     }
@@ -156,6 +181,7 @@ impl CookieJar {
             require_same_origin: false,
             same_origin: true,
             exclude_http_only: true,
+            only_scripted: false,
         };
         self.serialize(&url, &cx).unwrap_or_default()
     }
@@ -163,10 +189,11 @@ impl CookieJar {
     /// Insert `c`, replacing any cookie of the same (name, domain, path); a cookie
     /// already past its expiry is not stored, which is how a past `Expires` /
     /// `Max-Age<=0` deletes one.
-    fn insert(&mut self, mut c: Cookie, now: SystemTime) {
+    fn insert(&mut self, mut c: Cookie, scripted: bool, now: SystemTime) {
         self.cookies
             .retain(|e| !(e.name == c.name && e.domain == c.domain && e.path == c.path));
         if c.expires.is_none_or(|e| e > now) {
+            c.scripted = scripted;
             c.created = self.seq;
             self.seq += 1;
             self.cookies.push(c);
@@ -183,7 +210,9 @@ impl CookieJar {
             .cookies
             .iter()
             .filter(|c| {
-                !(cx.exclude_http_only && c.http_only) && applies(c, host, path, secure_ctx, cx)
+                !(cx.exclude_http_only && c.http_only)
+                    && (c.scripted || !cx.only_scripted)
+                    && applies(c, host, path, secure_ctx, cx)
             })
             .collect();
         if hits.is_empty() {
@@ -213,6 +242,7 @@ struct Context {
     require_same_origin: bool,
     same_origin: bool,
     exclude_http_only: bool,
+    only_scripted: bool,
 }
 
 /// Whether `c` is sent to `host`/`path` under `secure_ctx` and the request
