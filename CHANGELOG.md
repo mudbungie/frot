@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--css`: an absolutely positioned or floated box is block-level**, as
+  CSS computes it. `position: absolute | fixed` and `float` blockify the
+  `display` of an element or a `::before`/`::after`, so in `--out text` such
+  a box stands on its own line (`Before<span class="tip">tip</span>after.`
+  was the fused token `Beforetipafter.`), in `--out ax` it is spaced off
+  inside a name, and a `::before`/`::after` with `display: block` is too.
+  `bboxes` geometry now lays such a box out as a block in flow. [bl-346e]
+
 - **`--out bboxes`: `<wbr>` has no entry.** It is a break opportunity, not a
   box — Chrome gives it no client rects — so the view no longer lists one. A
   `<br>` keeps its entry. [bl-1d51]

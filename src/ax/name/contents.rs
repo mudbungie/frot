@@ -128,11 +128,34 @@ pub fn referenced_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> S
 fn children_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) {
     let ua = w.styles.and_then(|_| native::quotes(w.doc, id));
     let (open, close) = ua.unwrap_or(("", ""));
-    out.push_str(w.styles.and_then(|s| s.before(id)).unwrap_or(open));
+    let inline = Display::Inline;
+    let (before, after) = w.styles.map_or((inline, inline), |s| {
+        (s.before_display(id), s.after_display(id))
+    });
+    generated(
+        out,
+        w.styles.and_then(|s| s.before(id)).unwrap_or(open),
+        before,
+    );
     for c in w.doc.ax_children(id) {
         node_text(w, c, visited, out);
     }
-    out.push_str(w.styles.and_then(|s| s.after(id)).unwrap_or(close));
+    generated(
+        out,
+        w.styles.and_then(|s| s.after(id)).unwrap_or(close),
+        after,
+    );
+}
+
+/// Generated text, spaced off like an element's when its box is not a plain
+/// inline one: `::after { content: "A"; display: block }` on "Bgen" is
+/// "Bgen A" (Chrome 158).
+fn generated(out: &mut String, text: &str, display: Display) {
+    if display == Display::Inline {
+        out.push_str(text);
+    } else {
+        fence(out, text);
+    }
 }
 
 fn node_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) {

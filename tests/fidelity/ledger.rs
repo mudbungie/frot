@@ -45,8 +45,6 @@ const fn row(fixture: &'static str, channel: &'static str, delta: &'static str, 
 
 /// `text-transform` is not applied.
 const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
-/// An absolutely positioned box fuses with its neighbours.
-const ABSOLUTE: Why = Why::Defect("bl-346e");
 
 /// The `form=` attribute does not associate a control with its form.
 const FORM_ATTR: Why = Why::Defect("bl-e8fa");
@@ -63,13 +61,6 @@ pub const LEDGER: &[Row] = &[
     row("reach", "text", "- WORDS", TEXT_TRANSFORM),
     row("reach", "text", "+ loud", TEXT_TRANSFORM),
     row("reach", "text", "+ words", TEXT_TRANSFORM),
-    row("reach", "text", "- data", ABSOLUTE),
-    row("reach", "text", "- ShareData", ABSOLUTE),
-    row("reach", "text", "+ dataShareData", ABSOLUTE),
-    row("reach", "text", "- Before", ABSOLUTE),
-    row("reach", "text", "- tip", ABSOLUTE),
-    row("reach", "text", "- after.", ABSOLUTE),
-    row("reach", "text", "+ Beforetipafter.", ABSOLUTE),
     row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "+ html", TEXT_TRANSFORM),
     row("saved/bootstrap-forms", "text", "- HTML", TEXT_TRANSFORM),

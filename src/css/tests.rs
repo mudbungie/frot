@@ -133,3 +133,44 @@ fn the_box_of_an_element_needs_no_cascade() {
     assert_eq!(Display::of(None, div, "div"), Display::Block);
     assert_eq!(Display::of(None, span, "span"), Display::Inline);
 }
+
+/// `bl-346e`, Chrome 158: a box out of flow computes a block-level display —
+/// an element and a pseudo-element alike — and `display:none` still wins.
+#[test]
+fn an_out_of_flow_box_is_blockified() {
+    let doc = Document::parse(
+        "<style>i::after{content:'a';position:absolute} b::before{content:'b';display:flex}\
+         u::before{content:'u';display:inline-flex;float:left} s{position:absolute!important}</style>\
+         <span style='position:absolute'>1</span><span style='position:FIXED'>2</span>\
+         <span style='float:left'>3</span><span style='float:inline-end;display:inline-flex'>4</span>\
+         <span style='position:relative'>5</span><span style='float:none'>6</span>\
+         <span style='position:absolute;display:none'>7</span><span style='display:inline-block;float:right'>8</span>\
+         <i>i</i><b>b</b><u>u</u><s style='position:static'>s</s>",
+    );
+    let styles = compute(&doc);
+    let spans = doc.find_by_tag("span");
+    let got: Vec<(Display, bool)> = spans
+        .iter()
+        .map(|&s| (styles.display(s), styles.out_of_flow(s)))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            (Display::Block, true),
+            (Display::Block, true),
+            (Display::Block, true),
+            (Display::Flex, true),
+            (Display::Inline, false),
+            (Display::Inline, false),
+            (Display::None, true),
+            (Display::Block, true),
+        ]
+    );
+    let one = |tag: &str| doc.find_by_tag(tag)[0];
+    assert_eq!(styles.after_display(one("i")), Display::Block);
+    assert_eq!(styles.before_display(one("i")), Display::Inline);
+    assert_eq!(styles.before_display(one("b")), Display::Flex);
+    assert_eq!(styles.before_display(one("u")), Display::Flex);
+    assert_eq!(styles.display(one("s")), Display::Block);
+    assert!(Display::Flex.block_level() && !Display::InlineBlock.block_level());
+}

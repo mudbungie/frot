@@ -18,7 +18,9 @@
 //! A line is any inline-level box: text that is not all collapsible white
 //! space (a no-break space counts), an inline element even when empty or
 //! `visibility:hidden` (`<p><span></span></p>` is a `paragraph`), `<br>`, a
-//! replaced element, `::before`/`::after` content. A block *inside* an inline
+//! replaced element, `::before`/`::after` content that is not itself
+//! block-level in flow (`p::after { content: "g"; display: block }` leaves no
+//! paragraph; a floated or absolutely positioned one keeps it), a float or an absolutely positioned box. A block *inside* an inline
 //! child does not count against the paragraph (`<p><a><span
 //! style="display:block">`), and a `display:list-item` paragraph always has
 //! its marker.
@@ -72,7 +74,13 @@ fn held(attr: &Attr) -> bool {
 /// Whether the block container `id` holds a line: at least one inline-level
 /// box and no block-level one.
 fn has_line(doc: &Document, id: NodeId, styles: Option<&Styles>) -> bool {
-    let mut line = styles.is_some_and(|s| s.before(id).is_some() || s.after(id).is_some());
+    let mut line = false;
+    for (display, in_flow) in styles.into_iter().flat_map(|s| s.generated_boxes(id)) {
+        if display.block_level() && in_flow {
+            return false;
+        }
+        line = true;
+    }
     for c in doc.painted_children(id) {
         match inline_level(doc, c, styles) {
             Some(true) => line = true,
@@ -91,10 +99,13 @@ fn inline_level(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Option<b
             .contains(|c: char| !c.is_ascii_whitespace())
             .then_some(true),
         NodeKind::Element(el) if !crate::tags::is_source(&el.name) => {
+            // A box out of flow is blockified and still leaves the line it
+            // was written in alone: `<p><span style="float:left">f</span>t
+            // </p>` is a `paragraph` (`bl-346e`).
+            let floats = styles.is_some_and(|s| s.out_of_flow(id));
             match Display::of(styles, id, &el.name) {
                 Display::None => None,
-                Display::Inline | Display::InlineBlock | Display::InlineFlex => Some(true),
-                _ => Some(false),
+                display => Some(floats || !display.block_level()),
             }
         }
         _ => None,

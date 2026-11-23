@@ -178,3 +178,29 @@ fn a_caption_with_no_line_has_no_node() {
     let html = "<figure><figcaption></figcaption></figure><div role=caption></div>";
     assert_eq!(outline(html, true), "figure caption caption");
 }
+
+/// `bl-346e`, Chrome 158: a float or an absolutely positioned child is
+/// blockified and still counts as part of the line; block-level generated
+/// content takes the line away.
+#[test]
+fn out_of_flow_children_and_block_pseudo_elements() {
+    for html in [
+        "<p><span style='float:left'>fl</span></p>",
+        "<p><span style='position:absolute'>ab</span></p>",
+        "<p><span style='float:left'>f</span>t</p>",
+        "<style>p::before{content:'g';display:inline-block}</style><p></p>",
+        "<style>p::before{content:'g';float:left}</style><p>t</p>",
+        "<style>p::after{content:'g';position:absolute}</style><p></p>",
+    ] {
+        assert_eq!(outline(html, true), "paragraph", "{html}");
+    }
+    for html in [
+        "<p><span style='display:block'>x</span><span style='float:left'>f</span></p>",
+        "<p><span style='position:absolute;display:none'>x</span></p>",
+        "<style>p::after{content:'g';display:block}</style><p></p>",
+        "<style>p::after{content:'g';display:block}</style><p>t</p>",
+        "<style>p::before{content:'g';float:left} p::after{content:'h';display:flex}</style><p>t</p>",
+    ] {
+        assert_eq!(outline(html, true), "", "{html}");
+    }
+}

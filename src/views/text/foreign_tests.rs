@@ -140,3 +140,39 @@ fn line_breaks_follow_the_computed_display() {
     let bare = "<button>x<span style='display:block'>sb</span>y<div style='display:inline'>d</div></button>";
     assert_eq!(t(bare), "xsby\nd");
 }
+
+/// `bl-346e`, Chrome 158 `innerText`: a box out of flow, and a block-level
+/// `::before`/`::after`, stand on lines of their own.
+#[test]
+fn an_out_of_flow_box_is_a_line_of_its_own() {
+    for (html, want) in [
+        (
+            "<p>Before<span style='position:absolute'>tip</span>after.</p>",
+            "Before\ntip\nafter.",
+        ),
+        (
+            "<p>f1<span style='float:left'>fl</span>f2</p>",
+            "f1\nfl\nf2",
+        ),
+        (
+            "<p>r1<span style='position:relative'>rl</span>r2</p>",
+            "r1rlr2",
+        ),
+        ("<p>w1<b style='position:fixed'></b>w2</p>", "w1\nw2"),
+        (
+            "<style>var::after{content:attr(data-type);position:absolute}</style>\
+             <p>Convert <var data-type=ShareData>data</var> now.</p>",
+            "Convert data\nShareData\nnow.",
+        ),
+        (
+            "<style>b::before{content:'B';display:block}</style><p>x<b>y</b>z</p>",
+            "x\nB\nyz",
+        ),
+        (
+            "<style>b::after{content:'A'}</style><p>x<b>y</b>z</p>",
+            "xyAz",
+        ),
+    ] {
+        assert_eq!(t_css(html), want, "{html}");
+    }
+}

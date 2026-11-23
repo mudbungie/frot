@@ -43,6 +43,10 @@ pub fn reduce(
         visibility: visibility(applied, parent_vis),
         before: generated(applied, Pseudo::Before, el),
         after: generated(applied, Pseudo::After, el),
+        before_display: pseudo_display(applied, Pseudo::Before),
+        after_display: pseudo_display(applied, Pseudo::After),
+        out_of_flow: out_of_flow(applied, None),
+        pseudo_out_of_flow: [Pseudo::Before, Pseudo::After].map(|p| out_of_flow(applied, Some(p))),
     }
 }
 
@@ -63,7 +67,8 @@ fn flex_direction(applied: &[Applied]) -> FlexDirection {
         .unwrap_or_default()
 }
 
-/// The winning `display`: a matched author/inline rule ([`Display::parse`]),
+/// The winning `display`, blockified when the box is out of flow
+/// ([`out_of_flow`]): a matched author/inline rule ([`Display::parse`]),
 /// else the tag's UA-implicit display — but `<noscript>` is UA-implicit `none`
 /// once `--js` ran (js.md §4: scripting hides noscript), and `[hidden]` is
 /// UA-implicit `none` always ([`Element::hidden`]). Both are author-overridable:
@@ -77,11 +82,34 @@ fn display(applied: &[Applied], el: &Element, js: bool) -> Display {
     if el.hidden_input() {
         return Display::None;
     }
-    match winner(applied, None, "display") {
+    let display = match winner(applied, None, "display") {
         Some(v) => Display::parse(v),
         None if el.hidden() || (js && el.name == "noscript") => Display::None,
         None => implicit_display(&el.name),
-    }
+    };
+    display.blockified(out_of_flow(applied, None))
+}
+
+/// The computed `display` of a pseudo-element's box: its own declaration,
+/// else `inline`, blockified when the pseudo-element is out of flow.
+fn pseudo_display(applied: &[Applied], pseudo: Pseudo) -> Display {
+    winner(applied, Some(pseudo), "display")
+        .map(Display::parse)
+        .unwrap_or_default()
+        .blockified(out_of_flow(applied, Some(pseudo)))
+}
+
+/// Whether the box is out of flow: absolutely positioned (`position:
+/// absolute | fixed`) or floated. `relative` and `sticky` stay in flow.
+/// Measured in Chrome 158 (`bl-346e`): each computes `display: block` for a
+/// span and puts it on a line of its own in `innerText`.
+fn out_of_flow(applied: &[Applied], pseudo: Option<Pseudo>) -> bool {
+    let is = |name: &str, values: &[&str]| {
+        winner(applied, pseudo, name)
+            .is_some_and(|v| values.contains(&v.trim().to_ascii_lowercase().as_str()))
+    };
+    is("position", &["absolute", "fixed"])
+        || is("float", &["left", "right", "inline-start", "inline-end"])
 }
 
 /// UA-implicit `display` when no rule sets it: `datalist` → none, `li` →

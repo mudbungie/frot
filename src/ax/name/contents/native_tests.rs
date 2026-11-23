@@ -103,3 +103,24 @@ fn a_q_is_quoted_under_a_cascade() {
     let authored = "<style>q::before{content:'<'}</style>a<q>x</q>c";
     assert_eq!(name(authored, true), "a<x\u{201d}c");
 }
+
+/// `bl-346e`, Chrome 158: a box out of flow is blockified, so it is spaced
+/// off; so is generated content whose own box is not a plain inline one.
+#[test]
+fn an_out_of_flow_box_and_a_block_pseudo_element_are_spaced_off() {
+    assert_eq!(name("a<span style='float:left'>fl</span>c", true), "a fl c");
+    assert_eq!(
+        name("a<span style='position:absolute'>ab</span>c", true),
+        "a ab c"
+    );
+    assert_eq!(
+        name("a<span style='position:sticky'>st</span>c", true),
+        "astc"
+    );
+    let block = "<style>h2::after{content:'A';display:block}</style>Bgen";
+    assert_eq!(name(block, true), "Bgen A");
+    let before = "<style>h2::before{content:'B';position:absolute}</style>Bgen";
+    assert_eq!(name(before, true), "B Bgen");
+    let inline = "<style>h2::after{content:'A'}</style>Bgen";
+    assert_eq!(name(inline, true), "BgenA");
+}

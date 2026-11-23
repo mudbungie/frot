@@ -91,6 +91,20 @@ impl State {
         }
     }
 
+    /// `::before`/`::after` text: inline, unless the pseudo-element's own box
+    /// is block-level — then it stands on a line of its own, as an element
+    /// would (`bl-346e`: an absolutely positioned `::after` label).
+    fn push_generated(&mut self, text: Option<&str>, display: Display) {
+        let Some(text) = text else { return };
+        if display.block_level() {
+            self.block_break();
+        }
+        self.push_text(text);
+        if display.block_level() {
+            self.block_break();
+        }
+    }
+
     fn push_newline(&mut self) {
         if self.pre_depth > 0 {
             self.out.push('\n');
@@ -137,15 +151,13 @@ impl State {
 /// (`bl-fe2c`): `x<span style="display:block">sb</span>y` is three lines and
 /// so is a `display:flex` or `list-item` span, while `x<div
 /// style="display:inline">di</div>y` is the one token `xdiy`; an inline-block
-/// or inline-flex box stays on its line. The `<p>` is `innerText`'s own rule,
+/// or inline-flex box stays on its line. A box out of flow is blockified by
+/// the cascade, so `Before<span style="position:absolute">tip</span>after`
+/// is three lines too (`bl-346e`). The `<p>` is `innerText`'s own rule,
 /// keyed on the element rather than its box: `<p style="display:inline">`
 /// still stands on a line of its own.
 fn breaks_line(styles: Option<&Styles>, id: NodeId, tag: &str) -> bool {
-    let block = matches!(
-        Display::of(styles, id, tag),
-        Display::Block | Display::ListItem | Display::Flex
-    );
-    block || tag == "p"
+    Display::of(styles, id, tag).block_level() || tag == "p"
 }
 
 fn visible(styles: Option<&Styles>, id: NodeId) -> bool {
@@ -194,18 +206,14 @@ fn emit(
             if pre {
                 state.pre_depth += 1;
             }
-            if vis {
-                if let Some(b) = styles.and_then(|s| s.before(id)) {
-                    state.push_text(b);
-                }
+            if let Some(s) = styles.filter(|_| vis) {
+                state.push_generated(s.before(id), s.before_display(id));
             }
             for c in doc.painted_children(id) {
                 emit(doc, c, state, styles, vis);
             }
-            if vis {
-                if let Some(a) = styles.and_then(|s| s.after(id)) {
-                    state.push_text(a);
-                }
+            if let Some(s) = styles.filter(|_| vis) {
+                state.push_generated(s.after(id), s.after_display(id));
             }
             if pre {
                 state.pre_depth -= 1;

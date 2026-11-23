@@ -684,7 +684,7 @@ an authored page (`reach.html` for the stylesheet ones, `roles.html` for the
 | `bl-6363` | sibling combinators `+` / `~` unsupported | W3C spec (left out) |
 | `bl-e987` | `:first-child` / `:last-child` unsupported: list separators come out wrong | Wikipedia (trailing `·`) |
 | `bl-e48d` | `text-transform` not applied to `text` or accessible names | Bootstrap (`HTML`) |
-| `bl-346e` | an absolutely positioned box fuses with its neighbours in `text` | W3C spec (left out) |
+| `bl-346e` (fixed) | an absolutely positioned box fuses with its neighbours in `text` | W3C spec (left out) |
 | `bl-fc83` (fixed) | DPUB-ARIA roles (`doc-noteref` …) ignored | Python docs (left out) |
 | `bl-2ea9` (fixed) | a `role=presentation` table keeps its rows and cells | Wikipedia (message box) |
 | `bl-b124` (fixed) | a `<style>` in the body is read into an accessible name | a larger Wikipedia article (left out) |

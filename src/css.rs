@@ -107,6 +107,24 @@ impl Display {
 }
 
 impl Display {
+    /// Whether the box is block-level: it starts and ends a line. The
+    /// inline-level boxes are `inline`, `inline-block` and `inline-flex`.
+    pub fn block_level(self) -> bool {
+        matches!(self, Display::Block | Display::ListItem | Display::Flex)
+    }
+
+    /// The computed `display` of a box taken out of flow — absolutely
+    /// positioned or floated — which CSS blockifies (CSS Display §2.7):
+    /// `inline` and `inline-block` compute to `block`, `inline-flex` to
+    /// `flex`. In flow, and for every other value, it is `self`.
+    pub fn blockified(self, out_of_flow: bool) -> Self {
+        match self {
+            Display::Inline | Display::InlineBlock if out_of_flow => Display::Block,
+            Display::InlineFlex if out_of_flow => Display::Flex,
+            other => other,
+        }
+    }
+
     /// The box an element generates, for a reader that may have no cascade:
     /// the computed `display` where there is one, and where there is not the
     /// tag's own — block for a [`crate::tags::is_block`] tag, inline for any
@@ -138,6 +156,17 @@ pub struct ComputedStyle {
     pub before: Option<String>,
     /// `::after` generated content, if a generated box is produced.
     pub after: Option<String>,
+    /// Computed `display` of the `::before` box (`inline` unless a rule on
+    /// the pseudo-element says otherwise or takes it out of flow).
+    pub before_display: Display,
+    /// Computed `display` of the `::after` box.
+    pub after_display: Display,
+    /// Whether the box is out of flow: `position: absolute | fixed`, or a
+    /// float. Such a box is blockified ([`Display::blockified`]) and yet does
+    /// not make its parent's other children block-level.
+    pub out_of_flow: bool,
+    /// The same fact for the `::before` and the `::after` box, in that order.
+    pub pseudo_out_of_flow: [bool; 2],
 }
 
 /// Per-node computed styles, indexed by [`NodeId`]. Non-element nodes and
@@ -190,6 +219,31 @@ impl Styles {
 
     pub fn after(&self, id: NodeId) -> Option<&str> {
         self.get(id).after.as_deref()
+    }
+
+    /// Computed `display` of `id`'s `::before` box.
+    pub fn before_display(&self, id: NodeId) -> Display {
+        self.get(id).before_display
+    }
+
+    /// Computed `display` of `id`'s `::after` box.
+    pub fn after_display(&self, id: NodeId) -> Display {
+        self.get(id).after_display
+    }
+
+    /// The boxes `id` generates, `::before` then `::after`, each as its
+    /// computed `display` and whether it is in flow.
+    pub fn generated_boxes(&self, id: NodeId) -> impl Iterator<Item = (Display, bool)> {
+        let cs = self.get(id);
+        let [before, after] = cs.pseudo_out_of_flow;
+        let before = cs.before.as_ref().map(|_| (cs.before_display, !before));
+        let after = cs.after.as_ref().map(|_| (cs.after_display, !after));
+        before.into_iter().chain(after)
+    }
+
+    /// Whether `id`'s box is out of flow ([`ComputedStyle::out_of_flow`]).
+    pub fn out_of_flow(&self, id: NodeId) -> bool {
+        self.get(id).out_of_flow
     }
 }
 

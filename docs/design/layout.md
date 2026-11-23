@@ -175,6 +175,16 @@ the tag's own display and not a fact about its parent — which is what stops
 Coercion is deterministic and documented; it is not a silent failure (§6, honest
 signals).
 
+**Blockified (`bl-346e`).** A box taken out of flow — `position: absolute |
+fixed`, or a `float` other than `none` — computes a block-level `display`, as
+CSS Display §2.7 says and Chrome 158 reports: `inline` and `inline-block`
+become `block`, `inline-flex` becomes `flex`. The cascade applies it to
+elements and to `::before`/`::after` alike, and keeps the fact itself
+(`Styles::out_of_flow`) beside the display it produced. It is what puts an
+absolutely positioned label on its own line in `text` and spaces it off in an
+accessible name. Layout still places the box in normal flow (§6): only its
+`display` changed.
+
 ### 2.2 Accessors, not remembered checks (`bl-0aaf`, `bl-d470`)
 
 `bl-0f83` claimed the fallback rule "holds in every recipe" on the strength of
