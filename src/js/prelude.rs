@@ -206,8 +206,12 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/canvaselem.js"),
     "\n",
-    // Image (bl-1404): an <img> in no tree, and the members of
-    // HTMLImageElement.prototype.
+    // Image (bl-1404): what an <img>'s `src` does (imageload.js, bl-91a4 — after
+    // observer.js, whose mutation seam it wraps in turn, and loop.js, whose timer
+    // driver it runs ahead of), then `new Image()` and the members of
+    // HTMLImageElement.prototype over it.
+    include_str!("prelude/imageload.js"),
+    "\n",
     include_str!("prelude/image.js"),
     "\n",
     // WebGL fingerprint (bl-f624): a coherent, deterministic simulation. webglpix.js

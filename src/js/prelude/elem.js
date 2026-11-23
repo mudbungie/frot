@@ -209,6 +209,11 @@
       },
     };
   }
+  Object.defineProperty(g, '__frot_reflect_url', {
+    value: g.__frot_brand(reflectUrl, '__frot_reflect_url'),
+    configurable: true,
+    writable: true,
+  });
   tagdef('Area Base Anchor Link', 'href', reflectUrl('href'));
   tagdef('Image Media Track Script IFrame Embed Frame Input Source', 'src', reflectUrl('src'));
 

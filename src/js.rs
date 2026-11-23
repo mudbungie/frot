@@ -10,6 +10,7 @@
 //! escapes `src/js/`, mirroring how no `markup5ever` type leaks past `dom.rs`.
 
 pub mod engine;
+mod eventloop;
 mod geometry;
 mod loader;
 mod prelude;
@@ -152,7 +153,7 @@ pub(crate) fn run_session(session: &Session) -> Report {
     session.warm_initial_scripts();
     run_script_queue(session, &mut report);
     if report.settled() {
-        run_event_loop(session, &mut report);
+        eventloop::run(session, &mut report);
     }
     // Quiescence within bounds is `settled`'s one meaning (§5): the loop can
     // conclude *because* the §6 seam refused dispatch once the run had spent its
@@ -254,43 +255,6 @@ fn tally(session: &Session, report: &mut Report, result: Result<String, EvalErro
         Err(EvalError::Budget) => {
             report.errors += 1;
             report.stopped = Some(JsStop::Budget);
-        }
-    }
-}
-
-/// The settle loop (§5): fire `DOMContentLoaded` then `load`, then drain the
-/// virtual-clock timer queue until nothing is due before the horizon. Each step
-/// is one host-driven macrotask (microtasks drain between, in the engine). A
-/// budget trip stops the loop and leaves the run unsettled.
-fn run_event_loop(session: &Session, report: &mut Report) {
-    for name in ["DOMContentLoaded", "load"] {
-        match drive(session, &format!("__frot_fire('{name}')"), report) {
-            Some(errs) => report.errors += errs as u32,
-            None => return,
-        }
-    }
-    loop {
-        match drive(session, "__frot_next_timer()", report) {
-            // -1: nothing due before the horizon — the loop has settled (§5).
-            Some(n) if n < 0 => break,
-            // A fired callback: `n` is its error count (0 or 1); loop continues.
-            Some(n) => report.errors += n as u32,
-            // Budget tripped mid-callback: `stopped` already named, stop.
-            None => break,
-        }
-    }
-}
-
-/// Run one event-loop driver call, returning its integer protocol value, or
-/// `None` when the compute budget tripped (which names `stopped: "budget"`). The
-/// drivers catch callback throws in JS and encode them in the return value, so
-/// the only non-value outcome is a budget hit.
-fn drive(session: &Session, src: &str, report: &mut Report) -> Option<i64> {
-    match session.run_task(src) {
-        Ok(s) => Some(s.trim().parse::<i64>().unwrap_or(0)),
-        Err(_) => {
-            report.stopped = Some(JsStop::Budget);
-            None
         }
     }
 }

@@ -27,6 +27,7 @@ mod crypto;
 mod env;
 mod frame;
 mod host;
+mod image;
 mod messages;
 mod net;
 mod subtle;
@@ -51,6 +52,7 @@ const GROUPS: &[Group] = &[
     cookie::install,
     crypto::install,
     subtle::install,
+    image::install,
     frame::install,
 ];
 

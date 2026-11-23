@@ -1,9 +1,9 @@
 //! `Image` and `HTMLImageElement` (`bl-1404`), against what Firefox 153.0esr
-//! does with the same calls (identity.md §3.20) — and frot's one declared
-//! departure: an image never arrives, so nothing is requested and nothing fires.
+//! does with the same calls (identity.md §3.20); what an image's `src` does is
+//! `imageload`'s.
 
-use super::{drive, sess, Session};
-use crate::dom::{Document, NodeKind};
+use super::{sess, Session};
+use crate::dom::Document;
 use crate::fetch::FetchSession;
 use crate::js::{Env, StyleSource};
 
@@ -120,29 +120,10 @@ fn the_image_members_belong_to_img_alone() {
     }
 }
 
-/// frot's declared departure, half one: the image stays as a browser's is
-/// before the response — no `load`, no `error`, however long the page waits.
-#[test]
-fn an_image_never_arrives() {
-    let (doc, report) = drive(
-        "<body><script>var log=[], i=new Image();\
-         i.onload=function(){log.push('load')}; i.onerror=function(){log.push('error')};\
-         i.addEventListener('load',function(){log.push('load')});\
-         i.addEventListener('error',function(){log.push('error')});\
-         i.src='/pixel.gif?id=1';\
-         setTimeout(function(){log.push('later',i.complete,i.naturalWidth);\
-         document.body.setAttribute('data-out',log.join())},5000)</script></body>",
-    );
-    assert_eq!((report.errors, report.settled()), (0, true));
-    let body = doc.find_by_tag("body")[0];
-    let NodeKind::Element(el) = &doc.node(body).kind else {
-        unreachable!("body is an element")
-    };
-    assert_eq!(el.attr("data-out"), Some("later,false,0"));
-}
-
-/// Half two: assigning `src` reflects it and requests nothing. A beacon is not
-/// sent.
+/// No request leaves frot for an image: assigning `src` reflects it, and a
+/// beacon (`new Image().src = url`) is not sent. The image fails instead, the
+/// way it does in a Firefox with images blocked (bl-91a4; imageload.rs has the
+/// rest of the rule).
 #[test]
 fn an_image_is_never_requested() {
     let mut server = mockito::Server::new();
@@ -160,23 +141,22 @@ fn an_image_is_never_requested() {
     );
     s.eval("var i=new Image(); i.src='/pixel.gif?id=1'; document.body.appendChild(i)")
         .unwrap();
-    beacon.assert();
     let src = format!("{}/pixel.gif?id=1", server.url());
+    let read =
+        "[i.src,i.getAttribute('src'),i.complete,i.naturalWidth,i.naturalHeight,i.currentSrc]";
     assert_eq!(
-        s.eval(
-            "[i.src,i.getAttribute('src'),i.complete,i.naturalWidth,i.naturalHeight,i.currentSrc]"
-        )
-        .unwrap(),
-        format!("{src},/pixel.gif?id=1,false,0,0,")
+        s.eval(read).unwrap(),
+        format!("{src},/pixel.gif?id=1,false,0,0,{src}")
     );
-    // No `src`, or an empty one, is nothing to wait for; a parsed <img> waits
-    // exactly as a constructed one does.
+    // The parsed <img> and the beacon both end, failed, and nothing was fetched.
+    s.eval("while(__frot_next_image()>=0);").unwrap();
+    beacon.assert();
     assert_eq!(
-        s.eval(
-            "(function(){var e=new Image();e.src='';return [new Image().complete,e.complete,\
-             document.getElementById('a').complete,document.getElementById('a').naturalWidth]})()"
-        )
-        .unwrap(),
-        "true,true,false,0"
+        s.eval(read).unwrap(),
+        format!("{src},/pixel.gif?id=1,true,0,0,{src}")
+    );
+    assert_eq!(
+        s.eval("document.getElementById('a').complete").unwrap(),
+        "true"
     );
 }

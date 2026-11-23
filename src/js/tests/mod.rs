@@ -26,6 +26,7 @@ mod fragment;
 mod frame;
 mod idle;
 mod image;
+mod imageload;
 mod iterator;
 mod net;
 mod netbudget;

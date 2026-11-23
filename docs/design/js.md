@@ -1039,6 +1039,49 @@ that, a page walking any of them read frot's implementation instead.
     re-`observe()` honestly re-delivers the then-current state; an emptied
     delivery wave never invokes the callback with zero entries.
 
+- **Images (`bl-91a4`, Mark's ruling 2026-11-22: "stop hanging").** *Supersedes
+  `bl-1404`'s "an image never arrives" (2026-11-21), under which no `<img>`
+  ever fired `load` or `error` and a page awaiting one stalled for the whole
+  run.* frot fetches no image. Every `<img>` — parsed, created, cloned,
+  inserted by `innerHTML`, or `new Image()` — follows one rule, the rule a
+  Firefox 153.0esr with images blocked (`permissions.default.image = 2`)
+  follows, measured on that binary:
+  1. Setting `src` starts a request (the one before it is abandoned and its
+     task goes stale): `complete` turns `false`, except for `src=""`, which is
+     `complete` at once. Removing `src` abandons the request and fires nothing;
+     an `<img>` with no `src` is `complete` and never fires.
+  2. On a later task the request ends. A `data:` URL that holds a **whole**
+     image frot can size **loads**: `naturalWidth`/`naturalHeight` are read off
+     its header (PNG, GIF, JPEG, WebP, BMP, ICO by signature whatever the
+     declared type — Firefox sniffs; SVG only when declared `image/svg+xml`,
+     sized from the root's `width`/`height`/`viewBox` as Firefox sizes it),
+     `currentSrc` is the URL, `load` fires. Anything else — every network URL,
+     a non-image or truncated `data:` URL, `src=""` — **fails**: size 0, `error`
+     fires. Both events are trusted, do not bubble, and run listeners and then
+     the element's `onload`/`onerror` property. `decode()` settles with the
+     request (`EncodingError` "Invalid image request." with no `src` or when a
+     new `src` abandons it, "Invalid encoded image data." when it fails).
+  3. The document's `load` waits for its images, as a browser's does: the host
+     runs every queued image task (`__frot_next_image`, one macrotask each)
+     between `DOMContentLoaded` and `load`; afterwards image tasks run ahead of
+     the timers.
+  "Whole" is judged by the container (PNG `IEND`, GIF `;` trailer, JPEG `EOI`
+  after the frame header, RIFF length), because Firefox fails a header-only
+  file. **Residuals:** a whole-but-corrupt `data:` image loads in frot and
+  fails in Firefox; AVIF and other formats frot cannot size fail where Firefox
+  loads them; EXIF orientation does not swap a JPEG's size; an SVG length in a
+  unit other than `px` counts as missing; `loading=lazy` images fail like any
+  other (a Firefox would not request an off-screen one at all). The size reader
+  is `src/js/syscall/image.rs`, the rule `prelude/imageload.js`, the interface
+  (Firefox's 27 `HTMLImageElement.prototype` members) `prelude/image.js`.
+  **Measured effect on output (2026-11-22):** the `images` fidelity fixture
+  (an `error` handler hiding a broken image, a page awaiting five images) now
+  matches Chrome; twelve live script-heavy pages under `--css --js` produced
+  the same `text` and `ax` before and after, except Amazon, whose home page
+  varies between runs by more than any difference seen. Firefox itself, images
+  on vs blocked, showed no text change on the same pages. Sending the GET is a
+  separate, open decision: `bl-49f1`.
+
 ## 8. Geometry reads — the third layout trigger
 
 VISION names JS as the third layout trigger. `offsetWidth`/`offsetHeight`/
@@ -1191,7 +1234,9 @@ Two moves against today's `run.rs`:
 
 - **No interaction.** No synthetic clicks, no form submission, no input
   events, no scrolling. The lifecycle events (`DOMContentLoaded`, `load`) are
-  the only events the host ever dispatches. "Click X if Y" is a different
+  the only events the host ever dispatches. *(2026-11-22, `bl-91a4`: and an
+  `<img>`'s `load`/`error` (§7 "Images") — the end of a request the page
+  made, not an interaction.)* "Click X if Y" is a different
   tool (VISION non-goals).
   > **Load-bearing as of 2026-07-22 (`bl-017a`).** This bullet is **unchanged**
   > by the challenge design: `form.submit()`/`requestSubmit()` remain no-ops

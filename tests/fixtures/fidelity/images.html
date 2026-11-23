@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Image events</title>
+</head>
+<body>
+<h1>Image events</h1>
+<p id="badge-wrap"><img id="badge" src="data:,not-an-image" alt="Broken badge"> Badge</p>
+<ul id="log"></ul>
+<p id="ready">Waiting for images</p>
+<p id="badge-state">Badge pending</p>
+<p id="loaded">Document loading</p>
+<script>
+// What a page that waits on its images sees (bl-91a4): a whole data: image
+// loads with its size, anything else fails, and the document's load event
+// comes after both. The broken parsed image is hidden by its error handler,
+// the pattern a page uses for a broken avatar.
+var log = document.getElementById('log');
+function say(line) {
+  var li = document.createElement('li');
+  li.textContent = line;
+  log.appendChild(li);
+}
+var badge = document.getElementById('badge');
+badge.addEventListener('error', function () {
+  badge.style.display = 'none';
+  document.getElementById('badge-state').textContent = 'Badge failed and was hidden';
+});
+var sources = [
+  ['gif', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'],
+  ['truncated gif', 'data:image/gif;base64,R0lGODlhAQABAAAAACw='],
+  ['svg', 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2230%22/%3E'],
+  ['text', 'data:,hello'],
+  ['empty', '']
+];
+var waiting = sources.map(function (pair) {
+  return new Promise(function (done) {
+    var img = new Image();
+    img.onload = function () {
+      done(pair[0] + ' load ' + img.naturalWidth + 'x' + img.naturalHeight);
+    };
+    img.onerror = function () {
+      done(pair[0] + ' error ' + img.naturalWidth + 'x' + img.naturalHeight);
+    };
+    img.src = pair[1];
+  });
+});
+Promise.all(waiting).then(function (lines) {
+  lines.forEach(say);
+  document.getElementById('ready').textContent = 'All images settled';
+});
+window.addEventListener('load', function () {
+  document.getElementById('loaded').textContent = 'Document loaded, badge complete: ' + badge.complete;
+});
+</script>
+</body>
+</html>

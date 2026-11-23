@@ -1,7 +1,8 @@
 // Events: the ONE listener registry and the EventTarget interface over it
 // (bl-e81b, split out of loop.js by bl-6438; js.md §4.4/§11, identity.md §10).
-// DOMContentLoaded/load are the only events frot's host ever fires (js.md §11) —
-// everything else registered here runs only if the page dispatches it itself, so
+// DOMContentLoaded/load (and an <img>'s load/error, imageload.js) are the only
+// events frot's host fires (js.md §11) — everything else registered here runs
+// only if the page dispatches it itself, so
 // this file is a registry and a shape, not a scheduler: WHEN the host fires lives
 // in loop.js, which dispatches through the `__frot_dispatch` helper exported at
 // the end. It moved out of loop.js when EventTarget stopped being a constructor
@@ -33,6 +34,8 @@
     if (i >= 0) b.splice(i, 1);
   }
   function fire(key, ev, target) {
+    // A target object names its own bucket (imageload.js fires on an <img>).
+    if (typeof key !== 'string') key = etKey(key);
     // The dispatcher sets `event.target`, as a real one does — it is not a value
     // the code raising the event writes. Four call sites used to assign it by
     // hand, which stopped being possible when `target` became the read-only

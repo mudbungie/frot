@@ -63,11 +63,14 @@
     HTMLLinkElement: 'disabled href rel relList type',
     HTMLLIElement: 'value type',
     HTMLParamElement: 'value type',
+    HTMLImageElement: 'decode alt src srcset crossOrigin useMap referrerPolicy isMap width height ' +
+      'decoding loading fetchPriority naturalWidth naturalHeight complete name align hspace vspace ' +
+      'longDesc border sizes currentSrc lowsrc x y',
   };
   // The tag-specific members sit in this relative order on every HTML<Tag>
-  // interface but the three named above.
+  // interface but the four named above.
   var TAGGED = 'getContext toDataURL checked disabled src rel relList href type defaultValue selected ' +
-    'value width height contentDocument contentWindow naturalWidth naturalHeight complete currentSrc';
+    'value width height contentDocument contentWindow';
   Object.getOwnPropertyNames(g).forEach(function (name) {
     if (!ORDER[name] && !/^HTML.+Element$/.test(name)) return;
     var proto = g[name].prototype;

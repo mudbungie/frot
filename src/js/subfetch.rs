@@ -34,7 +34,7 @@ use crate::fetch::{FetchError, FetchResult, FetchSession, Intent, TIMEOUT_SECS};
 
 use super::engine::NetBudget;
 
-mod data;
+pub(crate) mod data;
 mod post;
 mod warm;
 

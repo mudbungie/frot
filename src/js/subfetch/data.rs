@@ -24,7 +24,7 @@ const DEFAULT_MIME: &str = "text/plain;charset=US-ASCII";
 /// test for "this resource needs no network", read by both [`super::Subfetch::get`]
 /// and the preload warm (a data URL has no latency to hide, so warming it is
 /// meaningless).
-pub(super) fn payload(url: &str) -> Option<&str> {
+pub(crate) fn payload(url: &str) -> Option<&str> {
     url.strip_prefix("data:")
 }
 
@@ -34,16 +34,7 @@ pub(super) fn payload(url: &str) -> Option<&str> {
 /// decode is a plain failure, surfaced through the same §10 channel as a
 /// transport error.
 pub(super) fn decode(url: &str, payload: &str) -> Result<Frozen, String> {
-    let (meta, data) = payload
-        .split_once(',')
-        .ok_or_else(|| format!("malformed data: URL (no comma): {}", brief(url)))?;
-    let (mime, is_base64) = media_type(meta.trim());
-    let bytes = percent_encoding::percent_decode_str(data).collect::<Vec<u8>>();
-    let bytes = if is_base64 {
-        base64(&bytes).ok_or_else(|| format!("malformed base64 in data: URL: {}", brief(url)))?
-    } else {
-        bytes
-    };
+    let (mime, bytes) = bytes(payload).map_err(|why| format!("{why}: {}", brief(url)))?;
     let (body, _charset) = decode_body(&bytes, Some(mime));
     Ok(Frozen {
         ok: true,
@@ -52,6 +43,22 @@ pub(super) fn decode(url: &str, payload: &str) -> Result<Frozen, String> {
         body,
         headers: vec![("content-type".to_string(), mime.to_string())],
     })
+}
+
+/// A data URL [`payload`]'s declared media type and its decoded bytes — the one
+/// decoder, shared by the subfetch response above and the `<img>` sniff
+/// (`syscall::image`), which needs the bytes and never a text body.
+pub(crate) fn bytes(payload: &str) -> Result<(&str, Vec<u8>), &'static str> {
+    let (meta, data) = payload
+        .split_once(',')
+        .ok_or("malformed data: URL (no comma)")?;
+    let (mime, is_base64) = media_type(meta.trim());
+    let bytes = percent_encoding::percent_decode_str(data).collect::<Vec<u8>>();
+    if is_base64 {
+        let bytes = base64(&bytes).ok_or("malformed base64 in data: URL")?;
+        return Ok((mime, bytes));
+    }
+    Ok((mime, bytes))
 }
 
 /// Split a data URL's metadata into its media type and the base64 flag. An

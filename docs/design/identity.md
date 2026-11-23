@@ -1281,6 +1281,28 @@ size behind them); `alt`, `loading`, `decoding`, `crossOrigin`, `x`, `y` and
 the rest are not IMG properties; `HTMLImageElement.prototype` owns only
 `constructor`.
 
+> **Superseded 2026-11-22 (`bl-91a4`; Mark: "stop hanging").** frot now
+> follows row 9 — a Firefox with images blocked — for every `<img>`, except
+> that a `data:` image it can size loads (row 8): `js.md` §7 "Images" states
+> the rule. `decode()`, the 27 prototype members and `width`/`height` falling
+> back to the natural size are built. Measured for it, same rig:
+>
+> | fact | value | provenance |
+> |---|---|---|
+> | a `data:` PNG/GIF/JPEG cut after its header (or with junk after the header) | `error` — a header is not an image | read |
+> | PNG bytes declared `text/plain` | `load` (sniffed); SVG declared `text/plain`: `error` | read |
+> | BMP, ICO, WebP (`VP8 `, `VP8L`, `VP8X`), progressive JPEG | `load`, real size | read |
+> | SVG `width="40px" height="30.6"` / `viewBox="0 0 80 60"` only / `width="40"` + that viewBox / neither / `width="50%" height="20em"` | 40×31 / 300×225 / 40×30 / 300×150 / 300×320 | read |
+> | SVG without the SVG namespace, or unclosed | `error` | read |
+> | `load`/`error` event | an `Event`, `isTrusted` `true`, `bubbles` `false`; `currentSrc` is the URL in both cases (`""` for `src=""`) | read |
+> | parsed `<img>` events vs `window` `load` | both images' events first, then `load` | read |
+> | `decode()` | `.length` 0; resolves `undefined` once loaded; rejects `EncodingError` "Invalid image request." (no `src`, `src=""`, or `src` changed while pending), "Invalid encoded image data." (failed) | read |
+> | `crossOrigin` | `null` absent; `""`/invalid → `"anonymous"`; `"USE-credentials"` → `"use-credentials"`; set `null` removes the attribute | read |
+> | `decoding` / `loading` / `fetchPriority` | `auto`/`eager`/`auto` absent or invalid; keywords lowercased | read |
+> | `referrerPolicy` | `""` absent or invalid | read |
+> | `hspace="-3"` / `"7"` | 0 / 7; `longDesc`, `lowsrc` resolve as URLs; `isMap` is a boolean attribute | read |
+> | the image request, parsed `<img>` and `new Image()` alike | `Accept: image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5`, `Sec-Fetch-Dest: image`, `Sec-Fetch-Mode: no-cors`, `Referer` the page; `Priority: u=4, i` parsed, `u=5, i` scripted | read |
+
 **`FileReader` and `ProgressEvent` (`bl-8c46`, 2026-11-20).**
 
 | fact | value | provenance |
@@ -2698,7 +2720,7 @@ Permanently out of reach, by design or by constraint:
 | **`TextDecoder` legacy encodings** | `TextEncoder`/`TextDecoder` are built for UTF-8 (`bl-53b7`, §3.20). Firefox's `TextDecoder` also decodes some forty legacy encodings (`windows-1252`, `utf-16le`, `shift_jis`, …); frot's refuses every non-UTF-8 label with the `RangeError` Firefox gives an unknown one — a refusal, never mis-decoded text. A page that decodes a legacy encoding in script sees a Firefox that cannot. `encoding_rs` (Gecko's own decoder) is already linked, so closing this is a syscall, not a crate. |
 | **`requestIdleCallback` `timeout`** | Built on the virtual clock (`bl-b584`, §3.20): an idle callback runs once every timer due at that instant has run. The idle period therefore always arrives, so `didTimeout` is always `false` and a `timeout` option is accepted and unused — where a busy real page can report `true`. A coherent value a real Firefox also produces, not a fabricated one. |
 | **`FileReader`** | Built 2026-11-20 (`bl-8c46`, §3.20) over `Blob`, with `ProgressEvent`. Residual: `readAsText` decodes **UTF-8 only** — a legacy `encoding` argument, a `charset` in the blob's type or a UTF-16 byte-order mark is ignored, where Firefox honours each (the same gap as the `TextDecoder` row); `error` never fires (an in-memory read cannot fail); no `File`. |
-| **`Image` / `<img>` loading** | `Image` and `HTMLImageElement` exist (`bl-1404`, §3.20). **An image never arrives** — a pinned choice: no request is sent for any `<img>` (so no beacon), neither `load` nor `error` fires, `complete` stays `false` once a `src` is set, the natural size is 0. A real Firefox holds that state only until the response; a page awaiting the image waits out the run. No `data:` image loading, no `decode()`, no IMG-specific properties beyond `src`/`width`/`height`/`complete`/`naturalWidth`/`naturalHeight`/`currentSrc`. Whether images should fail instead (what a Firefox with images blocked does, measured) or beacons be sent: `bl-91a4`. |
+| **`Image` / `<img>` loading** | `Image` and `HTMLImageElement` exist (`bl-1404`, §3.20). **No image is fetched** (so no beacon is sent). Since `bl-91a4` (2026-11-22) every `<img>` behaves as in a Firefox with images blocked — `error` on a task, `complete`, size 0 — except a whole `data:` image frot can size (PNG, GIF, JPEG, WebP, BMP, ICO, simple SVG), which loads with its real size (`js.md` §7 "Images"). Residuals: an AVIF or other unsized `data:` image fails where Firefox loads it; a whole-but-corrupt one loads where Firefox fails it; no EXIF orientation; `loading=lazy` images fail instead of never being requested. Whether to send the GET: `bl-49f1`. |
 | **DOM interface members** | The node interfaces are real and linked as on the binary (`bl-78cb`, §3.21): `EventTarget ← Node ← Element ← HTMLElement ← HTML<Tag>Element` (all 71), `Node ← CharacterData ← Text`/`Comment`, `Node ← DocumentType`; a node has one wrapper. Residual: each prototype holds the **subset** frot implements (27 of `Element.prototype`'s 144, 9 of `HTMLElement.prototype`'s 138; most `HTML<Tag>Element` prototypes hold only `constructor`), always in the binary's order and on the binary's interface. Elements have no namespace: `svg` alone is `SVGElement` (no `SVGSVGElement`/`SVGGraphicsElement`), every other foreign element is typed by its tag as if HTML. A call on the wrong receiver or with a non-node argument throws the engine's error, not WebIDL's. `input.type` reflects the attribute (`''` when absent, where the binary answers `text`); a doctype's `cloneNode()` is an empty text node (`bl-ad2d`). `document` is the document node's wrapper and owns `location` alone (`bl-9f79`), with 29 of `Document.prototype`'s 232 members; `document.cloneNode()`, `document.implementation` and `createHTMLDocument()` are not the binary's objects (§3.21). |
 | **`PerformanceObserver` delivers `resource` only** | Built 2026-11-22 (`bl-b129`, §3.20). Genuine for `resource` (the subfetches frot measures). Residual: `navigation` is never delivered and `performance.getEntriesByType('navigation')` is empty, where a real Firefox always has one entry — frot does not measure the document fetch and will not invent its phases; `paint` and `largest-contentful-paint` never come (nothing is painted); `mark`/`measure` never come (`performance.mark`/`measure` are absent); entries are plain objects, not `PerformanceResourceTiming`, and carry no `initiatorType`. |
 | **`Blob` / blob: URLs** | `Blob`, `URL.createObjectURL` and `revokeObjectURL` are real (`bl-78c5`, §3.20). Residual: no `Blob.prototype.stream` (no `ReadableStream`); a blob: URL cannot be loaded — `fetch`/XHR of one is a network error where Firefox answers 200, and a Blob-URL `Worker` never runs (the Worker row above); no `File`; a `FormData` holding a `Blob` cannot be POSTed. Each is a refusal or an absence, never a wrong value. |

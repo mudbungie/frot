@@ -3,17 +3,15 @@
 // the same arena node `document.createElement('img')` makes — and
 // `HTMLImageElement` (built by dom.js) is the interface of every <img>.
 //
-// frot fetches no image and decodes none, so an image never ARRIVES: assigning
-// `src` reflects the attribute and sends nothing; neither `load` nor `error`
-// fires; `complete` is false for as long as there is a `src` to wait for and
-// `naturalWidth`/`naturalHeight` stay 0. That is what a real <img> reports
-// between the assignment and the response, and it is true of every <img> frot
-// holds, parsed or constructed. A beacon (`new Image().src = url`) is therefore
-// not sent. Whether images should instead fail, or beacons go out, is a
-// decision, not a gap in this file: bl-91a4.
+// What an image DOES — the request its `src` starts and how it ends — is
+// imageload.js's (bl-91a4); this file is the interface over it: the 27 members
+// Firefox's prototype owns (tests/fixtures/js/dom-interfaces.json).
 (function (g) {
   'use strict';
   var brand = g.__frot_brand;
+  var slots = g.__frot_slots;
+  var load = g.__frot_image_hook;
+  delete g.__frot_image_hook;
   var HTMLImageElement = g.HTMLImageElement;
   var proto = HTMLImageElement.prototype;
 
@@ -22,6 +20,12 @@
   function dimension(v) {
     var n = v >>> 0;
     return n > 2147483647 ? 0 : n;
+  }
+  // An attribute read as a non-negative integer: its leading digits, else 0
+  // (measured: hspace="-3" is 0).
+  function integer(v) {
+    var n = parseInt(v, 10);
+    return n > 0 && n <= 2147483647 ? n : 0;
   }
 
   // `new Image(width, height)`: the height is only read when a width was given
@@ -40,39 +44,116 @@
   Image.prototype = proto;
   Object.defineProperty(g, 'Image', { value: Image, configurable: true, writable: true });
 
-  // What an <img> that has not arrived reports.
-  function pending(name, read) {
-    Object.defineProperty(proto, name, {
-      enumerable: true,
-      configurable: true,
-      get: brand(function () {
-        return read(this);
-      }, 'get ' + name),
+  function id(img) {
+    return slots(img).id;
+  }
+  function accessor(get, set) {
+    return { get: get, set: set };
+  }
+  function reflect(attr, read, write) {
+    return accessor(
+      function () {
+        return read(this.getAttribute(attr));
+      },
+      function (v) {
+        if (write) write(this, v);
+        else this.setAttribute(attr, String(v));
+      }
+    );
+  }
+  function text(v) {
+    return v || '';
+  }
+  // An enumerated attribute: its keyword lowercased when it is one, else the
+  // invalid-value default (`bad`), else — absent — the missing-value default.
+  function keyword(words, missing, bad) {
+    return function (v) {
+      if (v === null) return missing;
+      var k = v.toLowerCase();
+      return words.indexOf(k) >= 0 ? k : bad;
+    };
+  }
+  // `width`/`height`: the attribute when there is one, else the size the image
+  // arrived with (measured: a loaded `new Image()` with no attribute reports it).
+  function side(name, i) {
+    return accessor(
+      function () {
+        var v = this.getAttribute(name);
+        return v === null ? load.natural(id(this), i) : dimension(v);
+      },
+      function (v) {
+        this.setAttribute(name, String(dimension(v)));
+      }
+    );
+  }
+  function position(axis) {
+    return accessor(function () {
+      var r = this.getBoundingClientRect();
+      return Math.round(axis === 'x' ? r.left + g.scrollX : r.top + g.scrollY);
     });
   }
-  pending('complete', function (img) {
-    return !img.getAttribute('src');
-  });
-  pending('naturalWidth', function () {
-    return 0;
-  });
-  pending('naturalHeight', function () {
-    return 0;
-  });
-  pending('currentSrc', function () {
-    return '';
-  });
-
-  // `width`/`height` on an <img> are its attributes (there is no rendered box
-  // to measure and no intrinsic size to fall back on).
-  ['width', 'height'].forEach(function (name) {
-    g.__frot_tagdef('Image', name, {
-      get: brand(function () {
-        return dimension(this.getAttribute(name));
-      }, 'get ' + name),
-      set: brand(function (v) {
-        this.setAttribute(name, String(dimension(v)));
-      }, 'set ' + name),
+  function getter(read) {
+    return accessor(function () {
+      return read(id(this));
     });
+  }
+  var src = Object.getOwnPropertyDescriptor(proto, 'src');
+  var reflectUrl = g.__frot_reflect_url;
+  var members = {
+    alt: reflect('alt', text),
+    src: src,
+    srcset: reflect('srcset', text),
+    crossOrigin: reflect('crossorigin', keyword(['anonymous', 'use-credentials'], null, 'anonymous'),
+      function (el, v) {
+        if (v === null) el.removeAttribute('crossorigin');
+        else el.setAttribute('crossorigin', String(v));
+      }),
+    useMap: reflect('usemap', text),
+    referrerPolicy: reflect('referrerpolicy', keyword(['no-referrer', 'no-referrer-when-downgrade',
+      'same-origin', 'origin', 'strict-origin', 'origin-when-cross-origin',
+      'strict-origin-when-cross-origin', 'unsafe-url'], '', '')),
+    isMap: reflect('ismap', function (v) {
+      return v !== null;
+    }, function (el, v) {
+      if (v) el.setAttribute('ismap', '');
+      else el.removeAttribute('ismap');
+    }),
+    width: side('width', 0),
+    height: side('height', 1),
+    decoding: reflect('decoding', keyword(['sync', 'async', 'auto'], 'auto', 'auto')),
+    loading: reflect('loading', keyword(['lazy', 'eager'], 'eager', 'eager')),
+    fetchPriority: reflect('fetchpriority', keyword(['high', 'low', 'auto'], 'auto', 'auto')),
+    naturalWidth: getter(function (n) {
+      return load.natural(n, 0);
+    }),
+    naturalHeight: getter(function (n) {
+      return load.natural(n, 1);
+    }),
+    complete: getter(load.complete),
+    name: reflect('name', text),
+    align: reflect('align', text),
+    hspace: reflect('hspace', integer),
+    vspace: reflect('vspace', integer),
+    longDesc: reflectUrl('longdesc'),
+    border: reflect('border', text),
+    sizes: reflect('sizes', text),
+    currentSrc: getter(load.currentSrc),
+    lowsrc: reflectUrl('lowsrc'),
+    x: position('x'),
+    y: position('y'),
+  };
+  // Their order is Firefox's, set once with every interface's (nativebrand.js).
+  g.__frot_ifaceops(proto, {
+    decode: function decode() {
+      return load.decode(id(this));
+    },
+  });
+  Object.keys(members).forEach(function (k) {
+    var d = members[k];
+    if (d.get) brand(d.get, 'get ' + k);
+    if (d.set) brand(d.set, 'set ' + k);
+    d.enumerable = true;
+    d.configurable = true;
+    Object.defineProperty(proto, k, d);
   });
 })(globalThis);
