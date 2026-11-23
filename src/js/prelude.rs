@@ -88,6 +88,10 @@ pub const SOURCE: &str = concat!(
     // on the seam that file already named.
     include_str!("prelude/doc.js"),
     "\n",
+    // TreeWalker/NodeFilter (bl-b8c0): adds createTreeWalker to the Document
+    // prototype doc.js completes.
+    include_str!("prelude/treewalker.js"),
+    "\n",
     // The identity surface (bl-3972), derived from __frot_env_profile: after
     // dom.js (extends document/Node), any order among themselves.
     include_str!("prelude/navigator.js"),

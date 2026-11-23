@@ -34,6 +34,7 @@ mod receiver;
 mod reflect;
 mod scriptmode;
 mod subtle;
+mod treewalker;
 mod writable;
 
 fn test_env() -> Env {

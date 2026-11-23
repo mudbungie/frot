@@ -1369,6 +1369,35 @@ page nobody touches gets none in a browser either) and has no
 the same: it is a static fact a page compares, and shortening it would be a
 second tell on top of the silence.
 
+**`TreeWalker` and `NodeFilter` (`bl-b8c0`, 2026-11-23).** The first call
+of the Lit bundle on Amazon's home page (`bl-aff4`) is lit-html's module-level
+`document.createTreeWalker(document, 129)`. Read the way `firefox153.txt` was
+(§3.19): one probe, `src/js/tests/treewalker/probe.js`, run on the binary, its
+283 answers kept verbatim in `treewalker/firefox153.json` — every direction
+(`nextNode`, `previousNode`, `parentNode`, the four child/sibling steps) under
+seven filters (none, `SKIP` or `REJECT` of a subtree, a string or fractional
+return, an `acceptNode` object) and seven `whatToShow` masks, plus a walker
+whose current node is outside its root or removed mid-walk.
+
+| fact | value | provenance |
+|---|---|---|
+| `TreeWalker.prototype` | `parentNode firstChild lastChild previousSibling nextSibling previousNode nextNode root whatToShow filter currentNode constructor`; only `currentNode` settable; `new TreeWalker()` `Illegal constructor.` | read |
+| `NodeFilter` | a function owning `length`, `name` and the 16 constants (enumerable, read-only), **no `prototype`**; `new` it or call it: `Illegal constructor.` | read |
+| `createTreeWalker(root, whatToShow, filter)` | `length` 1; no argument `…At least 1 argument required, but only 0 passed`; `null`/primitive root `…Argument 1 is not an object.`, another object `…does not implement interface Node.`; `whatToShow` `ToUint32` (`undefined` → `SHOW_ALL`, `null` → 0); a primitive filter `…Argument 3 is not an object.` | read |
+| the filter call | a callable is called with `this` undefined (an `acceptNode` on it is ignored); otherwise its `acceptNode`, `this` the object, `TypeError: Property 'acceptNode' is not callable.` if it is not; the answer `ToUint16` (`65537` accepts, `'2'` rejects, `3.9` skips); a throw propagates | read |
+| re-entry | a filter that steps its own walker: `InvalidStateError: An attempt was made to use an object that is not, or is no longer, usable`; another walker may be stepped | read |
+| a walk that leaves the root | `nextNode` from a removed current node ends at the top of the detached subtree (`null`), never climbing past it | read |
+
+*As built:* `src/js/prelude/treewalker.js`, DOM §6 step for step over the
+node syscalls (never the page-replaceable `firstChild`/`parentNode`
+accessors). Every key matches but three declared ones: a `Symbol` returned by a
+filter throws the engine's wording (§11, "Engine error messages"); a walk into
+`template.content` cannot be made, frot having no `content` (`bl-aff4`); and
+**`NodeIterator` / `createNodeIterator` are not built** — an iterator's
+reference node must be adjusted on every removal from the tree (DOM §6.1
+"pre-removing steps"), which is a hook on every arena detach, not a walk
+(`bl-33df`).
+
 ### 3.19 The secure-context surface and WebCrypto's shape, read off the binary (`bl-b0f8`, 2026-11-17)
 
 **Ruling.** `bl-b0f8` asked whether frot publishes `crypto.subtle`. §3.18 turned
