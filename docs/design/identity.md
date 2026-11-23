@@ -1326,6 +1326,37 @@ and `Illegal constructor.` in frot (`bl-e65f`); the engine's own built-ins
 `calling a builtin Promise constructor without new is forbidden` — the
 engine's message, not a prelude one.
 
+**`PerformanceObserver` (`bl-b129`, 2026-11-22).**
+
+| fact | value | provenance |
+|---|---|---|
+| `PerformanceObserver.prototype` / `.length` / an instance's own names | `observe, disconnect, takeRecords, constructor` / 1 / none | read |
+| `PerformanceObserverEntryList.prototype`; `new` it | `getEntries, getEntriesByType, getEntriesByName, constructor`; `Illegal constructor.` | read |
+| `PerformanceObserver.supportedEntryTypes` | `event, first-input, largest-contentful-paint, mark, measure, navigation, paint, resource`; a static getter (enumerable, configurable), a fresh unfrozen array per read | read |
+| constructor errors | no argument: `PerformanceObserver constructor: At least 1 argument required, but only 0 passed`; `5`: `…Argument 1 is not an object.` | read |
+| …a non-callable object | `…Argument 1 is not callable.` | pinned (by `MutationObserver`'s read message; not read for this interface) |
+| `observe()` / `observe({})`; both keys | `TypeError: PerformanceObserver.observe: Can't call observe without `type` or `entryTypes``; `…with both `type` and `entryTypes`` | read |
+| `observe({entryTypes})` then `observe({type})`, or the reverse | `InvalidModificationError: An attempt was made to modify the type of the underlying objec` (the binary's message ends there) | read |
+| an unknown type, an empty `entryTypes` | accepted, `undefined` | read |
+| delivery, a page observing `['resource','navigation']` from its first script | one task per completed resource, `callback(list, observer)` with `this` the observer; the navigation entry once, after `load` | read |
+| `{type:'resource', buffered:true}` | the entries already recorded, then later ones; without `buffered`, and with `entryTypes`, later ones only | read |
+| `{type:'navigation', buffered:true}` | the navigation entry at once, and again after `load` | read |
+
+*As built:* `src/js/prelude/perfobserver.js`. **Decided: `resource` is
+delivered, and nothing else.** A resource entry is something frot measures —
+the same entries `performance.getEntriesByType('resource')` answers — so it
+reaches the observer as a task once the request has completed (entries that
+completed since the last task arrive as one list, where the binary sends one
+list each). The other seven types are accepted and silent, declared in §11:
+frot measures no document fetch, so there is no navigation entry to deliver
+without inventing its phases (`getEntriesByType('navigation')` is empty for the
+same reason) — a real Firefox always delivers one; it paints nothing (`paint`,
+`largest-contentful-paint`), synthesizes no input (`event`, `first-input` — a
+page nobody touches gets none in a browser either) and has no
+`performance.mark`/`measure`. `supportedEntryTypes` is the binary's list all
+the same: it is a static fact a page compares, and shortening it would be a
+second tell on top of the silence.
+
 ### 3.19 The secure-context surface and WebCrypto's shape, read off the binary (`bl-b0f8`, 2026-11-17)
 
 **Ruling.** `bl-b0f8` asked whether frot publishes `crypto.subtle`. §3.18 turned
@@ -2576,6 +2607,8 @@ Permanently out of reach, by design or by constraint:
 | **`FileReader`** | Built 2026-11-20 (`bl-8c46`, §3.20) over `Blob`, with `ProgressEvent`. Residual: `readAsText` decodes **UTF-8 only** — a legacy `encoding` argument, a `charset` in the blob's type or a UTF-16 byte-order mark is ignored, where Firefox honours each (the same gap as the `TextDecoder` row); `error` never fires (an in-memory read cannot fail); no `File`. |
 | **`Image` / `<img>` loading** | `Image` and `HTMLImageElement` exist (`bl-1404`, §3.20). **An image never arrives** — a pinned choice: no request is sent for any `<img>` (so no beacon), neither `load` nor `error` fires, `complete` stays `false` once a `src` is set, the natural size is 0. A real Firefox holds that state only until the response; a page awaiting the image waits out the run. No `data:` image loading, no `decode()`, no IMG-specific properties beyond `src`/`width`/`height`/`complete`/`naturalWidth`/`naturalHeight`/`currentSrc`. Whether images should fail instead (what a Firefox with images blocked does, measured) or beacons be sent: `bl-91a4`. |
 | **DOM interface members** | The node interfaces are real and linked as on the binary (`bl-78cb`, §3.21): `EventTarget ← Node ← Element ← HTMLElement ← HTML<Tag>Element` (all 71), `Node ← CharacterData ← Text`/`Comment`, `Node ← DocumentType`; a node has one wrapper. Residual: each prototype holds the **subset** frot implements (27 of `Element.prototype`'s 144, 9 of `HTMLElement.prototype`'s 138; most `HTML<Tag>Element` prototypes hold only `constructor`), always in the binary's order and on the binary's interface. Elements have no namespace: `svg` alone is `SVGElement` (no `SVGSVGElement`/`SVGGraphicsElement`), every other foreign element is typed by its tag as if HTML. A call on the wrong receiver or with a non-node argument throws the engine's error, not WebIDL's. `input.type` reflects the attribute (`''` when absent, where the binary answers `text`); a doctype's `nodeName` is `#doctype`. `document` is the document node's wrapper and owns `location` alone (`bl-9f79`), with 29 of `Document.prototype`'s 232 members; `document.cloneNode()`, `document.implementation` and `createHTMLDocument()` are not the binary's objects (§3.21). |
+| **DOM interface members** | The node interfaces are real and linked as on the binary (`bl-78cb`, §3.21): `EventTarget ← Node ← Element ← HTMLElement ← HTML<Tag>Element` (all 71), `Node ← CharacterData ← Text`/`Comment`, `Node ← DocumentType`; a node has one wrapper. Residual: each prototype holds the **subset** frot implements (27 of `Element.prototype`'s 144, 9 of `HTMLElement.prototype`'s 138; most `HTML<Tag>Element` prototypes hold only `constructor`), always in the binary's order and on the binary's interface. Elements have no namespace: `svg` alone is `SVGElement` (no `SVGSVGElement`/`SVGGraphicsElement`), every other foreign element is typed by its tag as if HTML. A call on the wrong receiver or with a non-node argument throws the engine's error, not WebIDL's. `input.type` reflects the attribute (`''` when absent, where the binary answers `text`); a doctype's `nodeName` is `#doctype`. `document` is still hand-shaped — `bl-9f79`. |
+| **`PerformanceObserver` delivers `resource` only** | Built 2026-11-22 (`bl-b129`, §3.20). Genuine for `resource` (the subfetches frot measures). Residual: `navigation` is never delivered and `performance.getEntriesByType('navigation')` is empty, where a real Firefox always has one entry — frot does not measure the document fetch and will not invent its phases; `paint` and `largest-contentful-paint` never come (nothing is painted); `mark`/`measure` never come (`performance.mark`/`measure` are absent); entries are plain objects, not `PerformanceResourceTiming`, and carry no `initiatorType`. |
 | **`Blob` / blob: URLs** | `Blob`, `URL.createObjectURL` and `revokeObjectURL` are real (`bl-78c5`, §3.20). Residual: no `Blob.prototype.stream` (no `ReadableStream`); a blob: URL cannot be loaded — `fetch`/XHR of one is a network error where Firefox answers 200, and a Blob-URL `Worker` never runs (the Worker row above); no `File`; a `FormData` holding a `Blob` cannot be POSTed. Each is a refusal or an absence, never a wrong value. |
 | **`Intl` beyond `DateTimeFormat.resolvedOptions()`** | Residual. quickjs-ng ships without `Intl`; frot provides the low-entropy locale/timezone subset a page reads (`DateTimeFormat` + `resolvedOptions`, `timeZone` pinned UTC). `NumberFormat`/`Collator`/`RelativeTimeFormat`/real locale-aware formatting are unbuilt — a filed gap, not a permanent non-goal. |
 | **`__frot_*` syscall names enumerable on `globalThis`** | Residual. `Function.prototype.toString` no longer leaks their source or the name (`bl-3926` branding), but the syscall **names** are still enumerable globals (`Object.getOwnPropertyNames(window)`). Making them non-enumerable touches every `bind!` site and is tracked as a separate concern. |

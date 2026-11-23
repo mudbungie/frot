@@ -242,3 +242,4 @@ fn xhr_posts_its_body_under_the_content_type_the_script_set() {
 }
 
 mod formdata;
+mod perfobserver;

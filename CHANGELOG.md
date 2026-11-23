@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`PerformanceObserver` exists under `--js`.** An observer of `resource`
+  receives an entry for each request the page really made, as
+  `performance.getEntriesByType('resource')` already listed them; the other
+  entry types Firefox names are accepted and never delivered (frot measures no
+  navigation timing and paints nothing). Cloudflare's challenge script no
+  longer throws constructing one. [bl-b129]
+
 - **`--js`: `document` is a node.** `document.appendChild`, `.childNodes`,
   `.firstChild`, `.contains`, `.removeChild` and `.replaceChild` exist (they
   threw `not a function`), `document instanceof Node` is true, and

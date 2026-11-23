@@ -141,6 +141,10 @@ pub const SOURCE: &str = concat!(
     // `__frot_idle_hook` seam that module leaves for it.
     include_str!("prelude/idle.js"),
     "\n",
+    // PerformanceObserver (bl-b129): resource entries, delivered on loop.js's
+    // timer queue through the `__frot_perf_hook` seam that module leaves.
+    include_str!("prelude/perfobserver.js"),
+    "\n",
     // FileReader + ProgressEvent (bl-8c46): after blob.js (the bytes), events.js
     // (EventTarget, Event) and loop.js (a read is one timer task).
     include_str!("prelude/filereader.js"),

@@ -157,11 +157,18 @@
     },
   });
 
+  // The PerformanceObserver seam (bl-b129): perfobserver.js delivers on this
+  // queue, and sets `before` while an observer is active so new resource
+  // timings are noticed whenever the driver asks for the next task.
+  var perf = { schedule: schedule, entries: resourceEntries, before: null };
+  Object.defineProperty(g, '__frot_perf_hook', { configurable: true, value: perf });
+
   // Host driver: run the earliest timer due within the horizon, jumping the
   // clock to it; reschedule intervals (dropping any that step past the horizon).
   // Returns -1 when nothing is due (the loop is settled), else the callback's
   // error count (0 or 1) — a throw is counted and the loop continues (§5).
   g.__frot_next_timer = function () {
+    if (perf.before) perf.before();
     var best = -1;
     // Earliest due first; at the same instant an ordinary timer beats an idle
     // callback, and equals keep their queue order.

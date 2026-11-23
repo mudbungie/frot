@@ -861,7 +861,7 @@ not read. In order:
 |---|---|---|---|
 | 1 | called `addEventListener(…)` with no receiver (strict code, `this === undefined`) | **threw** — fixed here: a receiverless call on the EventTarget trio is a call on the window, as in a browser (`src/js/prelude/events.js`) | this one |
 | 2 | created an `<iframe>`, read its `contentWindow` and `contentDocument` | both absent | `bl-54ac` |
-| 3 | `new PerformanceObserver(…)` | absent → `TypeError: not a function`, the run's one counted error | `bl-b129` |
+| 3 | `new PerformanceObserver(…)` | absent → `TypeError: not a function`, the run's one counted error | `bl-b129` — built 2026-11-22 (resource entries delivered; identity.md §3.20) |
 | 4 | *(traced build only, with step 3 stubbed)* `observe({entryTypes:["resource","navigation"]})`; read `navigator.gpu` and `RTCPeerConnection` (absent); created a second iframe and called its `contentWindow.eval` | **the hard stop**: `cannot read property 'eval' of undefined` — it wants a second global to evaluate code in | `bl-54ac` |
 | 5 | built an interstitial UI (headings, an image, a link) | which UI — an error notice or a widget wanting a click — was not determined | — |
 
