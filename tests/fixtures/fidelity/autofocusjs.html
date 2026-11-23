@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Autofocus and dialogs under a script</title>
+<style>
+b::after { content: " no"; }
+:focus + b::after, :modal b::after { content: " yes"; }
+</style>
+</head>
+<body>
+<input id="b" autofocus aria-label="b"><b>auto</b>
+<p id="out"></p>
+<dialog id="d2">plain</dialog>
+<script>
+setTimeout(function () {
+  var log = ['loaded ' + document.activeElement.id];
+  var d2 = document.getElementById('d2');
+  d2.showModal();
+  log.push('modal ' + (document.activeElement.id || document.activeElement.tagName));
+  log.push('count ' + document.querySelectorAll(':modal').length);
+  d2.close();
+  log.push('closed ' + document.querySelectorAll(':modal').length + ' ' + d2.open);
+  document.getElementById('out').textContent = log.join(' ');
+}, 50);
+</script>
+</body>
+</html>

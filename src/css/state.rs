@@ -44,6 +44,9 @@ pub enum State {
     Paused,
     /// `:muted`: a `<video>` or `<audio>` with `muted`.
     Muted,
+    /// `:popover-open` / `:modal`: shown by a script ([`crate::dom::live`]).
+    PopoverOpen,
+    Modal,
 }
 
 /// `<input>` types `required` does not apply to.
@@ -77,6 +80,8 @@ impl State {
             "placeholder-shown" => State::PlaceholderShown,
             "paused" => State::Paused,
             "muted" => State::Muted,
+            "popover-open" => State::PopoverOpen,
+            "modal" => State::Modal,
             _ => return None,
         })
     }
@@ -123,6 +128,8 @@ impl State {
             State::PlaceholderShown => control::placeholder_shown(doc, id, el),
             State::Paused => matches!(name, "video" | "audio"),
             State::Muted => matches!(name, "video" | "audio") && has(el, "muted"),
+            State::PopoverOpen => has(el, "popover") && doc.popover_open(id),
+            State::Modal => doc.modal(id),
         }
     }
 }

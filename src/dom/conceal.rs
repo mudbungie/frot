@@ -144,7 +144,7 @@ impl Document {
     /// The first `<summary>` element child of `id`, if any — the one child a
     /// closed `<details>` renders (`details > summary:first-of-type`); a later
     /// `<summary>` is disclosure content like any other child.
-    fn first_summary(&self, id: NodeId) -> Option<NodeId> {
+    pub fn first_summary(&self, id: NodeId) -> Option<NodeId> {
         self.node(id)
             .children
             .iter()

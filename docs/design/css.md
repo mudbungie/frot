@@ -113,8 +113,7 @@ Chrome 158 and is held in `tests/fixtures/fidelity/state.html` and
 `focus.html`. Each of these weighs as a class, and each is *known* — so
 `:not()` of it matches when it does not.
 
-- **Always false:** `:hover`, `:active`, `:visited`, `:popover-open`,
-  `:modal`, `:fullscreen`, `:picture-in-picture`, `:autofill`,
+- **Always false:** `:hover`, `:active`, `:visited`, `:fullscreen`, `:picture-in-picture`, `:autofill`,
   `:-webkit-autofill`, `:user-valid`, `:user-invalid`, and the media states
   `:playing`, `:seeking`, `:buffering`, `:stalled`, `:volume-locked`
   (`bl-2a85`).
@@ -161,10 +160,31 @@ Chrome 158 and is held in `tests/fixtures/fidelity/state.html` and
   nor disabled; any other element whose nearest `contenteditable` (its own or
   an ancestor's) is on. **`:read-only`** — every other element.
 
-All of these read the tree's attributes. What a script changes without
-leaving an attribute — `el.focus()`, `input.checked = true`, `showModal()` —
-is not seen, and an `autofocus` element hidden only by a stylesheet still
-counts as focused (`bl-bc6d`).
+- **Script state** (`bl-bc6d`; `src/dom/live.rs`, `css/focus.rs`). What a
+  script sets without leaving an attribute lives in the arena beside the
+  nodes and is read here: `:focus` is where `el.focus()` put it (and then
+  `autofocus` is skipped; `blur()` leaves nothing focused; focus on an
+  element that left the document or can no longer take it is nowhere);
+  `:popover-open` is a `[popover]` shown by `showPopover()`, and a
+  `[popover]` not shown is UA `display: none`; `:modal` is a dialog shown by
+  `showModal()`. `document.activeElement` reads the same answer, so an
+  untouched page's is its `autofocus` element. Opening a dialog focuses its
+  first `autofocus` descendant that can take focus, else its first, else the
+  dialog; `close()` hands focus back; showing a popover focuses its first
+  `autofocus` descendant. Measured in Chrome 158 and held in
+  `tests/fixtures/fidelity/focusjs.html` and `autofocusjs.html`. Focusable,
+  for `focus()` and `autofocus` alike: the controls above, `<a href>`, the
+  first `<summary>` of a `<details>`, `<iframe>`, media with `controls`, an
+  integer `tabindex`, a `contenteditable` host.
+
+Everything else here reads the tree's attributes. `input.checked = true` and
+`option.selected = true` write the attribute in frot (`bl-ff74`); an
+`autofocus` element hidden only by a stylesheet still counts as focused, and
+a script running mid-parse already sees the autofocus element
+(`bl-4248`); a modal dialog does not make the page inert (`bl-2dcd`).
+(**Superseded 2026-11-22, `bl-bc6d`:** this paragraph said `el.focus()` and
+`showModal()` were not seen, and `:popover-open` / `:modal` were always
+false.)
 
 - **`:open`** — a `<details>` or `<dialog>` with `open`. **`:paused`** —
   every `<video>` and `<audio>`; **`:muted`** — one with `muted`.

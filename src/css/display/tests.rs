@@ -192,3 +192,19 @@ fn a_table_column_paints_none_of_its_content() {
     let text = crate::views::text::text(&doc, Some(&styles));
     assert_eq!(text, "u1\nu3");
 }
+
+#[test]
+fn a_popover_no_script_has_shown_is_not_rendered() {
+    assert_eq!(display("<div popover>p</div>", "div"), Display::None);
+    let open = "<dialog popover open>d</dialog>";
+    assert_eq!(display(open, "dialog"), Display::Block);
+    let forced = "<div popover style='display:flex'>p</div>";
+    assert_eq!(display(forced, "div"), Display::Flex);
+    let mut doc = Document::parse("<div popover>p</div><dialog>d</dialog>");
+    let (div, dialog) = (doc.find_by_tag("div")[0], doc.find_by_tag("dialog")[0]);
+    doc.set_popover(div, true);
+    doc.set_popover(dialog, true);
+    let styles = compute(&doc);
+    assert_eq!(styles.display(div), Display::Block);
+    assert_eq!(styles.display(dialog), Display::Block);
+}

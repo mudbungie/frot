@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Focus a script moves</title>
+<style>
+b::after { content: " no"; }
+:focus + b::after, :focus-within > b.w::after, :popover-open > b::after { content: " yes"; }
+</style>
+</head>
+<body>
+<input id="a" aria-label="a"><b>a</b> <input id="b" autofocus aria-label="b"><b>b</b>
+<div id="w"><input id="c" aria-label="c"><b class="w">within</b></div>
+<div popover id="p"><b>pop</b> <input id="pi" autofocus aria-label="pi"><b>pi</b></div>
+<div popover id="q">closed-pop</div>
+<button id="e" disabled>dis</button><b>dis</b>
+<p id="out"></p>
+<script>
+document.getElementById('c').focus();
+document.getElementById('a').focus();
+document.getElementById('e').focus();
+setTimeout(function () {
+  var log = ['active ' + document.activeElement.id];
+  document.getElementById('p').showPopover();
+  log.push('then ' + document.activeElement.id);
+  document.getElementById('out').textContent = log.join(' ');
+}, 50);
+</script>
+</body>
+</html>

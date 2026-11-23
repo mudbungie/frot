@@ -860,6 +860,23 @@ that, a page walking any of them read frot's implementation instead.
   (native `autofocus` processing at load is deliberately not performed), so a
   focus event exists only because a page script called `focus()`, exactly like
   `dispatchEvent`.
+
+  > **Superseded 2026-11-22 (`bl-bc6d`).** Focus is no longer a fact kept in
+  > the prelude: it lives in the arena (`dom/live.rs`) beside the open
+  > popovers and modal dialogs, written by `focus()` / `blur()` /
+  > `showModal()` / `close()` / `showPopover()` / `hidePopover()` through the
+  > `syscall/live.rs` group and read by both `document.activeElement` and the
+  > selector engine (`css/focus.rs` `focused_element`), so `:focus` follows a
+  > script and the two cannot disagree. An untouched page's `activeElement` is
+  > its `autofocus` element, as in a browser after load — frot reports that
+  > state but still dispatches no event for it. What may take focus is one
+  > rule, the one `autofocus` obeys, measured in Chrome 158 (`css.md`, state
+  > pseudo-classes): `area` and a non-integer `tabindex` no longer qualify.
+  > Opening a dialog focuses its first `autofocus` descendant that can take
+  > focus, else its first that can, else the dialog; showing a popover
+  > focuses its first `autofocus` descendant. Not modelled: a modal dialog
+  > making the rest of the page inert, light dismiss between popovers, and
+  > the focus a closed dialog hands back.
 - **EventTarget is one interface, not a per-object stamp (`bl-6438`).** Its three
   methods live on `EventTarget.prototype` over the one listener registry
   (`events.js`, split out of `loop.js`, which keeps only WHEN the host fires), and

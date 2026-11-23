@@ -77,15 +77,13 @@ pub(super) fn parse_pseudo(b: &[char], start: usize) -> (PseudoTok, usize) {
 }
 
 /// Pseudo-classes that are false for every element of a page nobody is
-/// using: no pointer, no history, no popover, dialog or full-screen request,
+/// using: no pointer, no history, no full-screen request,
 /// no autofill, no user edit, no media playing. Measured in headless Chrome
 /// 158 (`tests/fixtures/fidelity/state.html`, `pseudo.html`).
-const NEVER: [&str; 16] = [
+const NEVER: [&str; 14] = [
     "hover",
     "active",
     "visited",
-    "popover-open",
-    "modal",
     "fullscreen",
     "picture-in-picture",
     "autofill",

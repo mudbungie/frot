@@ -32,11 +32,14 @@ impl Applied {
 
 /// Fold `applied` into the element's [`ComputedStyle`]; `parent` supplies the
 /// inherited properties.
+/// `shown` says a script put the element in the top layer as a popover
+/// ([`crate::dom::Document::popover_open`]).
 pub fn reduce(
     applied: &[Applied],
     el: &Element,
     parent: &ComputedStyle,
     js: bool,
+    shown: bool,
 ) -> ComputedStyle {
     let transform = TextTransform::of(
         ranked(applied, None, "text-transform"),
@@ -44,7 +47,7 @@ pub fn reduce(
         parent.text_transform,
     );
     ComputedStyle {
-        display: display(applied, el, js, parent.display),
+        display: display(applied, el, js, parent.display, shown),
         order: order_value(applied),
         flex_direction: flex_direction(applied),
         visibility: visibility(applied, parent.visibility),
@@ -83,8 +86,9 @@ fn flex_direction(applied: &[Applied]) -> FlexDirection {
 /// [`Display::has_items`]): a matched author/inline rule ([`display_winner`];
 /// `inherit` is the parent's), else the tag's UA-implicit display — but
 /// `<noscript>` is UA-implicit `none` once `--js` ran (js.md §4: scripting
-/// hides noscript), and `[hidden]` and a `<dialog>` without `open` are
-/// UA-implicit `none` always ([`Element::hidden`]). All are author-overridable:
+/// hides noscript), and `[hidden]`, a `<dialog>` without `open` and a
+/// `[popover]` no script has shown (`bl-bc6d`; an open dialog with
+/// `popover` stays) are UA-implicit `none` always ([`Element::hidden`]). All are author-overridable:
 /// a matched author/inline `display` is the `Some` arm and wins, exactly as a
 /// UA-origin declaration loses to the author origin.
 ///
@@ -92,12 +96,14 @@ fn flex_direction(applied: &[Applied]) -> FlexDirection {
 /// exceptions that prove it: the UA sheet marks both `display: none
 /// !important`, so they are decided *before* the author cascade is consulted
 /// and nothing can render them (Chrome 158, `bl-9dec`).
-fn display(applied: &[Applied], el: &Element, js: bool, parent: Display) -> Display {
+fn display(applied: &[Applied], el: &Element, js: bool, parent: Display, shown: bool) -> Display {
     let controls = el.attr("controls").is_some();
     if el.hidden_input() || (el.name == "audio" && !controls) {
         return Display::None;
     }
-    let closed = el.name == "dialog" && el.attr("open").is_none();
+    let (dialog, open) = (el.name == "dialog", el.attr("open").is_some());
+    let popover = el.attr("popover").is_some();
+    let closed = !(shown || dialog && open) && (dialog || popover);
     let display = match display_winner(applied, None, parent) {
         Some(d) => d,
         None if el.hidden() || closed || (js && el.name == "noscript") => Display::None,

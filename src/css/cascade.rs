@@ -159,7 +159,7 @@ fn resolve(
             });
         }
     }
-    reduce(&applied, el, parent, js)
+    reduce(&applied, el, parent, js, doc.popover_open(id))
 }
 
 #[cfg(test)]

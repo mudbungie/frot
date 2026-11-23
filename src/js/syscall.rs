@@ -28,6 +28,7 @@ mod env;
 mod frame;
 mod host;
 mod image;
+mod live;
 mod messages;
 mod net;
 mod subtle;
@@ -54,6 +55,7 @@ const GROUPS: &[Group] = &[
     subtle::install,
     image::install,
     frame::install,
+    live::install,
 ];
 
 /// Register the whole syscall table on `engine`'s realm, then evaluate the

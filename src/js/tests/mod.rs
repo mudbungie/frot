@@ -22,6 +22,7 @@ mod envgold;
 mod evloop;
 mod facade;
 mod filereader;
+mod focus;
 mod fragment;
 mod frame;
 mod idle;

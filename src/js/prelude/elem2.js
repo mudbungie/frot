@@ -167,6 +167,7 @@
   }
   tagdef('Input', 'checked', reflectBool('checked'));
   tagdef('Option', 'selected', reflectBool('selected'));
+  tagdef('Details', 'open', reflectBool('open'));
   tagdef('Button Select OptGroup Option Link Input TextArea FieldSet Style', 'disabled', reflectBool('disabled'));
   tagdef('Button Select Output LI Progress Data Option Input TextArea Meter Param', 'value', value());
   tagdef('Output Input TextArea', 'defaultValue', value());

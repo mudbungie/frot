@@ -35,6 +35,7 @@ use crate::dom::NodeId;
 
 pub use cascade::{compute, compute_bare, compute_with};
 pub use display::Display;
+pub use focus::{focusable, focused_element};
 pub use import::imports;
 pub use query::{matches_any, query_all, UnsupportedSelector};
 pub use transform::{Case, TextTransform};

@@ -163,8 +163,6 @@ fn a_known_false_pseudo_class_is_false_and_its_negation_true() {
         "hover",
         "ACTIVE",
         "visited",
-        "popover-open",
-        "modal",
         "fullscreen",
         "picture-in-picture",
         "autofill",

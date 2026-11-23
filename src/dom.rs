@@ -103,6 +103,9 @@ pub struct Document {
     /// percent-encoded): what [`Document::target`] resolves. `None` for a URL
     /// with no `#`.
     fragment: Option<String>,
+    /// What scripts did to the page that leaves no mark in the tree: focus,
+    /// the top layer ([`live::Live`]).
+    live: live::Live,
 }
 
 /// The empty document: the document node alone.
@@ -116,6 +119,7 @@ impl Default for Document {
             }],
             generation: 0,
             fragment: None,
+            live: live::Live::default(),
         }
     }
 }
@@ -255,6 +259,7 @@ fn node_data_to_kind(data: &NodeData) -> NodeKind {
 mod conceal;
 mod form;
 mod hierarchy;
+pub mod live;
 mod mutate;
 mod pseudo;
 mod select;
