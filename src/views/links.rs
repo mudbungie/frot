@@ -9,7 +9,9 @@
 //!
 //! Output shape: `[{"kind": "a"|"area"|"link", "href": <abs>, "text": <str|null>,
 //! "rel": [<token>...]}, ...]`. `text` is the element's `textContent`, white
-//! space collapsed — an SVG anchor's `<title>` included.
+//! space collapsed — an SVG anchor's `<title>` included. A MathML `<a href>`
+//! is no hyperlink: Chrome 158's `:any-link` does not match one (`bl-b3db`),
+//! so nothing inside a `<math>` is listed.
 
 use crate::base;
 use crate::dom::{Document, NodeId, NodeKind};
@@ -20,7 +22,7 @@ pub fn links(doc: &Document, page_url: &str) -> Value {
     let base = base::base_url(doc, page_url);
     let mut out = Vec::new();
     for &root in doc.roots() {
-        collect(doc, root, base.as_ref(), &mut out);
+        collect(doc, root, base.as_ref(), false, &mut out);
     }
     Value::Array(out)
 }
@@ -29,11 +31,13 @@ fn normalize_text(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn collect(doc: &Document, id: NodeId, base: Option<&Url>, out: &mut Vec<Value>) {
+fn collect(doc: &Document, id: NodeId, base: Option<&Url>, math: bool, out: &mut Vec<Value>) {
     let entry = doc.node(id);
+    let mut math = math;
     if let NodeKind::Element(el) = &entry.kind {
         let kind = el.name.as_str();
-        if matches!(kind, "a" | "area" | "link") {
+        math |= kind == "math";
+        if matches!(kind, "a" | "area" | "link") && !math {
             if let Some(href) = el.attr("href") {
                 let resolved = base::resolve(base, href);
                 let text = if kind == "link" {
@@ -58,7 +62,7 @@ fn collect(doc: &Document, id: NodeId, base: Option<&Url>, out: &mut Vec<Value>)
     }
     let kids: Vec<NodeId> = entry.children.clone();
     for c in kids {
-        collect(doc, c, base, out);
+        collect(doc, c, base, math, out);
     }
 }
 

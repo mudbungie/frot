@@ -209,3 +209,14 @@ fn an_svg_anchor_is_a_hyperlink() {
         ]
     );
 }
+
+/// `bl-b3db`, Chrome 158: a MathML `<a href>` is not matched by `:any-link`.
+#[test]
+fn an_anchor_inside_math_is_no_hyperlink() {
+    let r = run(
+        "<math><mrow><a href=m>mi</a></mrow></math><a href=h>after</a>",
+        "https://example.com/",
+    );
+    assert_eq!(r.len(), 1);
+    assert_eq!(href_of(&r[0]), "https://example.com/h");
+}

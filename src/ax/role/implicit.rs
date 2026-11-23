@@ -64,7 +64,7 @@ pub fn role(
     styles: Option<&Styles>,
 ) -> Option<&'static str> {
     let fixed = match el.name.as_str() {
-        "a" | "area" => return Some(link_or_generic(el)),
+        "a" | "area" => return Some(link_or_generic(doc, id, el)),
         "aside" => return Some(context::scoped_aside(doc, id, el)),
         "footer" => {
             return Some(context::header_footer(
@@ -140,9 +140,17 @@ fn address(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>) ->
     }
 }
 
-fn link_or_generic(el: &Element) -> &'static str {
+/// A hyperlink with `href` is a `link` (inside an `<svg>` the parser files
+/// `xlink:href` under `href`, `views/links.rs`). An SVG `<a>` with neither is a part like a `<g>` ([`svg::anchor`]):
+/// measured in Chrome 158 (`bl-b3db`), `<svg><a><title>nohref</title>…</a>
+/// </svg>` is `group "nohref"`, and so is one with `aria-label`, `title` or a
+/// `<desc>`; undescribed it has no node.
+fn link_or_generic(doc: &Document, id: NodeId, el: &Element) -> &'static str {
+    let svg = el.name == "a" && context::has_ancestor(doc, id, &["svg"]);
     if el.attr("href").is_some() {
         "link"
+    } else if svg {
+        svg::anchor(doc, id, el)
     } else {
         "generic"
     }

@@ -82,6 +82,16 @@ pub fn part(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
     described(doc, id, el).then_some(*role)
 }
 
+/// An SVG `<a>` with no `href`: a `group` when described, like a `<g>`
+/// (`implicit::link_or_generic`, `bl-b3db`).
+pub fn anchor(doc: &Document, id: NodeId, el: &Element) -> &'static str {
+    if described(doc, id, el) {
+        "group"
+    } else {
+        "generic"
+    }
+}
+
 fn described(doc: &Document, id: NodeId, el: &Element) -> bool {
     let child = |c: &NodeId| matches!(element(doc, *c), Some(e) if is_description(e));
     doc.node(id).children.iter().any(child) || context::author_name(doc, el).is_some()

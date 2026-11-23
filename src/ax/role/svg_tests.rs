@@ -166,3 +166,34 @@ fn a_described_image_is_an_img_part() {
     assert_eq!(r(bare, "image"), None);
     assert_eq!(r(bare, "svg"), Some("img"));
 }
+
+/// `bl-b3db`, Chrome 158: an SVG `<a>` with neither `href` nor `xlink:href`
+/// is a `group` when described, else no node; `xlink:href` alone makes a link
+/// inside an `<svg>` and nothing in HTML.
+#[test]
+fn an_svg_anchor_without_href_is_a_described_part() {
+    for (html, want) in [
+        (
+            "<svg><a><title>t</title><text>la</text></a></svg>",
+            Some("group"),
+        ),
+        (
+            "<svg><a aria-label=A><text>lb</text></a></svg>",
+            Some("group"),
+        ),
+        (
+            "<svg><a><desc>d</desc><text>lc</text></a></svg>",
+            Some("group"),
+        ),
+        ("<svg><a title=T><text>le</text></a></svg>", Some("group")),
+        ("<svg><a><text>ld</text></a></svg>", Some("generic")),
+        (
+            "<svg><a xlink:href=#x><text>xl</text></a></svg>",
+            Some("link"),
+        ),
+        ("<svg><a href=#x><text>hl</text></a></svg>", Some("link")),
+        ("<a xlink:href=#x>html</a>", Some("generic")),
+    ] {
+        assert_eq!(r(html, "a"), want, "{html}");
+    }
+}
