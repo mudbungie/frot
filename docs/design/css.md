@@ -234,8 +234,14 @@ character before it is a letter, a digit, `'`, `’`, `_` or a middle dot.
 `content` generates nothing on an element whose box takes no children
 (2026-11-22, `bl-082b`; until then every element generated it): a replaced
 element or line break, a `<textarea>` or a text or button `<input>`, a
-menu-list `<select>` and its options, `<svg>` and what is inside it. The
-table and its Chrome 158 measurements are `src/dom/pseudo.rs`.
+menu-list `<select>` and its options, `<svg>` and what is inside it, and
+every MathML element but the tokens and table parts (2026-11-22, `bl-aa2b`).
+An `<img>` with no `src` and a non-empty `alt` has not loaded and does
+generate content (`bl-aa2b`); one with a `src` is read as loaded, since frot
+fetches no images. The table and its Chrome 158 measurements are
+`src/dom/pseudo.rs`; the fidelity recorder cannot see either `bl-aa2b` case
+(its stand-in is a child, and MathML text differs for another reason,
+`bl-01c0`), so both are unit-tested.
 
 ## Finding 1 — wall-clock cost: two additive, independent causes
 
