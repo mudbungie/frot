@@ -7,13 +7,75 @@
 //! the single home of what an option says (`bl-4093`).
 
 use crate::dom::{Document, Element, NodeId, NodeKind, WalkEvent};
+use crate::tags;
+
+/// Tags that say nothing in a name and separate nothing: source and data
+/// ([`tags::is_source`]), a ruby annotation and its fallback parentheses, and
+/// a `<title>` — which is its parent's alternative ([`svg_title`]) or, in
+/// HTML, unrendered. Measured in Chrome 158 (`bl-3fc9`): `a<ruby>rb<rt>rt</rt>
+/// </ruby>c` is "arbc" and `a<title>t</title>c` is "ac".
+pub fn silent(name: &str) -> bool {
+    tags::is_source(name) || matches!(name, "rp" | "rt" | "title")
+}
+
+/// Roles that are controls: a descendant holding one is spaced off from the
+/// text either side of it, whatever its box. Measured in Chrome 158
+/// (`bl-3fc9`) on `a<span role=R>X</span>c`: these give "a X c", while
+/// `link`, `tooltip`, `cell`, `heading` and `term` give "aXc".
+const CONTROLS: &[&str] = &[
+    "button",
+    "checkbox",
+    "listbox",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "radio",
+    "searchbox",
+    "switch",
+    "tab",
+    "textbox",
+    "tree",
+];
+
+/// Whether `el` is an atomic box whatever its computed `display`: a line
+/// break, a control — by role, or a `<button>` under any role (`<button
+/// role=link>` and `<button style="display:inline">` are still spaced off) —
+/// or a `<canvas>` that has fallback content (an empty one separates nothing).
+pub fn atomic(doc: &Document, id: NodeId, el: &Element) -> bool {
+    match el.name.as_str() {
+        "br" | "wbr" | "button" => true,
+        "canvas" => !doc.node(id).children.is_empty(),
+        _ => crate::ax::role(doc, id).is_some_and(|r| CONTROLS.contains(&r)),
+    }
+}
+
+/// The quote marks a `<q>` generates around its contents — the UA sheet's
+/// `q::before { content: open-quote }` — which Chrome reads into a name
+/// (`a<q>quote</q>c` is "a“quote”c", `bl-3fc9`). Double at the outer level and
+/// single inside another `<q>`; these are the English marks, whatever `lang`
+/// says.
+pub fn quotes(doc: &Document, id: NodeId) -> Option<(&'static str, &'static str)> {
+    let is_q = |n: NodeId| matches!(&doc.node(n).kind, NodeKind::Element(e) if e.name == "q");
+    let depth = std::iter::successors(Some(id), |&n| doc.node(n).parent)
+        .filter(|&n| is_q(n))
+        .count();
+    match (is_q(id), depth % 2) {
+        (false, _) => None,
+        (true, 1) => Some(("\u{201c}", "\u{201d}")),
+        (true, _) => Some(("\u{2018}", "\u{2019}")),
+    }
+}
 
 /// The replaced-element and embedded-control alternatives. `alt=""` is an
 /// alternative — the empty one — which is exactly how a decorative image
 /// contributes nothing without its `src` leaking in.
 pub fn native_alternative(doc: &Document, id: NodeId, el: &Element) -> Option<String> {
     match el.name.as_str() {
-        "img" | "area" => el.attr("alt").map(str::to_string),
+        "img" => image_alternative(doc, id, el),
+        "iframe" => Some(el.attr("title").unwrap_or("").to_string()),
+        // MathML is not read into a name: `a<math><mi>x</mi></math>c` is "a c".
+        "math" => Some(String::new()),
+        "meter" | "progress" => Some(gauge(el)),
         "input" => Some(input_alternative(el)),
         "textarea" => Some(doc.text_content(id)),
         "select" => Some(selected_option_text(doc, id)),
@@ -22,6 +84,34 @@ pub fn native_alternative(doc: &Document, id: NodeId, el: &Element) -> Option<St
         // An SVG description is never part of a name.
         "desc" => Some(String::new()),
         _ => None,
+    }
+}
+
+/// An image is a word of its own even when it has none to say: `a<img>c` is
+/// "a c" (Chrome 158, `bl-3fc9`). One the author made presentational —
+/// `alt=""` with no other name, `role=presentation`, `role=none` — is not in
+/// the tree at all, so it says nothing and separates nothing: `a<img alt="">c`
+/// is "ac".
+fn image_alternative(doc: &Document, id: NodeId, el: &Element) -> Option<String> {
+    match crate::ax::role(doc, id) {
+        Some("presentation" | "none") => None,
+        _ => Some(el.attr("alt").unwrap_or("").to_string()),
+    }
+}
+
+/// What a `<meter>` or `<progress>` says: its value, clamped to its range
+/// (`min` 0 and `max` 1 unless given). A meter with no usable value says its
+/// minimum; a progress bar with none is indeterminate and says nothing.
+/// Measured in Chrome 158 (`bl-3fc9`): `<meter value=.5>` is "0.5",
+/// `<meter value=1.50>` "1", `<meter>` "0", `<progress value=5 max=10>` "5",
+/// `<progress>` "".
+fn gauge(el: &Element) -> String {
+    let num = |attr: &str| el.attr(attr).and_then(|v| v.trim().parse::<f64>().ok());
+    let min = num("min").filter(|_| el.name == "meter").unwrap_or(0.0);
+    let max = num("max").unwrap_or(1.0).max(min);
+    match num("value") {
+        None if el.name == "progress" => String::new(),
+        value => value.unwrap_or(min).clamp(min, max).to_string(),
     }
 }
 
@@ -70,3 +160,7 @@ pub fn svg_title(doc: &Document, id: NodeId) -> Option<String> {
         .find(|&c| matches!(&doc.node(c).kind, NodeKind::Element(e) if e.name == "title"))?;
     Some(doc.text_content(title)).filter(|t| !t.trim_ascii().is_empty())
 }
+
+#[cfg(test)]
+#[path = "native_tests.rs"]
+mod tests;

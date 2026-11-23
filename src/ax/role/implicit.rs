@@ -38,6 +38,8 @@
 //!   names it: a name is a conflict that keeps the node exposed.
 //! - **`<a>`/`<area>`** — the pre-existing `href` condition, unchanged.
 //! - **`<select>`** — `listbox` or `combobox` by its mode (`dom/select.rs`).
+//! - **`<summary>`** — a `button` only as a child of `<details>`
+//!   ([`context::summary`]).
 //!
 //! - **`<svg>` and its parts** — `super::svg`.
 //! - **`<caption>`** — always a `caption` here; the one with no line in it is
@@ -74,7 +76,8 @@ pub fn role(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
         "article" => "article",
         "blockquote" => "blockquote",
         "body" | "div" | "span" => "generic",
-        "button" | "summary" => "button",
+        "button" => "button",
+        "summary" => return Some(context::summary(doc, id)),
         "caption" | "figcaption" => "caption",
         "code" => "code",
         "datalist" => "listbox",

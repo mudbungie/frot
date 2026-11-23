@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out ax`: a name from contents is spaced as Chrome spaces it at
+  controls and replaced elements.** [bl-3fc9]
+  - A control inside a name is a word of its own: `v<button>inner</button>w`
+    is "v inner w", and so is a `role=button`, `checkbox`, `radio`, `switch`,
+    `tab`, `menuitem`, `textbox`, `searchbox`, `listbox` or `tree`.
+  - `<img>` with no `alt` is a (silent) word, `a<img>c` is "a c"; a
+    presentational one (`alt=""`, `role=presentation`) separates nothing,
+    `a<img alt="">c` is "ac".
+  - `<rt>`, `<rp>` and `<title>` say nothing; MathML is not read (`a<math>…
+    </math>c` is "a c"); `<meter>` and `<progress>` say their value; an
+    `<iframe>` its `title`; a `<canvas>` with fallback content is spaced off;
+    an `<area>` no longer puts its `alt` into the name around its `<map>`.
+  - Under `--css` a `<q>` carries its quote marks (“ ” outside, ‘ ’ nested —
+    the English marks, whatever `lang` says).
+  - A `<summary>` is a `button` only as a child of `<details>`; elsewhere it
+    emits no node.
 - **`PerformanceObserver` exists under `--js`.** An observer of `resource`
   receives an entry for each request the page really made, as
   `performance.getEntriesByType('resource')` already listed them; the other

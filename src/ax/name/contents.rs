@@ -20,7 +20,7 @@
 //!   anything CSS made invisible — contribute nothing, matching what a screen
 //!   reader would read.
 //! - **Source and data** — `<script>`, `<style>`, `<template>`, `<noscript>`
-//!   ([`tags::is_source`]) — contribute nothing either, and unlike a hidden
+//!   ([`crate::tags::is_source`]) — contribute nothing either, and unlike a hidden
 //!   node not even to a reference that names one directly: measured in Chrome
 //!   158 (`bl-b124`), `<th><style>.x{}</style>Drawing</th>` is "Drawing", and
 //!   `<button aria-labelledby=s>x</button><style id=s>.lab{}</style>` is "x".
@@ -50,7 +50,8 @@
 //! spaces: an alternative, which is a *word* standing in for an element, and
 //! the contents of any element that is not a plain inline box — a block, a
 //! table cell, a list item, an inline-block, a flex container — plus the line
-//! breaks `<br>`/`<wbr>` ([`breaks`]). So `<button><div>a</div><div>b</div>`
+//! breaks `<br>`/`<wbr>` and any control ([`breaks`]): `v<button>inner
+//! </button>w` is "v inner w". So `<button><div>a</div><div>b</div>`
 //! is "a b" and a grid row of `<td>`s is "G1 10", while a row of
 //! `<span role=gridcell>`s stays "ab". The caller collapses runs, so the
 //! fences never double up.
@@ -61,7 +62,6 @@ mod walk;
 use crate::ax;
 use crate::css::{Display, Styles};
 use crate::dom::{Document, Element, NodeId, NodeKind};
-use crate::tags;
 use native::native_alternative;
 pub use native::svg_title;
 use walk::Walk;
@@ -122,13 +122,17 @@ pub fn referenced_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> S
     out
 }
 
-/// `::before` + every child's contribution + `::after`.
+/// `::before` + every child's contribution + `::after`. Generated content
+/// exists only under a cascade: the author's, else the UA's own for a `<q>`
+/// ([`native::quotes`]).
 fn children_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) {
-    out.push_str(w.styles.and_then(|s| s.before(id)).unwrap_or(""));
+    let ua = w.styles.and_then(|_| native::quotes(w.doc, id));
+    let (open, close) = ua.unwrap_or(("", ""));
+    out.push_str(w.styles.and_then(|s| s.before(id)).unwrap_or(open));
     for c in w.doc.ax_children(id) {
         node_text(w, c, visited, out);
     }
-    out.push_str(w.styles.and_then(|s| s.after(id)).unwrap_or(""));
+    out.push_str(w.styles.and_then(|s| s.after(id)).unwrap_or(close));
 }
 
 fn node_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) {
@@ -145,7 +149,7 @@ fn node_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) 
 
 fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, out: &mut String) {
     let concealed = !w.reads_hidden() && hidden(id, el, w.styles);
-    if concealed || tags::is_source(&el.name) || visited.contains(&id) {
+    if concealed || native::silent(&el.name) || visited.contains(&id) {
         return;
     }
     // Not popped: once counted, a node is spent for this whole computation.
@@ -154,7 +158,7 @@ fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, o
     let mut said = String::new();
     match alternative(inner, id, el, visited) {
         Some(text) => fence(&mut said, &text),
-        None if breaks(id, el, w.styles) => {
+        None if breaks(w.doc, id, el, w.styles) => {
             let mut own = String::new();
             children_text(inner, id, visited, &mut own);
             fence(&mut said, &own);
@@ -173,10 +177,10 @@ fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, o
 }
 
 /// Whether `el`'s box separates its contents from the text either side: every
-/// box but a plain inline one ([`Display::of`]), and the two line-break
-/// elements.
-fn breaks(id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
-    matches!(el.name.as_str(), "br" | "wbr") || Display::of(styles, id, &el.name) != Display::Inline
+/// box but a plain inline one ([`Display::of`]), and one that is atomic
+/// whatever its `display` ([`native::atomic`]).
+fn breaks(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
+    Display::of(styles, id, &el.name) != Display::Inline || native::atomic(doc, id, el)
 }
 
 /// Space `text` off from the text either side of it: an alternative is a

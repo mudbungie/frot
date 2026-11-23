@@ -130,3 +130,17 @@ fn a_dpub_role_is_an_author_role() {
         Some("doc-tip")
     );
 }
+
+/// Chrome 158 (`bl-3fc9`): a `<summary>` is the disclosure button only as a
+/// child of `<details>` — every such child, not just the first.
+#[test]
+fn a_summary_is_a_button_only_as_a_child_of_details() {
+    let second = "<details open><summary>a</summary><summary id=t>b</summary></details>";
+    assert_eq!(r(second), Some("button"));
+    let deep = "<details open><div><summary id=t>d</summary></div></details>";
+    assert_eq!(r(deep), Some("generic"));
+    assert_eq!(
+        r("<div><summary id=t>orphan</summary></div>"),
+        Some("generic")
+    );
+}

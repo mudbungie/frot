@@ -89,6 +89,17 @@ pub fn author_name(doc: &Document, el: &Element) -> Option<String> {
     name::author_name(doc, el, None)
 }
 
+/// `<summary>`: the disclosure `button` only as a child of a `<details>`.
+/// Measured in Chrome 158 (`bl-3fc9`): every `<summary>` child of an open
+/// `<details>` is one, not only the first; a `<summary>` deeper inside, or
+/// with no `<details>` at all, has no node.
+pub fn summary(doc: &Document, id: NodeId) -> &'static str {
+    match doc.node(id).parent.and_then(|p| tag(doc, p)) {
+        Some("details") => "button",
+        _ => "generic",
+    }
+}
+
 /// `<li>`: a list item only inside a list — a `<ul>`, `<ol>` or `<menu>` that
 /// still *is* a list ([`owned`]).
 pub fn listitem_or_generic(doc: &Document, id: NodeId) -> &'static str {
