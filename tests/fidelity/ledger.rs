@@ -43,7 +43,6 @@ const fn row(fixture: &'static str, channel: &'static str, delta: &'static str, 
     }
 }
 
-const HIDDEN_OPTION: Why = Why::Defect("bl-240d");
 /// `text-transform` is not applied.
 const TEXT_TRANSFORM: Why = Why::Defect("bl-e48d");
 /// An absolutely positioned box fuses with its neighbours.
@@ -51,7 +50,6 @@ const ABSOLUTE: Why = Why::Defect("bl-346e");
 
 pub const LEDGER: &[Row] = &[
     // Open divergences, one ball per root cause.
-    row("select", "text", "- h2", HIDDEN_OPTION),
     // text
     row("reach", "text", "- LOUD", TEXT_TRANSFORM),
     row("reach", "text", "- WORDS", TEXT_TRANSFORM),

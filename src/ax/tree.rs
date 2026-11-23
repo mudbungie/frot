@@ -87,14 +87,21 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
     } else {
         in_layout_table
     };
+    // A menu list's popup holds every option, whatever the cascade says of
+    // them: measured in Chrome 158 (`bl-240d`), `<option hidden>`, one that is
+    // `display:none` or `visibility:hidden` and a hidden `<optgroup>` all keep
+    // their nodes under a collapsed `<select>`, and lose them in a list box.
+    let hidden = styles.is_some_and(|s| s.visibility(id) == Visibility::Hidden);
+    let menu_list = el.name == "select" && !el.list_box() && !hidden;
+    let below = if menu_list { None } else { styles };
     let mut children = Vec::new();
     // `Document::ax_children` decides which children exist — the accessor
     // `ax::name::contents` descends through too, so nothing cut from the tree
     // can still name it (`bl-0aaf`).
     for c in doc.ax_children(id) {
-        children.extend(build(doc, c, styles, layout_table));
+        children.extend(build(doc, c, below, layout_table));
     }
-    if styles.is_some_and(|s| s.visibility(id) == Visibility::Hidden) {
+    if hidden {
         // `visibility:hidden` removes this element's own node but a
         // `visibility:visible` descendant still surfaces (it built its
         // own node above), so promote the collected children.

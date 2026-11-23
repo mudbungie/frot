@@ -643,7 +643,8 @@ equalities; the channel's name for what it compares is now "box", not
 collapsed select's options. `bl-2932` (2026-11-20) modelled select modes and
 deleted them; its new `select` page pinned one open defect row instead
 (`bl-240d`: Chrome's `innerText` lists a `hidden` option, frot's `text` does
-not). No row is a blind ruler any more.
+not). `bl-240d` landed 2026-11-22: below a `<select>` the `text` view reads
+no cascade, and that row is gone. No row is a blind ruler any more.
 
 ### 15.2 Saved real pages — 2026-11-21, Chrome 158.0.8127.36 (`bl-5334`)
 

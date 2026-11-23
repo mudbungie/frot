@@ -16,7 +16,8 @@
 //!   view, and why *that* one does need the recipe — an element's own text is
 //!   suppressed when its computed `visibility` is hidden (a
 //!   `visibility:visible` descendant reappears), and `::before`/`::after`
-//!   generated content is emitted as inline text.
+//!   generated content is emitted as inline text. None of it reaches below a
+//!   `<select>`, whose options are listed whatever their own style says.
 
 use crate::css::{Styles, Visibility};
 use crate::dom::{Document, NodeId, NodeKind};
@@ -157,6 +158,19 @@ fn emit(
                 return;
             }
             let vis = visible(styles, id);
+            // A `<select>` lists every option, whatever the cascade says of
+            // the options themselves; only hiding the select hides them.
+            // Measured in Chrome 158 `innerText` (`bl-240d`): `<option
+            // hidden>`, `<option style="display:none">`, one that is
+            // `visibility:hidden` and one in a hidden `<optgroup>` are all
+            // listed, in a menu list and a list box alike, while a
+            // `visibility:hidden` select lists none — not even an option
+            // made `visible` again. So below a select there is no cascade.
+            let select = el.name == "select";
+            if select && !vis {
+                return;
+            }
+            let styles = if select { None } else { styles };
             let pre = el.name == "pre";
             let block = is_block(&el.name);
             if block {

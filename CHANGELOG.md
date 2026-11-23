@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`--out text --css`: a `<select>` lists its hidden options**, as Chrome's
+  `innerText` does. An `<option>` that is `hidden`, `display:none` or
+  `visibility:hidden`, or sits in a hidden `<optgroup>`, used to be dropped;
+  only hiding the select itself hides its options now. `--out ax` follows
+  for a collapsed select, whose popup keeps those options in Chrome; a list
+  box still drops them. [bl-240d]
+
 - **`--out ax`: a name from contents is spaced as Chrome spaces it at
   controls and replaced elements.** [bl-3fc9]
   - A control inside a name is a word of its own: `v<button>inner</button>w`

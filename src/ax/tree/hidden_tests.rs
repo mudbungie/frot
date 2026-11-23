@@ -147,3 +147,21 @@ fn text_and_dom_views_are_unaffected_by_ax_exclusion() {
     assert!(out.contains("Beta"), "text lost inert content: {out}");
     assert!(dom_json(&doc).to_string().contains("aria-hidden"));
 }
+
+/// `bl-240d`, Chrome 158: a menu list's popup keeps the options the cascade
+/// hides; a list box drops them, and so does a hidden select.
+#[test]
+fn a_menu_list_keeps_its_css_hidden_options() {
+    let options = "<option hidden>a</option><option style='display:none'>b</option>\
+        <option style='visibility:hidden'>c</option><option>d</option>";
+    let count = |attrs: &str| {
+        let doc = Document::parse(&format!("<select {attrs}>{options}</select>"));
+        let styles = crate::css::compute(&doc);
+        count_role(&ax_tree(&doc, Some(&styles)), "option")
+    };
+    assert_eq!(count(""), 4);
+    assert_eq!(count("size=3"), 1);
+    assert_eq!(count("multiple"), 1);
+    assert_eq!(count("style='visibility:hidden'"), 0);
+    assert_eq!(count("hidden"), 0);
+}

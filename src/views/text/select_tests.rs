@@ -107,3 +107,28 @@ fn an_author_rule_beats_the_datalist_ua_declaration() {
         "Alpha label",
     );
 }
+
+/// `bl-240d`, Chrome 158 `innerText`: nothing the cascade says of an option
+/// takes it off the list; hiding the select does.
+#[test]
+fn a_select_lists_its_options_whatever_their_style() {
+    let listed = "<select size=3><option hidden>h2</option>\
+        <option style='display:none'>h3</option>\
+        <option style='visibility:hidden'>h4</option>\
+        <optgroup label=G hidden><option>h5</option></optgroup></select>";
+    assert_eq!(t_css(listed), "h2\nh3\nh4\nh5");
+    assert_eq!(t_css(&listed.replace(" size=3", "")), "h2\nh3\nh4\nh5");
+    for hide in [
+        "hidden",
+        "style='display:none'",
+        "style='visibility:hidden'",
+    ] {
+        let html = format!("<select {hide}><option style='visibility:visible'>x</option></select>");
+        assert_eq!(t_css(&html), "", "{html}");
+    }
+    // Outside a select the cascade still decides.
+    assert_eq!(
+        t_css("<div><option hidden>a</option><option>b</option></div>"),
+        "b"
+    );
+}
