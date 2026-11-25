@@ -79,9 +79,12 @@ the first seven and everything else was a block. See the coercion table
 below for why that stopped being enough.
 
 **Implicit (UA) display by tag** seeds the value when no rule sets `display`.
-One tag in that map computes `none`: `datalist { display: none }` (HTML
-Rendering §15.5.1) — an ordinary UA declaration an author rule beats, measured
-in both directions (`bl-66ed`, §2.3). The UA sheet also carries two attribute
+Three tags in that map compute `none` — `datalist { display: none }` (HTML
+Rendering §15.5.1), an ordinary UA declaration an author rule beats, measured
+in both directions (`bl-66ed`, §2.3), and `area` and `rp` (§15.3.1) — and one
+computes `contents`: `slot`. *2026-11-24 (`bl-9433`): until then `area`, `rp`
+and `slot` were inline, so `<p><area></p>` held a line and a ruby's `<rp>`
+parentheses reached `text`; Chrome 158 gives neither (corpus `hidden.html`).* The UA sheet also carries two attribute
 rules, applied at the same step and
 overridden by any author or inline declaration: `[hidden] { display: none }`
 (HTML §15.3.1 — `hidden` is a boolean attribute, so presence is the fact and

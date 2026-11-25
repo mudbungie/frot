@@ -133,12 +133,15 @@ fn out_of_flow(applied: &[Applied], pseudo: Option<Pseudo>) -> bool {
         || is("float", &["left", "right", "inline-start", "inline-end"])
 }
 
-/// UA-implicit `display` when no rule sets it: `datalist` → none, `li` →
-/// list-item, any other block-level tag ([`is_block`]) → block, everything else
+/// UA-implicit `display` when no rule sets it: `datalist`, `area` and `rp` →
+/// none, `slot` → contents, `li` → list-item, any other block-level tag ([`is_block`]) → block, everything else
 /// → inline.
 ///
-/// `datalist` is the one tag the UA sheet hides outright
-/// (`datalist { display: none }`, HTML Rendering §15.5.1). It lives here rather
+/// `datalist`, `area` and `rp` are the tags the UA sheet hides outright
+/// (`area, datalist, rp, … { display: none }`, HTML Rendering §15.3.1), and
+/// `slot { display: contents }` boxes nothing of its own (Chrome 158,
+/// `bl-9433`: `<p><area></p>` and `<p><slot></slot></p>` hold no line, and
+/// `<ruby>base<rp>(</rp><rt>a</rt><rp>)</rp></ruby>` is `basea` in `innerText`). It lives here rather
 /// than beside `[hidden]` above because it is keyed on the *tag*, like every
 /// other entry in this map — and it is an ordinary UA declaration, so an author
 /// rule beats it and the `Some` arm above never reaches this function.
@@ -149,7 +152,8 @@ fn out_of_flow(applied: &[Applied], pseudo: Option<Pseudo>) -> bool {
 /// the suggestions stay in `text` and `ax` (`layout.md` §2.3).
 fn implicit_display(name: &str) -> Display {
     match name {
-        "datalist" => Display::None,
+        "datalist" | "area" | "rp" => Display::None,
+        "slot" => Display::Contents,
         "li" => Display::ListItem,
         n if is_block(n) => Display::Block,
         _ => Display::Inline,

@@ -213,13 +213,18 @@ fn non_elements_get_default_style() {
 #[test]
 fn implicit_display_by_tag_when_no_rule_wins() {
     // No `display` rule: seed from the shared block-tag set. `li` → list-item,
-    // other block tags → block, everything else → inline. Never `none`.
+    // other block tags → block, everything else → inline.
     let (doc, s) = styles("<ul><li>a</li></ul><div>b</div><span>c</span>");
     assert_eq!(s.display(first_tag(&doc, "li")), Display::ListItem);
     assert_eq!(s.display(first_tag(&doc, "ul")), Display::Block);
     assert_eq!(s.display(first_tag(&doc, "div")), Display::Block);
     assert_eq!(s.display(first_tag(&doc, "span")), Display::Inline);
     assert!(!s.display_none(first_tag(&doc, "span")));
+    // The UA sheet hides `area` and `rp` and makes `slot` contents (bl-9433).
+    let (doc, s) = styles("<area><ruby>b<rp>(</rp></ruby><slot></slot>");
+    assert!(s.display_none(first_tag(&doc, "area")));
+    assert!(s.display_none(first_tag(&doc, "rp")));
+    assert_eq!(s.display(first_tag(&doc, "slot")), Display::Contents);
 }
 
 #[test]
