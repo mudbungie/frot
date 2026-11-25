@@ -92,6 +92,8 @@ App code: **MIT** — © 2025 Innei
 | `js/dom-interfaces.json` | **DERIVED** — a measurement recorded by this project: the DOM interface names, member names and descriptor shapes a Firefox 153.0esr binary reports for its own objects (`docs/design/identity.md` §3.21). Names and facts only; no Mozilla source text | frot's own `MIT OR Apache-2.0` |
 | `js/streams-probe.js` | Hand-authored here — the calls whose Firefox answers `streams-firefox153.json` records (`docs/design/js.md` §16) | frot's own `MIT OR Apache-2.0` |
 | `js/streams-firefox153.json` | **DERIVED** — a measurement recorded by this project: what Firefox 153.0esr answers to each call in `streams-probe.js` (`docs/design/js.md` §16). Values and messages only; no Mozilla source text | frot's own `MIT OR Apache-2.0` |
+| `js/script-probe.js` | Hand-authored here — the calls whose Firefox answers `script-firefox153.json` records (`docs/design/js.md` §4.7) | frot's own `MIT OR Apache-2.0` |
+| `js/script-firefox153.json` | **DERIVED** — a measurement recorded by this project: what Firefox 153.0esr answers to each call in `script-probe.js` (`docs/design/js.md` §4.7). Values and messages only; no Mozilla source text | frot's own `MIT OR Apache-2.0` |
 | `js/perf-probe.js` | Hand-authored here — the calls whose Firefox answers `perf-firefox153.json` records (`docs/design/js.md` §5, "Resource timing") | frot's own `MIT OR Apache-2.0` |
 | `js/perf-firefox153.json` | **DERIVED** — a measurement recorded by this project: what Firefox 153.0esr answers to each call in `perf-probe.js` (`docs/design/js.md` §5, "Resource timing"). Values and messages only; no Mozilla source text | frot's own `MIT OR Apache-2.0` |
 | `needs/*.html` | Hand-authored here (`needs/README.md`) | frot's own `MIT OR Apache-2.0` |

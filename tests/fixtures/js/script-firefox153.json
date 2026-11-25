@@ -1,0 +1,19 @@
+{
+"proto": "src,type,noModule,charset,async,defer,crossOrigin,referrerPolicy,text,fetchPriority,event,htmlFor,integrity,innerText,textContent,constructor",
+"statics": "length,name,prototype,supports|function|true,true,true,false,false",
+"defaults": "src=\"\" type=\"\" noModule=false charset=\"\" async=true defer=false crossOrigin=null referrerPolicy=\"\" text=\"\" fetchPriority=\"auto\" event=\"\" htmlFor=\"\" integrity=\"\"",
+"parserDefaults": "type=\"\" noModule=false charset=\"\" async=false defer=false crossOrigin=null referrerPolicy=\"\" fetchPriority=\"auto\" event=\"\" htmlFor=\"\" integrity=\"\"",
+"asyncFlag": "true,false,false,true,,false,false",
+"asyncAttrRemove": "true,false",
+"asyncClone": "true,true",
+"innerHTMLAsync": "true",
+"parserAsyncAttr": "true,true",
+"crossOrigin": "|anonymous|anonymous|use-credentials|use-credentials|anonymous|false||Foo|anonymous",
+"referrerPolicy": "\"\"|no-referrer|no-referrer||unsafe-url|strict-origin-when-cross-origin|origin|same-origin|origin-when-cross-origin|no-referrer-when-downgrade|strict-origin|Bad",
+"fetchPriority": "auto|high|low|auto|auto|auto|Zz",
+"strings": "utf-8|onload|w|sha256-x|\"\"|\"\"|true|true",
+"typeAttr": "module|\"\"",
+"srcRel": "/a.js",
+"descs": "src:gsec type:gsec noModule:gsec charset:gsec async:gsec defer:gsec crossOrigin:gsec referrerPolicy:gsec text:gsec fetchPriority:gsec event:gsec htmlFor:gsec integrity:gsec",
+"inOp": "true,true"
+}

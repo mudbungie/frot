@@ -13,7 +13,7 @@
 //! `bl-a86b`): a script runs at most once, whenever and however it reaches
 //! the document, and the fragment parser starts every script it makes so an
 //! `innerHTML` script never runs. A flag of the element, so it is here, not
-//! in the JS host.
+//! in the JS host — as is its "force async" flag (`bl-f9f2`).
 
 use std::collections::BTreeSet;
 
@@ -39,6 +39,9 @@ pub struct Live {
     modals: Vec<NodeId>,
     /// `<script>` elements that are "already started".
     started: Vec<NodeId>,
+    /// Elements whose "force async" flag is unset (`bl-f9f2`): the parser's
+    /// own scripts, and any a script gave an `async` (attribute or property).
+    unforced: Vec<NodeId>,
     /// Elements whose custom element state is "custom": constructed by
     /// their definition (`:defined`).
     custom: BTreeSet<NodeId>,
@@ -92,6 +95,19 @@ impl Document {
     pub fn start(&mut self, id: NodeId) {
         if !self.started(id) {
             self.live.started.push(id);
+        }
+    }
+
+    /// Whether the script `id`'s "force async" flag is set — true from its
+    /// creation, so a script a script makes is async (`bl-f9f2`, measured).
+    pub fn force_async(&self, id: NodeId) -> bool {
+        !self.live.unforced.contains(&id)
+    }
+
+    /// Unset the script `id`'s "force async" flag. Not a rendering fact.
+    pub fn unforce(&mut self, id: NodeId) {
+        if self.force_async(id) {
+            self.live.unforced.push(id);
         }
     }
 

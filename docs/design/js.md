@@ -565,7 +565,21 @@ during parse. So:
       frot's fetch completes at once, which is a schedule a browser may also
       take (a cached script). `async` and `async=false` scripts both run in
       insertion order — the one order that satisfies both when every fetch is
-      instant. (The `async` property itself is not reflected yet: `bl-f9f2`.)
+      instant. *(2026-11-24, `bl-f9f2`: the `async` property is reflected as
+      HTML's "force async" flag or the attribute — an arena flag beside
+      *already started* (`dom::live`), set from creation, unset for the
+      parser's own scripts and whenever `async` is set or the attribute added;
+      so `document.createElement('script').async` is `true`, a parsed script's
+      `false`, and a clone or an `innerHTML` script's `true`, as measured. The
+      rest of HTMLScriptElement — `noModule`, `charset`, `defer`,
+      `crossOrigin`, `referrerPolicy`, `fetchPriority`, `event`, `htmlFor`,
+      `integrity` — reflects its attribute as Firefox normalises it, and
+      `HTMLScriptElement.supports` answers `classic` and `module`. Declared:
+      `supports('importmap')` is `false` (Firefox: `true`) because frot
+      resolves no import map; `innerText`/`textContent` are not redefined on
+      the script interface; a script parsed into an `<iframe srcdoc>` keeps
+      "force async". Pinned: `js::tests::scriptprops` against
+      `tests/fixtures/js/script-firefox153.json`.)*
    4. **An external script fires `load` after it runs** (even if it threw) or
       **`error` when its fetch failed** (still counted, §4.2) — every external
       script, parsed or inserted, as in Firefox (`prelude/scriptload.js`).

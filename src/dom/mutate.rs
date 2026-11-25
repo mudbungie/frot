@@ -59,15 +59,23 @@ impl Document {
     /// Set (or overwrite) an attribute on an element node; a no-op on any other
     /// kind. Totality keeps the caller from having to pre-check the node kind.
     pub fn set_attr(&mut self, id: NodeId, name: &str, value: &str) {
+        let mut added = false;
         if let NodeKind::Element(el) = &mut self.nodes[id as usize].kind {
             let name = name.to_ascii_lowercase();
             match el.attrs.iter_mut().find(|a| a.name == name) {
                 Some(a) => a.value = value.to_string(),
-                None => el.attrs.push(Attr {
-                    name,
-                    value: value.to_string(),
-                }),
+                None => {
+                    added = name == "async";
+                    el.attrs.push(Attr {
+                        name,
+                        value: value.to_string(),
+                    })
+                }
             }
+        }
+        // HTML: a script that gains an `async` attribute loses "force async".
+        if added {
+            self.unforce(id);
         }
         self.generation += 1;
     }

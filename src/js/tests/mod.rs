@@ -52,6 +52,7 @@ mod persona_gold;
 mod receiver;
 mod reflect;
 mod scriptmode;
+mod scriptprops;
 mod shadow;
 mod slotchange;
 mod srcdoc;

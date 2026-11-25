@@ -75,7 +75,8 @@
     HTMLObjectElement: 'data type name useMap form width height contentDocument contentWindow',
     HTMLLIElement: 'value type',
     HTMLParamElement: 'value type',
-    HTMLScriptElement: 'src type text',
+    HTMLScriptElement: 'src type noModule charset async defer crossOrigin referrerPolicy text ' +
+      'fetchPriority event htmlFor integrity',
     HTMLSourceElement: 'src type srcset sizes media width height',
     HTMLImageElement: 'decode alt src srcset crossOrigin useMap referrerPolicy isMap width height ' +
       'decoding loading fetchPriority naturalWidth naturalHeight complete name align hspace vspace ' +

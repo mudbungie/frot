@@ -15,7 +15,11 @@ impl Session {
     pub(in crate::js) fn parser_scripts(&self) -> Vec<NodeId> {
         let mut doc = self.doc.borrow_mut();
         let ids = doc.find_by_tag("script");
-        ids.iter().for_each(|&id| doc.start(id));
+        // The parser's scripts: started, and not "force async" (`bl-f9f2`).
+        ids.iter().for_each(|&id| {
+            doc.start(id);
+            doc.unforce(id);
+        });
         ids
     }
 

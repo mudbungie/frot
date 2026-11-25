@@ -57,6 +57,16 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, h: &Host) -> rquickjs::Resu
     });
     // HTML's cloning steps for a script: the copy is started if the original
     // was, so a clone of a script that ran never runs (measured in Firefox).
+    // A script's "force async" flag (`bl-f9f2`): read by `async`'s getter,
+    // unset by its setter.
+    bind!(ctx, g, "__frot_force_async", {
+        let d = h.doc.clone();
+        move |id: u32| d.borrow().force_async(id)
+    });
+    bind!(ctx, g, "__frot_unforce", {
+        let d = h.doc.clone();
+        move |id: u32| d.borrow_mut().unforce(id)
+    });
     bind!(ctx, g, "__frot_clone_started", {
         let d = h.doc.clone();
         move |from: u32, to: u32| {
