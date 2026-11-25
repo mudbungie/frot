@@ -172,23 +172,33 @@ fn img_role(doc: &Document, el: &Element) -> &'static str {
 ///
 /// `hidden` is the only type with no role: it is never rendered. The types the
 /// HTML-AAM leaves with "no corresponding role" but which *are* rendered
-/// controls — `password`, `color`, `file`, and the date/time family — fall to
+/// controls — `password`, `color` and the date/time family — fall to
 /// `textbox` rather than vanishing: a coarse role loses less than a dropped
-/// node. A `list` attribute turns the text-entry types into a `combobox`,
-/// which is what the datalist popup makes them.
+/// node. (Chrome 158 has roles of its own for the last two — `Date`,
+/// `InputTime`, `DateTime`, `ColorWell` — that ARIA has no word for; the
+/// fidelity projection reads them as `textbox`, `bl-dd43`.) A `file` input is
+/// a `button`, as Chrome exposes it. A `list` attribute turns the text-entry
+/// and date/time types into a `combobox`, which is what the datalist popup
+/// makes them (Chrome 158: `<input type=date list>` is a combobox,
+/// `type=color` with a list stays a colour well).
 fn input_role(el: &Element) -> Option<&'static str> {
     let t = el.attr("type").unwrap_or("text").to_ascii_lowercase();
     let listed = el.attr("list").is_some();
     Some(match t.as_str() {
         "hidden" => return None,
-        "button" | "image" | "reset" | "submit" => "button",
+        "button" | "image" | "reset" | "submit" | "file" => "button",
         "checkbox" => "checkbox",
         "radio" => "radio",
         "range" => "slider",
         "number" => "spinbutton",
         "search" if listed => "combobox",
         "search" => "searchbox",
-        "email" | "tel" | "text" | "url" if listed => "combobox",
+        "email" | "tel" | "text" | "url" | "date" | "time" | "datetime-local" | "month"
+        | "week"
+            if listed =>
+        {
+            "combobox"
+        }
         _ => "textbox",
     })
 }

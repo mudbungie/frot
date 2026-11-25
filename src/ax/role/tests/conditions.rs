@@ -24,7 +24,7 @@ const INPUT_TYPES: &[(&str, Option<&str>)] = &[
     ("url", Some("textbox")),
     ("password", Some("textbox")),
     ("color", Some("textbox")),
-    ("file", Some("textbox")),
+    ("file", Some("button")),
     ("date", Some("textbox")),
     ("datetime-local", Some("textbox")),
     ("month", Some("textbox")),
@@ -53,13 +53,25 @@ fn input_without_type_is_a_textbox() {
 
 #[test]
 fn a_list_attribute_makes_text_entry_a_combobox() {
-    for ty in ["text", "email", "tel", "url", "search"] {
+    for ty in [
+        "text",
+        "email",
+        "tel",
+        "url",
+        "search",
+        "date",
+        "time",
+        "datetime-local",
+        "month",
+        "week",
+    ] {
         let html = format!("<input id=t type='{ty}' list=d><datalist id=d></datalist>");
         assert_eq!(r(&html), Some("combobox"), "type={ty}");
     }
     // Non-text-entry types ignore `list` entirely.
     assert_eq!(r("<input id=t type=number list=d>"), Some("spinbutton"));
     assert_eq!(r("<input id=t type=checkbox list=d>"), Some("checkbox"));
+    assert_eq!(r("<input id=t type=color list=d>"), Some("textbox"));
 }
 
 #[test]

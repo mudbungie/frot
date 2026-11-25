@@ -52,6 +52,9 @@ fn fate(role: &str) -> Option<Fate> {
         "SvgRoot" => Fate::Keep("graphics-document"),
         "Figcaption" => Fate::Keep("caption"),
         "DescriptionList" => Fate::Keep("list"),
+        // A date/time or colour input: ARIA has no role for it, and frot's
+        // coarse one is `textbox` (`src/ax/role/implicit.rs`, `bl-dd43`).
+        "Date" | "InputTime" | "DateTime" | "ColorWell" => Fate::Keep("textbox"),
         _ => return None,
     })
 }
