@@ -32,8 +32,10 @@ mod pseudo;
 mod query;
 mod selector;
 mod selparse;
+mod shadow;
 mod state;
 mod transform;
+mod trees;
 mod validity;
 
 use crate::dom::NodeId;

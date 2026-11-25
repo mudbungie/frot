@@ -198,12 +198,12 @@ fn layout_block(
     w: i32,
     boxes: &mut [Option<Rect>],
 ) -> i32 {
-    let entry = doc.node(id);
-    let has_block = entry.children.iter().any(|&c| is_block_box(doc, c, styles));
+    let kids = doc.flat_children(id);
+    let has_block = kids.iter().any(|&c| is_block_box(doc, c, styles));
     let h = if has_block {
         stack(doc, id, styles, x, y, w, boxes)
     } else {
-        for &c in &entry.children {
+        for &c in kids.iter() {
             walk(doc, c, styles, x, y, boxes);
         }
         inline::flow(doc, styles, id, x, y, w, boxes)
@@ -225,7 +225,7 @@ fn stack(
     boxes: &mut [Option<Rect>],
 ) -> i32 {
     let mut cursor = y;
-    for &c in &doc.node(id).children {
+    for &c in doc.flat_children(id).iter() {
         cursor += place(doc, c, styles, x, cursor, w, boxes);
     }
     cursor - y
@@ -239,7 +239,7 @@ fn is_block_box(doc: &Document, id: NodeId, styles: &Styles) -> bool {
     let through = |c: &NodeId| is_block_box(doc, *c, styles);
     is_rendered_element(doc, id, styles)
         && match styles.display(id) {
-            Display::Contents => doc.node(id).children.iter().any(through),
+            Display::Contents => doc.flat_children(id).iter().any(through),
             display => display.stacks(),
         }
 }
@@ -277,7 +277,7 @@ fn walk(doc: &Document, id: NodeId, styles: &Styles, x: i32, y: i32, boxes: &mut
         return;
     }
     boxes[id as usize] = Some(Rect { x, y, w: 0, h: 0 });
-    for &c in &doc.node(id).children {
+    for &c in doc.flat_children(id).iter() {
         walk(doc, c, styles, x, y, boxes);
     }
 }

@@ -221,6 +221,7 @@ impl Document {
 
 mod conceal;
 mod custom;
+mod flat;
 mod form;
 mod hierarchy;
 pub mod live;

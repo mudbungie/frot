@@ -114,6 +114,10 @@ pub const SOURCE: &str = concat!(
     // arena's shadow roots; after template.js, on the interfaces dom.js builds.
     include_str!("prelude/shadow.js"),
     "\n",
+    // cssom.js (js.md §15): constructable sheets and adoptedStyleSheets, on
+    // the Document and the ShadowRoot shadow.js builds.
+    include_str!("prelude/cssom.js"),
+    "\n",
     // The identity surface (bl-3972), derived from __frot_env_profile: after
     // dom.js (extends document/Node), any order among themselves.
     include_str!("prelude/navigator.js"),

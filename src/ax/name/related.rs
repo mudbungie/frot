@@ -17,7 +17,9 @@ pub fn control_label_text(
     let mut for_match: Option<NodeId> = None;
     let mut label_stack: Vec<NodeId> = Vec::new();
     let mut wrapping_label: Option<NodeId> = None;
-    doc.walk(None, &mut |ev, e| match ev {
+    // Labels are found in the control's own tree (a shadow tree's labels
+    // label its controls, js.md §15).
+    doc.walk(Some(doc.tree_root(control_id)), &mut |ev, e| match ev {
         WalkEvent::Enter(id) => {
             if let NodeKind::Element(elx) = &e.kind {
                 if elx.name == "label" {

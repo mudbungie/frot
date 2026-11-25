@@ -1,22 +1,17 @@
-//! Selector AST, specificity, and matching.
-//!
-//! Supported: `*`, type, `.class`, `#id`, attribute selectors with every
-//! operator and flag ([`super::attrsel`]), compound
-//! sequences, the descendant (whitespace), child (`>`), next-sibling (`+`)
-//! and subsequent-sibling (`~`) combinators, the logical pseudo-classes
-//! `:is()` / `:where()` / `:not()` over complex selector lists
-//! ([`super::pseudo`]), `:nth-child()` and its family ([`Nth`]), the state
-//! pseudo-classes ([`State`]; `:hover` and its kind are [`Simple::Never`]),
-//! `:scope`, `:has()` ([`super::has`]), `:lang()` and `:dir()`
-//! ([`super::lang`]), and the `::before` / `::after` pseudo-elements (legacy
-//! single-colon spelling too). Any other pseudo (`:nth-col()`,
-//! `::first-line`, …) parses into a [`Simple::Unsupported`] marker so the
-//! whole compound fails to match — a rule we cannot evaluate must never apply.
+//! Selector AST, specificity, and matching. Supported: `*`, type, `.class`,
+//! `#id`, attribute selectors with every operator and flag
+//! ([`super::attrsel`]), compounds, the four combinators, `:is()` /
+//! `:where()` / `:not()` ([`super::pseudo`]), `:nth-child()` and its family
+//! ([`Nth`]), the state pseudo-classes ([`State`]; `:hover` and its kind are
+//! [`Simple::Never`]), `:scope`, `:has()`, `:lang()`, `:dir()`, `:host` and
+//! `::slotted()` ([`super::shadow`]), and `::before` / `::after`. Any other
+//! pseudo parses into [`Simple::Unsupported`], so the whole compound fails to
+//! match — a rule we cannot evaluate must never apply.
 
 use super::attrsel::AttrTest;
 use super::nth::Nth;
 use super::state::State;
-use super::{has, lang};
+use super::{has, lang, shadow};
 use crate::dom::{Document, Element, NodeId, NodeKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,6 +63,9 @@ pub enum Simple {
     Lang(String),
     /// `:dir(rtl)` (`true`) or `:dir(ltr)`.
     Dir(bool),
+    /// `:host` (empty) / `:host(…)` and `::slotted(…)` ([`super::shadow`]).
+    Host(Vec<Selector>),
+    Slotted(Vec<Selector>),
     /// A pseudo-class known to be false in an unattended load (`:hover`):
     /// unlike [`Simple::Unsupported`] its negation is known too.
     Never,
@@ -112,6 +110,7 @@ impl Selector {
             Simple::Is(list) | Simple::Where(list) | Simple::Not(list) | Simple::Has(list) => {
                 list.iter().all(Selector::evaluable)
             }
+            Simple::Host(list) | Simple::Slotted(list) => list.iter().all(Selector::evaluable),
             Simple::Nth(nth) => nth.of().iter().all(Selector::evaluable),
             _ => true,
         })
@@ -132,10 +131,19 @@ impl Selector {
                         s = Specificity(s.0 + a, s.1 + b + 1, s.2 + c);
                     }
                     Simple::Type(_) => s.2 += 1,
-                    Simple::Is(list) | Simple::Not(list) | Simple::Has(list) => {
+                    Simple::Is(list)
+                    | Simple::Not(list)
+                    | Simple::Has(list)
+                    | Simple::Host(list)
+                    | Simple::Slotted(list) => {
                         let most = list.iter().map(Selector::specificity).max();
                         let Specificity(a, b, c) = most.unwrap_or_default();
-                        s = Specificity(s.0 + a, s.1 + b, s.2 + c);
+                        let (pc, pe) = match simple {
+                            Simple::Host(_) => (1, 0),
+                            Simple::Slotted(_) => (0, 1),
+                            _ => (0, 0),
+                        };
+                        s = Specificity(s.0 + a, s.1 + b + pc, s.2 + c + pe);
                     }
                     Simple::Universal | Simple::Where(_) | Simple::Unsupported => {}
                 }
@@ -154,37 +162,41 @@ fn class_list(el: &Element) -> Vec<&str> {
         .unwrap_or_default()
 }
 
-/// Where a selector is matched: the document, and the element `:scope`
-/// names — `None` in a stylesheet and a document-wide query, where `:scope`
-/// is the root element (Chrome 158).
+/// Where a selector is matched: the document; `:scope`'s element (`None`: the
+/// root, Chrome 158); its sheet's shadow host and `::slotted()`'s element.
 #[derive(Clone, Copy)]
 pub struct Context<'a> {
     pub doc: &'a Document,
     pub scope: Option<NodeId>,
+    pub host: Option<NodeId>,
+    pub slotted: Option<NodeId>,
 }
 
 fn compound_matches(c: &Compound, cx: Context, id: NodeId, el: &Element) -> bool {
     let doc = cx.doc;
     let any = |list: &[Selector]| list.iter().any(|s| matches_in(s, cx, id));
     let root = || doc.node(id).parent == Some(Document::ROOT);
-    c.simples.iter().all(|s| match s {
-        Simple::Is(list) | Simple::Where(list) => any(list),
-        Simple::Not(list) => !any(list),
-        Simple::Nth(nth) => nth.holds(cx, id, el),
-        Simple::State(state) => state.holds(doc, id, el),
-        Simple::Scope => cx.scope.map_or_else(root, |s| s == id),
-        Simple::Has(list) => has::holds(list, cx, id),
-        Simple::Lang(range) => lang::lang(doc, id, range),
-        Simple::Dir(rtl) => lang::rtl(doc, id) == *rtl,
-        Simple::Universal => true,
-        Simple::Unsupported | Simple::Never => false,
-        Simple::Type(t) => el.name == *t,
-        Simple::Class(cl) => class_list(el).contains(&cl.as_str()),
-        Simple::Id(id) => el.attr("id") == Some(id.as_str()),
-        Simple::Attr { name, test } => el
-            .attr(name)
-            .is_some_and(|v| test.as_ref().is_none_or(|t| t.holds(v))),
-    })
+    !shadow::featureless(cx, id, c)
+        && c.simples.iter().all(|s| match s {
+            Simple::Is(list) | Simple::Where(list) => any(list),
+            Simple::Not(list) => !any(list),
+            Simple::Nth(nth) => nth.holds(cx, id, el),
+            Simple::State(state) => state.holds(doc, id, el),
+            Simple::Scope => cx.scope.map_or_else(root, |s| s == id),
+            Simple::Has(list) => has::holds(list, cx, id),
+            Simple::Lang(range) => lang::lang(doc, id, range),
+            Simple::Dir(rtl) => lang::rtl(doc, id) == *rtl,
+            Simple::Host(list) => shadow::host(cx, id, list),
+            Simple::Slotted(list) => shadow::slotted(cx, id, list),
+            Simple::Universal => true,
+            Simple::Unsupported | Simple::Never => false,
+            Simple::Type(t) => el.name == *t,
+            Simple::Class(cl) => class_list(el).contains(&cl.as_str()),
+            Simple::Id(id) => el.attr("id") == Some(id.as_str()),
+            Simple::Attr { name, test } => el
+                .attr(name)
+                .is_some_and(|v| test.as_ref().is_none_or(|t| t.holds(v))),
+        })
 }
 
 fn element(doc: &Document, id: NodeId) -> Option<&Element> {
@@ -226,14 +238,9 @@ pub(super) fn later_siblings(doc: &Document, id: NodeId) -> impl Iterator<Item =
     after.filter(|&s| element(doc, s).is_some())
 }
 
-/// Does `sel` match the node `id` where it stands in `doc`? Only an element
-/// can match. The subject compound's pseudo-element is ignored here; the
-/// cascade routes its declarations to the right pseudo bucket.
-pub fn matches(sel: &Selector, doc: &Document, id: NodeId) -> bool {
-    matches_in(sel, Context { doc, scope: None }, id)
-}
-
-/// [`matches`] in the context `cx`.
+/// Does `sel` match the node `id` where it stands, in the context `cx`? Only
+/// an element can match. The subject compound's pseudo-element is ignored
+/// here; the cascade routes its declarations to the right pseudo bucket.
 pub fn matches_in(sel: &Selector, cx: Context, id: NodeId) -> bool {
     matches_at(&sel.parts, sel.parts.len() - 1, cx, id, None)
 }
@@ -262,16 +269,21 @@ fn matches_at(
         return false;
     }
     if i == 0 {
-        return anchor.is_none_or(|(comb, a)| step(doc, comb, id).any(|n| n == a));
+        return anchor.is_none_or(|(comb, a)| step(cx, comb, id).any(|n| n == a));
     }
     let rest = |n: NodeId| matches_at(parts, i - 1, cx, n, anchor);
-    step(doc, parts[i].0, id).any(rest)
+    step(cx, parts[i].0, id).any(rest)
 }
 
 /// The elements `comb` reaches back to from `id`: its parent, its ancestors,
 /// the element sibling before it, or every element sibling before it.
-fn step(doc: &Document, comb: Combinator, id: NodeId) -> Box<dyn Iterator<Item = NodeId> + '_> {
-    let above = ancestors(doc, id).map(|(a, _)| a);
+fn step<'a>(
+    cx: Context<'a>,
+    comb: Combinator,
+    id: NodeId,
+) -> Box<dyn Iterator<Item = NodeId> + 'a> {
+    let doc = cx.doc;
+    let above = shadow::ancestors(cx, id);
     match comb {
         Combinator::Child => Box::new(above.take(1)),
         Combinator::Descendant => Box::new(above),

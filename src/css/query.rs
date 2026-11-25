@@ -2,7 +2,7 @@
 //!
 //! The `--js` syscall layer routes selector matching here so the CSS subset
 //! engine is the single source of selector semantics for both the cascade and
-//! `querySelector`. Matching is [`super::selector::matches`], the call the
+//! `querySelector`. Matching is [`super::selector::matches_in`], the call the
 //! cascade makes; an unsupported selector is an [`UnsupportedSelector`] error
 //! (the caller throws), never a silent miss.
 
@@ -29,7 +29,15 @@ pub fn query_all(
     let sels = parse_query(list).ok_or(UnsupportedSelector)?;
     let scope = (root != Document::ROOT).then_some(root);
     let mut out = Vec::new();
-    walk(Context { doc, scope }, root, &sels, &mut out);
+    walk(
+        Context {
+            scope,
+            ..Context::of(doc)
+        },
+        root,
+        &sels,
+        &mut out,
+    );
     Ok(out)
 }
 
@@ -38,13 +46,13 @@ pub fn query_all(
 pub fn matches_any(doc: &Document, id: NodeId, list: &str) -> Result<bool, UnsupportedSelector> {
     let sels = parse_query(list).ok_or(UnsupportedSelector)?;
     let cx = Context {
-        doc,
         scope: Some(id),
+        ..Context::of(doc)
     };
     Ok(sels.iter().any(|s| matches_in(s, cx, id)))
 }
 
-/// Collect the matches below `id`. Only an element matches ([`matches`]), and
+/// Collect the matches below `id`. Only an element matches ([`matches_in`]), and
 /// only the document and elements carry children.
 fn walk(cx: Context, id: NodeId, sels: &[Selector], out: &mut Vec<NodeId>) {
     for &c in &cx.doc.node(id).children {

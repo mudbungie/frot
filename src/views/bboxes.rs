@@ -23,7 +23,7 @@
 //!   children only, whitespace-normalized), or `null` when it has none.
 
 use crate::css::{Display, Styles};
-use crate::dom::{Document, NodeEntry, NodeId, NodeKind, WalkEvent};
+use crate::dom::{Document, NodeId, NodeKind, WalkEvent};
 use crate::layout::{self, Layout};
 use serde_json::{json, Value};
 
@@ -46,7 +46,7 @@ pub fn bboxes(doc: &Document, layout: &Layout, styles: &Styles) -> Value {
 fn source_ordinals(doc: &Document) -> Vec<usize> {
     let mut ord = vec![0usize; doc.len()];
     let mut next = 0usize;
-    doc.walk(None, &mut |ev, entry| {
+    doc.walk_flat(None, &mut |ev, entry| {
         if let (WalkEvent::Enter(id), NodeKind::Element(_)) = (ev, &entry.kind) {
             ord[id as usize] = next;
             next += 1;
@@ -78,7 +78,7 @@ fn emit(
             "i": ordinals[id as usize],
             "tag": el.name,
             "rect": rect,
-            "text": direct_text(doc, entry, styles),
+            "text": direct_text(doc, id, styles),
         })),
         // No box of its own, and its children's are still there.
         None if styles.display(id) == Display::Contents => {}
@@ -87,7 +87,7 @@ fn emit(
     let children = if matches!(styles.display(id), Display::Flex | Display::InlineFlex) {
         layout.child_order(id)
     } else {
-        entry.children.clone()
+        doc.flat_children(id).into_owned()
     };
     for c in children {
         emit(doc, c, layout, styles, ordinals, out);
@@ -103,9 +103,9 @@ fn emit(
 /// with, and it matters most here: a `<video>`'s or `<canvas>`'s fallback prose
 /// is a direct text child of the element that paints none of it, so without the
 /// gate the entry reported copy no user sees (`bl-e79a`).
-fn direct_text(doc: &Document, entry: &NodeEntry, styles: &Styles) -> Value {
+fn direct_text(doc: &Document, id: NodeId, styles: &Styles) -> Value {
     let mut buf = String::new();
-    for &c in &entry.children {
+    for &c in doc.flat_children(id).iter() {
         if let NodeKind::Text(t) = &doc.node(c).kind {
             if layout::renders(doc, c, styles) {
                 buf.push_str(t);

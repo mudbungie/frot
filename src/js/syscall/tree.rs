@@ -69,6 +69,11 @@ pub(super) fn install<'js>(
         let d = doc.clone();
         move |id: u32| d.borrow().assigned_slot(id)
     });
+    // The text of each sheet `root` (the document or a shadow root) adopted.
+    bind!(ctx, g, "__frot_adopt", {
+        let d = doc.clone();
+        move |root: u32, sheets: Vec<String>| d.borrow_mut().set_adopted(root, sheets)
+    });
     bind!(ctx, g, "__frot_connected", {
         let d = doc.clone();
         move |id: u32| d.borrow().connected(id)

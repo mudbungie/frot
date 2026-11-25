@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang=en><head><meta charset=utf-8><title>Shadow trees</title>
+<style>
+  .card { border: 1px solid; }
+  p.light { text-transform: uppercase; }
+  b { display: block; }
+</style></head>
+<body>
+<h1>Declarative shadow trees</h1>
+<div class=card id=card><template shadowrootmode=open>
+  <style>
+    :host { display: block; }
+    h2 { text-transform: uppercase; }
+    .gone { display: none; }
+    ::slotted(.tag) { display: block; }
+    slot[name=title]::slotted(*) { text-transform: lowercase; }
+  </style>
+  <h2>Card heading</h2>
+  <p class=gone>hidden by the shadow style</p>
+  <header><slot name=title>Untitled</slot></header>
+  <section><slot>No body</slot></section>
+  <footer><slot name=foot>Default footer</slot> <a href="shadow-link.html">shadow link</a></footer>
+</template><span slot=title>A TITLE IN LIGHT DOM</span>
+<p class=light>Body paragraph from the light tree.</p>
+<i class=tag>tag one</i><i class=tag>tag two</i>
+<em slot=nowhere>never rendered</em>
+<b>light b is inline in the shadow's eyes</b></div>
+
+<nav id=nav><template shadowrootmode=open><ul><li><slot name=a></slot></li><li><slot name=b></slot></li></ul><form action="search.html"><label>Find <input name=q type=search></label><button>Go</button></form></template><a slot=b href="b.html">Second</a><a slot=a href="a.html">First</a></nav>
+
+<section id=outer><template shadowrootmode=open><article><x-inner><template shadowrootmode=open><p>inner shadow before</p><slot></slot><p>inner shadow after</p></template><slot></slot></x-inner></article></template><span>slotted through two trees</span></section>
+
+<p id=bad><template shadowrootmode=open>root on a p</template>light of p hidden</p>
+<a id=nohost href="x.html"><template shadowrootmode=open>never a root on an a</template>anchor light</a>
+<p>After all hosts.</p>
+</body></html>

@@ -778,3 +778,41 @@ four-part version number that the repo's leak scanner reads as an address;
 the article was saved through the legacy parser instead (`NOTICE.md` §4)
 rather than touching the rule.
 
+
+### 15.4 Shadow trees — 2026-11-24, Chrome 158.0.8127.88 (`bl-00f5`)
+
+frot renders shadow trees since js.md §15, and its views read the flat tree:
+a host's shadow content in place of its children, a slot's assigned nodes in
+the slot's place. Three of the recorder's rulers could not see that, and,
+as with generated content in §15.1, the rulers were repaired rather than
+rows declared:
+
+- **`text`.** `innerText` (and `getSelection().toString()`) never include
+  shadow content, in Chrome or in Firefox (measured, js.md §15.1). On a page
+  with a shadow root the text probe rebuilds the body's flat tree as plain
+  elements — a custom element or a slot as a `span`, other tags as
+  themselves with their attributes but `id`, `class` and `style` — each
+  carrying the computed `display`, `visibility`, `text-transform` and
+  `white-space` of the node it stands for, and asks `innerText` of that. A
+  page with no shadow root takes the old path unchanged, so no existing
+  capture moved.
+- **`links`, `forms`, `bboxes`.** `querySelectorAll` and `document.forms` do
+  not enter a shadow root; every channel now walks the flat tree
+  (`composed()` in `scripts/fidelity-probes.js`), which on a page without a
+  shadow root is the document's own pre-order.
+- **`ax`** needed nothing: Chrome's accessibility tree is already composed,
+  and the projection's UA-shadow splicing (§3.1) touches user-agent roots
+  only.
+
+A closed shadow root is out of a page script's reach, so the corpus uses open
+ones (frot treats both alike). Two pages joined: `shadow` (declarative
+shadow DOM, no script, so compared under `--css`: named and default slots,
+fallback, an unassigned child, `:host`, `::slotted()`, a shadow-scoped rule
+that hides, a slot inside a nested shadow tree, a form and links inside a
+shadow tree, a refused host) and `shadowjs` (`--css --js`: two custom
+elements built by script with `attachShadow`, an adopted constructed sheet,
+an attribute callback, `importNode` of a template, and an element nothing
+defines). Both are equal to Chrome on all five channels with no ledger row.
+The first recording found one defect on the AX channel — a `<label>`
+wrapping a control inside a shadow tree did not name it, because the label
+search walked the document tree only — fixed in the same ball.

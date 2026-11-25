@@ -3,7 +3,10 @@
 //!
 //! Origin/precedence is a deliberate simplification of the real cascade,
 //! sufficient for visibility and generated content: a declaration wins on
-//! `(important, inline, specificity, source-order)`, compared in that order.
+//! `(important, context, inline, specificity, source-order)`, compared in that
+//! order — the context step is the shadow boundary's ([`super::trees`]).
+//! The walk follows the flat tree (js.md §15), so a slotted element inherits
+//! from its slot and a shadow tree from its host.
 //! `visibility` and `text-transform` are inherited; `display` and generated
 //! `content` are not. The walk also carries the line context capitalization
 //! reads ([`super::transform`]): the character before each run of text.
@@ -11,7 +14,8 @@
 use super::computed::{reduce, Applied};
 use super::index::Index;
 use super::parse::{parse_decls, Stylesheet};
-use super::selector::Specificity;
+use super::selector::{matches_in, Context, Specificity};
+use super::trees::{self, Trees};
 use super::{ComputedStyle, Display, Styles};
 use crate::dom::{Document, Element, NodeId, NodeKind};
 
@@ -29,7 +33,10 @@ pub fn compute_with(doc: &Document, external: &[String], js: bool) -> Styles {
             .into_iter()
             .map(|id| Stylesheet::parse(&doc.text_content(id))),
     );
-    cascade(doc, &sheets, js)
+    let adopted = doc.adopted(Document::ROOT).iter();
+    sheets.extend(adopted.map(|t| Stylesheet::parse(t)));
+    let shadow = trees::gather(doc);
+    cascade(doc, &Trees::build(&sheets, &shadow), js)
 }
 
 /// UA-implicit `display` plus inline `style=` only — **no** author `<style>`
@@ -39,36 +46,45 @@ pub fn compute_with(doc: &Document, external: &[String], js: bool) -> Styles {
 /// sheets. Shares the [`cascade`] walk with [`compute_with`]; the only
 /// difference is the empty sheet list.
 pub fn compute_bare(doc: &Document, js: bool) -> Styles {
-    cascade(doc, &[], js)
+    cascade(doc, &Trees::build(&[], &[]), js)
 }
 
 /// Cascade `sheets` (already gathered) over every element. The single per-element `resolve` walk shared by [`compute_with`]
 /// (author + external sheets) and [`compute_bare`] (empty sheets); inline
 /// `style=` and UA-implicit display are applied by `resolve` regardless of the
 /// sheet list.
-fn cascade(doc: &Document, sheets: &[Stylesheet], js: bool) -> Styles {
-    let index = Index::build(sheets);
+fn cascade(doc: &Document, trees: &Trees, js: bool) -> Styles {
     let mut nodes = vec![ComputedStyle::default(); doc.len()];
     let top = ComputedStyle::default();
+    let cx = Walk { doc, trees, js };
     for &root in doc.roots() {
-        walk(doc, root, &index, &top, js, &mut ' ', &mut nodes);
+        walk(cx, root, Document::ROOT, &top, &mut ' ', &mut nodes);
     }
     Styles::from_nodes(nodes)
 }
 
-/// Resolve `id` and its subtree. `prev` is the character before `id` in its
-/// line: a block, an atomic inline and a replaced element each start a line
-/// context of their own, and a `display:none` subtree, being in no line,
-/// leaves the context as it found it.
-fn walk(
-    doc: &Document,
-    id: NodeId,
-    index: &Index,
-    parent: &ComputedStyle,
+/// What every step of the walk shares.
+#[derive(Clone, Copy)]
+struct Walk<'a> {
+    doc: &'a Document,
+    trees: &'a Trees<'a>,
     js: bool,
+}
+
+/// Resolve `id` and its subtree. `tree` is the root of `id`'s node tree (the
+/// document, or a shadow root), whose rules it is matched against. `prev` is
+/// the character before `id` in its line: a block, an atomic inline and a
+/// replaced element each start a line context of their own, and a
+/// `display:none` subtree, being in no line, leaves the context as it found it.
+fn walk(
+    cx: Walk,
+    id: NodeId,
+    tree: NodeId,
+    parent: &ComputedStyle,
     prev: &mut char,
     nodes: &mut [ComputedStyle],
 ) {
+    let doc = cx.doc;
     let entry = doc.node(id);
     // A table column paints none of its content (`bl-9dec`).
     let concealed = doc.concealed(id) || parent.display == Display::TableColumn;
@@ -80,7 +96,7 @@ fn walk(
         nodes[id as usize] = cs;
         return;
     };
-    let mut cs = conceal(resolve(doc, id, el, index, parent, js), concealed);
+    let mut cs = conceal(resolve(cx, id, el, tree, parent), concealed);
     let holds = doc.holds_generated(id, el);
     // A box that takes no children holds no generated ones either.
     if !holds {
@@ -91,8 +107,15 @@ fn walk(
     let mut inner = if own_line { ' ' } else { *prev };
     let [before, after] = cs.pseudo_transform;
     cs.before = cs.before.map(|s| before.apply(&s, &mut inner).unwrap_or(s));
-    for &c in &entry.children {
-        walk(doc, c, index, &cs, js, &mut inner, nodes);
+    for &c in doc.flat_children(id).iter() {
+        // A flat child from another tree: the host's shadow root's, or a
+        // slotted one back in the host's tree.
+        let tree = if doc.node(c).parent == Some(id) {
+            tree
+        } else {
+            doc.tree_root(c)
+        };
+        walk(cx, c, tree, &cs, &mut inner, nodes);
     }
     cs.after = cs.after.map(|s| after.apply(&s, &mut inner).unwrap_or(s));
     if cs.display != Display::None {
@@ -116,42 +139,60 @@ fn conceal(mut cs: ComputedStyle, concealed: bool) -> ComputedStyle {
 }
 
 /// Collect the declarations that reach `el` and reduce them to a
-/// [`ComputedStyle`]. Only the [`Index`]'s candidate rules are tested, and they
-/// arrive in flat-scan order — see `index.rs` for why that is equivalent to
-/// testing every rule of every sheet.
+/// [`ComputedStyle`]: its own tree's rules; as a host, its shadow tree's
+/// `:host` rules; as a slotted element, its slot's tree's `::slotted()` ones.
+/// Only an [`Index`]'s candidate rules are tested, and they arrive in
+/// flat-scan order — see `index.rs` for why that is equivalent to testing
+/// every rule of every sheet.
 fn resolve(
-    doc: &Document,
+    cx: Walk,
     id: NodeId,
     el: &Element,
-    index: &Index,
+    tree: NodeId,
     parent: &ComputedStyle,
-    js: bool,
 ) -> ComputedStyle {
+    let doc = cx.doc;
     let mut applied: Vec<Applied> = Vec::new();
-    for cand in index.candidates(el) {
-        if !super::selector::matches(cand.selector, doc, id) {
-            continue;
-        }
-        for d in cand.decls {
-            applied.push(Applied {
-                pseudo: cand.pseudo,
-                important: d.important,
-                inline: false,
-                spec: cand.spec,
-                order: cand.order,
-                name: d.name.clone(),
-                value: d.value.clone(),
-            });
-        }
+    let host = doc.shadow(tree).map(|s| s.host);
+    let mine = Context {
+        host,
+        ..Context::of(doc)
+    };
+    rules(&mut applied, cx.trees.of(doc, tree), mine, id, el, false);
+    if let Some(root) = doc.shadow_root(id) {
+        let me = Context {
+            host: Some(id),
+            ..Context::of(doc)
+        };
+        rules(&mut applied, cx.trees.of(doc, root), me, id, el, true);
+    }
+    if let Some(slot) = doc.assigned_slot(id) {
+        let root = doc.tree_root(slot);
+        let host = doc.shadow(root).map(|s| s.host);
+        let into = Context {
+            host,
+            slotted: Some(id),
+            ..Context::of(doc)
+        };
+        let slot_el = doc.element(slot).unwrap_or(el);
+        rules(
+            &mut applied,
+            cx.trees.of(doc, root),
+            into,
+            slot,
+            slot_el,
+            true,
+        );
     }
     // Inline `style=` sits one slot past every author rule in source order.
-    let order = index.rule_count;
+    let order = cx.trees.rule_count();
     if let Some(style) = el.attr("style") {
         for d in parse_decls(style) {
             applied.push(Applied {
                 pseudo: None,
                 important: d.important,
                 inline: true,
+                inner: false,
                 spec: Specificity::default(),
                 order,
                 name: d.name,
@@ -160,7 +201,36 @@ fn resolve(
         }
     }
     let hidden = el.hidden() && !super::lang::foreign(doc, id);
-    reduce(&applied, el, parent, js, doc.popover_open(id), hidden)
+    reduce(&applied, el, parent, cx.js, doc.popover_open(id), hidden)
+}
+
+/// Push the declarations of `index`'s rules that match `at` (element `el`) in
+/// `cx`; `inner` marks rules reaching out of a shadow tree.
+fn rules(
+    applied: &mut Vec<Applied>,
+    index: Option<&Index>,
+    cx: Context,
+    at: NodeId,
+    el: &Element,
+    inner: bool,
+) {
+    for cand in index.map(|i| i.candidates(el)).unwrap_or_default() {
+        if !matches_in(cand.selector, cx, at) {
+            continue;
+        }
+        for d in cand.decls {
+            applied.push(Applied {
+                pseudo: cand.pseudo,
+                important: d.important,
+                inline: false,
+                inner,
+                spec: cand.spec,
+                order: cand.order,
+                name: d.name.clone(),
+                value: d.value.clone(),
+            });
+        }
+    }
 }
 
 #[cfg(test)]
@@ -174,3 +244,6 @@ mod ua_tests;
 
 #[cfg(test)]
 mod media_tests;
+
+#[cfg(test)]
+mod shadow_tests;

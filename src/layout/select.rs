@@ -18,7 +18,7 @@ use crate::dom::{Document, NodeId, NodeKind};
 /// Asked of the child only: every layout walk is top-down and stops at a node
 /// that does not render, so nothing deeper is reached.
 pub(super) fn in_menu_list(doc: &Document, id: NodeId) -> bool {
-    doc.node(id).parent.is_some_and(|parent| {
+    doc.flat_parent(id).is_some_and(|parent| {
         matches!(&doc.node(parent).kind,
             NodeKind::Element(el) if el.name == "select" && !el.list_box())
     })

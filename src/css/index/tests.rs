@@ -4,8 +4,12 @@
 
 use super::Index;
 use crate::css::parse::Stylesheet;
-use crate::css::selector::matches;
+use crate::css::selector::{matches_in, Context, Selector};
 use crate::dom::{Document, Element, NodeId, NodeKind};
+
+fn matches(sel: &Selector, doc: &Document, id: NodeId) -> bool {
+    matches_in(sel, Context::of(doc), id)
+}
 
 /// Selector shapes that between them hit every bucket: id, class, tag, and the
 /// keyless `others` (universal, attribute-only, unsupported pseudo).

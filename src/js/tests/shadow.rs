@@ -19,7 +19,7 @@ const DECLARED: [(&str, &str); 2] = [
     (
         "protoSR",
         "getElementById getHTML mode delegatesFocus slotAssignment clonable serializable host \
-         onslotchange innerHTML activeElement constructor | true",
+         onslotchange innerHTML activeElement adoptedStyleSheets constructor | true",
     ),
     (
         "protoSlot",
@@ -46,4 +46,22 @@ fn every_shadow_answer_is_firefox_153s() {
             "{key}"
         );
     }
+}
+
+/// A script inserted into a shadow tree is connected and runs once; one in a
+/// detached host's tree does not (Firefox 153.0esr answers `[1,null]`).
+#[test]
+fn a_script_inserted_into_a_connected_shadow_tree_runs() {
+    let s = sess("<html><body></body></html>");
+    let got = s
+        .eval(
+            "var d=document.createElement('div');document.body.appendChild(d);\
+             var sr=d.attachShadow({mode:'open'});var s=document.createElement('script');\
+             s.textContent='window.ran=(window.ran||0)+1';sr.appendChild(s);\
+             var e=document.createElement('div');var r2=e.attachShadow({mode:'open'});\
+             var s2=document.createElement('script');s2.textContent='window.det=1';\
+             r2.appendChild(s2);JSON.stringify([window.ran,window.det])",
+        )
+        .unwrap();
+    assert_eq!(got, "[1,null]");
 }

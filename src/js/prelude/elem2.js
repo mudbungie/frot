@@ -121,13 +121,24 @@
         return g.__frot_nodelist(query(this, sel));
       },
     });
+    function elements(n) {
+      return g.__frot_children(slots(n).id).filter(function (id) {
+        return g.__frot_kind(id) === 'element';
+      });
+    }
     g.__frot_ifaceattrs(P, {
       children: function () {
-        return g.__frot_elems(
-          g.__frot_children(slots(this).id).filter(function (id) {
-            return g.__frot_kind(id) === 'element';
-          })
-        );
+        return g.__frot_elems(elements(this));
+      },
+      firstElementChild: function () {
+        return wrap(elements(this)[0]);
+      },
+      lastElementChild: function () {
+        var ids = elements(this);
+        return wrap(ids[ids.length - 1]);
+      },
+      childElementCount: function () {
+        return elements(this).length;
       },
     });
   }

@@ -178,7 +178,7 @@ fn collect(doc: &Document, id: NodeId, styles: Option<&Styles>, sectioned: bool,
             }
             c.label |= has_label(el);
             let sectioned = sectioned || is_sectioning(&el.name);
-            for &kid in &entry.children {
+            for &kid in doc.flat_children(id).iter() {
                 collect(doc, kid, styles, sectioned, c);
             }
         }

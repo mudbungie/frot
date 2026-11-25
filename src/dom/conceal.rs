@@ -60,6 +60,10 @@
 //! | `views::text` | [`Document::painted_children`] |
 //! | `ax::tree`, `ax::name::contents` | [`Document::ax_children`] |
 //!
+//! Both descend the flat tree ([`Document::flat_children`], js.md §15): a
+//! shadow tree renders in its host's place and a slot's assigned nodes in
+//! the slot's, so both views read what the page composes.
+//!
 //! The agreement is then structural rather than remembered: a node the page
 //! does not paint is unreachable by the text walk, and a node absent from the
 //! AX tree is unreachable by the name walk, *because there is no other way in*
@@ -96,7 +100,7 @@ impl Document {
     /// `<details>` half is document *state* rather than a tag fact, so it holds
     /// for both.
     fn swallowed(&self, id: NodeId, keeps: fn(&str) -> bool) -> bool {
-        let Some(parent) = self.node(id).parent else {
+        let Some(parent) = self.flat_parent(id) else {
             return false;
         };
         matches!(&self.node(parent).kind, NodeKind::Element(el) if !keeps(&el.name))
@@ -127,10 +131,9 @@ impl Document {
         id: NodeId,
         keeps: fn(&str) -> bool,
     ) -> impl Iterator<Item = NodeId> + '_ {
-        self.node(id)
-            .children
-            .iter()
-            .copied()
+        let kids = self.flat_children(id);
+        (0..kids.len())
+            .map(move |i| kids[i])
             .filter(move |&c| !self.swallowed(c, keeps))
     }
 

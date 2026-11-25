@@ -101,7 +101,7 @@ fn contents(
     words: &mut Vec<Word>,
 ) {
     tokenize(styles.before(id), ancestors, words);
-    for &c in &doc.node(id).children {
+    for &c in doc.flat_children(id).iter() {
         collect(doc, styles, c, ancestors, words);
     }
     tokenize(styles.after(id), ancestors, words);

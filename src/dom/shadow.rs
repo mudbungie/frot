@@ -138,6 +138,13 @@ impl Document {
         root
     }
 
+    /// Every shadow root whose host is connected, in arena order.
+    pub fn shadow_roots(&self) -> Vec<NodeId> {
+        let ids = 0..self.len() as NodeId;
+        ids.filter(|&n| self.shadow(n).is_some_and(|s| self.connected(s.host)))
+            .collect()
+    }
+
     /// The top of `id`'s node tree: the document, a shadow root, or the top
     /// of a detached subtree.
     pub fn tree_root(&self, id: NodeId) -> NodeId {

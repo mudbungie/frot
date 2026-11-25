@@ -46,8 +46,7 @@ pub(super) fn child_orders(doc: &Document, styles: &Styles) -> Vec<Option<Vec<No
 /// `row-reverse`/`column-reverse` `flex-direction`.
 pub(super) fn child_order(doc: &Document, styles: &Styles, id: NodeId) -> Vec<NodeId> {
     let mut items: Vec<NodeId> = doc
-        .node(id)
-        .children
+        .flat_children(id)
         .iter()
         .copied()
         .filter(|&c| is_rendered_element(doc, c, styles))

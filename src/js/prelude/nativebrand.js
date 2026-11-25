@@ -53,18 +53,21 @@
       'removeAttribute removeAttributeNS hasAttribute hasAttributes closest matches getElementsByTagName ' +
       'getElementsByClassName getBoundingClientRect attachShadow getHTML remove prepend append querySelector ' +
       'querySelectorAll localName tagName id className classList attributes clientWidth clientHeight ' +
-      'innerHTML outerHTML shadowRoot assignedSlot slot children',
+      'innerHTML outerHTML shadowRoot assignedSlot slot children firstElementChild lastElementChild ' +
+      'childElementCount',
     HTMLElement: 'focus blur style offsetTop offsetLeft offsetWidth offsetHeight ' + ON + ' dataset onerror',
     SVGElement: 'focus blur style ' + ON + ' dataset onerror',
     CharacterData: 'remove data length',
-    DocumentFragment: 'getElementById prepend append querySelector querySelectorAll children',
+    DocumentFragment: 'getElementById prepend append querySelector querySelectorAll children ' +
+      'firstElementChild lastElementChild childElementCount',
     Document: 'getElementsByTagName getElementsByClassName createElement createElementNS ' +
       'createDocumentFragment createTextNode createComment importNode adoptNode createEvent ' +
       'createTreeWalker getElementsByName ' +
       'hasFocus getElementById prepend append querySelector querySelectorAll implementation ' +
       'compatMode doctype documentElement referrer cookie ' +
       'readyState title body head scripts defaultView onreadystatechange currentScript hidden ' +
-      'visibilityState activeElement ' + ON + ' onerror children',
+      'visibilityState activeElement adoptedStyleSheets ' + ON + ' onerror children firstElementChild ' +
+      'lastElementChild childElementCount',
     HTMLLinkElement: 'disabled href rel relList type',
     HTMLLIElement: 'value type',
     HTMLParamElement: 'value type',

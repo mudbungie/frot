@@ -16,17 +16,22 @@ pub struct Applied {
     pub pseudo: Option<Pseudo>,
     pub important: bool,
     pub inline: bool,
+    /// From a shadow tree's sheet reaching out of it — `:host` on the host,
+    /// `::slotted()` on a slotted element (js.md §15): the outer tree's
+    /// normal declarations win over it, its important ones over the outer's.
+    pub inner: bool,
     pub spec: Specificity,
     pub order: usize,
     pub name: String,
     pub value: String,
 }
 
-type Key = (bool, bool, Specificity, usize);
+type Key = (bool, bool, bool, Specificity, usize);
 
 impl Applied {
     pub(super) fn key(&self) -> Key {
-        (self.important, self.inline, self.spec, self.order)
+        let context = self.inner == self.important;
+        (self.important, context, self.inline, self.spec, self.order)
     }
 }
 

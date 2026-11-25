@@ -60,8 +60,7 @@ fn collect(doc: &Document, id: NodeId, base: Option<&Url>, math: bool, out: &mut
             }
         }
     }
-    let kids: Vec<NodeId> = entry.children.clone();
-    for c in kids {
+    for &c in doc.flat_children(id).iter() {
         collect(doc, c, base, math, out);
     }
 }

@@ -28,7 +28,7 @@ pub fn forms(doc: &Document, page_url: &str) -> Value {
     // fields are the controls it owns, wherever they stand.
     let mut controls = Vec::new();
     let mut found = Vec::new();
-    doc.walk(None, &mut |ev, e| {
+    doc.walk_flat(None, &mut |ev, e| {
         if let (WalkEvent::Enter(id), NodeKind::Element(el)) = (ev, &e.kind) {
             match el.name.as_str() {
                 "form" => found.push((id, build_form(el, base_url.as_ref()))),
@@ -93,7 +93,7 @@ fn build_field(doc: &Document, id: NodeId, el: &Element) -> Value {
 
 fn collect_options(doc: &Document, select_id: NodeId) -> Vec<Value> {
     let mut out = Vec::new();
-    doc.walk(Some(select_id), &mut |ev, e| {
+    doc.walk_flat(Some(select_id), &mut |ev, e| {
         if let (WalkEvent::Enter(opt_id), NodeKind::Element(el)) = (ev, &e.kind) {
             if el.name == "option" {
                 let label = doc.text_content(opt_id);

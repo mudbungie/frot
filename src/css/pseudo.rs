@@ -66,6 +66,7 @@ pub(super) fn parse_pseudo(b: &[char], start: usize) -> (PseudoTok, usize) {
         ("before", _) => PseudoTok::Element(Pseudo::Before),
         ("after", _) => PseudoTok::Element(Pseudo::After),
         ("scope", false) => PseudoTok::Class(Simple::Scope),
+        ("host", false) => PseudoTok::Class(Simple::Host(Vec::new())),
         (name, false) if NEVER.contains(&name) => PseudoTok::Class(Simple::Never),
         (name, false) => {
             let state = || State::named(name).map_or(Simple::Unsupported, Simple::State);
@@ -107,6 +108,9 @@ fn logical(name: &str, args: &str, double: bool) -> Simple {
             .filter(|list| list.iter().all(Selector::evaluable))
             .map_or(Simple::Unsupported, Simple::Not),
         ("has", false) => has::parse(args).map_or(Simple::Unsupported, Simple::Has),
+        // The argument of each is one compound selector (CSS Scoping §3).
+        ("host", false) => compounds(args).map_or(Simple::Unsupported, Simple::Host),
+        ("slotted", true) => compounds(args).map_or(Simple::Unsupported, Simple::Slotted),
         ("lang", false) => word(args).map_or(Simple::Unsupported, Simple::Lang),
         // Any other identifier is valid and names no direction (Chrome 158).
         ("dir", false) => match word(args).as_deref() {
@@ -118,6 +122,11 @@ fn logical(name: &str, args: &str, double: bool) -> Simple {
         (name, false) => Nth::function(name, args).map_or(Simple::Unsupported, Simple::Nth),
         _ => Simple::Unsupported,
     }
+}
+
+/// A list of compound selectors: [`list`], with no combinator in any.
+fn compounds(args: &str) -> Option<Vec<Selector>> {
+    list(args).filter(|l| l.iter().all(|s| s.parts.len() == 1))
 }
 
 /// The one identifier `args` holds, lower-cased.

@@ -1056,7 +1056,8 @@
 
   var frag = document.createDocumentFragment();
   shape('DocumentFragment', DocumentFragment.prototype,
-    'getElementById,prepend,append,querySelector,querySelectorAll,children,constructor');
+    'getElementById,prepend,append,querySelector,querySelectorAll,children,firstElementChild,' +
+    'lastElementChild,childElementCount,constructor');
   ownsNothing('DocumentFragment', frag);
   eq('iface:frag-tag', Object.prototype.toString.call(frag), '[object DocumentFragment]');
   eq('iface:frag-nodeType', frag.nodeType, 11);

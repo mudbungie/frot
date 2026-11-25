@@ -1,6 +1,7 @@
 //! Page state a script sets without leaving a mark in the tree (`bl-bc6d`):
 //! where focus is, which popovers and modal dialogs are shown, which
-//! elements a custom element definition has upgraded (js.md §15), and the
+//! elements a custom element definition has upgraded and the stylesheets a
+//! script adopted onto the document or a shadow root (js.md §15), and the
 //! checkedness, selectedness and `indeterminate` a script gave a control. It lives
 //! in the arena beside the nodes, so the one document the views, the cascade
 //! and the JS host share carries it — nothing global, nothing cached in JS.
@@ -41,6 +42,9 @@ pub struct Live {
     /// Elements whose custom element state is "custom": constructed by
     /// their definition (`:defined`).
     custom: BTreeSet<NodeId>,
+    /// The text of each constructed sheet in a root's `adoptedStyleSheets`,
+    /// in order, keyed by the root (the document or a shadow root).
+    adopted: Vec<(NodeId, Vec<String>)>,
     /// The checkedness of an `<input>` or selectedness of an `<option>` a
     /// script set — HTML's dirty flag (`bl-ff74`); absent, the attribute
     /// rules (`css/checked.rs`).
@@ -111,6 +115,19 @@ impl Document {
     /// Record that `id`'s definition has constructed it.
     pub fn set_custom(&mut self, id: NodeId) {
         self.live.custom.insert(id);
+        self.generation += 1;
+    }
+
+    /// The sheets adopted onto `root` (`adoptedStyleSheets`), as text.
+    pub fn adopted(&self, root: NodeId) -> &[String] {
+        let hit = self.live.adopted.iter().find(|(r, _)| *r == root);
+        hit.map_or(&[], |(_, sheets)| sheets)
+    }
+
+    /// Replace the sheets adopted onto `root`.
+    pub fn set_adopted(&mut self, root: NodeId, sheets: Vec<String>) {
+        self.live.adopted.retain(|(r, _)| *r != root);
+        self.live.adopted.push((root, sheets));
         self.generation += 1;
     }
 

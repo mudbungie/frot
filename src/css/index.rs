@@ -85,7 +85,7 @@ impl<'a> Index<'a> {
 
     fn push(&mut self, c: Candidate<'a>) {
         // `parts` is never empty: the selector parser only emits a selector
-        // once it has read a compound (`selector::matches` relies on this too).
+        // once it has read a compound (`selector::matches_in` relies on this too).
         match key(&c.selector.parts[c.selector.parts.len() - 1].1) {
             Key::Id(v) => self.ids.entry(v).or_default().push(c),
             Key::Class(v) => self.classes.entry(v).or_default().push(c),
@@ -95,7 +95,7 @@ impl<'a> Index<'a> {
     }
 
     /// Every rule `el` could match, in flat-scan order. A superset of the
-    /// matching rules — callers still run [`super::selector::matches`].
+    /// matching rules — callers still run [`super::selector::matches_in`].
     pub fn candidates(&self, el: &Element) -> Vec<&Candidate<'a>> {
         let mut out: Vec<&Candidate<'a>> = self.others.iter().collect();
         let id = el.attr("id").unwrap_or_default();

@@ -1,6 +1,10 @@
-use crate::css::selector::{matches, Selector, Simple, Specificity};
+use crate::css::selector::{matches_in, Context, Selector, Simple, Specificity};
+use crate::dom::{Document, NodeId};
+
+fn matches(sel: &Selector, doc: &Document, id: NodeId) -> bool {
+    matches_in(sel, Context::of(doc), id)
+}
 use crate::css::selparse::parse_selector_list;
-use crate::dom::Document;
 
 fn sel(s: &str) -> Selector {
     parse_selector_list(s).pop().unwrap()

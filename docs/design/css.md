@@ -230,6 +230,22 @@ false.)
   explicit `step` on `date`, `month` and `week`; `maxlength`/`minlength`
   (Chrome checks them only after an edit, so at load they never fail).
 
+**Shadow trees** (`bl-00f5`, js.md §15; `src/css/trees.rs`, `shadow.rs`,
+measured in Chrome 158 and held in `tests/fixtures/fidelity/shadow.html` and
+`shadowjs.html`). The document's sheets — `<link>`, `<style>`, and the sheets
+a script adopted onto `document` — style the document tree; a shadow root's
+own `<style>` elements and adopted sheets style its tree. A host is also
+matched against its shadow tree's `:host` / `:host(compound)` rules, where it
+is featureless (nothing but `:host` matches it, and a combinator climbs out
+of the tree to it — `:host(.dark) p`), and an element assigned to a slot
+against that slot's tree's `::slotted(compound)` rules. Across that boundary
+the outer tree's normal declarations win over the inner's whatever their
+specificity, and the inner's `!important` ones over the outer's (the
+cascade's context step). Inheritance follows the flat tree: a slotted element
+inherits from its slot, a shadow tree from its host. Not built:
+`:host-context()`, `::part()`, and `<link rel=stylesheet>` or `@import` inside
+a shadow tree (never fetched).
+
 **`:has()`, `:scope`, `:lang()`, `:dir()`** (`bl-2a85`; `src/css/has.rs`,
 `lang.rs`, measured in Chrome 158 and held in
 `tests/fixtures/fidelity/pseudo.html`).

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang=en><head><meta charset=utf-8><title>Components built by script</title></head>
+<body>
+<h1>Custom elements</h1>
+<x-greeting who="reader"><em>slotted emphasis</em> and light text</x-greeting>
+<x-list><span>alpha</span><span>beta</span></x-list>
+<x-greeting id=late>late child</x-greeting>
+<template id=item><li class=item><slot></slot></li></template>
+<x-empty>never defined, its light text shows</x-empty>
+<script>
+var sheet = new CSSStyleSheet();
+sheet.replaceSync(':host { display: block; } h2 span { text-transform: uppercase; } ' +
+  '::slotted(em) { display: block; } .gone { display: none; }');
+class XGreeting extends HTMLElement {
+  static get observedAttributes() { return ['who']; }
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' }).adoptedStyleSheets = [sheet];
+  }
+  connectedCallback() { this.render(); }
+  attributeChangedCallback() { this.render(); }
+  render() {
+    this.shadowRoot.innerHTML = '<h2>Hello, <span>' + (this.getAttribute('who') || 'nobody') +
+      '</span></h2><slot></slot><p class=gone>styled away</p><p>from the component</p>';
+  }
+}
+customElements.define('x-greeting', XGreeting);
+customElements.define('x-list', class extends HTMLElement {
+  connectedCallback() {
+    var root = this.attachShadow({ mode: 'open' });
+    var ul = document.createElement('ul');
+    Array.prototype.forEach.call(this.children, function (child, i) {
+      var li = document.importNode(document.getElementById('item').content, true);
+      child.slot = 's' + i;
+      li.firstElementChild.firstElementChild.name = 's' + i;
+      ul.appendChild(li);
+    });
+    root.appendChild(ul);
+  }
+});
+document.getElementById('late').setAttribute('who', 'attribute');
+</script>
+</body></html>

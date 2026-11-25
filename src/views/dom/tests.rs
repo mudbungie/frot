@@ -76,3 +76,31 @@ fn returns_array_at_top_level() {
     let v = j("<html><body></body></html>");
     assert!(matches!(v, Value::Array(_)));
 }
+
+#[test]
+fn a_shadow_root_is_its_hosts_first_child_as_a_declarative_template() {
+    let doc = Document::parse(
+        "<div><template shadowrootmode=closed shadowrootclonable shadowrootserializable \
+         shadowrootdelegatesfocus shadowrootslotassignment=manual><b>s</b></template>light</div>\
+         <p><template shadowrootmode=open>o</template></p>",
+    );
+    let out = dom_json(&doc);
+    let body = &out[0]["children"][1];
+    let div = &body["children"][0];
+    assert_eq!(
+        div["children"][0],
+        json!({"type": "element", "name": "template", "attrs": {
+            "shadowrootmode": "closed", "shadowrootdelegatesfocus": "",
+            "shadowrootserializable": "", "shadowrootclonable": "",
+            "shadowrootslotassignment": "manual"},
+            "children": [{"type": "element", "name": "b", "attrs": {},
+                "children": [{"type": "text", "value": "s"}]}]})
+    );
+    assert_eq!(
+        div["children"][1],
+        json!({"type": "text", "value": "light"})
+    );
+    let p = &body["children"][1];
+    assert_eq!(p["children"][0]["attrs"], json!({"shadowrootmode": "open"}));
+    assert_eq!(p["children"].as_array().unwrap().len(), 1);
+}

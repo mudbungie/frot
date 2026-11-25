@@ -14,6 +14,7 @@ use crate::fetch::FetchSession;
 mod attr;
 mod blob;
 mod clock;
+mod cssom;
 mod currentscript;
 mod customel;
 mod dispatch;

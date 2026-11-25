@@ -2080,6 +2080,11 @@ Attacked before building, per the house rule. Each is filed, none is built:
   `Attr` handles answering their own members and `nodeType`/`nodeName`/
   `nodeValue`/`textContent`; the tree members of `Node` do not apply to one,
   and `NamedNodeMap`'s write half (`setNamedItem`…) is not built.
+- **The CSSOM is the constructable sheet and no more.** `cssRules` lists a
+  constructed sheet's top-level rules as written, each a plain `CSSRule`
+  with `cssText` (Firefox re-serializes them as `CSSStyleRule`s); there is
+  no `document.styleSheets`, no sheet object for a `<style>` or `<link>`, and
+  `adoptedStyleSheets` takes constructed sheets only (as Firefox does).
 - **Chrome's `innerText` does not see shadow content** (15.1), so the
   fidelity recorder's text ruler is blind to it, as it was to generated
   content (fidelity.md §15.1): the ruler is repaired, not the view.
@@ -2134,3 +2139,33 @@ Attacked before building, per the house rule. Each is filed, none is built:
   the light tree: stage 4 flattens it. Measured after it, Amazon's home page:
   `js.errors` 0 on three runs (the Lit bundle defines, upgrades and renders
   into its shadow roots; its text is not yet in `--out text`).
+- **Stage 4 (`bl-00f5`), the flat tree.** `dom/flat.rs` is the one seam:
+  `flat_children` / `flat_parent` / `walk_flat`. The cascade's walk and
+  inheritance, layout (block, inline, flex, the menu-list rule), the text
+  and AX accessors (`painted_children` / `ax_children`, so `text`, `ax` and
+  accessible names), `bboxes` (its source ordinals too), `links`, `forms`
+  and the needs detector descend through it; selectors, `querySelector`,
+  `textContent`, `meta`, the serializers and scripts keep the node tree, and
+  a `<label>` is looked for in its control's own tree. Style scoping is
+  `css/trees.rs` (an index per tree) and `css/shadow.rs` (`:host`,
+  `::slotted()`, the featureless host, the context step) — css.md, "Shadow
+  trees". `prelude/cssom.js` builds constructable `CSSStyleSheet` and
+  `adoptedStyleSheets` on the document and every shadow root; a root's
+  adopted text is arena state (`dom::live`, `__frot_adopt`) the cascade
+  reads. `--out dom` writes a shadow root as its host's first child, a
+  `<template shadowrootmode>` element (item 10); nothing else in its output
+  changed. ParentNode's `firstElementChild` / `lastElementChild` /
+  `childElementCount` were missing on every node and are built (a
+  component's `importNode(template.content).firstElementChild` was
+  `undefined`). Measured: the fidelity corpus gains `shadow` (declarative,
+  no script) and `shadowjs` (custom elements, `attachShadow`,
+  `importNode`, adopted sheets), both equal to Chrome 158 on all five
+  channels with no ledger row, once the recorder's rulers were taught the
+  flat tree (fidelity.md §15.4). A real Lit 3.3.1 component renders and is
+  styled (`:host`, adopted sheets) under `--css --js`. lit.dev under `--css
+  --js`: its components now upgrade and render, and three Material Web
+  constructors throw at `attachInternals` (`bl-be13`), so the run reads 37
+  `js.errors` where stage 3 read 8, and 4.9 kB of text against 4.8 kB.
+  A script inserted into a connected shadow tree runs (§4.7's connected test
+  is `Document::connected`, shadow-including since stage 3), and one in a
+  detached host's tree does not, as in Firefox (`js/tests/shadow.rs`).

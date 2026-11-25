@@ -1,0 +1,19 @@
+{
+ "new": "[object CSSStyleSheet] 0 text/css    false 0 [object CSSRuleList]",
+ "replaceSync": "undefined 3 p { color: red; } | .a, .b { display: none; } | @media screen {\n  i { }\n}",
+ "replaceRet": "[object Promise]",
+ "insert": "0 3 a { } | b { } | d { }",
+ "insertBad": "THROW IndexSizeError: Index or size is negative or greater than the allowed amount",
+ "importReject": 1,
+ "docAdopted": "[object Array] true 0 true",
+ "docSet": "1 true none",
+ "docPush": "2 none",
+ "docLive": "inline-block",
+ "setBad": "THROW TypeError: Document.adoptedStyleSheets setter: Element of value being assigned is not an object.",
+ "setNotArr": "THROW TypeError: Document.adoptedStyleSheets setter: Value being assigned can't be converted to a observable array.",
+ "setNonConstructed": "THROW NotAllowedError: Adopted style sheet must be created through the Constructable StyleSheets API",
+ "srAdopted": "none 1",
+ "proto": "insertRule deleteRule replace replaceSync removeRule addRule ownerRule cssRules rules constructor || type href ownerNode parentStyleSheet title media disabled constructor || true",
+ "ruleProto": "[object CSSStyleRule] selectorText style constructor || [object CSSRuleList] item length constructor",
+ "docDesc": "function function true"
+}

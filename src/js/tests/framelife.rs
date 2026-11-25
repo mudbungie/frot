@@ -19,9 +19,9 @@ const CAPTURE: &str = include_str!("framelife/firefox153.json");
 /// on an index succeeds (no WindowProxy to refuse it); a window's own key
 /// order past the indices is frot's (`performance` before `close`); and an
 /// adopted node takes the adopting window's prototype (js.md §14.4), so a
-/// parent's node moved into a frame is no longer a parent `HTMLElement`.
-/// `adopt` reads `firstElementChild`, which frot lacks (`bl-59f7`); the
-/// adoption itself is pinned by the test below.
+/// parent's node moved into a frame is no longer a parent `HTMLElement`, and a
+/// frame's node moved into the parent answers the parent's interfaces
+/// (`adopt`: its prototype and methods are this window's, not the frame's).
 const DECLARED: [(&str, &str); 5] = [
     (
         "indexed",
@@ -31,7 +31,7 @@ const DECLARED: [(&str, &str); 5] = [
     ("defIdx", "false"),
     (
         "adopt",
-        "THROW TypeError: cannot read property 'ownerDocument' of undefined",
+        "true,true,true,true,true,false,true,true,true,0,xy,true",
     ),
     ("parentAdoptedIntoFrame", "true,false"),
 ];

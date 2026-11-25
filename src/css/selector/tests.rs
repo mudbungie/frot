@@ -1,4 +1,8 @@
 use super::*;
+
+fn matches(sel: &Selector, doc: &Document, id: NodeId) -> bool {
+    matches_in(sel, Context::of(doc), id)
+}
 use crate::css::query_all;
 use crate::css::selparse::parse_selector_list;
 use crate::dom::Document;
