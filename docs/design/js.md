@@ -868,6 +868,12 @@ reads its verdict on a `loadend` listener, so its script never acted.)*
   appears, never speculatively prefetched. Transitive module imports stay a
   serial loader chain (they are unknown until their importer is parsed); the
   preload-scanner set is the top-level externals, exactly as in a browser.
+  *(2026-11-24, `bl-946c`: the wave's host-time socket deadline is
+  `NetBudget::wave_deadline` — the network allowance's remainder, capped at
+  `TIMEOUT_SECS`. The remainder is read on the budget's own clock and becomes a
+  host duration only when that clock is host-paced; on a test's manual clock a
+  live allowance waits the ceiling and a spent one waits nothing, so a loaded
+  host cannot time a wave out that the meter would have let finish.)*
 - **Per-destination request metadata (landed, `bl-20ec`).** *(Supersedes the
   earlier "subfetches stay honest-minimal" deferral: full per-`Dest` subresource
   fidelity is now cheap because it derives from one place.)* One derivation —

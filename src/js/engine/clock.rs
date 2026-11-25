@@ -25,6 +25,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::fetch::TIMEOUT_SECS;
+
 /// §5 compute budget: the CPU time one run may spend on frot's own work.
 /// Host-independent — the same verdict on an idle laptop and a saturated CI box.
 pub const EXEC_CPU_MS: u64 = 1_000;
@@ -77,6 +79,13 @@ impl Clock {
         if let Kind::Manual(n) = &self.0 {
             n.fetch_add(d.as_nanos() as u64, Ordering::Relaxed);
         }
+    }
+
+    /// Whether host time moves this clock on its own. A manual clock moves only
+    /// by [`advance`](Self::advance), so no host-time wait can spend it — the
+    /// one fact a host-time timeout derived from a reading on it must respect.
+    pub fn host_paced(&self) -> bool {
+        !matches!(self.0, Kind::Manual(_))
     }
 
     /// Nanoseconds elapsed on this clock — monotonic, never negative.
@@ -231,14 +240,30 @@ impl NetBudget {
         self.spent.load(Ordering::Relaxed) >= self.budget
     }
 
-    /// What is left of the allowance. The concurrent warm (`bl-08f6`) times its
-    /// parallel wave from this, so the wave obeys the run's network bound
-    /// (js.md §5/§6) — nothing outlives it.
+    /// What is left of the allowance. A concurrent wave's
+    /// [`wave_deadline`](Self::wave_deadline) is timed from this, so the wave
+    /// obeys the run's network bound (js.md §5/§6) — nothing outlives it.
     pub fn left(&self) -> Duration {
         Duration::from_nanos(
             self.budget
                 .saturating_sub(self.spent.load(Ordering::Relaxed)),
         )
+    }
+
+    /// The host-time deadline of one concurrent wave (the initial-script warm,
+    /// the `--images` wave): what is [`left`](Self::left) of the allowance,
+    /// capped at the per-request [`TIMEOUT_SECS`]. A socket times out in host
+    /// time, so the remainder converts to one only on a host-paced clock; on a
+    /// [`Clock::manual`] only the meter can end the wave, so an allowance with
+    /// anything left waits the ceiling and a spent one waits nothing (bl-946c:
+    /// converting a manual remainder to host time failed a loaded builder).
+    pub(crate) fn wave_deadline(&self) -> Instant {
+        let ceiling = Duration::from_secs(TIMEOUT_SECS);
+        let wait = match self.left() {
+            l if l.is_zero() || self.clock.host_paced() => l.min(ceiling),
+            _ => ceiling,
+        };
+        Instant::now() + wait
     }
 
     /// Nanoseconds elapsed on the underlying clock — the reading the §6 cache

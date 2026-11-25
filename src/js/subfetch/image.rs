@@ -1,9 +1,7 @@
 //! The `--images` wave (`bl-49f1`, js.md §7 "Images"): fetch the queued
 //! `<img>` URLs in one concurrent wave and remember what each one is.
 
-use std::time::{Duration, Instant};
-
-use crate::fetch::{binary_bytes, fetch_many, header_value, Intent, TIMEOUT_SECS};
+use crate::fetch::{binary_bytes, fetch_many, header_value, Intent};
 use crate::js::syscall::image_size;
 
 use super::{data, Subfetch};
@@ -33,17 +31,11 @@ impl Subfetch {
                 wave.push((url, Intent::Image { background }));
             }
         }
-        let left = self.net.left().min(Duration::from_secs(TIMEOUT_SECS));
+        let deadline = self.net.wave_deadline();
         let pool = self.budget.saturating_sub(self.spent);
-        let (got, _) = self.net.charge(|| {
-            fetch_many(
-                &self.session,
-                &wave,
-                &self.base,
-                Instant::now() + left,
-                pool,
-            )
-        });
+        let (got, _) = self
+            .net
+            .charge(|| fetch_many(&self.session, &wave, &self.base, deadline, pool));
         self.refused |= got.len() < wave.len() && self.net.spent_out();
         for (i, r) in &got {
             let bytes = binary_bytes(&r.body);

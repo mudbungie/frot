@@ -8,8 +8,9 @@
 //! (which must). Both are exact: the "slow origin" is a `mockito` handler that
 //! advances the run's own [`Clock::manual`], and the "compute" is an advance of
 //! that same clock between arming and running — what `Clock::advance` is for.
-//! Nothing sleeps and nothing spins, so neither verdict can be changed by host
-//! load, which is the defect's own moral.
+//! No verdict waits on a sleep or a spin, so none can be changed by host
+//! load, which is the defect's own moral — and the slow origin also stalls in
+//! host time, so a wait converted from the run's clock to the host's would show.
 
 use std::time::Duration;
 
@@ -70,7 +71,9 @@ fn late(server: &mut Server) -> Mock {
 }
 
 /// An endpoint that takes 400 ms *of the run's own clock* to answer — a slow
-/// origin without a slow test.
+/// origin without a slow test. Having moved that clock it then stalls 150 ms
+/// of *host* time, more than the whole budget: a loaded builder, made the norm
+/// (bl-946c). Host time is not the meter, so it must change no verdict.
 fn slow(server: &mut Server, path: &str, clock: &Clock) -> Mock {
     let clock = clock.clone();
     server
@@ -78,6 +81,7 @@ fn slow(server: &mut Server, path: &str, clock: &Clock) -> Mock {
         .with_status(200)
         .with_chunked_body(move |w| {
             clock.advance(Duration::from_millis(400));
+            std::thread::sleep(Duration::from_millis(150));
             w.write_all(b"globalThis.slow = 1;")
         })
         .create()

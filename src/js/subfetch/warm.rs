@@ -1,10 +1,8 @@
 //! The concurrent warm of the §6 cache (`bl-08f6`) — the preload-scanner pass
 //! over the initial external scripts.
 
+use crate::fetch::{fetch_many, Intent};
 use std::collections::HashSet;
-use std::time::{Duration, Instant};
-
-use crate::fetch::{fetch_many, Intent, TIMEOUT_SECS};
 
 use super::{data, freeze, Subfetch};
 
@@ -36,17 +34,11 @@ impl Subfetch {
                 }
             }
         }
-        let left = self.net.left().min(Duration::from_secs(TIMEOUT_SECS));
+        let deadline = self.net.wave_deadline();
         let budget = self.budget.saturating_sub(self.spent);
-        let (wave, _) = self.net.charge(|| {
-            fetch_many(
-                &self.session,
-                &reqs,
-                &self.base,
-                Instant::now() + left,
-                budget,
-            )
-        });
+        let (wave, _) = self
+            .net
+            .charge(|| fetch_many(&self.session, &reqs, &self.base, deadline, budget));
         for (i, r) in wave {
             let frozen = freeze(r);
             self.spent += frozen.body.len();
