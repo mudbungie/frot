@@ -64,7 +64,7 @@ impl Subfetch {
             Ok(b) => b,
             Err(reason) => return Outcome::Failed(reason),
         };
-        self.wire(&url, |session, base, timeout| {
+        self.wire(&url, "fetch", |session, base, timeout| {
             session.submit(&url, base, &body, timeout)
         })
     }

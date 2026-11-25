@@ -14,7 +14,7 @@
 use rquickjs::{Array, Ctx, Function, Object, String as JsString, Value};
 
 use super::Host;
-use crate::js::subfetch::Outcome;
+use crate::js::subfetch::{Outcome, Timing};
 
 /// Bind one named host function, keeping the `?` paths on the call line so line
 /// coverage sees the executed `set` (the core table's `bind!` shape).
@@ -46,7 +46,8 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
         }
     });
     // The real resource-timing measurements (`bl-e707`, js.md §8): one
-    // `(name, startMs, durationMs)` per request that truly hit the network, which
+    // `[name, startMs, durationMs, initiator, status, contentType]` per request
+    // that truly hit the network, which
     // `performance.getEntriesByType('resource')` shapes into entries. Only real
     // measured requests — no fabricated navigation/DNS/TLS numbers (js.md §6).
     bind!(ctx, g, "__frot_resource_timings", {
@@ -58,19 +59,19 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
     Ok(())
 }
 
-/// Shape the recorded `(name, start_ms, duration_ms)` measurements into an array
-/// of `[name, start, duration]` triples the `performance` prelude reads (§8). One
-/// uniform fallible pass, the header-array shape above.
-fn timings_array<'js>(
-    ctx: &Ctx<'js>,
-    timings: Vec<(String, f64, f64)>,
-) -> rquickjs::Result<Array<'js>> {
+/// Shape the recorded measurements into an array of `[name, start, duration,
+/// initiator, status, contentType]` rows the `performance` prelude reads (§8).
+/// One uniform fallible pass, the header-array shape above.
+fn timings_array<'js>(ctx: &Ctx<'js>, timings: Vec<Timing>) -> rquickjs::Result<Array<'js>> {
     let arr = Array::new(ctx.clone())?;
-    for (i, (name, start, duration)) in timings.into_iter().enumerate() {
+    for (i, t) in timings.into_iter().enumerate() {
         let e = Array::new(ctx.clone())?;
-        e.set(0, name)?;
-        e.set(1, start)?;
-        e.set(2, duration)?;
+        e.set(0, t.name)?;
+        e.set(1, t.start_ms)?;
+        e.set(2, t.dur_ms)?;
+        e.set(3, t.initiator)?;
+        e.set(4, t.status)?;
+        e.set(5, t.content_type)?;
         arr.set(i, e)?;
     }
     Ok(arr)

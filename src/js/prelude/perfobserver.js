@@ -14,8 +14,78 @@
 (function (g) {
   'use strict';
   var slots = g.__frot_slots;
-  var hook = g.__frot_perf_hook;
+  var hook = g.__frot_perf_hook, URL = g.URL;
   delete g.__frot_perf_hook;
+
+  // --- PerformanceEntry and PerformanceResourceTiming (bl-c378) --------------
+  // Interfaces, members and order read off Firefox 153.0esr (js.md §5). An
+  // entry owns nothing; its values are slots. What frot measures, it says:
+  // startTime/duration (and fetchStart/responseEnd, their two ends), who made
+  // the request, and — for a resource of the document's own origin — its status
+  // and MIME type, which Firefox gives such a resource (a cross-origin one
+  // reads 0 and ''). Every other value is the 0, '' or [] Firefox reports when a
+  // resource's timing details are withheld from the page: frot measures no DNS,
+  // connection, TLS or transfer phase and no sizes, and invents none.
+  var TIMING = ['initiatorType', 'nextHopProtocol', 'workerStart', 'redirectStart',
+    'redirectEnd', 'fetchStart', 'domainLookupStart', 'domainLookupEnd', 'connectStart',
+    'connectEnd', 'secureConnectionStart', 'requestStart', 'finalResponseHeadersStart',
+    'firstInterimResponseStart', 'responseStart', 'responseEnd', 'transferSize',
+    'encodedBodySize', 'decodedBodySize', 'responseStatus', 'contentType', 'serverTiming'];
+  function own(entry, member, name) {
+    var st = slots(entry);
+    if (st.entryType !== 'resource') {
+      throw new TypeError("'" + member + "' called on an object that does not implement "
+        + 'interface ' + name + '.');
+    }
+    return st;
+  }
+  function getters(names, name) {
+    var out = {};
+    names.forEach(function (k) {
+      out[k] = function () {
+        return own(this, 'get ' + k, name)[k];
+      };
+    });
+    return out;
+  }
+  var Entry = g.__frot_iface('PerformanceEntry');
+  g.__frot_ifaceops(Entry.prototype, { toJSON: function toJSON() {
+    var st = own(this, 'toJSON', 'PerformanceEntry');
+    return { name: st.name, entryType: st.entryType, startTime: st.startTime,
+      duration: st.duration };
+  } });
+  g.__frot_ifaceattrs(Entry.prototype,
+    getters(['name', 'entryType', 'startTime', 'duration'], 'PerformanceEntry'));
+  var Resource = g.__frot_extends(g.__frot_iface('PerformanceResourceTiming'), Entry);
+  g.__frot_ifaceops(Resource.prototype, { toJSON: function toJSON() {
+    var st = own(this, 'toJSON', 'PerformanceResourceTiming');
+    var o = Entry.prototype.toJSON.call(this);
+    TIMING.forEach(function (k) {
+      o[k] = k === 'serverTiming' ? [] : st[k];
+    });
+    return o;
+  } });
+  g.__frot_ifaceattrs(Resource.prototype, getters(TIMING, 'PerformanceResourceTiming'));
+  // net.js names an XMLHttpRequest's entries (the host knows only "a page
+  // fetch"), by index, through `__frot_initiator`, which it takes off the global.
+  var labels = {};
+  Object.defineProperty(g, '__frot_initiator', { configurable: true, value: function (i, type) {
+    labels[i] = type;
+  } });
+  // `raw` is the host's [name, start, duration, initiator, status, contentType].
+  hook.entry = function (raw, i, floor) {
+    var e = Object.create(Resource.prototype), s = floor(raw[1]), d = floor(raw[2]);
+    var mine = new URL(raw[0]).origin === g.__frot_location().origin;
+    var st = Object.assign(slots(e), { name: raw[0], entryType: 'resource', startTime: s,
+      duration: d, serverTiming: Object.freeze([]) });
+    TIMING.forEach(function (k) {
+      if (k !== 'serverTiming') st[k] = 0;
+    });
+    Object.assign(st, { initiatorType: labels[i] || raw[3], nextHopProtocol: '', fetchStart: s,
+      responseEnd: s + d, responseStatus: mine ? raw[4] : 0,
+      contentType: mine ? raw[5].split(';')[0].trim().toLowerCase() : '' });
+    return e;
+  };
 
   var SUPPORTED = ['event', 'first-input', 'largest-contentful-paint', 'mark', 'measure',
     'navigation', 'paint', 'resource'];

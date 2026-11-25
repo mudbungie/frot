@@ -101,6 +101,20 @@ struct ResourceTiming {
     name: String,
     start_ns: u64,
     dur_ns: u64,
+    initiator: &'static str,
+    status: u16,
+    content_type: String,
+}
+
+/// One resource entry's measured facts (`bl-c378`): times in ms on the run's
+/// one clock, who asked, the status and `content-type` (empty if none sent).
+pub struct Timing {
+    pub name: String,
+    pub start_ms: f64,
+    pub dur_ms: f64,
+    pub initiator: &'static str,
+    pub status: u16,
+    pub content_type: String,
 }
 
 impl Subfetch {
@@ -136,19 +150,20 @@ impl Subfetch {
         self.refused
     }
 
-    /// The real resource-timing measurements recorded so far (`bl-e707`), as
-    /// `(name, start_ms, duration_ms)` — the shape `performance.getEntriesByType`
-    /// builds each entry from. Times are ms on the run's one clock (the
-    /// `__frot_now` origin), so they cohere with `performance.now()`.
-    pub fn timings(&self) -> Vec<(String, f64, f64)> {
+    /// The real resource-timing measurements recorded so far (`bl-e707`), what
+    /// `performance.getEntriesByType` builds each entry from. Times are ms on the
+    /// run's one clock (the `__frot_now` origin), so they cohere with
+    /// `performance.now()`.
+    pub fn timings(&self) -> Vec<Timing> {
         self.timings
             .iter()
-            .map(|t| {
-                (
-                    t.name.clone(),
-                    t.start_ns as f64 / 1e6,
-                    t.dur_ns as f64 / 1e6,
-                )
+            .map(|t| Timing {
+                name: t.name.clone(),
+                start_ms: t.start_ns as f64 / 1e6,
+                dur_ms: t.dur_ns as f64 / 1e6,
+                initiator: t.initiator,
+                status: t.status,
+                content_type: t.content_type.clone(),
             })
             .collect()
     }
@@ -172,7 +187,7 @@ impl Subfetch {
         if let Some(payload) = data::payload(&url) {
             return self.local(&url, payload);
         }
-        let hit = self.wire(&url, |session, base, timeout| {
+        let hit = self.wire(&url, intent.initiator(), |session, base, timeout| {
             session.subresource(&url, base, intent, timeout)
         });
         if let Outcome::Got(frozen) = &hit {
@@ -188,6 +203,7 @@ impl Subfetch {
     fn wire(
         &mut self,
         url: &str,
+        initiator: &'static str,
         send: impl FnOnce(&FetchSession, &str, Duration) -> Result<FetchResult, FetchError>,
     ) -> Outcome {
         if self.net.spent_out() {
@@ -211,10 +227,18 @@ impl Subfetch {
             Ok(r) => {
                 let frozen = freeze(r);
                 self.spent += frozen.body.len();
+                let content_type = frozen
+                    .headers
+                    .iter()
+                    .find(|(name, _)| name.eq_ignore_ascii_case("content-type"))
+                    .map_or(String::new(), |(_, value)| value.clone());
                 self.timings.push(ResourceTiming {
                     name: url.to_string(),
                     start_ns,
                     dur_ns,
+                    initiator,
+                    status: frozen.status,
+                    content_type,
                 });
                 Outcome::Got(frozen)
             }

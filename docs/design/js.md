@@ -638,6 +638,21 @@ design center. Two clocks, four limits:
     Phases frot does not measure (DNS/TCP/TLS) stay spec-legal `0`, never
     fabricated; no navigation entry is synthesised for the pre-JS document fetch
     (unmeasured here) — omission over invented phases.
+    *(2026-11-24, `bl-c378`: entries were plain objects; they are now real
+    `PerformanceEntry`/`PerformanceResourceTiming` instances — member order,
+    `toJSON` and brand-check errors read off Firefox 153.0esr, one object per
+    measurement returned at every read. What an entry says, in full:
+    `startTime`/`duration` and their two ends `fetchStart`/`responseEnd`,
+    measured; `initiatorType` from who asked — `script` (classic, module and
+    imports alike), `img`, `link`, `fetch` (a POST too), `xmlhttprequest`, as
+    Firefox names them; and, for a resource of the document's own origin, its
+    `responseStatus` and MIME `contentType` (a cross-origin one reads `0` and
+    `''`, as in Firefox). Every other attribute is the `0`, `''` or frozen `[]`
+    Firefox reports when a resource's timing details are withheld from the
+    page: frot measures no DNS, connection, TLS or transfer phase, no
+    protocol and no sizes, and invents none. `getEntriesByName` takes its
+    `type`; both lookups require their argument. Pinned against a Firefox
+    capture: `js::tests::perf`, `tests/fixtures/js/perf-firefox153.json`.)*
 - **Compute budget: `EXEC_CPU_MS = 1_000` of *CPU* time** (`bl-8dc0`, superseding
   the wall-clock `EXEC_BUDGET_MS = 1_000`), enforced by the engine's interrupt
   handler and re-read between macrotasks. It prices frot's own work — script

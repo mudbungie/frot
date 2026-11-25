@@ -34,4 +34,39 @@ impl Intent {
     pub(crate) fn is_image(self) -> bool {
         matches!(self, Intent::Image { .. })
     }
+
+    /// The `initiatorType` Firefox gives a resource entry for this request
+    /// (`bl-c378`, measured: a module and its imports are `script` too). A page
+    /// `fetch()` reads `fetch`; net.js relabels an `XMLHttpRequest`'s own.
+    pub(crate) fn initiator(self) -> &'static str {
+        match self {
+            Intent::Navigation => "navigation",
+            Intent::Style => "link",
+            Intent::ClassicScript | Intent::Module => "script",
+            Intent::FetchXhr => "fetch",
+            Intent::Image { .. } => "img",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Intent;
+
+    #[test]
+    fn each_request_names_the_initiator_firefox_gives_it() {
+        let all = [
+            Intent::Navigation,
+            Intent::Style,
+            Intent::ClassicScript,
+            Intent::Module,
+            Intent::FetchXhr,
+            Intent::Image { background: true },
+        ];
+        let got: Vec<_> = all.iter().map(|i| i.initiator()).collect();
+        assert_eq!(
+            got,
+            ["navigation", "link", "script", "script", "fetch", "img"]
+        );
+    }
 }

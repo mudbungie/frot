@@ -47,6 +47,7 @@ mod message;
 mod net;
 mod netbudget;
 mod newrequired;
+mod perf;
 mod persona_gold;
 mod receiver;
 mod reflect;

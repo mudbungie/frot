@@ -81,11 +81,14 @@
       return resourceEntries();
     },
     getEntriesByType: function getEntriesByType(type) {
-      return type === 'resource' ? resourceEntries() : [];
+      need(arguments, 'getEntriesByType');
+      return String(type) === 'resource' ? resourceEntries() : [];
     },
     getEntriesByName: function getEntriesByName(name) {
+      need(arguments, 'getEntriesByName');
+      var type = arguments[1] === undefined ? undefined : String(arguments[1]);
       return resourceEntries().filter(function (e) {
-        return e.name === name;
+        return e.name === String(name) && (type === undefined || type === e.entryType);
       });
     },
   });
@@ -95,23 +98,26 @@
     },
   });
   g.performance = Object.create(Performance.prototype);
-  // PerformanceResourceTiming for the real subfetches only (§6/§8): frot measures
-  // start + duration off the one clock; every phase it does not measure (DNS/TCP/
-  // TLS) stays 0 — spec-legal for a cross-origin resource, never fabricated. No
-  // navigation entry is synthesised for the pre-JS document fetch (unmeasured
-  // here) — spec-legal omission over invented phases.
+  function need(args, member) {
+    if (!args.length) {
+      throw new TypeError('Performance.' + member + ': At least 1 argument required, but only 0 '
+        + 'passed');
+    }
+  }
+  // One PerformanceResourceTiming per real subfetch (§6/§8, bl-c378), made once
+  // and handed back as the same object at every read (measured). What an entry
+  // says is perfobserver.js's (`perf.entry`); the times are floored to the
+  // timer precision here. No navigation entry is synthesised for the pre-JS
+  // document fetch (unmeasured here) — spec-legal omission over invented phases.
+  var made = [];
   function resourceEntries() {
-    return __frot_resource_timings().map(function (r) {
-      var s = Math.floor(r[1] / PRECISION) * PRECISION;
-      var d = Math.floor(r[2] / PRECISION) * PRECISION;
-      // Measured: startTime/duration/responseEnd. Unmeasured phases spec-legal 0.
-      return {
-        entryType: 'resource', name: r[0], startTime: s, duration: d,
-        fetchStart: s, responseEnd: s + d,
-        domainLookupStart: 0, domainLookupEnd: 0, connectStart: 0, connectEnd: 0,
-        secureConnectionStart: 0, requestStart: 0, responseStart: 0, transferSize: 0,
-      };
-    });
+    var raw = __frot_resource_timings();
+    for (var i = made.length; i < raw.length; i++) {
+      made.push(perf.entry(raw[i], i, function (ms) {
+        return Math.floor(ms / PRECISION) * PRECISION;
+      }));
+    }
+    return made.slice();
   }
 
   // --- Timer queue ----------------------------------------------------------

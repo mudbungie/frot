@@ -72,7 +72,7 @@ fn failed_shaping_fails_cleanly_at_every_allocation_point() {
 /// Build a realm, cap the heap `headroom` above its resting cost, then shape the
 /// resource-timing array (`bl-e707`). The same allocation-failure guarantee as
 /// `outcome_obj`: every `?` in the success path surfaces as `Err`, never a panic.
-fn shape_timings_with_headroom(timings: Vec<(String, f64, f64)>, headroom: usize) -> bool {
+fn shape_timings_with_headroom(timings: Vec<Timing>, headroom: usize) -> bool {
     let rt = Runtime::new().unwrap();
     let ctx = Context::full(&rt).unwrap();
     let used = rt.memory_usage().malloc_size as usize;
@@ -83,15 +83,21 @@ fn shape_timings_with_headroom(timings: Vec<(String, f64, f64)>, headroom: usize
 }
 
 /// Sweeping headroom walks the first failing allocation through every `?` of the
-/// timings array — the outer array, each triple, and each `[name, start, dur]`
-/// element set — proving each fails cleanly and a roomy heap still succeeds.
+/// timings array — the outer array, each row, and each of its six element
+/// sets — proving each fails cleanly and a roomy heap still succeeds.
 #[test]
 fn timings_shaping_fails_cleanly_at_every_allocation_point() {
     let sample = || {
-        vec![
-            ("https://example.com/a.js".to_string(), 1.0, 2.0),
-            ("https://example.com/b.css".to_string(), 3.0, 4.0),
-        ]
+        Vec::from(
+            ["https://example.com/a.js", "https://example.com/b.css"].map(|name| Timing {
+                name: name.to_string(),
+                start_ms: 1.0,
+                dur_ms: 2.0,
+                initiator: "script",
+                status: 200,
+                content_type: "text/css".to_string(),
+            }),
+        )
     };
     let results: Vec<bool> = (0..4000)
         .map(|h| shape_timings_with_headroom(sample(), h))

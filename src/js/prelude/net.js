@@ -26,6 +26,9 @@
   // response.js's maker for a fetched Response, taken off the global here.
   var make = g.__frot_respond;
   delete g.__frot_respond;
+  // perfobserver.js's namer for an XMLHttpRequest's resource entry (bl-c378).
+  var initiator = g.__frot_initiator;
+  delete g.__frot_initiator;
 
   // A Request-like input exposes `.url`; anything else is stringified.
   function absolute(input) {
@@ -142,7 +145,11 @@
       var st = slots(this);
       if (!supported(st.method))
         throw new Error('frot: only GET and POST requests are supported');
+      var n = __frot_resource_timings().length;
       var r = dispatch(st.method, st.url, arguments[0], st.ctype);
+      // A request that reached the network is this XHR's entry (Firefox:
+      // initiatorType 'xmlhttprequest'); a cache hit made none.
+      if (__frot_resource_timings().length > n) initiator(n, 'xmlhttprequest');
       st.status = r.error ? 0 : r.status;
       if (!r.error) {
         st.responseText = r.body;
