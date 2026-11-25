@@ -12,6 +12,7 @@ use crate::dom::Document;
 use crate::fetch::FetchSession;
 
 mod attr;
+mod audioctx;
 mod blob;
 mod clock;
 mod composed;

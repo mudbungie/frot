@@ -1,0 +1,14 @@
+{
+ "baseChain": "BaseAudioContext>EventTarget|EventTarget",
+ "acChain": "AudioContext>BaseAudioContext>EventTarget|BaseAudioContext",
+ "oacChain": "OfflineAudioContext>BaseAudioContext>EventTarget|BaseAudioContext",
+ "nodeChain": "AudioNode>EventTarget|EventTarget",
+ "gainChain": "GainNode>AudioNode>EventTarget|AudioNode",
+ "baseOwn": "resume createBuffer decodeAudioData createBufferSource createConstantSource createScriptProcessor createAnalyser createGain createDelay createBiquadFilter createIIRFilter createWaveShaper createPanner createStereoPanner createConvolver createChannelSplitter createChannelMerger createDynamicsCompressor createOscillator createPeriodicWave destination sampleRate currentTime listener state audioWorklet onstatechange constructor",
+ "acOwn": "getOutputTimestamp suspend close createMediaElementSource createMediaStreamSource createMediaStreamTrackSource createMediaStreamDestination baseLatency outputLatency constructor",
+ "oacOwn": "startRendering length oncomplete constructor",
+ "nodeOwn": "connect disconnect context numberOfInputs numberOfOutputs channelCount channelCountMode channelInterpretation constructor",
+ "statechange": "object,true,function",
+ "acInst": "true,object",
+ "complete": "P,L:complete:true:128,H"
+}

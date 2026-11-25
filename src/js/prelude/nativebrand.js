@@ -69,6 +69,13 @@
       'visibilityState activeElement adoptedStyleSheets ' + ON + ' onerror children firstElementChild ' +
       'lastElementChild childElementCount',
     HTMLLinkElement: 'disabled href rel relList type',
+    // The Web Audio surface (bl-bd3d), in the binary's relative order.
+    BaseAudioContext: 'resume createBuffer createBufferSource createAnalyser createGain createBiquadFilter ' +
+      'createDynamicsCompressor createOscillator destination sampleRate currentTime state onstatechange',
+    AudioContext: 'suspend close baseLatency outputLatency',
+    OfflineAudioContext: 'startRendering length oncomplete',
+    AudioNode: 'connect disconnect context numberOfInputs numberOfOutputs channelCount channelCountMode ' +
+      'channelInterpretation',
     HTMLFieldSetElement: 'disabled form name type elements',
     HTMLIFrameElement: 'src srcdoc name width height contentDocument contentWindow',
     HTMLFormElement: 'action name rel relList elements length',
@@ -100,7 +107,7 @@
     });
   });
   var built = g.__frot_iface_seal([g.EventTarget, g.Worker, g.SharedWorker, g.Notification,
-    g.AbortSignal, g.AbortController, g.Event, g.CustomEvent]);
+    g.AbortSignal, g.AbortController, g.Event, g.CustomEvent, g.AudioContext, g.OfflineAudioContext]);
 
   sweep(g); // window's own methods + the raw __frot_* syscalls (source hidden)
   // Every node interface, not only the ones one sample element reaches.

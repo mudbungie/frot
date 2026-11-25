@@ -76,6 +76,7 @@
   // returns its destination (so `osc.connect(comp).connect(dest)` chains, exactly
   // as Web Audio does) and folds the edge into the digest.
   var AudioNode = iface('AudioNode', ['context', 'numberOfInputs', 'numberOfOutputs']);
+  g.__frot_extends(AudioNode, g.EventTarget); // an EventTarget, as in Firefox (bl-bd3d)
   rwAttrs(AudioNode.prototype, ['channelCount', 'channelCountMode',
     'channelInterpretation']);
   AudioNode.prototype.connect = brand(function (dest) {
@@ -117,7 +118,7 @@
   Object.keys(NODES).forEach(function (name) {
     var spec = NODES[name];
     var C = klass(name, function (inst, args) { initNode(inst, name, args[0], args[1]); });
-    Object.setPrototypeOf(C.prototype, AudioNode.prototype);
+    g.__frot_extends(C, AudioNode);
     (spec.methods || []).forEach(function (m) {
       C.prototype[m] = brand(function () {
         fold(slots(this).context, name + '.' + m + '(' + argstr(arguments) + ')');

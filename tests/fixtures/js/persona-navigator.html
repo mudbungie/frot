@@ -790,7 +790,8 @@
   var osc2 = new OscillatorNode(ocd, { type: 'square' });
   eq('osc2:type', osc2.type, 'square');
   ok('osc2:node', osc2 instanceof OscillatorNode && osc2 instanceof AudioNode);
-  ok('oac:suspend-promise', ocd.suspend() instanceof Promise);
+  // Firefox 153.0esr has no OfflineAudioContext.suspend (measured, bl-bd3d).
+  eq('oac:no-suspend', typeof ocd.suspend, 'undefined');
   // The classic fingerprint graph: oscillator -> compressor -> destination.
   function fpGraph(freq) {
     var oc = new OfflineAudioContext(1, 44100, 44100);
@@ -839,7 +840,9 @@
   eq('oac:oncomplete-null', new OfflineAudioContext(1, 8, 44100).oncomplete, null);
   native('oac:startRendering', oc1.startRendering);
   var audioChecks = oc1.startRendering().then(function (buf) {
-    ok('oac:complete-fired', completeFired);
+    // The promise settles first; `complete` is a task after it (Firefox 153.0esr,
+    // measured, bl-bd3d).
+    ok('oac:complete-after-promise', !completeFired);
     eq('oac:buf-tag', Object.prototype.toString.call(buf), '[object AudioBuffer]');
     ok('oac:buf-instanceof', buf instanceof AudioBuffer);
     eq('oac:buf-len', buf.length, 44100);
@@ -863,6 +866,12 @@
     });
   });
   asyncChecks.push(audioChecks);
+  asyncChecks.push(new Promise(function (done) {
+    setTimeout(function () {
+      ok('oac:complete-fired', completeFired);
+      done();
+    }, 0);
+  }));
 
   // --- Instances own nothing (bl-3bdc, identity.md §3.16) ---------------------
   // A WebIDL interface puts every attribute and operation on its PROTOTYPE, so

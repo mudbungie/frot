@@ -28,6 +28,11 @@
   // --- BaseAudioContext: the shared surface (Firefox: abstract / Illegal) ------
   var Base = iface('BaseAudioContext', ['sampleRate', 'currentTime', 'state',
     'destination']);
+  // An EventTarget (bl-bd3d, Firefox 153.0esr): a context hears its own
+  // `complete`/`statechange` through addEventListener as well as its handler.
+  g.__frot_extends(Base, g.EventTarget);
+  g.__frot_onevent(Base.prototype, 'onstatechange');
+  Base.prototype.resume = brand(function () { return Promise.resolve(undefined); }, 'resume');
   var CREATE = {
     createOscillator: 'OscillatorNode', createDynamicsCompressor: 'DynamicsCompressorNode',
     createGain: 'GainNode', createBiquadFilter: 'BiquadFilterNode',
@@ -54,7 +59,7 @@
   var AudioContext = klass('AudioContext', function (inst) {
     initContext(inst, 'AudioContext', A.sampleRate, A.maxChannelCount);
   });
-  Object.setPrototypeOf(AudioContext.prototype, Base.prototype);
+  g.__frot_extends(AudioContext, Base);
   // Fixed profile facts, so the getter IS the value — no slot to stash them in
   // and, unlike the `_baseLatency` prototype properties this replaced, nothing
   // extra for a page reading `AudioContext.prototype`'s own names to find.
@@ -62,7 +67,7 @@
     baseLatency: function () { return A.baseLatency; },
     outputLatency: function () { return A.outputLatency; },
   });
-  ['resume', 'suspend', 'close'].forEach(function (m) {
+  ['suspend', 'close'].forEach(function (m) {
     AudioContext.prototype[m] = brand(function () { return Promise.resolve(undefined); }, m);
   });
 
@@ -87,10 +92,9 @@
     st.numberOfChannels = a[0];
     st.length = a[1];
   });
-  Object.setPrototypeOf(OfflineAudioContext.prototype, Base.prototype);
+  g.__frot_extends(OfflineAudioContext, Base);
   attrs(OfflineAudioContext.prototype, ['length']);
   g.__frot_onevent(OfflineAudioContext.prototype, 'oncomplete');
-  OfflineAudioContext.prototype.suspend = brand(function () { return Promise.resolve(undefined); }, 'suspend');
 
   // OfflineAudioCompletionEvent: an Event subtype carrying the rendered buffer,
   // so `ctx.oncomplete = e => e.renderedBuffer` (the fingerprintjs shape) works.
@@ -104,16 +108,17 @@
   attrs(CompletionEvent.prototype, ['type', 'renderedBuffer']);
 
   // startRendering(): the rendered buffer's digest is FROZEN to the graph built so
-  // far, so repeat calls and independent invocations agree. Resolves the promise
-  // AND fires oncomplete on the microtask queue (both Firefox delivery paths),
-  // which the run driver drains before it reports the run settled.
+  // far, so repeat calls and independent invocations agree. Resolves the promise,
+  // then fires `complete` as a task — after the page's own `.then` (Firefox
+  // 153.0esr, measured: promise, listener, handler) — which the run driver
+  // drains before it reports the run settled.
   OfflineAudioContext.prototype.startRendering = brand(function () {
     var st = slots(this);
     var buf = makeBuffer(st.numberOfChannels, st.length, st.sampleRate, true, SEED, st.d);
     st.currentTime = st.sampleRate ? st.length / st.sampleRate : 0;
     st.state = 'closed';
     var self = this;
-    Promise.resolve().then(function () {
+    g.__frot_task(function () {
       var ev = new CompletionEvent('complete', { renderedBuffer: buf });
       slots(ev).trusted = true;
       g.__frot_dispatch(self, ev);
