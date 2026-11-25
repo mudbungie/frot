@@ -41,7 +41,9 @@
   // Every node a script can hold is an arena node — a fragment included, whose
   // children the arena moves in its place — and the reference sibling goes
   // through as a node id, never an index (bl-ae88).
+  // A node of another window's document is adopted first (adopt.js).
   function insert(op, parent, child, ref) {
+    child = g.__frot_own(child);
     refuse(op, g.__frot_insert_child(slots(parent).id, slots(child).id, ref ? slots(ref).id : null));
     return child;
   }
@@ -79,6 +81,7 @@
         );
       }
       // Judged with `child` set aside, before anything is removed.
+      node = g.__frot_own(node);
       refuse('replaceChild', g.__frot_replace_refusal(slots(this).id, slots(node).id, ids[i]));
       g.__frot_detach(ids[i]);
       insert('replaceChild', this, node, i + 1 < ids.length ? wrap(ids[i + 1]) : null);

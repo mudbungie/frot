@@ -94,6 +94,10 @@ pub const SOURCE: &str = concat!(
     // module that gives an interface one through `__frot_onevent`.
     include_str!("prelude/handlers.js"),
     "\n",
+    // adopt.js (bl-2aaa): another window's node inserted here is adopted —
+    // node.js and doc.js call it, so it is in place before any page script.
+    include_str!("prelude/adopt.js"),
+    "\n",
     // doc.js (bl-6da7): the `document` object's members, split off elem2.js
     // on the seam that file already named.
     include_str!("prelude/doc.js"),

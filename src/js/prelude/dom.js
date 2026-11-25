@@ -103,16 +103,22 @@
     wrappers[id] = w;
     return w;
   }
+  function protoOf(id) {
+    var tag = g.__frot_tag(id);
+    return tag == null
+      ? g.__frot_shadow_info(id) ? g.ShadowRoot.prototype : KIND[g.__frot_kind(id)]
+      : byTag[tag] || (tag.indexOf('-') < 0 ? g.HTMLUnknownElement : HTMLElement).prototype;
+  }
   function wrap(id) {
     if (id === null || id === undefined) return null;
     var w = wrappers[id];
-    if (w !== undefined) return w;
-    var tag = g.__frot_tag(id);
-    var proto =
-      tag == null
-        ? g.__frot_shadow_info(id) ? g.ShadowRoot.prototype : KIND[g.__frot_kind(id)]
-        : byTag[tag] || (tag.indexOf('-') < 0 ? g.HTMLUnknownElement : HTMLElement).prototype;
-    return adopt(Object.create(proto), id);
+    return w !== undefined ? w : adopt(Object.create(protoOf(id)), id);
+  }
+  // An existing wrapper — another window's, being adopted (adopt.js) — made
+  // the wrapper of this arena's `id`.
+  function rebind(w, id) {
+    Object.setPrototypeOf(w, protoOf(id));
+    return adopt(w, id);
   }
   // Define one member on each named HTML<Name>Element prototype: the home of
   // every tag-specific member (`value`, `href`, `getContext`...), which the
@@ -124,7 +130,7 @@
       Object.defineProperty(g['HTML' + n + 'Element'].prototype, key, desc);
     });
   }
-  [['__frot_wrap', wrap], ['__frot_tagdef', tagdef]].forEach(function (p) {
+  [['__frot_wrap', wrap], ['__frot_tagdef', tagdef], ['__frot_rebind', rebind]].forEach(function (p) {
     Object.defineProperty(g, p[0], { value: g.__frot_brand(p[1], p[0]), configurable: true, writable: true });
   });
 

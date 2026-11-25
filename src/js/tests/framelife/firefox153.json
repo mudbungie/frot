@@ -1,0 +1,19 @@
+{
+ "before": "0,undefined,none,false",
+ "indexed": "2,true,true,undefined,vec,true,false,true,0/1/close,0,1",
+ "setIdx": true,
+ "setIdxStrict": "THROW TypeError: 0 is read-only",
+ "defIdx": "THROW TypeError: can't define elements on a Window object",
+ "lazyIdx": "3,true,object",
+ "closedDesc": "gec,false,false,gsec,ge,gec",
+ "removed": ",true,,,,2,object,body,1,true,undefined,0",
+ "reinserted": "false,false,true,true,true",
+ "moved": "false,true,undefined",
+ "adopt": "true,true,true,true,false,true,false,true,true,0,xy,false",
+ "adoptListener": 1,
+ "adoptText": "true,true,tt",
+ "adoptFrag": "true,true,0",
+ "adoptNodeApi": "true,true,",
+ "importNodeApi": "false,true,true,iq",
+ "parentAdoptedIntoFrame": "true,true"
+}

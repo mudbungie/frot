@@ -14,8 +14,8 @@
   // --- self/window aliasing (js.md §1 spike, subtask 8) ---------------------
   // The global *is* the window: UMD bundles probe `self`, framework/router code
   // reads `window.*`, frame-busters compare `top`/`parent` to `self`. A top
-  // window is its own parent; a frame's opener overwrites both, and
-  // `frameElement`, when it opens it (frame.js, js.md §14).
+  // window is its own parent; frame.js makes the three accessors a frame's
+  // opener links (js.md §14).
   g.self = g;
   g.window = g;
   g.top = g;

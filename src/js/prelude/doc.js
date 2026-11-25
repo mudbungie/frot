@@ -52,11 +52,16 @@
     // One document (js.md §2), so importing is cloning — the copy is already
     // this document's — and adopting is removing. The refusals are Firefox
     // 153.0esr's (js.md §15).
+    // Another window's node is copied in (import) or moved in (adopt) by
+    // adopt.js; this document's own is cloned or detached.
     importNode: function importNode(node) {
+      var copy = g.__frot_own(node, true, !!arguments[1]);
+      if (copy !== node) return copy;
       foreign('importNode', arguments.length, node);
       return node.cloneNode(!!arguments[1]);
     },
     adoptNode: function adoptNode(node) {
+      node = g.__frot_own(node);
       foreign('adoptNode', arguments.length, node);
       g.__frot_detach(slots(node).id);
       return node;

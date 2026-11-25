@@ -237,6 +237,16 @@
       if (i >= 0) list.splice(i, 1);
       e.removed = true;
     },
+    // A node adopted from another window's document takes its listeners
+    // along (adopt.js): released from that registry, adopted into this one.
+    release: function (target) {
+      var t = lists.get(target);
+      lists.delete(target);
+      return t;
+    },
+    adopt: function (target, t) {
+      if (t) lists.set(target, t);
+    },
   };
   Object.defineProperty(g, '__frot_registry', { value: registry, configurable: true });
   [['__frot_dispatch', dispatch], ['__frot_report_exception', report], ['__frot_raise_error', raise]].forEach(function (p) {

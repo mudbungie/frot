@@ -1886,12 +1886,25 @@ an invention.
   forever.
 - **No navigation:** `src` is never fetched; `srcdoc` is never parsed or run
   (`bl-7b86`); `location` writes in a frame are the usual counted no-op.
-- **Removal keeps the window.** Firefox closes it (`parent` null, `closed`
-  true) and a re-insertion gets a new one; frot answers `null` while the
-  iframe is out and the same window when it returns.
-- **No adoption across documents.** A node made in a frame and appended to
-  the parent throws (a `TypeError`); Firefox adopts it (`bl-2aaa`).
-- **`window[i]`** is not indexed (`bl-2aaa`); `length` and `frames` are.
+- ~~**Removal keeps the window.**~~ *Built 2026-11-24 (`bl-2aaa`, measured in
+  `src/js/tests/framelife/`):* removing an iframe — or moving it, which is a
+  removal and an insertion — closes its window (`closed` true; `parent`,
+  `top`, `frameElement` null; `length` 0; its document and `eval` still
+  usable) and the next read opens a new one. `parent`/`top`/`frameElement`/
+  `closed` are accessors shaped as the binary's (`top` unforgeable).
+- ~~**No adoption across documents.**~~ *Built 2026-11-24 (`bl-2aaa`):* a
+  node of another window's document inserted here (or `adoptNode`d) is
+  adopted — the same object, out of its old tree, `ownerDocument` this one,
+  its subtree and listeners with it (`adopt.js`: the subtree is copied into
+  this arena through the other window's syscalls and every wrapper rebound to
+  its copy); `importNode` copies. **Declared:** the adopted wrapper takes the
+  adopting window's prototype, where Firefox keeps the frame's — a frame's
+  methods can only reach the frame's arena.
+- ~~**`window[i]`** is not indexed.~~ *Built 2026-11-24 (`bl-2aaa`):* the
+  indices are getters over the live iframe list (opening a window on read),
+  re-laid whenever a mutation inserts or removes an iframe. **Declared:** a
+  getter where the binary has a value, and `defineProperty` on one succeeds
+  where the binary refuses.
 - A frame's `location.ancestorOrigins` is empty (Firefox: the parent's
   origin), its `compatMode` reads `CSS1Compat` (Firefox: `BackCompat`), its
   geometry is laid out at the top viewport's width, and a `PerformanceObserver`
