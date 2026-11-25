@@ -113,7 +113,7 @@ impl State {
                 let href = el.attr("href").or(el.attr("xlink:href"));
                 matches!(name, "a" | "area") && href.is_some()
             }
-            State::Focus => focused(doc, id, el),
+            State::Focus => focused(doc, id),
             State::FocusWithin => focus_within(doc, id),
             State::Target => doc.target() == Some(id),
             State::Checked => checked(doc, id, el),

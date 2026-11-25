@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Autofocus after style</title>
+<style>
+.gone { display: none; }
+.ghost { visibility: hidden; }
+.shown { visibility: visible; }
+b::after { content: " no"; }
+:focus + b::after { content: " yes"; }
+</style>
+</head>
+<body>
+<p>Candidates a stylesheet hides are skipped; the first rendered one takes focus.</p>
+<input id="c_gone" class="gone" autofocus aria-label="gone"><b>gone</b>
+<input id="c_ghost" class="ghost" autofocus aria-label="ghost"><b>ghost</b>
+<div class="gone"><input id="c_in_gone" autofocus aria-label="in gone"><b>in gone</b></div>
+<span class="ghost"><input id="c_in_ghost" autofocus aria-label="in ghost"><b>in ghost</b></span>
+<span class="ghost"><input id="winner" class="shown" autofocus aria-label="winner"><b class="shown">winner</b></span>
+<p id="during"></p>
+<script>
+document.getElementById('during').textContent = 'during ' + (document.activeElement.id || document.activeElement.tagName);
+</script>
+<input id="later" autofocus aria-label="later"><b>later</b>
+<p id="after"></p>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('after').textContent = 'ready ' + (document.activeElement.id || document.activeElement.tagName);
+});
+setTimeout(function () {
+  var p = document.createElement('p');
+  p.textContent = 'loaded ' + (document.activeElement.id || document.activeElement.tagName);
+  document.body.appendChild(p);
+}, 50);
+</script>
+</body>
+</html>

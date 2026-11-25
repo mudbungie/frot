@@ -36,6 +36,12 @@ pub(super) fn install<'js>(
             can
         }
     });
+    // The autofocus flush (`bl-4248`), which the host runs once, after
+    // `DOMContentLoaded` (`prelude/loop.js`).
+    bind!(ctx, g, "__frot_autofocus", {
+        let (d, geo) = (doc.clone(), h.geo.clone());
+        move || geo.borrow().settle_autofocus(&mut d.borrow_mut())
+    });
     bind!(ctx, g, "__frot_blur", {
         let d = doc.clone();
         move || d.borrow_mut().set_focus(Focus::Off)

@@ -256,6 +256,7 @@
     if (name === 'DOMContentLoaded') {
       setReadyState('interactive');
       dispatch(g.document, trusted(name, { bubbles: true }));
+      g.__frot_autofocus(); // after the handlers: they still see <body> (bl-4248)
     } else {
       setReadyState('complete');
       dispatch(g, trusted(name), g.document);

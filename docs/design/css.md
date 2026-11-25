@@ -134,7 +134,15 @@ Chrome 158 and is held in `tests/fixtures/fidelity/state.html` and
   `inert` or inside a closed `<details>`. With no such element, nothing is
   focused; with a `:target`, nothing is either (measured: a page loaded at
   `#id` scrolls to it and autofocuses nothing). **`:focus-within`** — that
-  element and its ancestors.
+  element and its ancestors. *(2026-11-24, `bl-4248`: autofocus is
+  flushed once — after `DOMContentLoaded` under `--js`, before the views
+  otherwise — and until then nothing is focused, so a script running
+  mid-parse or a `DOMContentLoaded` handler sees `<body>` active. The flush
+  also skips a candidate that is not rendered under the run's styles with
+  nothing focused: `display:none` on it or an ancestor, its own
+  `visibility:hidden`, or outside the flat tree. The styles are asked of each
+  candidate's ancestor chain only (`css/cascade/rendered.rs`), not by a
+  second cascade. Recorded in `tests/fixtures/fidelity/autofocuscss.html`.)*
 - **`:target`** (`bl-5852`; `src/dom/target.rs`) — the element the page
   URL's fragment names: the first with that `id`, else the first `<a>` with
   that `name`; tried with the fragment as written, then percent-decoded. No
@@ -195,7 +203,7 @@ Chrome 158 and is held in `tests/fixtures/fidelity/state.html` and
 Everything else here reads the tree's attributes. An
 `autofocus` element hidden only by a stylesheet still counts as focused, and
 a script running mid-parse already sees the autofocus element
-(`bl-4248`). (**Superseded 2026-11-24, `bl-2dcd`:** this sentence ended "a
+(`bl-4248`; *both superseded 2026-11-24 by the flush above*). (**Superseded 2026-11-24, `bl-2dcd`:** this sentence ended "a
 modal dialog does not make the page inert". It does now — nothing outside
 the topmost modal dialog takes focus or has an accessibility node — and
 showing a popover light-dismisses the others, as `src/dom/live/top.rs`

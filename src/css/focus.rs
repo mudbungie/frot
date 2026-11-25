@@ -11,19 +11,42 @@
 //!   then skipped; `blur()` leaves nothing focused. Focus on an element that
 //!   has since left the document or can no longer take focus is nowhere. A
 //!   dialog with nothing focusable inside takes focus itself when shown.
-//! - Untouched, focus is on the first `autofocus` element in tree order that
-//!   can take it ([`focusable`]); a page whose URL names a target element
-//!   (`#id`, [`Document::target`]) autofocuses nothing (`bl-5852`).
-//!
-//! Two limits, each a filed difference rather than a guess: a candidate
-//! hidden only by a stylesheet still takes focus here, because matching runs
-//! before styles exist; and Chrome flushes autofocus after the parse, so a
-//! script running mid-parse sees no focus there while frot's sees it.
+//! - Untouched, focus is nowhere until autofocus is flushed — once, after
+//!   `DOMContentLoaded` under `--js` (a script running mid-parse, or a
+//!   `DOMContentLoaded` handler, sees `<body>` active), and before the views
+//!   otherwise ([`settle_autofocus`], `bl-4248`). The flush puts it on the
+//!   first `autofocus` element in tree order that can take it
+//!   ([`focusable`]) and is rendered under the styles as they stand with
+//!   nothing focused — a candidate a stylesheet sets `display:none` (on it
+//!   or an ancestor) or `visibility:hidden` is skipped. A page whose URL
+//!   names a target element (`#id`, [`Document::target`]) autofocuses
+//!   nothing (`bl-5852`).
 
 use super::selector::ancestors;
 use super::state::{disabled, editing, has};
 use crate::dom::live::Focus;
 use crate::dom::{Document, Element, NodeId, NodeKind, WalkEvent};
+
+/// Flush autofocus (module doc): while no script has placed focus, put it on
+/// the first `autofocus` candidate that can take it and is rendered under
+/// the author sheets (`Some(external)`, `--css`) or none (`None`). With no
+/// such candidate focus stays unplaced, so a later flush may still find one.
+pub fn settle_autofocus(doc: &mut Document, external: Option<&[String]>, js: bool) {
+    if doc.focus() != Focus::Auto || doc.target().is_some() {
+        return;
+    }
+    let mut candidates = Vec::new();
+    doc.walk(None, &mut |ev, entry| {
+        if let (WalkEvent::Enter(n), NodeKind::Element(e)) = (ev, &entry.kind) {
+            if has(e, "autofocus") && focusable(doc, n, e) {
+                candidates.push(n);
+            }
+        }
+    });
+    if let Some(id) = super::first_rendered(doc, external, js, candidates) {
+        doc.set_focus(Focus::On(id));
+    }
+}
 
 /// The focused element, if any (module doc).
 pub fn focused_element(doc: &Document) -> Option<NodeId> {
@@ -32,41 +55,19 @@ pub fn focused_element(doc: &Document) -> Option<NodeId> {
             .element(id)
             .filter(|el| connected(doc, id) && (focusable(doc, id, el) || el.name == "dialog"))
             .map(|_| id),
-        Focus::Off => None,
-        Focus::Auto => autofocused(doc),
+        Focus::Off | Focus::Auto => None,
     }
 }
 
 /// `:focus` / `:focus-visible`: `id` is the focused element.
-pub fn focused(doc: &Document, id: NodeId, el: &Element) -> bool {
-    match doc.focus() {
-        // The cheap test first: only an `autofocus` element can be the one.
-        Focus::Auto if !has(el, "autofocus") => false,
-        _ => focused_element(doc) == Some(id),
-    }
+pub fn focused(doc: &Document, id: NodeId) -> bool {
+    focused_element(doc) == Some(id)
 }
 
 /// `:focus-within`: `id` is the focused element or holds it.
 pub fn focus_within(doc: &Document, id: NodeId) -> bool {
     let within = |f| std::iter::successors(Some(f), |&n| doc.node(n).parent).any(|n| n == id);
     focused_element(doc).is_some_and(within)
-}
-
-/// The first `autofocus` element that can take focus, unless the URL names
-/// a target.
-fn autofocused(doc: &Document) -> Option<NodeId> {
-    if doc.target().is_some() {
-        return None;
-    }
-    let mut first = None;
-    doc.walk(None, &mut |ev, entry| {
-        if let (WalkEvent::Enter(n), NodeKind::Element(e)) = (ev, &entry.kind) {
-            if first.is_none() && has(e, "autofocus") && focusable(doc, n, e) {
-                first = Some(n);
-            }
-        }
-    });
-    first
 }
 
 /// Whether `el` can take focus where it stands: a button, select or textarea

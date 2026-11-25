@@ -1070,7 +1070,8 @@ that, a page walking any of them read frot's implementation instead.
   > selector engine (`css/focus.rs` `focused_element`), so `:focus` follows a
   > script and the two cannot disagree. An untouched page's `activeElement` is
   > its `autofocus` element, as in a browser after load — frot reports that
-  > state but still dispatches no event for it. What may take focus is one
+  > state but still dispatches no event for it. *(2026-11-24, `bl-4248`: from
+  > the autofocus flush after `DOMContentLoaded` on; before it, `<body>`.)* What may take focus is one
   > rule, the one `autofocus` obeys, measured in Chrome 158 (`css.md`, state
   > pseudo-classes): `area` and a non-integer `tabindex` no longer qualify.
   > Opening a dialog focuses its first `autofocus` descendant that can take

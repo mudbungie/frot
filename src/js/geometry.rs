@@ -86,6 +86,15 @@ impl Geometry {
             .expect("cache set when stale, retained when fresh")
     }
 
+    /// Flush autofocus (`bl-4248`) under this run's styling policy.
+    pub(super) fn settle_autofocus(&self, doc: &mut Document) {
+        let external = match &self.source {
+            StyleSource::Bare => None,
+            StyleSource::Authored(ext) => Some(ext.as_slice()),
+        };
+        css::settle_autofocus(doc, external, true);
+    }
+
     /// The border-box rect for `id` in viewport coordinates as `[x, y, w, h]`;
     /// the all-zero rect for any box-less node (see the module docs). The
     /// `__frot_rect` syscall shape (the prelude builds the `DOMRect`/`offset*`).

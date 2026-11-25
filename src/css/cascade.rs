@@ -27,6 +27,14 @@ pub fn compute(doc: &Document) -> Styles {
 /// stylesheets) cascade ahead of the document's own `<style>` rules. `js` (did
 /// `--js` run) flips `<noscript>` to hidden (js.md §4).
 pub fn compute_with(doc: &Document, external: &[String], js: bool) -> Styles {
+    let sheets = gather(doc, external);
+    let shadow = trees::gather(doc);
+    cascade(doc, &Trees::build(&sheets, &shadow), js)
+}
+
+/// The document-level sheets [`compute_with`] cascades: `external`, then the
+/// `<style>` blocks, then the adopted sheets.
+pub(super) fn gather(doc: &Document, external: &[String]) -> Vec<Stylesheet> {
     let mut sheets: Vec<Stylesheet> = external.iter().map(|s| Stylesheet::parse(s)).collect();
     sheets.extend(
         doc.find_by_tag("style")
@@ -35,8 +43,7 @@ pub fn compute_with(doc: &Document, external: &[String], js: bool) -> Styles {
     );
     let adopted = doc.adopted(Document::ROOT).iter();
     sheets.extend(adopted.map(|t| Stylesheet::parse(t)));
-    let shadow = trees::gather(doc);
-    cascade(doc, &Trees::build(&sheets, &shadow), js)
+    sheets
 }
 
 /// UA-implicit `display` plus inline `style=` only — **no** author `<style>`
@@ -238,6 +245,9 @@ fn rules(
         }
     }
 }
+
+mod rendered;
+pub use rendered::first_rendered;
 
 #[cfg(test)]
 mod tests;

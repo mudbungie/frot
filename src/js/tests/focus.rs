@@ -23,13 +23,17 @@ fn eval(script: &str) -> String {
 
 #[test]
 fn an_untouched_page_is_focused_on_its_autofocus_element() {
-    assert_eq!(eval("return act()+' '+$('b').matches(':focus')"), "b true");
+    // Before the flush (bl-4248) nothing is; after `DOMContentLoaded`, `b`.
+    assert_eq!(
+        eval("var L=[act()];__frot_fire('DOMContentLoaded');return L+' '+act()+' '+$('b').matches(':focus')"),
+        "BODY b true"
+    );
 }
 
 #[test]
 fn focus_moves_with_blur_and_focus_events_and_blur_clears_it() {
     let got = eval(
-        "var L=[];['a','b'].forEach(function(i){$(i).addEventListener('focus',function(){L.push('f'+i)});\
+        "__frot_fire('DOMContentLoaded');var L=[];['a','b'].forEach(function(i){$(i).addEventListener('focus',function(){L.push('f'+i)});\
          $(i).addEventListener('blur',function(){L.push('b'+i)})});\
          $('a').focus();$('a').focus();$('x').focus();$('p').focus();L.push(act());\
          $('b').blur();L.push(act());$('a').blur();L.push(act(),D.querySelectorAll(':focus').length);\

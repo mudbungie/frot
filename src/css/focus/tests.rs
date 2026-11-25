@@ -1,4 +1,4 @@
-use crate::css::query_all;
+use crate::css::{query_all, settle_autofocus};
 use crate::dom::{Document, NodeKind};
 
 /// The ids `selector` matches in `html`, in tree order.
@@ -10,6 +10,7 @@ fn ids(html: &str, selector: &str) -> String {
 fn ids_at(html: &str, fragment: &str, selector: &str) -> String {
     let mut doc = Document::parse(html);
     doc.set_url(&format!("https://example.com/{fragment}"));
+    settle_autofocus(&mut doc, None, false);
     let hits = query_all(&doc, Document::ROOT, selector).unwrap();
     let id = |&n: &u32| match &doc.node(n).kind {
         NodeKind::Element(e) => e.attr("id").unwrap_or("-").to_string(),
@@ -96,6 +97,8 @@ fn a_script_moves_focus_and_autofocus_is_then_skipped() {
     let mut doc =
         Document::parse("<div id=w><input id=a></div><input id=b autofocus><p id=p>p</p>");
     let (a, b) = (doc.find_by_tag("input")[0], doc.find_by_tag("input")[1]);
+    assert_eq!(focused_element(&doc), None, "not flushed yet");
+    settle_autofocus(&mut doc, None, false);
     assert_eq!(focused_element(&doc), Some(b));
     doc.set_focus(Focus::On(a));
     let hits = |doc: &Document, s| query_all(doc, Document::ROOT, s).unwrap();
@@ -105,6 +108,7 @@ fn a_script_moves_focus_and_autofocus_is_then_skipped() {
         [doc.find_by_tag("div")[0], a]
     );
     doc.set_focus(Focus::Off);
+    settle_autofocus(&mut doc, None, false);
     assert_eq!(focused_element(&doc), None);
     assert!(hits(&doc, ":focus").is_empty());
 }
@@ -122,4 +126,37 @@ fn focus_on_an_element_that_left_or_cannot_take_it_is_nowhere() {
     doc.set_focus(Focus::On(a));
     doc.detach(a);
     assert_eq!(focused_element(&doc), None);
+}
+
+/// The flush asks the styles (bl-4248, Chrome 158 via the `autofocuscss`
+/// fixture): a candidate a sheet hides — `display:none` on it or an
+/// ancestor, `visibility:hidden` on it — is skipped; one outside the flat
+/// tree (an unslotted light child) is not rendered either.
+#[test]
+fn the_flush_skips_a_candidate_the_styles_hide() {
+    let html =
+        "<style>.gone{display:none}.ghost{visibility:hidden}.shown{visibility:visible}</style>\
+        <input id=a class=gone autofocus><input id=b class=ghost autofocus>\
+        <div class=gone><input id=c autofocus></div><span class=ghost><input id=d autofocus></span>\
+        <div><template shadowrootmode=open><p>s</p></template><input id=e autofocus></div>\
+        <input id=f style=display:none autofocus>\
+        <span class=ghost><input id=w class=shown autofocus></span><input id=z autofocus>";
+    let focused = |external: Option<&[String]>| {
+        let mut doc = Document::parse(html);
+        settle_autofocus(&mut doc, external, false);
+        let id = focused_element(&doc).expect("a candidate is rendered");
+        doc.element(id)
+            .and_then(|e| e.attr("id"))
+            .unwrap_or("-")
+            .to_string()
+    };
+    assert_eq!(focused(Some(&[])), "w");
+    // An external sheet cascades too.
+    assert_eq!(focused(Some(&["#w{display:none}".to_string()])), "z");
+    // Bare: no author sheet applies, only inline style — `a` is rendered.
+    assert_eq!(focused(None), "a");
+    // Nothing rendered: focus stays unplaced for a later flush.
+    let mut doc = Document::parse("<input style=display:none autofocus>");
+    settle_autofocus(&mut doc, None, false);
+    assert_eq!(doc.focus(), Focus::Auto);
 }

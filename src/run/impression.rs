@@ -26,7 +26,7 @@ pub(super) struct Landed {
 /// consumes the post-JS document exactly as it consumes a static one.
 pub(super) fn impression(
     args: &cli::Args,
-    (doc, js): (Document, Option<JsInfo>),
+    (mut doc, js): (Document, Option<JsInfo>),
     landed: Landed,
     session: &fetch::FetchSession,
 ) -> Envelope {
@@ -36,7 +36,7 @@ pub(super) fn impression(
     // carries no content, so the starvation detector consults the same
     // cascade the views will (`needs.md` §4 — a CSS-hidden fallback
     // must not mask a dead app as `ok`).
-    let styles = compute_styles(args, &doc, fetched, session);
+    let styles = compute_styles(args, &mut doc, fetched, session);
     let needs = needs::detect(args.out, &doc, styles.as_ref());
     if !needs.is_empty() {
         return Envelope::needs(url, args.out, needs, None)
@@ -102,15 +102,19 @@ pub(super) fn run_scripts(
 /// needs `display` — sourced *bare* ([`crate::css::compute_bare`]): UA-implicit
 /// display + inline `style=` only, no `<style>`/external, so `--css` keeps its
 /// "apply author CSS" meaning everywhere (`layout.md` §3). Every other view
-/// keeps `None` without `--css`.
+/// keeps `None` without `--css`. Autofocus is flushed first, under the same
+/// sheets (a no-op when the `--js` run already flushed it, `bl-4248`).
 fn compute_styles(
     args: &cli::Args,
-    doc: &Document,
+    doc: &mut Document,
     fetched: &FetchResult,
     session: &fetch::FetchSession,
 ) -> Option<crate::css::Styles> {
-    if args.css {
-        let external = external_css(doc, &fetched.final_url, session);
+    let external = args
+        .css
+        .then(|| external_css(doc, &fetched.final_url, session));
+    crate::css::settle_autofocus(doc, external.as_deref(), args.js);
+    if let Some(external) = external {
         Some(crate::css::compute_with(doc, &external, args.js))
     } else if args.out == View::Bboxes {
         Some(crate::css::compute_bare(doc, args.js))
