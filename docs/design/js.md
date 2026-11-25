@@ -2169,3 +2169,32 @@ Attacked before building, per the house rule. Each is filed, none is built:
   A script inserted into a connected shadow tree runs (§4.7's connected test
   is `Document::connected`, shadow-including since stage 3), and one in a
   detached host's tree does not, as in Firefox (`js/tests/shadow.rs`).
+
+### 15.5 Measured on the targets (2026-11-24, `bl-aff4`)
+
+Release builds of main before custom elements (`1c2698f`, "before") and with
+all four stages ("after"), the same hour, one egress, one run per cell (these
+pages vary run to run by more than some of the differences).
+
+| page, recipe | `js.errors` before → after | `text` bytes | `ax` nodes |
+|---|---|---|---|
+| Amazon home, `--js` (3 runs) | 1 → 0 | ≈2.8–3.6 kB either way | — |
+| lit.dev, `--js` | 8 → 37 | 5361 → 5604 | 149 → 195 |
+| material-web.dev, `--js` | 3 → 32 | 428 → 603 | 32 → 45 |
+| shoelace.style, `--js` | 3 → 5 | 5560 → 5560 | 325 → 332 |
+
+- **Amazon.** The component bundle (`AmazonHomepageBuzzWebComponents`, Lit
+  plus some fifty `hp-*` definitions) now loads, defines and upgrades with
+  no error: the `customElements is not defined` throw is gone, `js.errors`
+  is 0 on three runs of three. None of the seven responses examined that day
+  carried an `hp-*` element (the bundle's `hp-stripe` strip included), so
+  the strip's rendering could not be observed on the live page; the bundle's
+  machinery is the fidelity corpus's (`shadowjs`) and a real Lit 3.3.1
+  component's, both measured. Under `--css --js` the page stops on the compute
+  budget with or without this work (`stopped:"budget"` before and after).
+- **Pages built from components.** lit.dev and material-web.dev (Lit and
+  Material Web) render more of themselves — their shadow trees' text and
+  roles now reach `text` and `ax` — and read *more* errors: their modules,
+  which failed early before, now load, define and upgrade, and every Material
+  Web constructor then throws at `attachInternals`, which frot does not have
+  (`bl-be13`, the next wall; filed, not chased, per the ruling's scope).

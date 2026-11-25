@@ -845,6 +845,12 @@ succeed.
 > `importNode`, `adoptedStyleSheets`) — whether frot runs custom elements is
 > a decision, filed as `bl-aff4`. It was the same error before and after the
 > document became a node (`bl-9f79`).
+>
+> **2026-11-24 (`bl-aff4`):** frot runs custom elements and shadow DOM
+> (js.md §15). The bundle — now an external script — loads, defines and
+> upgrades with no error: `js.errors` 0 on three runs of three under `--js`.
+> No response examined that day carried an `hp-*` element, so the strip
+> itself was not observed (js.md §15.5).
 
 ### 11.5 A challenge declared at 400 or above (`bl-a7c5`, 2026-11-20)
 
