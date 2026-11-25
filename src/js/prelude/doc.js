@@ -61,6 +61,12 @@
       g.__frot_detach(slots(node).id);
       return node;
     },
+    // An uninitialized event of the named interface (event.js's table).
+    createEvent: function createEvent(name) {
+      if (!arguments.length)
+        throw new TypeError('Document.createEvent: At least 1 argument required, but only 0 passed');
+      return g.__frot_create_event(name);
+    },
     getElementsByName: function getElementsByName(name) {
       return this.querySelectorAll('[name="' + String(name) + '"]');
     },

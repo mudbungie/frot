@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html><head><title>t</title></head><body><img id=g src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"><img id=x src="/nope.png"><script>
+var log=[];
+function nm(o){return o===document?'doc':o===window?'win':o.id}
+[window,document].forEach(function(o){
+ ['load','error','DOMContentLoaded','readystatechange'].forEach(function(t){
+  [true,false].forEach(function(c){
+   o.addEventListener(t,function(e){log.push(nm(this)+(c?'C':'B')+':'+t+':'+e.eventPhase+':'+nm(e.target)+':'+e.isTrusted+':'+e.bubbles+':'+e.cancelable+':'+e.composedPath().map(nm).join('/'))},c);
+  });
+ });
+});
+window.addEventListener('load',function(){setTimeout(function(){document.documentElement.setAttribute('data-out',JSON.stringify(log))},50)});
+</script></body></html>

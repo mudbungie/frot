@@ -81,7 +81,9 @@ pub const SOURCE: &str = concat!(
     // events.js before every module that is an EventTarget: it owns the ONE
     // listener registry and the EventTarget interface whose prototype
     // permissions.js, worker.js, idb.js and loop.js all reach (bl-6438). Needs
-    // only brand.js and dom.js.
+    // only brand.js and dom.js; event.js (the Event interfaces) just before it.
+    include_str!("prelude/event.js"),
+    "\n",
     include_str!("prelude/events.js"),
     "\n",
     // doc.js (bl-6da7): the `document` object's members, split off elem2.js

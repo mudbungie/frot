@@ -318,6 +318,31 @@ Consequences of the repo's hard rules:
   the whole anchor contract (parent/sibling navigation, positioned
   replacement) works for free; comment data never leaks into rendered text
   because `text_content` collects only text nodes.
+- **One dispatch path, the standard's (`bl-810b`, 2026-11-24).** Every event
+  — a page's `dispatchEvent`, the lifecycle (§4.4), an `<img>`'s load/error,
+  a `FileReader`'s progress — goes through one function, `events.js`
+  `dispatch`, which is DOM §2.9 as Firefox 153.0esr runs it (measured on the
+  identity.md §3.19 rig; `src/js/tests/dispatch/`): the path is the target,
+  its ancestors by the arena's parent links, the document, then the window —
+  except for `load`, which never reaches the window from the tree; a capture
+  pass down it, the target's capture listeners then its others, and a bubble
+  pass back up when the event bubbles. `stopPropagation` ends the walk after
+  the current object, `stopImmediatePropagation` at once; `eventPhase`,
+  `currentTarget` and `composedPath()` are live during dispatch and reset
+  after; listeners carry `capture`/`once`/`passive`/`signal`, deduplicate on
+  (callback, capture), may be `handleEvent` objects, and are snapshotted per
+  object so one added mid-dispatch waits. The lifecycle is fired as HTML fires
+  it: `readystatechange` at the document (not bubbling), `DOMContentLoaded`
+  at the document, bubbling to the window, and the window's `load` at the
+  window with the document as `event.target` (the legacy target override) —
+  so `document` no longer hears `load`, as in a browser. A listener that
+  throws is **reported** (HTML "report the exception"): a trusted, cancelable
+  `ErrorEvent` at the window (message `Error: boom`, or `uncaught exception:
+  …` for a non-Error), then `window.onerror`; unhandled, it is a counted §10
+  `report` with that message; the next listener runs regardless, and a throw
+  inside that reporting is counted bare, never re-reported. Declared
+  residual: the `ErrorEvent`'s `filename`/`lineno`/`colno` are `''`/0 (the
+  engine's errors carry no script URL).
 
 ## 4. What runs, and when
 
@@ -1229,6 +1254,14 @@ Two moves against today's `run.rs`:
   **timer / lifecycle-listener** throws (`loop.js` `fire`/`__frot_next_timer`
   catch and return counts only; reaching their messages is invasive). This keeps
   the capture set to the seams where a meaningful message is already in hand.
+  > *Superseded in part 2026-11-24 (`bl-810b`):* a **listener** throw — any
+  > event, host-fired or page-dispatched — is now reported on the one dispatch
+  > path (§3), so it is a `report` carrying its message (`Error: boom`), and
+  > is not counted when a window `error` listener or `window.onerror` handles
+  > it. Before, a lifecycle listener's throw was counted bare and a
+  > page-dispatched event's was lost entirely. Timer callback throws stay
+  > count-only. `reportError(e)`'s text is likewise the ErrorEvent's message,
+  > `Error: boom-report` rather than `boom-report` (Firefox 153.0esr).
 
   One channel is invisible by the framework's own choice, not frot's (bl-79db,
   measured live): **Vue 3 production builds route caught render/scheduler

@@ -48,6 +48,9 @@
   function observe() {
     return shared.observe() - base;
   }
+  // An event's timeStamp is this window's performance.now(), read without
+  // going through the page-visible (and probe-counted) `performance`.
+  Object.defineProperty(g, '__frot_event_time', { value: observe, configurable: true });
   Date.now = function () {
     return shared.origin + shared.observe();
   };
@@ -215,82 +218,66 @@
   };
 
   // --- Host-fired lifecycle (§4.4 / §5) ---------------------------------------
-  // The listener registry and the EventTarget interface are events.js's; this is
-  // the only place the HOST fires into them, through its one exported dispatch.
+  // The listener registry, the dispatch path and the error reporting are
+  // events.js's; this is only WHEN the host fires into them. A listener's throw
+  // is reported (and counted) on that path, so these drivers return 0 for it.
   var dispatch = g.__frot_dispatch;
+  function trusted(type, init) {
+    var ev = new g.Event(type, init);
+    g.__frot_slots(ev).trusted = true;
+    return ev;
+  }
+  // A property handler the host calls after the listeners (event handler
+  // attributes as listeners are bl-93c8); its throw is reported likewise.
+  function handler(host, ev) {
+    var on = host['on' + ev.type.toLowerCase()];
+    if (typeof on === 'function')
+      try {
+        on.call(host, ev);
+      } catch (e) {
+        g.__frot_report_exception(e);
+      }
+  }
 
   // readyState transition (js.md §4.4): the field advances loading ->
   // 'interactive' (immediately before DOMContentLoaded) -> 'complete' (before
-  // load); each transition dispatches readystatechange on document so
-  // readyState-polling init and older loaders unblock. Returns the listener
-  // throw count (folded into the loop's error tally like any handler).
+  // load); each transition fires readystatechange at the document (it does not
+  // bubble), so readyState-polling init and older loaders unblock.
   function setReadyState(state) {
     g.__frot_slots(g.document).readyState = state;
-    var ev = new g.Event('readystatechange');
-    var errs = dispatch('document', ev, g.document);
-    if (typeof g.document.onreadystatechange === 'function')
-      try {
-        g.document.onreadystatechange.call(g.document, ev);
-      } catch (e) {
-        errs++;
-      }
-    return errs;
+    var ev = trusted('readystatechange');
+    dispatch(g.document, ev);
+    handler(g.document, ev);
   }
 
-  // Host lifecycle fire (§4.4 / §5): advance readyState (before the matching
-  // event), dispatch to document + window and the matching on<event> property
-  // handler, returning the listener error count.
+  // Host lifecycle fire (§4.4 / §5), as HTML fires them: DOMContentLoaded at
+  // the document, bubbling (so the window hears it on the way up); `load` at
+  // the window with the document as its target (the legacy target override).
   g.__frot_fire = function (name) {
-    var errs = 0;
-    if (name === 'DOMContentLoaded') errs += setReadyState('interactive');
-    else if (name === 'load') errs += setReadyState('complete');
-    var ev = new g.Event(name);
-    errs += dispatch('document', ev, g.document) + dispatch('window', ev, g);
-    var on = 'on' + name.toLowerCase();
-    var hosts = [g.document, g];
-    for (var i = 0; i < hosts.length; i++)
-      if (typeof hosts[i][on] === 'function')
-        try {
-          hosts[i][on].call(hosts[i], ev);
-        } catch (e) {
-          errs++;
-        }
-    return errs;
+    if (name === 'DOMContentLoaded') {
+      setReadyState('interactive');
+      dispatch(g.document, trusted(name, { bubbles: true }));
+    } else {
+      setReadyState('complete');
+      var ev = trusted(name);
+      dispatch(g, ev, g.document);
+      handler(g, ev);
+    }
+    return 0;
   };
 
   // --- Unhandled-error accounting (js.md §10) --------------------------------
   // React >=16 CATCHES render errors and reports them via reportError (else
   // console.error) rather than throwing, so a dead app would otherwise count 0
-  // errors. reportError and a directly dispatched window 'error' event funnel
-  // through raiseError: fire the window 'error' listeners and window.onerror;
-  // if nothing suppresses it (no preventDefault, onerror didn't return true) it
-  // is an UNHANDLED error and is counted into js.errors via __frot_report_error.
-  function raiseError(ev) {
-    dispatch('window', ev, g);
-    var suppressed = ev.defaultPrevented;
-    if (typeof g.onerror === 'function') {
-      var handled;
-      try {
-        handled = g.onerror(ev.message, '', 0, 0, ev.error);
-      } catch (e) {
-        handled = false;
-      }
-      if (handled === true) suppressed = true;
-    }
-    if (!suppressed) g.__frot_report_error(ev.message != null ? String(ev.message) : '');
-    return !ev.defaultPrevented;
-  }
+  // errors. reportError reports its argument like an uncaught exception, and a
+  // page-dispatched window 'error' event goes through the same accounting
+  // (events.js `raise`): unhandled, it counts toward js.errors.
   g.reportError = function (err) {
-    var ev = new g.Event('error');
-    ev.error = err;
-    ev.message = err && err.message != null ? String(err.message) : String(err);
-    raiseError(ev);
+    g.__frot_report_exception(err);
   };
-  // Route a directly dispatched window 'error' event through the same
-  // accounting; every other event type keeps the plain window dispatch.
   var rawWindowDispatch = g.dispatchEvent;
   g.dispatchEvent = function (ev) {
-    if (ev && ev.type === 'error') return raiseError(ev);
-    return rawWindowDispatch(ev);
+    if (g.__frot_slots(ev).event && ev.type === 'error') return g.__frot_raise_error(ev);
+    return rawWindowDispatch.apply(this, arguments);
   };
 })(globalThis);

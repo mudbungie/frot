@@ -1,196 +1,234 @@
-// Events: the ONE listener registry and the EventTarget interface over it
-// (bl-e81b, split out of loop.js by bl-6438; js.md §4.4/§11, identity.md §10).
-// DOMContentLoaded/load (and an <img>'s load/error, imageload.js) are the only
-// events frot's host fires (js.md §11) — everything else registered here runs
-// only if the page dispatches it itself, so
-// this file is a registry and a shape, not a scheduler: WHEN the host fires lives
-// in loop.js, which dispatches through the `__frot_dispatch` helper exported at
-// the end. It moved out of loop.js when EventTarget stopped being a constructor
-// that stamped three methods onto each instance and became a real INTERFACE with
-// its methods on the prototype — the shape Firefox has, and the one every
-// masqueraded event target (Worker, SharedWorker, MessagePort, PermissionStatus,
-// Notification, IDBRequest) now inherits instead of flattening (`bl-6438`,
-// identity.md §3.14). Runs after brand.js (branding) and dom.js (Node/document),
-// and BEFORE loop.js, permissions.js, worker.js and idb.js, which all reach it.
+// Events: the ONE listener registry, the EventTarget interface over it, and the
+// ONE dispatch path every event goes through (bl-e81b, bl-6438, bl-810b; js.md
+// §4.4/§11, identity.md §10). Whoever raises an event — a page's
+// `dispatchEvent`, the host lifecycle (loop.js), an <img>'s load/error
+// (imageload.js), a reader's progress (filereader.js) — hands it to `dispatch`,
+// which runs the DOM standard's algorithm (§2.9 "Dispatching events") as
+// Firefox 153.0esr does it, measured (src/js/tests/dispatch/firefox153.json):
+// the path from the target up the tree to the document and on to the window
+// (never the window for `load`), a capture pass down it, the target's own
+// listeners (capture ones first), and — for an event that bubbles — a bubble
+// pass back up; `stopPropagation` ends the walk after the current object,
+// `stopImmediatePropagation` at once. A listener that throws is REPORTED (DOM
+// "inner invoke" step 10): the exception becomes an ErrorEvent at the window,
+// then `window.onerror`, and counts toward js.errors unless one of them
+// handles it (js.md §10) — the next listener runs regardless.
+// Runs after brand.js, dom.js and event.js; BEFORE loop.js, permissions.js,
+// worker.js and idb.js, which all reach it.
 (function (g) {
   'use strict';
   var slots = g.__frot_slots;
+  var brand = g.__frot_brand;
 
-  // The one registry. Listeners key by TARGET, so window/document/nodes/
-  // fragments/XHR/every masqueraded interface share one implementation.
-  var reg = Object.create(null);
-  function bucket(key, type) {
-    var t = reg[key] || (reg[key] = Object.create(null));
+  // The one registry: target object -> type -> listener entries, each the
+  // standard's event listener struct ({callback, capture, once, passive,
+  // removed}). A WeakMap, so it is never a property a page can walk and a
+  // dropped target takes its listeners with it.
+  var lists = new WeakMap();
+  function listeners(target, type) {
+    var t = lists.get(target);
+    if (!t) lists.set(target, (t = Object.create(null)));
     return t[type] || (t[type] = []);
   }
-  function add(key, type, fn) {
-    if (typeof fn !== 'function') return;
-    var b = bucket(key, type);
-    if (b.indexOf(fn) < 0) b.push(fn);
+  function find(list, callback, capture) {
+    for (var i = 0; i < list.length; i++)
+      if (list[i].callback === callback && list[i].capture === capture) return i;
+    return -1;
   }
-  function remove(key, type, fn) {
-    var b = bucket(key, type);
-    var i = b.indexOf(fn);
-    if (i >= 0) b.splice(i, 1);
-  }
-  function fire(key, ev, target) {
-    // A target object names its own bucket (imageload.js fires on an <img>).
-    if (typeof key !== 'string') key = etKey(key);
-    // The dispatcher sets `event.target`, as a real one does — it is not a value
-    // the code raising the event writes. Four call sites used to assign it by
-    // hand, which stopped being possible when `target` became the read-only
-    // prototype accessor Gecko has (bl-643d). Set once: a lifecycle event is
-    // dispatched to document AND window, and its target stays the document.
-    var st = slots(ev);
-    if (st.target === null || st.target === undefined) st.target = target;
-    var b = bucket(key, ev.type).slice();
-    var errs = 0;
-    for (var i = 0; i < b.length; i++)
-      try {
-        b[i].call(target, ev);
-      } catch (e) {
-        errs++;
-      }
-    return errs;
-  }
-  // Which registry bucket an EventTarget's listeners live in. Lazy, and held in a
-  // WeakMap rather than on the object, so the key is never a property a page can
-  // walk. `window` and `document` are seeded with the fixed keys the lifecycle
-  // dispatch below fires on.
-  var etSeq = 0;
-  var etKeys = new WeakMap();
-  function etKey(o) {
-    var k = etKeys.get(o);
-    if (k === undefined) {
-      k = 'et' + ++etSeq;
-      etKeys.set(o, k);
-    }
-    return k;
+  function remove(target, type, callback, capture) {
+    var list = listeners(target, type);
+    var i = find(list, callback, capture);
+    if (i >= 0) list.splice(i, 1)[0].removed = true;
   }
 
-  // Event / CustomEvent are real interfaces (bl-643d): they were constructors
-  // that stamped four values onto each instance, where a real event owns exactly
-  // ONE own property. Measured on Firefox 153.0esr (identity.md §3.17), a
-  // constructed `new Event('x')` owns `isTrusted` alone — an enumerable,
-  // NON-configurable accessor reading `false` — and everything else (type,
-  // target, bubbles, defaultPrevented, preventDefault, stopPropagation) comes
-  // off `Event.prototype`, operations before attributes as everywhere else. So
-  // `isTrusted` is added here rather than dropped: it is the one own property
-  // Gecko really has, and frot never published it at all.
-  function initEvent(inst, type, init) {
-    var st = slots(inst);
-    st.type = String(type);
-    st.bubbles = !!(init && init.bubbles);
-    st.defaultPrevented = false;
-    st.target = null;
-    Object.defineProperty(inst, 'isTrusted', {
-      // False for anything a page constructs; true only where the host raises
-      // the event itself and marks it (filereader.js).
-      get: g.__frot_brand(function () {
-        return st.trusted === true;
-      }, 'get isTrusted'),
-      enumerable: true,
-      configurable: false,
-    });
+  function argc(op, need, got) {
+    if (got < need)
+      throw new TypeError('EventTarget.' + op + ': At least ' + need + ' argument'
+        + (need > 1 ? 's' : '') + ' required, but only ' + got + ' passed');
   }
-  var Event = g.__frot_iface('Event', null, function (inst, args) {
-    initEvent(inst, args[0], args[1]);
-  });
-  // The event subtypes in other modules (ProgressEvent, IDBVersionChangeEvent)
-  // start from the same initializer; calling `Event` itself needs `new`.
-  Object.defineProperty(g, '__frot_event_init', {
-    value: g.__frot_brand(initEvent, '__frot_event_init'),
-    configurable: true,
-    writable: true,
-  });
-  g.__frot_ifaceops(Event.prototype, {
-    stopPropagation: function stopPropagation() {},
-    preventDefault: function preventDefault() {
-      slots(this).defaultPrevented = true;
-    },
-  });
-  g.__frot_ifaceattrs(Event.prototype, ['type', 'target', 'bubbles', 'defaultPrevented']);
-
-  // CustomEvent.prototype: initCustomEvent, detail, constructor — parent Event.
-  var CustomEvent = g.__frot_iface('CustomEvent', null, function (inst, args) {
-    initEvent(inst, args[0], args[1]);
-    slots(inst).detail = args[1] ? args[1].detail : null;
-  });
-  Object.setPrototypeOf(CustomEvent.prototype, Event.prototype);
-  g.__frot_ifaceattrs(CustomEvent.prototype, ['detail']);
-
-  // EventTarget (bl-e81b): Firefox's base interface, constructable since FF 59
-  // — framer-motion resolves animation targets with `t instanceof EventTarget`,
-  // a ReferenceError while the name is absent. Instances ride the one registry;
-  // `instanceof` matches by the trio's shape, so every event-bearing surface
-  // (window, document, nodes, fragments, XHR, …) answers true without a class
-  // hierarchy. Nodes inherit it for real (bl-78cb).
-  //
-  // The trio lives ON THE PROTOTYPE, where Firefox's does: measured on 153.0esr
-  // (`bl-6438`, identity.md §3.14) `Object.getPrototypeOf(Worker.prototype)
-  // .constructor.name === 'EventTarget'`, and `Worker.prototype` owns six
-  // properties, none of them a listener method. So this is THE EventTarget
-  // interface every masqueraded one inherits (Worker, SharedWorker, MessagePort,
-  // PermissionStatus, Notification, IDBRequest) instead of each flattening three
-  // copies of its own onto itself.
-  //
+  function isObject(v) {
+    return v !== null && (typeof v === 'object' || typeof v === 'function');
+  }
   // A call with no receiver is a call on the window (`bl-a7c5`): strict code
-  // that writes a bare `addEventListener('message', f)`, or calls the function
-  // through a variable, passes `this === undefined`, and WebIDL resolves that
-  // to the global for an operation the global object inherits. Cloudflare's
-  // challenge script does exactly this as its first act; throwing there
-  // (`undefined` is no WeakMap key) ended it before it began.
+  // that calls a bare `addEventListener('message', f)` passes `this ===
+  // undefined`, and WebIDL resolves that to the global for an operation the
+  // global object inherits. Cloudflare's challenge script does exactly this.
   function receiver(o) {
     return o == null ? g : o;
   }
+  // The options argument: a boolean is `capture`; any object is the
+  // AddEventListenerOptions dictionary, read in its member order.
+  function options(o, full) {
+    if (!isObject(o)) return { capture: !!o };
+    var r = { capture: !!o.capture };
+    if (!full) return r;
+    r.once = !!o.once;
+    r.passive = !!o.passive;
+    r.signal = o.signal;
+    if (r.signal !== undefined && !isObject(r.signal))
+      throw new TypeError("EventTarget.addEventListener: 'signal' member of AddEventListenerOptions is not an object.");
+    if (r.signal !== undefined && !(r.signal instanceof g.AbortSignal))
+      throw new TypeError("EventTarget.addEventListener: 'signal' member of AddEventListenerOptions does not implement interface AbortSignal.");
+    return r;
+  }
+
   g.EventTarget = function EventTarget() {
     g.__frot_new(new.target, 'EventTarget');
   };
-  g.EventTarget.prototype.addEventListener = function (type, fn) {
-    add(etKey(receiver(this)), String(type), fn);
+  var ET = g.EventTarget.prototype;
+  ET.addEventListener = function (type, callback) {
+    var opts = arguments[2];
+    argc('addEventListener', 2, arguments.length);
+    var target = receiver(this);
+    if (callback == null) return;
+    if (!isObject(callback)) throw new TypeError('EventTarget.addEventListener: Argument 2 is not an object.');
+    var o = options(opts, true);
+    if (o.signal && o.signal.aborted) return;
+    type = String(type);
+    var list = listeners(target, type);
+    if (find(list, callback, o.capture) >= 0) return;
+    list.push({ callback: callback, capture: o.capture, once: o.once, passive: o.passive, removed: false });
+    if (o.signal)
+      o.signal.addEventListener('abort', function () {
+        remove(target, type, callback, o.capture);
+      });
   };
-  g.EventTarget.prototype.removeEventListener = function (type, fn) {
-    remove(etKey(receiver(this)), String(type), fn);
+  ET.removeEventListener = function (type, callback) {
+    argc('removeEventListener', 2, arguments.length);
+    remove(receiver(this), String(type), callback, options(arguments[2]).capture);
   };
-  g.EventTarget.prototype.dispatchEvent = function (ev) {
-    fire(etKey(receiver(this)), ev, receiver(this));
-    return !(ev && ev.defaultPrevented);
+  ET.dispatchEvent = function (ev) {
+    argc('dispatchEvent', 1, arguments.length);
+    if (!isObject(ev)) throw new TypeError('EventTarget.dispatchEvent: Argument 1 is not an object.');
+    if (!slots(ev).event)
+      throw new TypeError('EventTarget.dispatchEvent: Argument 1 does not implement interface Event.');
+    return dispatch(receiver(this), ev);
   };
-  Object.defineProperty(g.EventTarget.prototype, Symbol.toStringTag, {
-    value: 'EventTarget',
-    configurable: true,
-  });
+  Object.defineProperty(ET, Symbol.toStringTag, { value: 'EventTarget', configurable: true });
   Object.defineProperty(g.EventTarget, Symbol.hasInstance, {
-    // The shape test is EventTarget's own answer; an interface that inherits
-    // it (Node and everything under it) answers by its prototype chain.
+    // The shape test is EventTarget's own answer (framer-motion resolves
+    // animation targets with `t instanceof EventTarget`, and the window is not
+    // one by inheritance here); an interface that inherits it (Node and
+    // everything under it) answers by its prototype chain.
     value: function (o) {
       if (this !== g.EventTarget) return Function.prototype[Symbol.hasInstance].call(this, o);
-      return !!o && (typeof o === 'object' || typeof o === 'function') && typeof o.addEventListener === 'function';
+      return isObject(o) && typeof o.addEventListener === 'function';
     },
   });
-
-  // window and document are event targets with FIXED registry keys (the
-  // lifecycle dispatch fires on those keys). The window is not an EventTarget
-  // by inheritance here, so it takes the same three functions as its own;
-  // the document inherits them through Node (bl-9f79). Branding at the
-  // definition is what makes them read native everywhere they are reached.
+  // The window takes the trio as its own (it is not an EventTarget by
+  // inheritance here); the document inherits it through Node (bl-9f79), and
+  // so does every node (bl-78cb). Branding at the definition is what makes
+  // them read native everywhere they are reached.
   ['addEventListener', 'removeEventListener', 'dispatchEvent'].forEach(function (k) {
-    g.__frot_brand(g.EventTarget.prototype[k], k);
-    g[k] = g.EventTarget.prototype[k];
+    brand(ET[k], k);
+    g[k] = ET[k];
   });
-  etKeys.set(g, 'window');
-  etKeys.set(g.document, 'document');
-  // Every node is an EventTarget by inheritance (bl-78cb): a node has one
-  // wrapper, so its listeners key by that object like any other target's.
   g.__frot_extends(g.Node, g.EventTarget);
 
-  // The registry's dispatch, for the host lifecycle in loop.js: the only caller
-  // outside this file, and the reason `fire` is not simply private. Non-enumerable
-  // like every other `__frot_*` helper, and branded so its source never shows.
-  g.__frot_brand(fire, '__frot_dispatch');
-  Object.defineProperty(g, '__frot_dispatch', {
-    value: fire,
-    configurable: true,
-    writable: true,
+  // "Get the parent" (DOM §2.9): a node's parent node; the document's, the
+  // window — except for a `load` event, which never reaches the window from
+  // the tree (HTML; Gecko's "bug 335251", measured); everything else, none.
+  function parentOf(o, ev) {
+    var id = o === g ? undefined : slots(o).id;
+    if (typeof id !== 'number') return null;
+    var p = g.__frot_parent(id);
+    if (p !== null && p !== undefined) return g.__frot_wrap(p);
+    return o === g.document && slots(ev).type !== 'load' ? g : null;
+  }
+
+  // Report an exception (HTML "report the exception"): an ErrorEvent at the window, through
+  // the path like any event, then `window.onerror`; counted unless one of them
+  // handled it. An exception thrown while one is being reported is counted
+  // bare, never reported again (measured: no second `error` event).
+  var reporting = false;
+  function report(e) {
+    var message = e instanceof Error ? String(e) : 'uncaught exception: ' + String(e);
+    if (reporting) return g.__frot_report_error(message);
+    var ev = new g.ErrorEvent('error', { cancelable: true, message: message, error: e });
+    slots(ev).trusted = true;
+    raise(ev);
+  }
+  // A window `error` event, as the error accounting sees it (js.md §10):
+  // dispatched, then `window.onerror(message, filename, lineno, colno, error)`,
+  // whose `true` handles it; unhandled, it counts toward js.errors. React ≥16
+  // reports caught render errors through `reportError`, which lands here too.
+  function raise(ev) {
+    var was = reporting;
+    reporting = true;
+    try {
+      dispatch(g, ev);
+      var st = slots(ev), handled = st.defaultPrevented;
+      if (typeof g.onerror === 'function') {
+        try {
+          if (g.onerror(ev.message, ev.filename, ev.lineno, ev.colno, ev.error) === true) handled = true;
+        } catch (x) {
+          g.__frot_report_error(String(x));
+        }
+      }
+      if (!handled) g.__frot_report_error(ev.message != null ? String(ev.message) : '');
+      return !st.defaultPrevented;
+    } finally {
+      reporting = was;
+    }
+  }
+
+  // Inner invoke (DOM §2.9): `object`'s listeners for this pass, cloned first
+  // so a listener added during dispatch waits for the next one.
+  function invoke(object, ev, st, phase, capturePass) {
+    st.currentTarget = object;
+    st.eventPhase = phase;
+    var list = listeners(object, st.type).slice();
+    for (var i = 0; i < list.length && !st.stopNow; i++) {
+      var l = list[i];
+      if (l.removed || l.capture !== capturePass) continue;
+      if (l.once) remove(object, st.type, l.callback, l.capture);
+      st.passive = l.passive;
+      try {
+        var cb = l.callback;
+        if (typeof cb === 'function') cb.call(object, ev);
+        else {
+          var h = cb.handleEvent;
+          if (typeof h !== 'function') throw new TypeError("Property 'handleEvent' is not callable.");
+          h.call(cb, ev);
+        }
+      } catch (e) {
+        report(e);
+      }
+      st.passive = false;
+    }
+  }
+
+  // Dispatch (DOM §2.9): `target` is where the event goes; `as`, when given,
+  // is what `event.target` reads instead — the "legacy target override" the
+  // window's `load` uses, whose target is the document though its path is
+  // the window alone. Returns false when a listener canceled it.
+  function dispatch(target, ev, as) {
+    var st = slots(ev);
+    if (st.dispatching || !st.initialized)
+      throw g.__frot_domerror('InvalidStateError', 'An attempt was made to use an object that is not, or is no longer, usable');
+    st.dispatching = true;
+    st.target = as || target;
+    var path = [target];
+    if (!as) for (var p = parentOf(target, ev); p; p = parentOf(p, ev)) path.push(p);
+    st.path = path;
+    try {
+      for (var i = path.length - 1; i >= 0 && !st.stop; i--) invoke(path[i], ev, st, i ? 1 : 2, true);
+      for (var j = 0; j < path.length && !st.stop; j++)
+        if (!j || st.bubbles) invoke(path[j], ev, st, j ? 3 : 2, false);
+    } finally {
+      st.eventPhase = 0;
+      st.currentTarget = null;
+      st.path = [];
+      st.dispatching = st.stop = st.stopNow = false;
+    }
+    return !st.defaultPrevented;
+  }
+
+  // The path, for the host (loop.js, imageload.js, filereader.js); the
+  // reporting, for loop.js's `reportError` and a page-dispatched window
+  // `error`. Non-enumerable like every `__frot_*` helper, branded so their
+  // source never shows.
+  [['__frot_dispatch', dispatch], ['__frot_report_exception', report], ['__frot_raise_error', raise]].forEach(function (p) {
+    Object.defineProperty(g, p[0], { value: brand(p[1], p[0]), configurable: true, writable: true });
   });
 })(globalThis);

@@ -1019,11 +1019,14 @@
 
   var ev = new Event('x');
   shape('Event', Event.prototype,
-    'stopPropagation,preventDefault,type,target,bubbles,defaultPrevented,constructor');
+    'composedPath,stopPropagation,stopImmediatePropagation,preventDefault,initEvent,type,target,'
+    + 'srcElement,currentTarget,eventPhase,bubbles,cancelable,returnValue,defaultPrevented,composed,'
+    + 'timeStamp,cancelBubble,originalTarget,explicitOriginalTarget,NONE,CAPTURING_PHASE,AT_TARGET,'
+    + 'BUBBLING_PHASE,ALT_MASK,CONTROL_MASK,SHIFT_MASK,META_MASK,constructor');
   // A real event owns exactly ONE property, and frot never published it.
   eq('own:Event', Object.getOwnPropertyNames(ev).join(','), 'isTrusted');
   eq('iface:event-isTrusted', ev.isTrusted, false);
-  shape('CustomEvent', CustomEvent.prototype, 'detail,constructor');
+  shape('CustomEvent', CustomEvent.prototype, 'initCustomEvent,detail,constructor');
 
   var xhr = new XMLHttpRequest();
   shape('XMLHttpRequestEventTarget', XMLHttpRequestEventTarget.prototype,

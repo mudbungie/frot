@@ -55,8 +55,8 @@
     CharacterData: 'remove data length',
     DocumentFragment: 'getElementById prepend append querySelector querySelectorAll children',
     Document: 'getElementsByTagName getElementsByClassName createElement createElementNS ' +
-      'createDocumentFragment createTextNode createComment importNode adoptNode createTreeWalker ' +
-      'getElementsByName ' +
+      'createDocumentFragment createTextNode createComment importNode adoptNode createEvent ' +
+      'createTreeWalker getElementsByName ' +
       'hasFocus getElementById prepend append querySelector querySelectorAll implementation ' +
       'compatMode doctype documentElement cookie ' +
       'readyState body head scripts defaultView onreadystatechange currentScript hidden ' +

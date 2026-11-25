@@ -218,9 +218,10 @@ fn js_errors_surfaces_throw_and_report_messages_in_order() {
         "got {:?}",
         msgs[0]
     );
-    // reportError is the whole point (bl-249c): its message reaches js.messages.
+    // reportError is the whole point (bl-249c): its message reaches js.messages,
+    // as the ErrorEvent's `message` reads it (bl-810b; Firefox 153.0esr).
     assert_eq!(msgs[1]["kind"], "report");
-    assert_eq!(msgs[1]["text"], "boom-report");
+    assert_eq!(msgs[1]["text"], "Error: boom-report");
 }
 
 #[test]

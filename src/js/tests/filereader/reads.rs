@@ -89,7 +89,8 @@ fn each_reader_gives_the_blob_in_its_own_form() {
 }
 
 /// A handler attribute is a listener in the place it was first set; setting it
-/// to null gives the place up. A throwing handler does not stop `loadend`.
+/// to null gives the place up. A throwing handler does not stop `loadend`; its
+/// exception is reported (bl-810b) — here handled, so the run counts none.
 #[test]
 fn handlers_fire_in_registration_order() {
     let order = |setup: &str| {
@@ -111,7 +112,10 @@ fn handlers_fire_in_registration_order() {
         "l h2"
     );
     assert_eq!(
-        order("r.onload=function(){o.push('threw');throw new Error('boom')};"),
+        order(
+            "addEventListener('error',function(e){e.preventDefault()});\
+             r.onload=function(){o.push('threw');throw new Error('boom')};"
+        ),
         "threw"
     );
 }

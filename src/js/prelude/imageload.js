@@ -73,8 +73,8 @@
     return f;
   });
 
-  // Host driver: end the oldest queued request — -1 when none is queued, else
-  // the number of its handlers that threw.
+  // Host driver: end the oldest queued request — -1 when none is queued, else 0
+  // (a handler's throw is reported, and counted, on the dispatch path).
   seam('__frot_next_image', function () {
     var task = queue.shift();
     if (!task) return -1;
@@ -86,16 +86,16 @@
     var img = g.__frot_wrap(id);
     var ev = new g.Event(st.size ? 'load' : 'error');
     slots(ev).trusted = true; // the browser raised it, not the page
-    var errs = g.__frot_dispatch(img, ev, img);
+    g.__frot_dispatch(img, ev);
     var on = img['on' + ev.type];
     if (typeof on === 'function')
       try {
         on.call(img, ev);
       } catch (e) {
-        errs++;
+        g.__frot_report_exception(e);
       }
     settle(st, st.size ? null : invalid('Invalid encoded image data.'));
-    return errs;
+    return 0;
   });
   // Image tasks are due now, so they run ahead of any timer.
   var nextTimer = g.__frot_next_timer;
