@@ -64,7 +64,7 @@ pub fn group(
         return None;
     }
     let display = Display::of(styles, id, &el.name);
-    if display == Display::ListItem {
+    if matches!(display, Display::ListItem | Display::InlineListItem) {
         return Some("listitem");
     }
     let marked = || has("autofocus") || has("draggable");

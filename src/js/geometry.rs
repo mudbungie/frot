@@ -114,6 +114,7 @@ fn display_keyword(d: Display) -> &'static str {
         Display::None => "none",
         Display::Block => "block",
         Display::Inline => "inline",
+        Display::InlineListItem => "inline list-item",
         Display::InlineBlock => "inline-block",
         Display::InlineTable => "inline-table",
         Display::ListItem => "list-item",

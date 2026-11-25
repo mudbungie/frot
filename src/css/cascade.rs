@@ -87,7 +87,7 @@ fn walk(
         cs.before = None;
         cs.after = None;
     }
-    let own_line = !holds || !matches!(cs.display, Display::Inline | Display::Contents);
+    let own_line = !holds || !(cs.display.inline() || cs.display == Display::Contents);
     let mut inner = if own_line { ' ' } else { *prev };
     let [before, after] = cs.pseudo_transform;
     cs.before = cs.before.map(|s| before.apply(&s, &mut inner).unwrap_or(s));

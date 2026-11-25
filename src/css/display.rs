@@ -16,6 +16,9 @@ pub enum Display {
     Inline,
     InlineBlock,
     ListItem,
+    /// `inline list-item`: an inline box to every reader but `ax`, where it
+    /// is a list item as [`Display::ListItem`] is (`bl-90c1`).
+    InlineListItem,
     Flex,
     InlineFlex,
     /// A table box (`table`, `block table`): laid out as a block, and no
@@ -58,20 +61,12 @@ impl Display {
             "grid" | "block grid" => Display::Grid,
             "inline-grid" | "inline grid" => Display::InlineGrid,
             "table-column" | "table-column-group" => Display::TableColumn,
-            "inline"
-            | "ruby"
-            | "ruby-text"
-            | "math"
-            | "inline flow"
-            | "inline ruby"
-            | "inline math"
-            | "inline list-item"
-            | "inline flow-root list-item"
-            | "initial"
-            | "unset" => Display::Inline,
+            "inline" | "ruby" | "ruby-text" | "math" | "inline flow" | "inline ruby"
+            | "inline math" | "initial" | "unset" => Display::Inline,
             "inline-block" | "-webkit-inline-box" | "inline flow-root" => Display::InlineBlock,
             "inline-table" | "inline table" => Display::InlineTable,
             "list-item" | "block list-item" | "block flow-root list-item" => Display::ListItem,
+            "inline list-item" | "inline flow-root list-item" => Display::InlineListItem,
             "flex" | "-webkit-flex" | "block flex" => Display::Flex,
             "inline-flex" | "-webkit-inline-flex" | "inline flex" => Display::InlineFlex,
             "contents" => Display::Contents,
@@ -88,6 +83,12 @@ impl Display {
     /// declaration leaves.
     pub fn reverts(value: &str) -> bool {
         value.trim().eq_ignore_ascii_case("revert")
+    }
+
+    /// Whether the box is a plain inline one, which neither breaks a line
+    /// nor stands as a word of its own.
+    pub fn inline(self) -> bool {
+        matches!(self, Display::Inline | Display::InlineListItem)
     }
 
     /// Whether the box is block-level: it starts and ends a line. The
@@ -139,6 +140,7 @@ impl Display {
                 Display::Block
             }
             Display::InlineTable if out_of_flow => Display::Table,
+            Display::InlineListItem if out_of_flow => Display::ListItem,
             Display::InlineFlex if out_of_flow => Display::Flex,
             Display::InlineGrid if out_of_flow => Display::Grid,
             other => other,

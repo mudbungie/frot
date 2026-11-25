@@ -152,7 +152,7 @@ fn children_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut Stri
 /// inline one: `::after { content: "A"; display: block }` on "Bgen" is
 /// "Bgen A" (Chrome 158).
 fn generated(out: &mut String, text: &str, display: Display) {
-    if display == Display::Inline {
+    if display.inline() {
         out.push_str(text);
     } else {
         fence(out, text);
@@ -218,7 +218,7 @@ fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, o
 /// (`bl-d94b`).
 fn breaks(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>, empty: bool) -> bool {
     let display = Display::of(styles, id, &el.name);
-    native::atomic(doc, id, el) || (display != Display::Inline && (display.block_level() || !empty))
+    native::atomic(doc, id, el) || (!display.inline() && (display.block_level() || !empty))
 }
 
 /// Space `text` off from the text either side of it: an alternative is a

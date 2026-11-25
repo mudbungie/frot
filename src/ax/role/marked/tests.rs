@@ -174,3 +174,14 @@ fn popover_makes_a_plain_container_a_group() {
         assert_eq!(outline(html), want, "{html}");
     }
 }
+
+/// An `inline list-item` box is a list item too, inline everywhere else
+/// (`bl-90c1`, Chrome 158).
+#[test]
+fn an_inline_list_item_is_a_listitem() {
+    let html = "<p>q <span style='display:inline list-item'>il</span> q</p>";
+    assert_eq!(outline(html), "paragraph, listitem");
+    let floated = "<p>q <b style='display:inline list-item;float:left'>f</b> q</p>";
+    assert_eq!(outline(floated), "paragraph, listitem");
+    assert!(crate::css::Display::InlineListItem.inline());
+}

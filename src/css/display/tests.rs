@@ -50,12 +50,13 @@ fn every_value_chrome_accepts_takes_the_nearest_box() {
         ("table-footer-group", Display::TableRow),
         // Keywords in any order (`bl-9dec`).
         ("flex inline", Display::InlineFlex),
-        ("list-item inline", Display::Inline),
+        ("list-item inline", Display::InlineListItem),
         ("flow-root inline", Display::InlineBlock),
         ("list-item block", Display::ListItem),
         ("list-item flow-root", Display::ListItem),
         ("flow list-item block", Display::ListItem),
-        ("inline flow list-item", Display::Inline),
+        ("inline flow list-item", Display::InlineListItem),
+        ("inline flow-root list-item", Display::InlineListItem),
         ("grid block", Display::Grid),
         // Case-insensitive and trimmed.
         ("  INLINE-Block ", Display::InlineBlock),
