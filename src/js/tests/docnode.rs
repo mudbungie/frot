@@ -228,3 +228,27 @@ fn a_doctype_and_character_data_read_as_the_binarys() {
         assert_eq!(eval(expr), want, "{expr}");
     }
 }
+
+/// Cloning a doctype makes a doctype (bl-ad2d), its three strings copied —
+/// what Firefox 153.0esr answers for this page's XHTML doctype.
+#[test]
+fn a_cloned_doctype_is_a_doctype() {
+    let s = sess(
+        "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \
+         \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html><body></body></html>",
+    );
+    let got = s
+        .eval(
+            "(function(){var d=document.doctype,c=d.cloneNode(),c2=d.cloneNode(true);\
+             return [c.nodeType,c.nodeName,c.name,c.publicId,c.systemId,c===d,c.parentNode,\
+             c.ownerDocument===document,c2.childNodes.length,\
+             Object.prototype.toString.call(c),c instanceof DocumentType].join('|')})()",
+        )
+        .unwrap();
+    assert_eq!(
+        got,
+        "10|html|html|-//W3C//DTD XHTML 1.0 Strict//EN|\
+         http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd|false||true|0|\
+         [object DocumentType]|true"
+    );
+}

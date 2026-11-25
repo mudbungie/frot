@@ -48,6 +48,14 @@ impl Document {
         self.append_node(NodeKind::Comment(text.to_string()))
     }
 
+    /// A detached copy of node `id` itself, without its children — what
+    /// `cloneNode` makes of a doctype, whose three strings no other creation
+    /// takes (bl-ad2d).
+    pub fn copy_node(&mut self, id: NodeId) -> NodeId {
+        let kind = self.nodes[id as usize].kind.clone();
+        self.append_node(kind)
+    }
+
     /// Set (or overwrite) an attribute on an element node; a no-op on any other
     /// kind. Totality keeps the caller from having to pre-check the node kind.
     pub fn set_attr(&mut self, id: NodeId, name: &str, value: &str) {

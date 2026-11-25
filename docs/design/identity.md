@@ -1748,6 +1748,7 @@ binary's order.
 | `Node.TEXT_NODE` descriptor | value 3, enumerable, not writable, not configurable; on `Node` and `Node.prototype` | absent | as measured |
 | `el.textContent = null` / `= ''` | no child left | a text node `"null"` / an empty text node | no child left |
 | `comment.cloneNode().nodeType` | 8 | 3 | 8 |
+| `document.doctype.cloneNode()` (`bl-ad2d`, 2026-11-24) | a `DocumentType`: nodeType 10, its name, publicId and systemId | a `Text` (nodeType 3) | as measured (`__frot_copy_node`) |
 
 Decided with the capture in hand:
 

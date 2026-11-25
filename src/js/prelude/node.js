@@ -103,7 +103,8 @@
         kind === 'element' ? g.__frot_create_element(g.__frot_tag(id))
           : kind === 'document-fragment' ? g.__frot_create_fragment()
             : kind === 'comment' ? g.__frot_create_comment(g.__frot_text(id))
-              : g.__frot_create_text(kind === 'text' ? g.__frot_text(id) : '')
+              : kind === 'doctype' ? g.__frot_copy_node(id)
+                : g.__frot_create_text(kind === 'text' ? g.__frot_text(id) : '')
       );
       g.__frot_attrs(id).forEach(function (a) {
         g.__frot_set_attr(slots(copy).id, a[0], a[1]);

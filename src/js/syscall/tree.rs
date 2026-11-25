@@ -1,6 +1,7 @@
 //! The trees beside the node tree (js.md §15): the fragment an element owns
 //! outside its child list — a `<template>`'s contents or a shadow root —,
-//! slot assignment, and what the custom element reactions ask of the tree.
+//! slot assignment, what the custom element reactions ask of the tree, and a
+//! bare copy of a node, for the doctype `cloneNode` has no other way to make.
 
 use rquickjs::{Ctx, Function};
 
@@ -79,6 +80,10 @@ pub(super) fn install<'js>(
     bind!(ctx, g, "__frot_set_custom", {
         let d = doc.clone();
         move |id: u32| d.borrow_mut().set_custom(id)
+    });
+    bind!(ctx, g, "__frot_copy_node", {
+        let d = doc.clone();
+        move |id: u32| d.borrow_mut().copy_node(id)
     });
     Ok(())
 }
