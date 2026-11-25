@@ -284,7 +284,9 @@ Consequences of the repo's hard rules:
   already flattens foreign content the same way — so the namespace argument is
   honestly dropped, and attribute reads normalize to the arena's lowercase
   names so SVG camelCase round-trips); `closest`/`getRootNode` (no shadow DOM,
-  §11: connected roots to the document, detached to the subtree top);
+  §11: connected roots to the document, detached to the subtree top —
+  *superseded 2026-11-24, §15: a node in a shadow tree roots at its shadow
+  root, and `{composed: true}` continues through the host*);
   live `nextSibling`/`previousSibling`; the ParentNode/ChildNode mixin
   `append`/`prepend`/`remove`; the form-control interface prototypes
   (`HTMLInputElement`/`HTMLTextAreaElement`/`HTMLSelectElement`) carrying the
@@ -1312,6 +1314,9 @@ Two moves against today's `run.rs`:
   > may). The header's relative target resolves against the document URL, not a
   > `<base>`; repeated header lines are one value joined with `, `.
 - **No persistence** across calls, of any kind (§7).
+- **No shadow DOM, no custom elements** — the unstated non-goal §3 pointed
+  at. *Superseded 2026-11-24 (`bl-aff4`, §15; Mark: "Do it."): both are
+  built, and the views read the flat tree.*
 - **No iframes.** Frame documents are not fetched or executed;
   `contentWindow`/`contentDocument` are `null`.
   > **Superseded in part 2026-11-22 (`bl-54ac`, §14).** A connected iframe now
@@ -1670,3 +1675,159 @@ returned the question page: `status:"ok"`, `http.status 200`,
 `challenge:{rounds:1, passed:true}` — 2 runs of 3, the third answered 429
 (rate-limited by the runs themselves). That wall is `bl-a86b`. The same trace
 found `window.postMessage` absent in every window (`bl-0af7`).
+
+## 15. Custom elements and shadow DOM (`bl-aff4`, 2026-11-24)
+
+*Supersedes the §3 note "no shadow DOM, §11" and adds the §11 bullet it
+pointed at. Mark, 2026-11-24, on `bl-aff4`: "I think this is actually going to
+be necessary. Do it."* A page built from web components (Lit, Stencil,
+Salesforce LWC, YouTube's Polymer) keeps its content in **shadow trees** that
+its scripts build from **custom element** classes. frot had neither, so such a
+page rendered its light DOM only — usually nothing — and its component bundle
+threw once at load (Amazon's home page: `customElements is not defined`, its
+`hp-*` strip missing).
+
+### 15.1 What the browsers do (measured)
+
+Firefox 153.0esr (identity.md §3.19 rig) and Chrome 158, the same probe on
+both. Where they differ, frot follows Firefox (the persona) unless the row
+says otherwise.
+
+| fact | value |
+|---|---|
+| a parsed `<template>` | no children; `content` is a `DocumentFragment` holding what the markup put inside, the same object at every read, `parentNode` null; `textContent` `''`; `innerHTML`/`outerHTML` serialize the contents; its `ownerDocument` is **not** the page's (an inert document) |
+| `createElement('template')` | has an empty `content`; `appendChild` adds a real child (not to `content`), which `innerHTML` does not show; `innerHTML = s` fills `content` |
+| `cloneNode(true)` of a template | copies the contents into the clone's `content`; `cloneNode(false)` copies none. `importNode(node, deep)` is the clone, owned by the page; `importNode(document)` → `NotSupportedError` |
+| `<template shadowrootmode=open\|closed>` (declarative shadow DOM) | not a child: its contents become the parent's shadow root. A second one on the same host, or `mode=bogus`, stays an ordinary `<template>`. `innerHTML` (fragment parsing) never makes one |
+| shadow root | `ShadowRoot` (extends `DocumentFragment`; `new` → Illegal constructor), `host`, `mode`, `delegatesFocus`/`clonable`/`serializable` false and `slotAssignment` `named` unless asked; its children's `parentNode` is the root, the root's is `null`; `getRootNode()` is the root, `{composed:true}` the document; `isConnected` true under a connected host |
+| `attachShadow` | hosts: `article aside blockquote body div footer h1–h6 header main nav p section span` and valid custom element names; else `NotSupportedError` "Unable to attach ShadowDOM"; twice → "Unable to re-attach to existing ShadowDOM", except onto a declarative root of the same mode, which is emptied and returned; `shadowRoot` is `null` for a closed root |
+| the host from outside | `childNodes`, `innerHTML`, `textContent` read the light children only; `querySelectorAll` from the document does not enter a shadow root; a shadow root's `innerHTML` reads its own tree |
+| slots | a light child goes to the first `<slot>` (tree order) whose `name` equals its `slot` attribute (text: `''`); a slot with nothing assigned renders its own children (fallback); an unassigned light child renders nowhere. `assignedNodes()`, `assignedElements()`, `assignedSlot` (on elements and text) |
+| **`innerText`, and `getSelection().toString()`** | **do not include shadow content, in either browser** — `<div><template shadowrootmode=open><b>shadow</b><slot></slot></template>light</div>` reads `light`. The accessibility tree does include it |
+| `customElements` | a `CustomElementRegistry`: `define`, `get`, `getName`, `whenDefined`, `upgrade`; error names and conditions as below |
+| `define(name, C)` | reads `observedAttributes` once; then upgrades every **connected** element of that name in tree order: constructor, `attributeChangedCallback` per observed attribute present, `connectedCallback`. Template contents are not upgraded |
+| `createElement(name)` of a defined name | runs the constructor synchronously, before the element has attributes or a parent |
+| `innerHTML`, `cloneNode`, `importNode` | create elements of a defined name and upgrade them **after** the operation (so a cloned element's constructor sees its children and attributes); `innerHTML` into a connected element: first every removed element's `disconnectedCallback` (Firefox; Chrome orders it last), then per new element in tree order constructor, observed-attribute callbacks, `connectedCallback` |
+| insertion / removal | `connectedCallback` / `disconnectedCallback` for each custom element in the moved subtree, shadow trees included; a move is a removal then an insertion |
+| attribute writes | `attributeChangedCallback(name, old, new)` for observed names only, even when the value is unchanged |
+| `new C()` | an element with C's name, `isConnected` false; `new HTMLElement()` or a class never defined throws (Firefox: an `NS_ERROR_UNEXPECTED` exception; Chrome `TypeError: Illegal constructor`) |
+| a throwing constructor | `createElement` returns an `HTMLUnknownElement` that is not `:defined`; the error is reported |
+| customized built-ins | `define('x-btn', class extends HTMLButtonElement {}, {extends:'button'})` upgrades `<button is=x-btn>`; `createElement('button', {is:'x-btn'})` and `new XBtn()` make a `<button>` that serializes `is="x-btn"` with no `is` attribute (`getAttribute('is')` null) |
+| `:defined` | true for every element except an HTML one with a custom name or an `is` value that is not yet upgraded |
+| `CSSStyleSheet` / `adoptedStyleSheets` | constructable; `replaceSync`, `replace`, `cssRules`; `document.adoptedStyleSheets` and a shadow root's are plain arrays a page assigns |
+
+### 15.2 The design, in the order it happens
+
+1. **One fragment an element owns outside its child list.** `NodeEntry`
+   gains `content: Option<NodeId>`: a `<template>`'s contents (a `Fragment`)
+   or a host's shadow root (a new kind, `NodeKind::Shadow` — host, mode, and
+   the flags `attachShadow` takes, all fixed at attach). An element never has
+   both: no template can host a shadow root. Neither is a child, so every
+   reader of the node tree today — `walk`, `querySelector`, `textContent`,
+   the serializers, the MutationObserver seam — is unchanged by construction
+   and never enters one; a shadow root's own children have it as their
+   parent, exactly as `parentNode` reports. Ids stay append-only (§2).
+2. **The parser fills it.** `absorb` reads html5ever's template contents into
+   the template's fragment, for the main document and for `innerHTML` alike.
+   For the main document only, a `<template shadowrootmode=open|closed>`
+   whose parent is a valid host without a shadow root becomes that host's
+   shadow root instead of a child — the parser's own rule (html5ever leaves
+   the attach to the tree sink, and rcdom declines it). This is parse, not
+   script: it holds **without `--js`**, as it does in a browser with
+   scripting off. `createElement('template')` gets an empty fragment, so
+   "every template has contents" is an invariant, not a lazy case.
+3. **The registry is prelude state, per realm.** `customElements` is one
+   `CustomElementRegistry` per window (an iframe realm gets its own, §14),
+   built in JS over the definitions map; nothing global in Rust. Its one
+   arena write is the **custom** state of an upgraded element
+   (`dom::live`, beside focus), because `:defined` is answered by the selector
+   engine and must not be a second copy of a JS fact.
+4. **HTML element interfaces construct.** `HTMLElement` and every
+   `HTML…Element` become WebIDL `[HTMLConstructor]`s: `new.target` is looked
+   up in the registry; during an upgrade the constructor returns the element
+   being upgraded (its existing wrapper, re-prototyped, so `el === el`
+   survives), otherwise it makes a new arena element of the definition's name.
+5. **Reactions ride the mutation seam.** Element creation, insertion,
+   removal and attribute writes all reach the arena through a handful of
+   syscalls (§7, MutationObserver), so one wrapper set over them queues the
+   custom element reactions — upgrade, connected, disconnected,
+   attributeChanged — and runs them when the outermost DOM operation returns.
+   Compound prelude operations (`cloneNode`, `importNode`, `innerHTML` and
+   its siblings) are one scope each, which is what makes a clone's
+   constructor see its children. A page that defines nothing pays one check
+   per mutation.
+6. **Shadow roots are arena nodes the prelude wraps.** `attachShadow` is one
+   syscall that answers the new root or Firefox's refusal; `ShadowRoot`'s
+   members are JS over the existing syscalls (its `innerHTML` is the one
+   serializer and fragment parser, §3).
+7. **Slot assignment is a query, never stored.** Named assignment is a pure
+   function of the tree (the slottable's `slot` attribute, the first slot of
+   that name in the host's shadow tree), so `assignedNodes`, `assignedSlot`
+   and the views all ask `dom` the same question and nothing can go stale
+   when a page renames a slot.
+8. **The views read the flat tree through one seam.** `Document::flat_children`
+   and `Document::flat_parent` answer the composed tree: a host's children
+   are its shadow root's, a slot's are its assigned nodes (else its own),
+   an unassigned light child has no flat parent. Every *rendering* reader —
+   the cascade's walk and inheritance, layout, `text`, `ax`, `bboxes`,
+   `links`, `forms`, the needs detector — descends through them (the
+   `painted_children`/`ax_children` accessors are built on them); every
+   *node-tree* reader — selectors, `querySelector`, `textContent`, JS — keeps
+   `children`/`parent`. A page with no shadow root pays one `content` check
+   per node and gets byte-identical output.
+9. **Styles are scoped by tree.** Sheets are gathered per tree: the
+   document's, and for each shadow root its own `<style>`s plus its adopted
+   sheets. An element is matched against its own tree's rules; a host also
+   against its shadow tree's `:host`/`:host()` rules, a slotted element
+   against its slot's tree's `::slotted()` rules; for normal declarations the
+   outer tree wins over the inner, as the cascade's context step says.
+   Inheritance follows the flat tree. Constructed sheets are JS objects; the
+   text a root adopts is written to the arena, where the cascade reads it.
+10. **`--out dom` serializes a shadow root as Chrome's `getHTML` does**: the
+    host's first child is `{"type":"element","name":"template","attrs":
+    {"shadowrootmode":"open"…}, "children":[…]}`, so the output reparses into
+    the same tree. A page with no shadow root serializes exactly as before;
+    an ordinary `<template>`'s contents stay out of `--out dom` as they always
+    were (`decide:` ball filed rather than changing it here).
+
+### 15.3 What this does not solve (declared residuals)
+
+Attacked before building, per the house rule. Each is filed, none is built:
+
+- **Events do not cross shadow boundaries.** frot's dispatch has no
+  propagation at all yet (`bl-810b`); `composed`, retargeting and
+  `composedPath()` wait for it.
+- **Focus delegation** (`delegatesFocus`), **form-associated custom
+  elements** and **`ElementInternals`** (`attachInternals` stays absent), **scoped
+  registries**, **manual slot assignment** (`slot.assign()`), the
+  **`slotchange`** event, **`::part`/`exportparts`**, **`:host-context()`**,
+  and `setHTMLUnsafe`/`parseHTMLUnsafe` (which admit declarative shadow roots
+  from script).
+- **Parse order.** frot parses the whole document before any script (§4), so
+  a parsed custom element is upgraded when its definition runs, not when the
+  parser reaches it after that definition: its `connectedCallback` runs at
+  `define`, with its children already present.
+- **Template contents have the page as `ownerDocument`** (a browser's are
+  owned by an inert document), and are never upgraded — the second half is
+  faithful, the first is not.
+- **Firefox does not upgrade an element made by `innerHTML` before its
+  definition existed**, even after `customElements.upgrade` (measured); Chrome
+  and the specification do, and so does frot.
+- **Chrome's `innerText` does not see shadow content** (15.1), so the
+  fidelity recorder's text ruler is blind to it, as it was to generated
+  content (fidelity.md §15.1): the ruler is repaired, not the view.
+
+### 15.4 As built
+
+- **Stage 1 (`bl-52bf`), template contents.** `NodeEntry::content` holds a
+  template's contents; `absorb` fills it from html5ever's template contents
+  for the document and for `innerHTML`, and `create_element("template")`
+  gives an empty one. `__frot_content` (`syscall/tree.rs`) is the one new
+  syscall; `prelude/template.js` builds `HTMLTemplateElement`'s six members,
+  `doc.js` `importNode`/`adoptNode` (one document: importing is cloning,
+  adopting is removing), `markup.js` serializes and parses a template's
+  markup through its contents, and `cloneNode` copies them. Pinned by a
+  34-answer Firefox 153.0esr capture (`js/tests/template/`); the one answer
+  frot gives differently is the 15.3 `ownerDocument` residual, which the
+  probe does not ask. The TreeWalker capture's `litlike` walk (lit-html's
+  own) is no longer a declared difference.

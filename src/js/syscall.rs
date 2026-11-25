@@ -32,6 +32,7 @@ mod live;
 mod messages;
 mod net;
 mod subtle;
+mod tree;
 
 pub use host::{Console, Counters, CurrentScript, Env, Host, Log, SharedDoc};
 pub use messages::{push as push_message, Message, Messages};
@@ -56,6 +57,7 @@ const GROUPS: &[Group] = &[
     image::install,
     frame::install,
     live::install,
+    tree::install,
 ];
 
 /// Register the whole syscall table on `engine`'s realm, then evaluate the

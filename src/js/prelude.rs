@@ -92,6 +92,10 @@ pub const SOURCE: &str = concat!(
     // prototype doc.js completes.
     include_str!("prelude/treewalker.js"),
     "\n",
+    // template.js (js.md §15): HTMLTemplateElement's `content` and its
+    // declarative-shadow-root reflections, on the interface dom.js builds.
+    include_str!("prelude/template.js"),
+    "\n",
     // The identity surface (bl-3972), derived from __frot_env_profile: after
     // dom.js (extends document/Node), any order among themselves.
     include_str!("prelude/navigator.js"),

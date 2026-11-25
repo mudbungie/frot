@@ -40,6 +40,13 @@
     return !!tag && set.indexOf(' ' + tag + ' ') >= 0;
   }
 
+  // Where an element's markup lives: a template's is its contents (js.md §15),
+  // never its children — HTML §13.3 serializes the one and ignores the other,
+  // and `innerHTML =` fills the contents.
+  function inner(id) {
+    return g.__frot_tag(id) === 'template' ? g.__frot_content(id) : id;
+  }
+
   // Every read is a fresh syscall against the arena (js.md §2) — the serializer
   // holds no state and caches nothing, like every other wrapper here.
   function nodes(ids, raw) {
@@ -60,17 +67,19 @@
     }
     out += '>';
     if (listed(VOID, tag)) return out;
-    return out + nodes(g.__frot_children(id), listed(RAW, tag)) + '</' + tag + '>';
+    return out + nodes(g.__frot_children(inner(id)), listed(RAW, tag)) + '</' + tag + '>';
   }
 
   Object.defineProperty(proto, 'innerHTML', {
     configurable: true,
     get: function () {
-      return nodes(g.__frot_children(slots(this).id), listed(RAW, g.__frot_tag(slots(this).id)));
+      var id = slots(this).id;
+      return nodes(g.__frot_children(inner(id)), listed(RAW, g.__frot_tag(id)));
     },
     set: function (html) {
-      g.__frot_clear(this);
-      g.__frot_insert_child(slots(this).id, g.__frot_fragment(String(html)), null);
+      var id = inner(slots(this).id);
+      g.__frot_clear(g.__frot_wrap(id));
+      g.__frot_insert_child(id, g.__frot_fragment(String(html)), null);
     },
   });
 

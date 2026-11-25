@@ -17,12 +17,20 @@ impl Document {
         self.generation
     }
 
-    /// Append a detached element node (no parent) and return its id.
+    /// Append a detached element node (no parent) and return its id. A
+    /// `<template>` comes with its empty contents, so every template owns a
+    /// fragment however it was made (js.md §15).
     pub fn create_element(&mut self, name: &str) -> NodeId {
-        self.append_node(NodeKind::Element(Element {
-            name: name.to_ascii_lowercase(),
+        let name = name.to_ascii_lowercase();
+        let template = name == "template";
+        let id = self.append_node(NodeKind::Element(Element {
+            name,
             attrs: Vec::new(),
-        }))
+        }));
+        if template {
+            self.nodes[id as usize].content = Some(self.create_fragment());
+        }
+        id
     }
 
     /// Append a detached text node and return its id.
@@ -154,24 +162,14 @@ impl Document {
         // Fragment parsing nests the result under a synthetic <html> wrapper
         // (`#document > <html> > fragment nodes`); absorb the wrapper's children.
         let wrapper = rc.document.children.borrow()[0].clone();
-        let kids: Vec<_> = wrapper.children.borrow().iter().cloned().collect();
         let fragment = self.create_fragment();
-        for k in &kids {
-            let id = self.absorb(k, Some(fragment));
-            self.nodes[fragment as usize].children.push(id);
-        }
+        self.absorb_children(&wrapper, fragment);
         fragment
     }
 
     fn append_node(&mut self, kind: NodeKind) -> NodeId {
-        let id = self.nodes.len() as NodeId;
-        self.nodes.push(NodeEntry {
-            kind,
-            children: Vec::new(),
-            parent: None,
-        });
         self.generation += 1;
-        id
+        self.push(kind, None)
     }
 
     /// Remove `id` from its parent's children, if it has a parent, without

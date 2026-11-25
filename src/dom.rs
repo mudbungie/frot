@@ -6,7 +6,7 @@
 //! without rewriting every view.
 
 use html5ever::tendril::TendrilSink;
-use markup5ever_rcdom::{NodeData, RcDom};
+use markup5ever_rcdom::{Handle, NodeData, RcDom};
 
 pub type NodeId = u32;
 
@@ -80,6 +80,11 @@ pub struct NodeEntry {
     pub kind: NodeKind,
     pub children: Vec<NodeId>,
     pub parent: Option<NodeId>,
+    /// The one fragment an element owns outside its child list: a
+    /// `<template>`'s contents (js.md §15). It is not a child — `walk`,
+    /// selectors and `textContent` never enter it — and its own top-level
+    /// nodes have it as their parent.
+    pub content: Option<NodeId>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -116,6 +121,7 @@ impl Default for Document {
                 kind: NodeKind::Document,
                 children: Vec::new(),
                 parent: None,
+                content: None,
             }],
             generation: 0,
             fragment: None,
@@ -132,11 +138,7 @@ impl Document {
     pub fn parse(html: &str) -> Self {
         let rc = html5ever::parse_document(RcDom::default(), Default::default()).one(html);
         let mut doc = Document::default();
-        let handles: Vec<_> = rc.document.children.borrow().iter().cloned().collect();
-        for h in handles {
-            let id = doc.absorb(&h, Some(Self::ROOT));
-            doc.nodes[Self::ROOT as usize].children.push(id);
-        }
+        doc.absorb_children(&rc.document, Self::ROOT);
         doc
     }
 
@@ -211,19 +213,43 @@ impl Document {
         s
     }
 
-    fn absorb(&mut self, h: &markup5ever_rcdom::Handle, parent: Option<NodeId>) -> NodeId {
-        let kind = node_data_to_kind(&h.data);
-        let id = self.nodes.len() as NodeId;
-        self.nodes.push(NodeEntry {
-            kind,
-            children: Vec::new(),
-            parent,
-        });
+    /// Copy the parsed node `h` and its subtree into the arena under `parent`
+    /// (not yet in `parent`'s child list). A `<template>`'s contents, which
+    /// html5ever keeps beside its children, become the fragment it owns.
+    fn absorb(&mut self, h: &Handle, parent: Option<NodeId>) -> NodeId {
+        let id = self.push(node_data_to_kind(&h.data), parent);
+        if let NodeData::Element {
+            template_contents, ..
+        } = &h.data
+        {
+            if let Some(contents) = template_contents.borrow().as_ref() {
+                let fragment = self.push(NodeKind::Fragment, None);
+                self.absorb_children(contents, fragment);
+                self.nodes[id as usize].content = Some(fragment);
+            }
+        }
+        self.absorb_children(h, id);
+        id
+    }
+
+    /// Absorb every child of `h` and append it to `id`'s child list.
+    fn absorb_children(&mut self, h: &Handle, id: NodeId) {
         let kids: Vec<_> = h.children.borrow().iter().cloned().collect();
         for k in kids {
             let cid = self.absorb(&k, Some(id));
             self.nodes[id as usize].children.push(cid);
         }
+    }
+
+    /// Append a node with no children to the arena and return its id.
+    fn push(&mut self, kind: NodeKind, parent: Option<NodeId>) -> NodeId {
+        let id = self.nodes.len() as NodeId;
+        self.nodes.push(NodeEntry {
+            kind,
+            children: Vec::new(),
+            parent,
+            content: None,
+        });
         id
     }
 }

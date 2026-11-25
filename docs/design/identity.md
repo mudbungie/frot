@@ -1412,9 +1412,11 @@ whose current node is outside its root or removed mid-walk.
 
 *As built:* `src/js/prelude/treewalker.js`, DOM §6 step for step over the
 node syscalls (never the page-replaceable `firstChild`/`parentNode`
-accessors). Every key matches but three declared ones: a `Symbol` returned by a
+accessors). Every key matches but three declared ones (two since `bl-52bf`): a `Symbol` returned by a
 filter throws the engine's wording (§11, "Engine error messages"); a walk into
-`template.content` cannot be made, frot having no `content` (`bl-aff4`); and
+`template.content` cannot be made, frot having no `content` (`bl-aff4`) —
+*matched since 2026-11-24 (`bl-52bf`, js.md §15): templates own their
+contents*; and
 **`NodeIterator` / `createNodeIterator` are not built** — an iterator's
 reference node must be adjusted on every removal from the tree (DOM §6.1
 "pre-removing steps"), which is a hook on every arena detach, not a walk

@@ -210,3 +210,30 @@ fn parse_preserves_attribute_order() {
     let names: Vec<&str> = el.attrs.iter().map(|x| x.name.as_str()).collect();
     assert_eq!(names, ["id", "class", "href", "rel"]);
 }
+
+#[test]
+fn a_templates_contents_are_the_fragment_it_owns_not_its_children() {
+    let mut doc = Document::parse("<template><p>x</p><!--c--></template><div>y</div>");
+    let t = first_element(&doc, "template");
+    let entry = doc.node(t);
+    assert!(entry.children.is_empty());
+    let frag = entry.content.unwrap();
+    assert_eq!(doc.node(frag).kind, NodeKind::Fragment);
+    assert_eq!(doc.node(frag).parent, None);
+    assert_eq!(doc.node(frag).children.len(), 2);
+    assert_eq!(doc.node(doc.node(frag).children[0]).parent, Some(frag));
+    // Nothing that walks the tree enters it.
+    assert!(doc.find_by_tag("p").is_empty());
+    assert_eq!(doc.text_content(Document::ROOT), "y");
+    assert_eq!(doc.node(first_element(&doc, "div")).content, None);
+    // Fragment parsing fills it too, and a created template owns an empty one.
+    let f = doc.parse_fragment("<template><i>z</i></template>");
+    let inner = doc.node(f).children[0];
+    let c = doc.node(inner).content.unwrap();
+    assert_eq!(doc.text_content(c), "z");
+    let made = doc.create_element("TEMPLATE");
+    let c = doc.node(made).content.unwrap();
+    assert!(doc.node(c).children.is_empty());
+    let div = doc.create_element("div");
+    assert_eq!(doc.node(div).content, None);
+}

@@ -102,6 +102,8 @@
         kids(this).forEach(function (kid) {
           copy.appendChild(wrap(kid).cloneNode(true));
         });
+        // A template's contents are cloned into the copy's (js.md §15).
+        if (copy instanceof g.HTMLTemplateElement) copy.content.appendChild(this.content.cloneNode(true));
       }
       return copy;
     },

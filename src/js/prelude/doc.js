@@ -13,6 +13,14 @@
   var slots = g.__frot_slots;
   var P = g.Document.prototype;
 
+  // What importNode and adoptNode refuse before they move anything.
+  function foreign(op, argc, node) {
+    var at = 'Document.' + op + ': ';
+    if (!argc) throw new TypeError(at + 'At least 1 argument required, but only 0 passed');
+    if (!(node instanceof g.Node)) throw new TypeError(at + 'Argument 1 does not implement interface Node.');
+    if (node === g.document) throw g.__frot_domerror('NotSupportedError', 'Operation is not supported');
+  }
+
   function query(doc, sel) {
     return g.__frot_query(slots(doc).id, sel);
   }
@@ -40,6 +48,18 @@
     // navigate from them (parentNode/nextSibling) to place later content.
     createComment: function createComment(text) {
       return wrap(g.__frot_create_comment(String(text)));
+    },
+    // One document (js.md §2), so importing is cloning — the copy is already
+    // this document's — and adopting is removing. The refusals are Firefox
+    // 153.0esr's (js.md §15).
+    importNode: function importNode(node) {
+      foreign('importNode', arguments.length, node);
+      return node.cloneNode(!!arguments[1]);
+    },
+    adoptNode: function adoptNode(node) {
+      foreign('adoptNode', arguments.length, node);
+      g.__frot_detach(slots(node).id);
+      return node;
     },
     getElementsByName: function getElementsByName(name) {
       return this.querySelectorAll('[name="' + String(name) + '"]');

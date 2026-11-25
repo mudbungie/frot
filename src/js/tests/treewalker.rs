@@ -16,8 +16,8 @@ const CAPTURE: &str = include_str!("treewalker/firefox153.json");
 
 /// Keys frot answers differently, each a declared residual: the engine's own
 /// wording for a Symbol (identity.md §11, "Engine error messages"); no
-/// `NodeIterator` (bl-b8c0 left it out); no `template.content` (bl-aff4).
-const DECLARED: [&str; 5] = ["retSym", "newNI", "ctwlen", "ni", "litlike"];
+/// `NodeIterator` (bl-b8c0 left it out).
+const DECLARED: [&str; 4] = ["retSym", "newNI", "ctwlen", "ni"];
 
 #[test]
 fn every_captured_walk_answers_as_firefox_153_does() {

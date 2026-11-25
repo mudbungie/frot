@@ -37,6 +37,7 @@ mod receiver;
 mod reflect;
 mod scriptmode;
 mod subtle;
+mod template;
 mod treewalker;
 mod writable;
 
