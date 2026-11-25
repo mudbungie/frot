@@ -2072,7 +2072,8 @@ Attacked before building, per the house rule. Each is filed, none is built:
   in a shadow tree propagates to its shadow root and stops there, composed
   or not, and nothing is retargeted — filed as its own ball.)*
 - **Focus delegation** (`delegatesFocus`), **form-associated custom
-  elements** and **`ElementInternals`** (`attachInternals` stays absent), **scoped
+  elements** and **`ElementInternals`** (`attachInternals` stays absent —
+  *built 2026-11-25, §15.6*), **scoped
   registries**, **manual slot assignment** (`slot.assign()`), the
   **`slotchange`** event, **`::part`/`exportparts`**, **`:host-context()`**,
   and `setHTMLUnsafe`/`parseHTMLUnsafe` (which admit declarative shadow roots
@@ -2217,3 +2218,49 @@ pages vary run to run by more than some of the differences).
   which failed early before, now load, define and upgrade, and every Material
   Web constructor then throws at `attachInternals`, which frot does not have
   (`bl-be13`, the next wall; filed, not chased, per the ruling's scope).
+
+### 15.6 `ElementInternals` and form-associated custom elements (`bl-be13`, 2026-11-25)
+
+Material Web and Lit's form controls call `this.attachInternals()` in their
+constructors; without it every such upgrade threw (§15.5). Measured on
+Firefox 153.0esr (identity.md §3.19 rig, `js/tests/internals/`, 53 answers)
+and, for what the views show, Chrome 158 (fidelity fixture `internals`).
+
+**What the browsers do.**
+
+| fact | value |
+|---|---|
+| `attachInternals()` | on an autonomous custom element whose definition exists; else `NotSupportedError` — "…to a customized built-in or non-custom element 'div'", "…to a non-custom element 'x-undef'", "AttachInternal() to 'x' is disabled by disabledFeatures" (`static disabledFeatures = ['internals']`), "AttachInternals() has already been called from 'x'" |
+| `ElementInternals.prototype` | `setFormValue setValidity checkValidity reportValidity shadowRoot form willValidate validity validationMessage labels states`, then the 52 ARIAMixin members (`role`, `ariaLabel`… and the `…Element(s)` references); `new ElementInternals()` → Illegal constructor |
+| ARIA on the internals | `null` until set; `ariaLevel = 3` reads `'3'`, `= undefined` reads `null`; no attribute is written. Chrome exposes each as the element's default where the author set no attribute: `internals.role='button'` is a button, a `role=` attribute wins, `ariaLabel` names, `ariaLevel` levels, `ariaHidden='true'` hides |
+| `static formAssociated` | read once at `define` (a later assignment does nothing); with it, `formAssociatedCallback`, `formResetCallback`, `formDisabledCallback`, `formStateRestoreCallback` are read too |
+| form-only members on a plain element | `form`, `labels`, `willValidate`, `validity`, `validationMessage`, `setFormValue`, `checkValidity`… throw `NotSupportedError: ElementInternals.<m>[ getter]: Target element is not a form-associated custom element`; `states` and the ARIA members work |
+| form owner | the HTML rule (`dom::form`); `formAssociatedCallback(form)` each time it changes: after the upgrade's `connectedCallback`, on insertion after `connectedCallback`, on removal before it (`move` reads `assoc null, conn`), on a `form` attribute write. Inside the constructor `form` is still `null` |
+| disabled | its own `disabled` or a disabled fieldset above, as a button; `formDisabledCallback(bool)` on each change, at upgrade too; `:disabled`/`:enabled` match it |
+| `labels` | a `NodeList`, tree order, wrapping and `for` labels alike (a FACE is labelable); the same object at every read while unchanged |
+| validity | `setValidity(flags, message, anchor)`: any true flag needs a non-empty message (`TypeError … Need to provide validation message`); an anchor outside the element → `NotFoundError`; no flag clears the message. `checkValidity`/`reportValidity` fire a cancelable, non-bubbling `invalid` and answer `false`; a disabled or `readonly` element does not validate. `:invalid`/`:valid` match it, and its form and fieldset |
+| `states` | `CustomStateSet`, a setlike (`add` answers `undefined`); any string is accepted; `:state(x)` matches case-sensitively; `:state()` and `:state(a b)` are `SyntaxError`s |
+
+**The design.** The facts the views read live in the arena,
+`dom::live::internals` — form-associated, the custom states, whether a
+validity flag is set, the ARIA defaults — written through by
+`prelude/internals.js` and read back by it, never copied: `:state()`
+(`Simple::CustomState`), `:disabled`/`:valid` (a FACE is a listed,
+validatable control), the label rule (`Document::labels`), and `ax`, which
+asks `Document::aria(id, el, name)` — the author's attribute, else the
+internals default — for `role`, `aria-label`, `aria-level` and
+`aria-hidden`, and names a FACE from its label before its contents.
+`prelude/facereact.js` wraps the mutation seam outside cereact.js's and queues
+the two form callbacks by comparing each query's answer with the last one it
+reported; that last owner is what `internals.form` reads. A detached
+control's `form` attribute now names nothing (`dom::form_owner`), as HTML's
+"reset the form owner" says.
+
+**Residuals.** `setFormValue` keeps nothing — frot submits no form and
+`new FormData(form)` is refused (identity.md §11); `form.reset()` is not
+built, so `formResetCallback` never runs and the probe's `reset` answer is
+declared; `formStateRestoreCallback` never runs (nothing is restored); the
+ARIA element-reference members are held but reach no view
+(`ariaLabelledByElements` does not name); a FACE's owner is not re-computed
+when a form with a matching `id` is inserted or renamed; `CSS.supports` does
+not exist in frot, so the probe does not ask it.

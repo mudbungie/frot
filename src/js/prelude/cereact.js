@@ -25,7 +25,7 @@
   // The registry's state, shared with ce.js: definitions by name and by
   // constructor, the `is` values elements were made with, and the elements
   // being upgraded (innermost last).
-  var ce = { defs: Object.create(null), ctors: new Map(), isValues: new Map(), building: [], count: 0 };
+  var ce = { defs: Object.create(null), ctors: new Map(), isValues: new Map(), building: [], count: 0, faces: 0 };
   var defs = ce.defs;
   var isValues = ce.isValues;
 
@@ -111,8 +111,7 @@
       if (Reflect.construct(def.ctor, []) !== w) {
         throw err('NS_ERROR_UNEXPECTED', '');
       }
-      st.custom = def;
-      g.__frot_set_custom(st.id);
+      made(w, def);
     } catch (e) {
       st.failed = true;
       st.reactions = [];
@@ -120,6 +119,13 @@
     } finally {
       ce.building.pop();
     }
+  }
+  // `w` is constructed by `def` (`:defined`); a form-associated one then
+  // takes its form owner and disabled state (internals.js, js.md §15.6).
+  function made(w, def) {
+    slots(w).custom = def;
+    g.__frot_set_custom(slots(w).id);
+    if (def.face) ce.face(w);
   }
   // Every element a subtree holds that is, or could become, custom.
   function each(id, fn) {
@@ -225,6 +231,8 @@
   ce.lookup = lookup;
   ce.enqueue = enqueue;
   ce.scope = scope;
+  ce.within = within;
+  ce.made = made;
   ce.each = each;
   ce.UPGRADE = UPGRADE;
   Object.defineProperty(g, '__frot_ce', { value: ce, configurable: true });

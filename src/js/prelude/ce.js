@@ -34,8 +34,7 @@
     var w = wrap(ce.raw.create_element(def.local));
     Object.setPrototypeOf(w, target.prototype);
     if (def.local !== def.name) ce.isValues.set(slots(w).id, def.name);
-    slots(w).custom = def;
-    g.__frot_set_custom(slots(w).id);
+    ce.made(w, def);
     return w;
   }
 
@@ -55,6 +54,8 @@
     }
   }
   var CALLBACKS = ['connectedCallback', 'disconnectedCallback', 'adoptedCallback', 'attributeChangedCallback'];
+  var FORM_CALLBACKS = ['formAssociatedCallback', 'formResetCallback', 'formDisabledCallback',
+    'formStateRestoreCallback'];
   g.__frot_ifaceops(CER.prototype, {
     define: function define(name, ctor) {
       var options = arguments[2];
@@ -90,22 +91,30 @@
       try {
         var prototype = ctor.prototype;
         if (Object(prototype) !== prototype) throw new TypeError(at + 'define: constructor.prototype is not an object.');
-        CALLBACKS.forEach(function (k) {
+        var take = function (k) {
           var f = prototype[k];
           if (f === undefined) return;
           if (typeof f !== 'function') throw new TypeError("'" + k + "' member of LifecycleCallbacks is not an object.");
           def.callbacks[k] = f;
-        });
+        };
+        CALLBACKS.forEach(take);
         if (def.callbacks.attributeChangedCallback) {
           var obs = ctor.observedAttributes;
           if (obs !== undefined) def.observed = Array.from(obs, String);
         }
+        // HTML's define, in its order: the disabled features, then whether
+        // the element is form-associated and, if so, its form callbacks.
+        var off = ctor.disabledFeatures;
+        def.noInternals = off !== undefined && Array.from(off, String).indexOf('internals') >= 0;
+        def.face = !!ctor.formAssociated;
+        if (def.face) FORM_CALLBACKS.forEach(take);
       } finally {
         defining = false;
       }
       defs[name] = def;
       ctors.set(ctor, def);
       ce.count++;
+      if (def.face) ce.faces++;
       ce.scope(function () {
         ce.each(g.__frot_document, function (w) {
           if (!slots(w).custom && ce.lookup(w) === def && g.__frot_connected(slots(w).id)) ce.enqueue(w, ce.UPGRADE);

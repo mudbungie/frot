@@ -26,12 +26,9 @@ fn r(html: &str) -> Option<&'static str> {
 }
 
 /// The `id="t"` element itself, for the element-only [`level`].
-fn e(html: &str) -> Element {
+fn lv(html: &str) -> Option<u32> {
     let (doc, id) = marked(html);
-    match &doc.node(id).kind {
-        NodeKind::Element(el) => el.clone(),
-        _ => unreachable!(),
-    }
+    level(&doc, id, doc.element(id).unwrap())
 }
 
 #[test]
@@ -149,7 +146,7 @@ fn headings_are_heading_with_levels() {
     ] {
         let html = format!("<{tag} id=t>x</{tag}>");
         assert_eq!(r(&html), Some("heading"));
-        assert_eq!(level(&e(&html)), Some(lvl));
+        assert_eq!(lv(&html), Some(lvl));
     }
 }
 

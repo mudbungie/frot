@@ -28,15 +28,18 @@
 //!   descendant" case is an authoring error that browsers report as an issue
 //!   while still excluding the node, which is what we do.
 
-use crate::dom::Element;
+use crate::dom::{Document, Element, NodeId};
 
 /// Whether `el` and everything beneath it is excluded from the AX tree.
 ///
 /// Call this *before* building descendants: recursion then delivers inheritance
 /// for free, and no descendant — hidden, named, or explicitly roled — can
 /// escape an excluded ancestor.
-pub fn excluded(el: &Element) -> bool {
-    el.attr("aria-hidden")
+///
+/// `aria-hidden` may be the default an element's internals set
+/// ([`Document::aria`]); `inert` is the attribute alone.
+pub fn excluded(doc: &Document, id: NodeId, el: &Element) -> bool {
+    doc.aria(id, el, "aria-hidden")
         .is_some_and(|v| v.eq_ignore_ascii_case("true"))
         || el.attr("inert").is_some()
 }

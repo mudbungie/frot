@@ -80,7 +80,7 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
     // Semantic subtree cut (`aria-hidden`/`inert`, [`ax::excluded`]) — before
     // descendants are built, so inheritance and "no escape from an excluded
     // ancestor" fall out of the recursion instead of needing their own rules.
-    if ax::excluded(el) {
+    if ax::excluded(doc, id, el) {
         return Vec::new();
     }
     if styles.is_some_and(|s| s.display_none(id)) {
@@ -144,7 +144,7 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
             let mut obj = serde_json::Map::new();
             obj.insert("role".into(), Value::String(role_name.to_string()));
             obj.insert("name".into(), name.map_or(Value::Null, Value::String));
-            if let Some(level) = ax::level(el) {
+            if let Some(level) = ax::level(doc, id, el) {
                 obj.insert("level".into(), json!(level));
             }
             obj.insert("children".into(), Value::Array(children));

@@ -169,7 +169,7 @@ fn node_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) 
 }
 
 fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, out: &mut String) {
-    let concealed = !w.reads_hidden() && hidden(id, el, w.styles);
+    let concealed = !w.reads_hidden() && hidden(w.doc, id, el, w.styles);
     if concealed || native::silent(&el.name) || visited.contains(&id) {
         return;
     }
@@ -225,8 +225,8 @@ fn fence(out: &mut String, text: &str) {
 /// Whether the element is outside the accessible name: semantically excluded,
 /// or invisible. `visibility:hidden` counts — an invisible label is not a label
 /// — even though it leaves its box in place for geometry.
-pub fn hidden(id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
-    ax::excluded(el)
+pub fn hidden(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
+    ax::excluded(doc, id, el)
         || styles.is_some_and(|s| {
             s.display_none(id) || s.visibility(id) == crate::css::Visibility::Hidden
         })
@@ -234,7 +234,7 @@ pub fn hidden(id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
 
 /// What an element contributes *instead of* its contents, if anything.
 fn alternative(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>) -> Option<String> {
-    super::collapsed_attr(el, "aria-label")
+    super::aria_label(w.doc, id, el)
         .or_else(|| labelledby(w, el, visited))
         .or_else(|| native_alternative(w.doc, id, el).map(|v| unfilled(w, id, el, v, visited)))
         .or_else(|| native::range_value(w.doc, id, el))

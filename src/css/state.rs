@@ -122,7 +122,7 @@ impl State {
                 let can = matches!(
                     name,
                     "button" | "input" | "select" | "textarea" | "fieldset" | "optgroup" | "option"
-                );
+                ) || doc.face(id);
                 can && !disabled(doc, id, el)
             }
             State::Required => required(el),
@@ -195,7 +195,8 @@ pub(super) fn editing(el: &Element) -> Option<bool> {
     }
 }
 
-/// `:disabled`. A button, input, select, textarea or fieldset: its own
+/// `:disabled`. A button, input, select, textarea, fieldset or
+/// form-associated custom element (Firefox 153, js.md §15.6): its own
 /// `disabled`, or a disabled `<fieldset>` above it — unless it sits inside
 /// that fieldset's first `<legend>` child. An option or optgroup: its own
 /// `disabled`, a disabled optgroup above it, or a disabled owner select.
@@ -205,16 +206,20 @@ pub(super) fn disabled(doc: &Document, id: NodeId, el: &Element) -> bool {
             let owner = owner_select(doc, id);
             option_off(doc, id, el) || owner.is_some_and(|(s, e)| disabled(doc, s, e))
         }
-        "button" | "input" | "select" | "textarea" | "fieldset" => {
-            let mut below = id;
-            let fieldset = |(a, e): (NodeId, &Element)| {
-                let from = std::mem::replace(&mut below, a);
-                e.name == "fieldset" && has(e, "disabled") && first_legend(doc, a) != Some(from)
-            };
-            has(el, "disabled") || ancestors(doc, id).any(fieldset)
-        }
-        _ => false,
+        "button" | "input" | "select" | "textarea" | "fieldset" => listed(doc, id, el),
+        _ => doc.face(id) && listed(doc, id, el),
     }
+}
+
+/// A listed control's own `disabled`, or a disabled `<fieldset>` above it
+/// whose first `<legend>` does not hold it.
+fn listed(doc: &Document, id: NodeId, el: &Element) -> bool {
+    let mut below = id;
+    let fieldset = |(a, e): (NodeId, &Element)| {
+        let from = std::mem::replace(&mut below, a);
+        e.name == "fieldset" && has(e, "disabled") && first_legend(doc, a) != Some(from)
+    };
+    has(el, "disabled") || ancestors(doc, id).any(fieldset)
 }
 
 fn first_legend(doc: &Document, fieldset: NodeId) -> Option<NodeId> {

@@ -109,7 +109,7 @@ fn exposes(doc: &Document, id: NodeId, styles: Option<&Styles>) -> bool {
     doc.ax_children(id).any(|c| {
         element(doc, c).is_some_and(|el| {
             let shown = styles.is_none_or(|s| s.visibility(c) == Visibility::Visible);
-            !ax::excluded(el)
+            !ax::excluded(doc, c, el)
                 && !is_description(el)
                 && !styles.is_some_and(|s| s.display_none(c))
                 && (shown && (has_role(doc, c) || has_text(doc, c, el)) || exposes(doc, c, styles))

@@ -63,6 +63,9 @@ pub enum Simple {
     Lang(String),
     /// `:dir(rtl)` (`true`) or `:dir(ltr)`.
     Dir(bool),
+    /// `:state(name)`: a custom state an element's internals hold
+    /// ([`crate::dom::live::internals`]), compared case-sensitively.
+    CustomState(String),
     /// `:host` (empty) / `:host(…)` and `::slotted(…)` ([`super::shadow`]).
     Host(Vec<Selector>),
     Slotted(Vec<Selector>),
@@ -124,7 +127,7 @@ impl Selector {
                     Simple::Id(_) => s.0 += 1,
                     Simple::Class(_) | Simple::Attr { .. } => s.1 += 1,
                     Simple::State(_) | Simple::Never | Simple::Scope => s.1 += 1,
-                    Simple::Lang(_) | Simple::Dir(_) => s.1 += 1,
+                    Simple::Lang(_) | Simple::Dir(_) | Simple::CustomState(_) => s.1 += 1,
                     Simple::Nth(nth) => {
                         let most = nth.of().iter().map(Selector::specificity).max();
                         let Specificity(a, b, c) = most.unwrap_or_default();
@@ -186,6 +189,7 @@ fn compound_matches(c: &Compound, cx: Context, id: NodeId, el: &Element) -> bool
             Simple::Has(list) => has::holds(list, cx, id),
             Simple::Lang(range) => lang::lang(doc, id, range),
             Simple::Dir(rtl) => lang::rtl(doc, id) == *rtl,
+            Simple::CustomState(name) => doc.custom_state(id, name),
             Simple::Host(list) => shadow::host(cx, id, list),
             Simple::Slotted(list) => shadow::slotted(cx, id, list),
             Simple::Universal => true,

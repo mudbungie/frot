@@ -36,6 +36,7 @@ mod image;
 mod imagefetch;
 mod imageload;
 mod inserted;
+mod internals;
 mod iterator;
 mod message;
 mod net;

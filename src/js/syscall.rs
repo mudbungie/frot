@@ -29,6 +29,7 @@ mod frame;
 mod host;
 mod image;
 mod insert;
+mod internals;
 mod live;
 mod messages;
 mod net;
@@ -61,6 +62,7 @@ const GROUPS: &[Group] = &[
     frame::install,
     live::install,
     tree::install,
+    internals::install,
 ];
 
 /// Register the whole syscall table on `engine`'s realm, then evaluate the

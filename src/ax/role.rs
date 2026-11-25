@@ -47,7 +47,8 @@ pub fn role_under(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Option
     explicit(doc, id, el).or_else(|| implicit::role(doc, id, el, styles))
 }
 
-/// An author `role=` attribute, resolved to its first **usable** token; with
+/// An author `role=` attribute — else the role an element's internals set
+/// (`Document::aria`, js.md §15.6) — resolved to its first **usable** token; with
 /// none, the implicit role stands. Two things make a token unusable, both
 /// measured in Chrome 158 (`bl-c5a6`):
 ///
@@ -62,8 +63,8 @@ pub fn role_under(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Option
 /// A usable `none`/`presentation` can still be overruled ([`conflict`]), and
 /// the deprecated `directory` is a `list` (Chrome 158, `bl-d61c`).
 pub fn explicit(doc: &Document, id: NodeId, el: &Element) -> Option<&'static str> {
-    let role = el
-        .attr("role")?
+    let role = doc
+        .aria(id, el, "role")?
         .split_whitespace()
         .filter_map(|token| KNOWN_ROLES.iter().find(|known| **known == token).copied())
         .find(|role| !NAMED_ONLY.contains(role) || context::claims_landmark(doc, el))?;
@@ -79,8 +80,8 @@ const NAMED_ONLY: &[&str] = &["form", "region"];
 
 /// Heading level. Returns the `aria-level` value first if present and
 /// parseable, otherwise 1..=6 for h1..h6, otherwise `None`.
-pub fn level(el: &Element) -> Option<u32> {
-    if let Some(s) = el.attr("aria-level") {
+pub fn level(doc: &Document, id: NodeId, el: &Element) -> Option<u32> {
+    if let Some(s) = doc.aria(id, el, "aria-level") {
         if let Ok(n) = s.parse::<u32>() {
             if n >= 1 {
                 return Some(n);

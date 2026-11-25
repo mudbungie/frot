@@ -51,6 +51,8 @@ pub struct Live {
     picked: Vec<(NodeId, bool)>,
     /// Checkboxes a script made `indeterminate`.
     indeterminate: Vec<NodeId>,
+    /// What elements' `ElementInternals` set ([`internals`]).
+    internals: Vec<(NodeId, internals::Internals)>,
 }
 
 impl Document {
@@ -168,6 +170,7 @@ fn toggle(list: &mut Vec<NodeId>, id: NodeId, on: bool) {
     }
 }
 
+pub mod internals;
 mod top;
 
 #[cfg(test)]

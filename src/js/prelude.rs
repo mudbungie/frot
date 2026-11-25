@@ -212,6 +212,11 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/ce.js"),
     "\n",
+    // internals.js, facereact.js (js.md §15.6): ElementInternals, after ce.js.
+    include_str!("prelude/internals.js"),
+    "\n",
+    include_str!("prelude/facereact.js"),
+    "\n",
     include_str!("prelude/viewobserver.js"),
     "\n",
     // FormData (bl-6eb9): the entry list and its multipart serializer, which

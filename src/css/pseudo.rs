@@ -112,6 +112,9 @@ fn logical(name: &str, args: &str, double: bool) -> Simple {
         ("host", false) => compounds(args).map_or(Simple::Unsupported, Simple::Host),
         ("slotted", true) => compounds(args).map_or(Simple::Unsupported, Simple::Slotted),
         ("lang", false) => word(args).map_or(Simple::Unsupported, Simple::Lang),
+        // One identifier, kept as written (Firefox 153: `:state(UP)` is not
+        // `:state(up)`; js.md §15.6).
+        ("state", false) => name_arg(args).map_or(Simple::Unsupported, Simple::CustomState),
         // Any other identifier is valid and names no direction (Chrome 158).
         ("dir", false) => match word(args).as_deref() {
             Some("rtl") => Simple::Dir(true),
@@ -131,9 +134,14 @@ fn compounds(args: &str) -> Option<Vec<Selector>> {
 
 /// The one identifier `args` holds, lower-cased.
 fn word(args: &str) -> Option<String> {
+    name_arg(args).map(|w| w.to_ascii_lowercase())
+}
+
+/// The one identifier `args` holds.
+fn name_arg(args: &str) -> Option<String> {
     let b: Vec<char> = args.trim().chars().collect();
     let (word, end) = ident(&b, 0);
-    (!word.is_empty() && end == b.len()).then(|| word.to_ascii_lowercase())
+    (!word.is_empty() && end == b.len()).then_some(word)
 }
 
 /// A comma-separated list of complex selectors, parsed unforgivingly: `None`

@@ -73,7 +73,7 @@ pub(super) fn host(engine: &Engine, probe: Option<ProbeLog>) -> Host {
 /// group. The sweep runs twice, with and without the measure instrument's extra
 /// `__frot_probe` binding (bl-bd4e), because that one rides the same fold.
 fn sweep(probe: Option<ProbeLog>) {
-    let bound: Vec<bool> = (110_000..140_000)
+    let bound: Vec<bool> = (110_000..150_000)
         .step_by(64)
         .map(|cap| {
             let e = engine(cap);

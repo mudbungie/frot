@@ -8,11 +8,12 @@
 //!    - `<img>` and `<area>` — `alt`
 //!    - `<input type=button|submit|reset>` — `value`
 //!    - `<input type=image>` — `alt`
-//!    - other form controls (`<input>`, `<textarea>`, `<select>`) — the matching
-//!      `<label for=…>` or the wrapping `<label>` text content
+//!    - other form controls (`<input>`, `<textarea>`, `<select>`, a
+//!      form-associated custom element) — the matching `<label for=…>` or the
+//!      wrapping `<label>` text content
 //!    - `<table>` — its first `<caption>` child, read as a descendant
 //!      ([`contents::descendant_name`]); with no caption, its `summary`
-//!      attribute ([`summary`])
+//!      attribute ([`related::summary`])
 //!    - `<svg>` and every SVG part (`<g>`, a shape, `<use>`) — its `<title>`
 //!      child ([`contents::svg_title`])
 //!    - `<optgroup>` and `<option>` — the `label` content attribute
@@ -54,7 +55,7 @@ pub fn accessible_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> O
         return None;
     };
 
-    if let Some(label) = collapsed_attr(el, "aria-label") {
+    if let Some(label) = aria_label(doc, id, el) {
         return Some(label);
     }
     if let Some(label) = labelledby_text(doc, el, styles) {
@@ -135,6 +136,12 @@ const UNTITLED: &[&str] = &[
 /// An attribute that is a name — `aria-label`, `title` — as the name it is:
 /// collapsed like every other ([`collapse_whitespace`]), and absent when that
 /// leaves nothing.
+/// `aria-label`, the attribute or its internals default ([`Document::aria`]).
+fn aria_label(doc: &Document, id: NodeId, el: &crate::dom::Element) -> Option<String> {
+    let label = doc.aria(id, el, "aria-label").map(collapse_whitespace);
+    label.filter(|s| !s.is_empty())
+}
+
 fn collapsed_attr(el: &crate::dom::Element, name: &str) -> Option<String> {
     el.attr(name)
         .map(collapse_whitespace)
@@ -171,25 +178,19 @@ fn native_name(
         "input" => input_name(doc, id, el, styles),
         "textarea" | "select" => control_label_text(doc, id, el, styles),
         "fieldset" => fieldset_legend_text(doc, id, styles),
-        "table" => table_caption_text(doc, id, styles).or_else(|| summary(el)),
+        "table" => table_caption_text(doc, id, styles).or_else(|| related::summary(el)),
         n if super::role::svg_titled(doc, id, n) => contents::svg_title(doc, id)
             .or_else(|| names_from_contents(doc, id).then(|| contents_text(doc, id, styles))),
         "optgroup" => label_attr(el),
         "option" => label_attr(el).or_else(|| Some(contents_text(doc, id, styles))),
+        // A form-associated custom element is labelable (Chrome 158, fidelity
+        // `internals`): its label names it before its contents may.
+        _ if doc.face(id) => control_label_text(doc, id, el, styles)
+            .filter(|l| !l.trim().is_empty())
+            .or_else(|| names_from_contents(doc, id).then(|| contents_text(doc, id, styles))),
         _ if names_from_contents(doc, id) => Some(contents_text(doc, id, styles)),
         _ => None,
     }
-}
-
-/// A `<table>`'s `summary` attribute: its name when it has no `<caption>`
-/// child. Measured in Chrome 158 (`bl-2b09`): `aria-label` and a caption
-/// outrank it, it outranks `title`, and a caption that is present but empty
-/// still shuts both out (`<table summary=S title=T><caption></caption>` is
-/// named "").
-/// It is the `<table>` element's, whatever its role — `role=grid` reads it,
-/// a `<div role=table summary=S>` does not.
-fn summary(el: &crate::dom::Element) -> Option<String> {
-    el.attr("summary").map(str::to_string)
 }
 
 /// The `label` content attribute of `<optgroup>`/`<option>` — an HTML-AAM name

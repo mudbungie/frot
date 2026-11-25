@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang=en><head><meta charset=utf-8><title>Element internals</title>
+<style>
+x-toggle:state(gone) { display: none; }
+x-field:invalid { font-style: italic; }
+x-field:invalid::after { content: " (needs a value)"; }
+x-field:disabled::after { content: " (off)"; }
+</style></head>
+<body>
+<h1>Components with internals</h1>
+<x-btn>Press me</x-btn>
+<x-btn role=link>The attribute wins</x-btn>
+<x-btn aria-label="Named by the attribute">Text</x-btn>
+<x-labelled>ignored contents</x-labelled>
+<x-head>A heading by internals</x-head>
+<x-hidden>hidden by internals</x-hidden>
+<x-list><x-item>first</x-item><x-item>second</x-item></x-list>
+<x-pres><b>presentational</b></x-pres>
+<x-toggle>shown</x-toggle><x-toggle id=gone>gone by state</x-toggle>
+<form><p><label for=f>Field label</label> <x-field id=f>field</x-field></p>
+<fieldset disabled><x-field id=off>off field</x-field></fieldset>
+<x-submit>Send by contents</x-submit></form>
+<script>
+function def(name, init, face) {
+  customElements.define(name, class extends HTMLElement {
+    static formAssociated = !!face;
+    constructor() { super(); init(this.attachInternals(), this); }
+  });
+}
+def('x-btn', function (i) { i.role = 'button'; });
+def('x-labelled', function (i) { i.role = 'img'; i.ariaLabel = 'A picture'; });
+def('x-head', function (i) { i.role = 'heading'; i.ariaLevel = '3'; });
+def('x-hidden', function (i) { i.ariaHidden = 'true'; });
+def('x-list', function (i) { i.role = 'list'; });
+def('x-item', function (i) { i.role = 'listitem'; });
+def('x-pres', function (i) { i.role = 'presentation'; });
+def('x-toggle', function (i, el) { if (el.id === 'gone') i.states.add('gone'); });
+def('x-submit', function (i) { i.role = 'button'; }, true);
+def('x-field', function (i) { i.role = 'textbox'; i.setValidity({ valueMissing: true }, 'Fill it in'); }, true);
+</script>
+</body></html>

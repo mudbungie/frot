@@ -94,7 +94,7 @@ pub fn table_caption_text(
 fn caption(doc: &Document, table: NodeId, styles: Option<&Styles>) -> Option<NodeId> {
     let shown = |&c: &NodeId| {
         matches!(&doc.node(c).kind,
-            NodeKind::Element(e) if e.name == "caption" && !contents::hidden(c, e, styles))
+            NodeKind::Element(e) if e.name == "caption" && !contents::hidden(doc, c, e, styles))
     };
     doc.node(table).children.iter().copied().find(shown)
 }
@@ -110,6 +110,17 @@ pub fn names_it_alone(doc: &Document, id: NodeId, el: &Element, styles: Option<&
         "fieldset" => legend(doc, id).is_some(),
         _ => false,
     }
+}
+
+/// A `<table>`'s `summary` attribute: its name when it has no `<caption>`
+/// child. Measured in Chrome 158 (`bl-2b09`): `aria-label` and a caption
+/// outrank it, it outranks `title`, and a caption that is present but empty
+/// still shuts both out (`<table summary=S title=T><caption></caption>` is
+/// named "").
+/// It is the `<table>` element's, whatever its role — `role=grid` reads it,
+/// a `<div role=table summary=S>` does not.
+pub(super) fn summary(el: &crate::dom::Element) -> Option<String> {
+    el.attr("summary").map(str::to_string)
 }
 
 #[cfg(test)]

@@ -7,7 +7,10 @@
 //! - **Candidates** — an `<input>` that is not `hidden`, `reset`, `button` or
 //!   `image`, a `<select>`, a `<textarea>`, a submit `<button>`; barred when
 //!   disabled, inside a `<datalist>`, or an input or textarea with `readonly`
-//!   (a checkbox too, though `readonly` does not apply to it). Neither
+//!   (a checkbox too, though `readonly` does not apply to it). A
+//!   form-associated custom element is one too, barred by `readonly` as a
+//!   textarea is, and invalid while its internals' validity flags say so
+//!   (`setValidity`, js.md §15.6). Neither
 //!   pseudo-class matches anything else, except:
 //! - **`<form>` and `<fieldset>`** — `:invalid` when a candidate they hold (a
 //!   form: one it owns; a fieldset: one inside it) is invalid, else `:valid`.
@@ -63,7 +66,8 @@ fn candidate(doc: &Document, id: NodeId, el: &Element) -> bool {
             true,
         ),
         "button" => (!matches!(kind.as_str(), "button" | "reset"), false),
-        name => (matches!(name, "select" | "textarea"), name == "textarea"),
+        "textarea" => (true, true),
+        name => (name == "select" || doc.face(id), doc.face(id)),
     };
     let in_datalist = super::selector::ancestors(doc, id).any(|(_, e)| e.name == "datalist");
     let barred = readonly && has(el, "readonly") || disabled(doc, id, el) || in_datalist;
@@ -71,6 +75,9 @@ fn candidate(doc: &Document, id: NodeId, el: &Element) -> bool {
 }
 
 fn suffering(doc: &Document, id: NodeId, el: &Element) -> bool {
+    if doc.face(id) {
+        return doc.internals(id).is_some_and(|i| i.invalid);
+    }
     let kind = value::kind(el);
     let input = el.name == "input";
     missing(doc, id, el) || input && value::bad(el, &kind)
