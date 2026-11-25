@@ -16,7 +16,7 @@ use std::rc::Rc;
 
 use rquickjs::{Ctx, Function, Object, Value};
 
-use super::{bind, Host};
+use super::{bind, Env, Host};
 use crate::dom::Document;
 use crate::js::geometry::{Geometry, StyleSource};
 
@@ -64,7 +64,10 @@ impl Creator {
             doc: Rc::new(RefCell::new(Document::parse(""))),
             console: self.console.clone(),
             geo: Rc::new(RefCell::new(Geometry::new(StyleSource::Bare))),
-            env: self.env.clone(),
+            env: Env {
+                referrer: String::new(),
+                ..self.env.clone()
+            },
             counters: self.counters.clone(),
             subfetch: self.subfetch.clone(),
             cookie: self.cookie.clone(),

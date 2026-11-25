@@ -97,6 +97,9 @@ pub struct FetchResult {
     pub headers: Vec<(String, String)>,
     pub body: String,
     pub charset: String,
+    /// The `Referer` the final request sent — `document.referrer` (bl-dc63);
+    /// `None` when it sent none.
+    pub referrer: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -141,6 +144,7 @@ pub(crate) fn fetch_file(url: &url::Url, intent: Intent) -> Result<FetchResult, 
         headers: Vec::new(),
         body,
         charset,
+        referrer: None,
     })
 }
 

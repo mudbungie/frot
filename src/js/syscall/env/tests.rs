@@ -16,6 +16,7 @@ fn sess_env(url: &str, ua: &str, accept_language: &str) -> Session {
         user_agent: ua.into(),
         accept_language: accept_language.into(),
         images: false,
+        referrer: String::new(),
     };
     Session::new(
         Document::parse("<html><body></body></html>"),

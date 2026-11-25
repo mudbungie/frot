@@ -104,6 +104,7 @@ pub(crate) fn dispatch(
                 headers: resp.headers,
                 body,
                 charset,
+                referrer: header_value(&headers, "referer"),
             });
         };
         spend(hops)?;

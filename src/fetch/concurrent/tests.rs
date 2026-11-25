@@ -53,6 +53,7 @@ fn two_bytes(i: usize) -> Option<FetchResult> {
         headers: Vec::new(),
         body: "ok".to_string(),
         charset: "utf-8".to_string(),
+        referrer: None,
     })
 }
 

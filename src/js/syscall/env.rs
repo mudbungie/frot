@@ -21,7 +21,7 @@ macro_rules! bind {
     };
 }
 
-/// Register `__frot_env_profile`, `__frot_location`, `__frot_url_parse`,
+/// Register `__frot_env_profile`, `__frot_location`, `__frot_referrer`, `__frot_url_parse`,
 /// `__frot_viewport_width`, `__frot_viewport_height`, `__frot_media_matches`,
 /// and `__frot_denied` on the realm. Clones the static facts out of `host.env`
 /// into the closures; `host.counters.denials` is the shared counter the prelude
@@ -58,6 +58,10 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
         "__frot_location",
         move |ctx: Ctx<'js>| location_obj(&ctx, &url)
     );
+    // `document.referrer` (bl-dc63): the Referer the document's navigation
+    // sent, `""` when none — a fact of the document, like `location`.
+    let referrer = host.env.referrer.clone();
+    bind!(ctx, g, "__frot_referrer", move || referrer.clone());
     // One fact, one home: `isSecureContext` and every `[SecureContext]` member
     // (`crypto.subtle`, `crypto.randomUUID`) read this, never the scheme.
     let secure = secure::is_secure_context(&host.env.url);

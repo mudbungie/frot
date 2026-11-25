@@ -36,6 +36,10 @@ pub struct Env {
     /// `--images` (js.md §7 "Images", `bl-49f1`): whether an `<img>` request
     /// may leave frot. Off, the image fetch syscall is not even bound.
     pub images: bool,
+    /// The `Referer` the navigation that fetched the document sent, `""` for
+    /// none — `document.referrer` (bl-dc63). An iframe's initial `about:blank`
+    /// was fetched by no navigation, so its host's is `""` (measured).
+    pub referrer: String,
 }
 
 /// The counted-no-op sink (js.md §7/§11/§10): the prelude bumps it each time the

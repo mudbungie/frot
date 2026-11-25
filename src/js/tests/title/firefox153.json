@@ -1,0 +1,16 @@
+{
+ "initial": "\"a b\"",
+ "referrer": "\"\"string",
+ "set": "\"x y\"HEAD:\"  x  y \"|HEAD:\"second\"",
+ "setNum": "\"5\"HEAD:\"5\"|HEAD:\"second\"",
+ "child": "\"p<b>q</b>r<!--c-->s\"",
+ "removeFirst": "\"second\"HEAD:\"second\"",
+ "none": "\"\"",
+ "setNone": "\"made\"HEAD:\"made\"",
+ "inBody": "\"body t\"BODY:\"z\"",
+ "noHead": "\"\"",
+ "svgTitle": "\"\"",
+ "desc": "true,true,true,get title,set title,true,false,get referrer",
+ "frame": "\"\",\"\",\"ft\",<title>ft</title>",
+ "wsOnly": "%A0%20x%A0"
+}

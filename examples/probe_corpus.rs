@@ -94,6 +94,7 @@ fn main() {
             user_agent: fetch::user_agent(&[]).to_string(),
             accept_language: fetch::accept_language(&[]),
             images: false,
+            referrer: fetched.referrer.clone().unwrap_or_default(),
         };
         let m = measure(Document::parse(&fetched.body), StyleSource::Bare, env);
         println!(

@@ -152,6 +152,48 @@
   });
   g.__frot_onevent(P, 'onreadystatechange');
 
+  // document.referrer (bl-dc63): the Referer the document's navigation sent —
+  // the wire's one fact, `''` when it sent none (a typed navigation's case).
+  g.__frot_ifaceattrs(P, {
+    referrer: function () {
+      return g.__frot_referrer();
+    },
+  });
+  // document.title (bl-dc63, HTML "document.title"): "the title element" is the
+  // first `title` in tree order that is not SVG's or MathML's (the arena keeps
+  // no namespace, so a foreign ancestor says it). Read: its child text, ASCII
+  // whitespace stripped and collapsed. Write: its text replaced; with none, a
+  // new one appended to the head; with no head, nothing (Firefox 153.0esr).
+  function titleElement(doc) {
+    var ids = query(doc, 'title');
+    for (var i = 0; i < ids.length; i++) {
+      var p = g.__frot_parent(ids[i]);
+      while (p != null && !/^(svg|math)$/.test(g.__frot_tag(p) || '')) p = g.__frot_parent(p);
+      if (p == null) return wrap(ids[i]);
+    }
+    return null;
+  }
+  Object.defineProperty(P, 'title', {
+    get: g.__frot_brand(function () {
+      var t = titleElement(this);
+      if (!t) return '';
+      var text = g.__frot_children(slots(t).id).filter(function (id) {
+        return g.__frot_kind(id) === 'text';
+      }).map(function (id) {
+        return g.__frot_text(id);
+      }).join('');
+      return text.replace(/[\t\n\f\r ]+/g, ' ').replace(/^ | $/g, '');
+    }, 'get title'),
+    set: g.__frot_brand(function (v) {
+      var t = titleElement(this), head = this.head;
+      if (!t && !head) return;
+      if (!t) t = head.appendChild(this.createElement('title'));
+      t.textContent = String(v);
+    }, 'set title'),
+    enumerable: true,
+    configurable: true,
+  });
+
   // "The body element" is the first body **or frameset** in the document (HTML
   // §3.1.5) — the two the setter accepts, so the pair is one rule read one way
   // and written the other. Writable, as in a browser: the assignment REPLACES

@@ -914,6 +914,18 @@ that, a page walking any of them read frot's implementation instead.
   every fact an enumerable accessor on `Navigator.prototype` (not an own data
   prop), matching Firefox's descriptor shape — so brand/prototype/descriptor
   probes pass, not just values.
+- **`document.title` and `document.referrer` (`bl-dc63`, 2026-11-24; found
+  tracing Cloudflare's post-challenge script, which reads both).** Measured
+  on Firefox 153.0esr (`src/js/tests/title/`). `title` is "the title
+  element" — the first `<title>` not inside SVG/MathML — read as its child
+  text with ASCII whitespace stripped and collapsed (`''` with none); a write
+  replaces that element's text, or appends a new `<title>` to the head, or
+  with no head does nothing. `referrer` is the `Referer` the document's
+  navigation put on the wire (`FetchResult.referrer` → `Env.referrer` →
+  `__frot_referrer`): `''` for the typed navigation, the refreshing document
+  after a followed meta refresh, and `''` in an iframe's initial
+  `about:blank`. One fact, one home — the wire — so whatever frot sends,
+  the page reads.
 - **Focus** (`bl-3a36`, found live: TodoMVC's deployed React shell dies in the
   commit phase on `autoFocus && stateNode.focus()` — React catches the throw
   via `captureCommitPhaseError` and, with no error boundary, unmounts the whole

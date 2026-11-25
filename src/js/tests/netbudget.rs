@@ -41,6 +41,7 @@ fn run_at(html: &str, url: &str, net: NetBudget, between: impl FnOnce()) -> Repo
             user_agent: "frot-test/1".into(),
             accept_language: "en-US,en;q=0.5".into(),
             images: false,
+            referrer: String::new(),
         },
         &fetch,
         Deadline::on(Clock::manual(), Duration::from_millis(EXEC_CPU_MS)),

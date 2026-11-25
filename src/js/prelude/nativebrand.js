@@ -62,8 +62,8 @@
       'createDocumentFragment createTextNode createComment importNode adoptNode createEvent ' +
       'createTreeWalker getElementsByName ' +
       'hasFocus getElementById prepend append querySelector querySelectorAll implementation ' +
-      'compatMode doctype documentElement cookie ' +
-      'readyState body head scripts defaultView onreadystatechange currentScript hidden ' +
+      'compatMode doctype documentElement referrer cookie ' +
+      'readyState title body head scripts defaultView onreadystatechange currentScript hidden ' +
       'visibilityState activeElement ' + ON + ' onerror children',
     HTMLLinkElement: 'disabled href rel relList type',
     HTMLLIElement: 'value type',

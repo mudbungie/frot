@@ -44,6 +44,7 @@ mod reflect;
 mod scriptmode;
 mod subtle;
 mod template;
+mod title;
 mod treewalker;
 mod writable;
 
@@ -53,6 +54,7 @@ fn test_env() -> Env {
         user_agent: "frot-test/1".into(),
         accept_language: "en-US,en;q=0.5".into(),
         images: false,
+        referrer: String::new(),
     }
 }
 
@@ -102,6 +104,7 @@ fn drive_at(html: &str, url: &str) -> (Document, Report) {
             user_agent: "frot-test/1".into(),
             accept_language: "en-US,en;q=0.5".into(),
             images: false,
+            referrer: String::new(),
         },
     )
 }

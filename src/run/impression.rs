@@ -81,6 +81,7 @@ pub(super) fn run_scripts(
         user_agent: fetch::user_agent(&args.headers),
         accept_language: fetch::accept_language(&args.headers),
         images: args.images,
+        referrer: fetched.referrer.clone().unwrap_or_default(),
     };
     let (doc, r) = crate::js::run(doc, styles, env, session, bounds);
     let mut info = JsInfo::new(r.scripts, r.errors, r.stopped);

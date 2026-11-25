@@ -249,6 +249,8 @@ mod js_concurrency_tests;
 mod golden_tests;
 
 #[cfg(test)]
+mod referrer_tests;
+#[cfg(test)]
 mod refresh_tests;
 
 #[cfg(test)]
