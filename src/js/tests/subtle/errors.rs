@@ -179,40 +179,12 @@ fn a_key_only_does_what_it_was_made_for() {
     }
 }
 
-/// Where frot stops short of Firefox it says so: a key of any of the RSA
-/// algorithms can be imported or generated on 153.0esr, and here each rejects
-/// `NotSupportedError` — never a wrong answer (`bl-db8f`; the elliptic-curve
-/// ones are real since `bl-0cae`).
+/// unwrapKey's own argument errors, judged before anything is decrypted.
+/// (Where frot stops short of Firefox — RSA's residual since `bl-2763` — the
+/// capture marks each call: `firefox153rsa.txt`.)
 #[test]
-fn what_is_not_implemented_rejects_not_supported() {
+fn unwrap_key_judges_its_arguments_first() {
     let s = page();
-    for alg in [
-        "{name:'RSA-OAEP',hash:'SHA-256'}",
-        "{name:'RSA-PSS',hash:'SHA-256'}",
-        "{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'}",
-    ] {
-        assert_eq!(
-            settle(
-                &s,
-                &format!("S.importKey('raw',U(32),{alg},false,['deriveBits'])")
-            ),
-            NOT_SUPPORTED,
-            "{alg}"
-        );
-        assert_eq!(
-            settle(&s, &format!("S.generateKey({alg},false,['sign'])")),
-            NOT_SUPPORTED,
-            "{alg}"
-        );
-        assert_eq!(
-            settle(
-                &s,
-                &format!("aes(['unwrapKey']).then(function(k){{return S.unwrapKey('raw',U(32),k,GCM,{alg},true,['sign'])}})")
-            ),
-            NOT_SUPPORTED,
-            "{alg}"
-        );
-    }
     let wrapper = "aes(['encrypt','decrypt','wrapKey','unwrapKey'])";
     assert_eq!(
         settle(

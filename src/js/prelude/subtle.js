@@ -12,8 +12,9 @@
 // deriveBits/deriveKey; wrapKey/unwrapKey under the four AES modes;
 // importKey/exportKey (`raw`, `jwk`) and generateKey for all of them; and
 // (bl-0cae, subtlepk.js) ECDSA, ECDH, Ed25519 and X25519 — key pairs, `spki`,
-// `pkcs8`, sign/verify, deriveBits/deriveKey. RSA* rejects — the declared
-// residual, bl-2763.
+// `pkcs8`, sign/verify, deriveBits/deriveKey; and (bl-2763, subtlersa.js)
+// RSASSA-PKCS1-v1_5, RSA-PSS and RSA-OAEP on 2048–8192-bit keys — what the
+// provider cannot compute of RSA rejects, the declared residual.
 //
 // Shapes, member order, `.length`s, usage order, JWK key order and every error
 // name, message and ORDER below were READ off Firefox 153.0esr. `[SecureContext]`:

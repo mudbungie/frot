@@ -1,0 +1,205 @@
+# crypto.subtle's RSA half, call for call, as Firefox 153.0esr answers it (bl-2763).
+#
+# Same rig, method and format as firefox153.txt (identity.md §3.19): every line below
+# "===" is an expression and what its promise settled to on the real binary.
+# `src/js/tests/subtle/firefox.rs` runs each in frot and requires the same answer —
+# except a line marked `!`, the declared residual (identity.md §3.19): Firefox's
+# answer is kept, and frot must reject it NotSupportedError, because aws-lc-rs
+# cannot compute it (a key outside 2048–8192 bits, SHA-1 signing, a PSS salt other
+# than the digest length, generating another size or exponent). Nothing here was
+# produced by frot. PKCS #1 v1.5 signatures are deterministic, so they are compared
+# byte for byte; PSS and OAEP are randomised, so a round trip is. Test keys: a
+# 2048-bit (PK8/SPKI) and a 1024-bit (PK8S) key openssl generated for this capture.
+---
+var PK8=unhex('308204bd020100300d06092a864886f70d0101010500048204a7308204a30201000282010100a434d40bfde34fc3e7e9c31ead669751ff70614ff062707691490639d55c972c11b0930ed222cbe6dc6527dad878e1955c4ec1f06758f7c20aa1ab6a118d1813d85d6cace95768a71582095eab637f42cd9b2452c281300003fbcdda2712c3297862823716ab88e7b991cbfe3355204d76e64fc334ccab686fef3a1a9d72ace784d2fa85b0cc56673c4d7db665516f268212f585e4621ad24a11de6f1a5468697943f0b6323991502f23f2db9a5cc4f801363026812f0a78a01f22238a37a04bf3cab1cb611bc70accf100841d6e49d660611e187c292e00f194c8beebd46117344328989032e2fbbeeb18ce4e70641cda1ba69a74c14a40aea8fa95c978ab69020301000102820100039f480a2d033afae1a918c270257233148515c5c8a75de9ba520d0ec633c655ea31fb472415866a9a4954f4113b0c11850ec107c78fd6849e42c0b5949b8880c4e612aea1c5bed63e0ae1f55cfc7de32b06956a349b85993527f47b851f21d4f95b3044d228333096b9ae46a0e540d2d4a0f1f8d1625914485bd396a0b5d5e08b1e88e929a0c4ebb776b7523cb1daf2bea367626dc218a29e5f6f8c6220158e496eca34093719ccfbd64174dc7ad5ac78ca71b011c60a82eea018e1744e43f3f32d1d51de9af802a26f85b518a19a4e05d7b1d07d653071e7385437f1ac50609c6ab43cd5c42bfd8999d24b40dd8fbd322a889a9aa817924cdcecaaf066550102818100e20618cb3075f3607e853720bce408218527cc853af79ca5006323317ddc9f08be1a5864fe55b13beaf73cb50d80320b0800369ab1d7ef8bb50d2a69e1958ef6a1e6436cdeeb8429a56d3f7b3cff8e7d5f6f5611df5d0918fce3ae2eb6beef76864180fac2dae1a2e333b6c4d78313f688af26822ee9b790e3a79cc399f3cc8902818100b9fbebc1f61bbc214b5ed5249e5140310949b7a43344e1ce4fdee950524e67fa06b413e4394be0c5c3fc1492b2edc8598f54d1f7559b686ec0dc573136e0f1d571d0829e455c3ed15fcc732fc64722d448f2c959cdab6998dc278d61a77dcb6bc4da676aeb907a67646b14673aedea13723b5005c0515d41bfb0feee08ceefe10281803e4acbde84169de2c43bd6bbb1136fa23d5e80a15f650ac8f6d85bc4b21971c329117db727d95a255756986695b7f512d13badd0e89ec8a84a57bc8ebddb483174e14f47dc1030b6819f2055c8b3ee03639ffdaaa352b2c52e3d59ae0a33892fb344ae556e0a81113168f9403add274d54d260dc942d59a816f604e06bb7a3710281810089cc22806245685d4ec7a3aa6ef68a560aa8a8bcab13d52e143577ae805d0162d986a0da4ead6e8b78cb13bf217d561d2d3a4e1b303d65e1f1590fed31d8f6b50b8fcec74f62aa545ce35150cb5ab76e8be1fed75fb02a1c0cb9ed61b64458ecaf3c96b53c759e8b6e767bf6844df449963065f8ece61bef7404c2cd408f7a610281804c15f7edeb5d29113853ff575fa7aa2fb49903d812910b03808d28566a38aa679840e386351af79c791b4a1eb5d9f397205dd1fd87695fbbd3fd0f9e3b632751b179cbfbbda16b14231286543bf55f3835bd8e9eda04740f23274841dd5979c2b9d62015e7e8d4417746e9f2aac46a8b3e026d6ddefad6667e69804a97ff5454'), SPKI=unhex('30820122300d06092a864886f70d01010105000382010f003082010a0282010100a434d40bfde34fc3e7e9c31ead669751ff70614ff062707691490639d55c972c11b0930ed222cbe6dc6527dad878e1955c4ec1f06758f7c20aa1ab6a118d1813d85d6cace95768a71582095eab637f42cd9b2452c281300003fbcdda2712c3297862823716ab88e7b991cbfe3355204d76e64fc334ccab686fef3a1a9d72ace784d2fa85b0cc56673c4d7db665516f268212f585e4621ad24a11de6f1a5468697943f0b6323991502f23f2db9a5cc4f801363026812f0a78a01f22238a37a04bf3cab1cb611bc70accf100841d6e49d660611e187c292e00f194c8beebd46117344328989032e2fbbeeb18ce4e70641cda1ba69a74c14a40aea8fa95c978ab690203010001'), PK8S=unhex('30820277020100300d06092a864886f70d0101010500048202613082025d02010002818100cd48f1b05a9088387ca85c1ce33a33bab445d5be4ce0267fb55e4561222e098f0f44cc56905e046604afc0b97bc530d61d8438f57d5d28dfda72bad58b10c392221f44d1013013be616df95bd71aae465cc56f313f4dd1163eb63924fac59100955cdffe46422800929025c4ab7d7e1793353da356f17518a3512ed317a60a73020301000102818012b4d6f14f0f649a6121a6632b819e3d21384be5ef736d8eada44d86306b298bd3c45d2a76355b0940dc131fd3db803bc2accdd3f0fc9040f5d3069b76f4ac1d770ce7389bca02a8fb239bb9529bb414e1a39c912a955c16355fc603d80dfa2d8ec96d99add916e555cefcfa4fa6e8bbc4de78256e4299328abc0b0d80da8e81024100f2eb5488de96edb05e367a493e5543def44ea61237cdfddf04f177de473715960c7877cea0a5275626528edf46777570e1798db3854c5de001793d224740f8c3024100d856d209ef638bc71ea04fb53805160465def161f0125093956b1aa07617e71e04e7fdbe54bbd5b1efe9cb4f29a4cbaa65d94eb829177b7afe2741b30c100c91024100ed7a5c8115c24d09ff809899e4032d3fd86ccef3be7475fcc1f36230fe43fea95af5a6826d1027dd93c75fff2cff79e369ba106a7125101cfeb3ccad2725804b0241009cd0aa257b7a0beb04ff2d67edb87a122c09a3acdb495b50ef4118a6f19337fb61910c3437d583fc1c2cbb2ba1c30bc2735b469d6563d924f92f5987409a2d9102406572b5004a4e00b3a703f8070a87022c505c98452751885ce23deaf19f048d5e7fe829c9213345177ab064fe65e48304d75764dbcc7ba685c98ff54533836189');
+function A(n,h,x){return Object.assign({name:n,hash:h},x||{})}
+var P1=A('RSASSA-PKCS1-v1_5','SHA-256'), PS=A('RSA-PSS','SHA-256'), OA=A('RSA-OAEP','SHA-256');
+function imp(f,d,a,u,ext){return S.importKey(f,d,a,ext===undefined?true:ext,u)}
+function priv(a,u,ext){return imp('pkcs8',PK8,a,u,ext)}
+function pubk(a,u){return imp('spki',SPKI,a,u)}
+function ex(f,k){return k.then(function(k){return S.exportKey(f,k)})}
+function jw(a,u){return ex('jwk',priv(a,u))}
+function jpub(a,u){return ex('jwk',pubk(a,u))}
+function ij(j,a,u,ext){return S.importKey('jwk',j,a,ext===undefined?true:ext,u)}
+function rtj(a,u,o,del){return jw(a,u).then(function(j){Object.assign(j,o||{});(del||[]).forEach(function(m){delete j[m]});return ij(j,a,u)})}
+function sg(a,p,n){return priv(a,['sign']).then(function(k){return S.sign(p||a,k,U(n||33,4))}).then(function(s){return hex(s)})}
+function sv(a,p){return Promise.all([priv(a,['sign']),pubk(a,['verify'])]).then(function(k){return S.sign(p,k[0],U(33,4)).then(function(s){return S.verify(p,k[1],s,U(33,4)).then(function(ok){return S.verify(p,k[1],s,U(33,5)).then(function(bad){return s.byteLength+':'+ok+':'+bad})})})})}
+function oa(h,p,n){var a=A('RSA-OAEP',h);return Promise.all([priv(a,['decrypt']),pubk(a,['encrypt'])]).then(function(k){return S.encrypt(p,k[1],U(n===undefined?16:n,9)).then(function(c){return S.decrypt(p,k[0],c).then(function(m){return c.byteLength+':'+hex(m)})})})}
+function gen(a,u,x){return S.generateKey(Object.assign({},a,x||{modulusLength:2048,publicExponent:new Uint8Array([1,0,1])}),true,u)}
+function sp(p){return 'pair:'+Object.getOwnPropertyNames(p).join('|')+';'+show(p.publicKey)+';'+show(p.privateKey)}
+function al(k){return k.then(function(k){var a=k.algorithm;return Object.prototype.toString.call(a.publicExponent)+':'+(a===k.algorithm)+':'+(a.publicExponent===k.algorithm.publicExponent)+':'+Object.keys(a).join('|')})}
+===
+priv(P1,['sign']) => key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+pubk(P1,['verify']) => key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},verify
+pubk(P1,[]) => key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},
+priv(P1,[]) => SyntaxError: An invalid or illegal string was specified
+priv(P1,['verify']) => SyntaxError: An invalid or illegal string was specified
+priv(P1,['sign','verify']) => SyntaxError: An invalid or illegal string was specified
+pubk(P1,['sign']) => SyntaxError: An invalid or illegal string was specified
+priv(P1,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+priv(P1,['sign'],false) => key:private,false,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+priv({name:'RSASSA-PKCS1-v1_5'},['sign']) => DataError: Data provided to an operation does not meet requirements
+priv(A('RSASSA-PKCS1-v1_5','SHA-224'),['sign']) => DataError: Data provided to an operation does not meet requirements
+priv(A('RSASSA-PKCS1-v1_5','AES-GCM'),['sign']) => key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"AES-GCM"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+priv(A('rsassa-pkcs1-v1_5',{name:'sha-512'}),['sign']) => key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-512"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+priv(A('RSASSA-PKCS1-v1_5','SHA-1'),['sign']) => key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-1"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+priv(A('RSA-PSS','SHA-384'),['sign']) => key:private,true,{"name":"RSA-PSS","hash":{"name":"SHA-384"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+pubk(A('RSA-PSS','SHA-512'),['verify']) => key:public,true,{"name":"RSA-PSS","hash":{"name":"SHA-512"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},verify
+priv(OA,['decrypt','unwrapKey']) => key:private,true,{"name":"RSA-OAEP","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},decrypt|unwrapKey
+priv(OA,['unwrapKey','decrypt','unwrapKey']) => key:private,true,{"name":"RSA-OAEP","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},decrypt|unwrapKey
+pubk(OA,['encrypt','wrapKey']) => key:public,true,{"name":"RSA-OAEP","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},encrypt|wrapKey
+priv(OA,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+pubk(OA,['decrypt']) => SyntaxError: An invalid or illegal string was specified
+priv(OA,['sign']) => SyntaxError: An invalid or illegal string was specified
+priv(A('RSA-OAEP','SHA-1'),['decrypt']) => key:private,true,{"name":"RSA-OAEP","hash":{"name":"SHA-1"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},decrypt
+imp('raw',SPKI,P1,['verify']) => SyntaxError: An invalid or illegal string was specified
+imp('spki',PK8,P1,['verify']) => DataError: Data provided to an operation does not meet requirements
+imp('pkcs8',SPKI,P1,['sign']) => DataError: Data provided to an operation does not meet requirements
+imp('spki',U(10),P1,['verify']) => DataError: Data provided to an operation does not meet requirements
+imp('pkcs8',U(10),P1,['sign']) => DataError: Data provided to an operation does not meet requirements
+imp('spki','x',P1,['verify']) => TypeError: SubtleCrypto.importKey: Argument 2 is not an object.
+!imp('pkcs8',PK8S,P1,['sign']) => key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":1024,"publicExponent":{"0":1,"1":0,"2":1}},sign
+al(priv(P1,['sign'])) => string:[object Uint8Array]:true:true:name|hash|modulusLength|publicExponent
+al(pubk(OA,['encrypt'])) => string:[object Uint8Array]:true:true:name|hash|modulusLength|publicExponent
+ex('spki',pubk(P1,['verify'])).then(function(b){return hex(b)===hex(SPKI)}) => boolean:true
+ex('pkcs8',priv(P1,['sign'])).then(function(b){return hex(b)===hex(PK8)}) => boolean:true
+ex('spki',priv(P1,['sign'])) => NotSupportedError: Operation is not supported
+ex('pkcs8',pubk(P1,['verify'])) => NotSupportedError: Operation is not supported
+ex('raw',pubk(P1,['verify'])) => NotSupportedError: Operation is not supported
+ex('jwk',priv(P1,['sign'],false)) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+jw(P1,['sign']).then(function(j){return Object.keys(j).join('|')+';'+j.alg+';'+j.kty+';'+j.e+';'+j.key_ops+';'+j.ext}) => string:alg|d|dp|dq|e|ext|key_ops|kty|n|p|q|qi;RS256;RSA;AQAB;sign;true
+jpub(P1,['verify']).then(function(j){return Object.keys(j).join('|')+';'+j.alg+';'+j.e}) => string:alg|e|ext|key_ops|kty|n;RS256;AQAB
+jpub(A('RSASSA-PKCS1-v1_5','SHA-1'),['verify']).then(function(j){return j.alg}) => string:RS1
+jpub(A('RSASSA-PKCS1-v1_5','SHA-384'),['verify']).then(function(j){return j.alg}) => string:RS384
+jpub(A('RSASSA-PKCS1-v1_5','SHA-512'),['verify']).then(function(j){return j.alg}) => string:RS512
+jpub(A('RSA-PSS','SHA-1'),['verify']).then(function(j){return j.alg}) => string:PS1
+jpub(A('RSA-PSS','SHA-256'),['verify']).then(function(j){return j.alg}) => string:PS256
+jpub(A('RSA-PSS','SHA-512'),['verify']).then(function(j){return j.alg}) => string:PS512
+jpub(A('RSA-OAEP','SHA-1'),['encrypt']).then(function(j){return j.alg}) => string:RSA-OAEP
+jpub(A('RSA-OAEP','SHA-256'),['encrypt']).then(function(j){return j.alg}) => string:RSA-OAEP-256
+jpub(A('RSA-OAEP','SHA-384'),['encrypt']).then(function(j){return j.alg}) => string:RSA-OAEP-384
+jpub(A('RSA-OAEP','SHA-512'),['encrypt']).then(function(j){return j.alg}) => string:RSA-OAEP-512
+jw(P1,['sign']).then(function(j){return j.n.length+':'+j.d.length+':'+j.p.length+':'+j.q.length+':'+j.dp.length+':'+j.dq.length+':'+j.qi.length}) => string:342:342:171:171:171:171:171
+rtj(P1,['sign']) => key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+rtj(P1,['sign']).then(function(k){return ex('pkcs8',Promise.resolve(k))}).then(function(b){return hex(b)===hex(PK8)}) => boolean:true
+rtj(P1,['sign'],{alg:'RS256'}) => key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+rtj(P1,['sign'],{alg:'RS384'}) => DataError: Data provided to an operation does not meet requirements
+rtj(P1,['sign'],{alg:'PS256'}) => DataError: Data provided to an operation does not meet requirements
+rtj(PS,['sign'],{alg:'PS256'}) => key:private,true,{"name":"RSA-PSS","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+rtj(OA,['decrypt'],{alg:'RSA-OAEP'}) => DataError: Data provided to an operation does not meet requirements
+rtj(OA,['decrypt'],{alg:'RSA-OAEP-256'}) => key:private,true,{"name":"RSA-OAEP","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},decrypt
+rtj(P1,['sign'],{kty:'EC'}) => DataError: Data provided to an operation does not meet requirements
+rtj(P1,['sign'],{ext:false}) => DataError: Data provided to an operation does not meet requirements
+rtj(P1,['sign'],{key_ops:['verify']}) => DataError: Data provided to an operation does not meet requirements
+rtj(P1,['sign'],{use:'enc'}) => key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+rtj(P1,['sign'],{use:'sig'}) => key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+rtj(P1,['sign'],{},['n']) => DataError: Data provided to an operation does not meet requirements
+rtj(P1,['sign'],{},['e']) => DataError: Data provided to an operation does not meet requirements
+rtj(P1,['sign'],{},['p']) => DataError: Data provided to an operation does not meet requirements
+rtj(P1,['sign'],{},['qi']) => DataError: Data provided to an operation does not meet requirements
+rtj(P1,['sign'],{},['p','q','dp','dq','qi']) => DataError: Data provided to an operation does not meet requirements
+rtj(P1,['sign'],{n:'AAAA'}) => DataError: Data provided to an operation does not meet requirements
+rtj(P1,['sign'],{e:'AAE'}) => DataError: Data provided to an operation does not meet requirements
+jpub(P1,['verify']).then(function(j){return ij(j,P1,['verify'])}) => key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},verify
+jpub(P1,['verify']).then(function(j){return ij(j,P1,['sign'])}) => SyntaxError: An invalid or illegal string was specified
+jpub(P1,['verify']).then(function(j){j.e='Aw';return ij(j,P1,['verify'])}) => key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":3}},verify
+gen(P1,['sign','verify']).then(sp) => string:pair:privateKey|publicKey;key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},verify;key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+gen(PS,['verify','sign']).then(sp) => string:pair:privateKey|publicKey;key:public,true,{"name":"RSA-PSS","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},verify;key:private,true,{"name":"RSA-PSS","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+gen(OA,['encrypt','decrypt','wrapKey','unwrapKey']).then(sp) => string:pair:privateKey|publicKey;key:public,true,{"name":"RSA-OAEP","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},encrypt|wrapKey;key:private,true,{"name":"RSA-OAEP","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},decrypt|unwrapKey
+gen(OA,['encrypt']) => SyntaxError: An invalid or illegal string was specified
+gen(P1,['verify']) => SyntaxError: An invalid or illegal string was specified
+gen(P1,['sign','encrypt']) => SyntaxError: An invalid or illegal string was specified
+gen(P1,[]) => SyntaxError: An invalid or illegal string was specified
+gen(P1,['sign'],{modulusLength:2048}) => SyntaxError: An invalid or illegal string was specified
+gen(P1,['sign'],{publicExponent:new Uint8Array([1,0,1])}) => SyntaxError: An invalid or illegal string was specified
+gen(P1,['sign'],{modulusLength:0,publicExponent:new Uint8Array([1,0,1])}) => OperationError: The operation failed for an operation-specific reason
+!gen(P1,['sign'],{modulusLength:1024,publicExponent:new Uint8Array([1,0,1])}).then(sp) => string:pair:privateKey|publicKey;key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":1024,"publicExponent":{"0":1,"1":0,"2":1}},;key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":1024,"publicExponent":{"0":1,"1":0,"2":1}},sign
+!gen(P1,['sign'],{modulusLength:2048,publicExponent:new Uint8Array([3])}).then(sp) => string:pair:privateKey|publicKey;key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":3}},;key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":3}},sign
+gen(P1,['sign'],{modulusLength:2048,publicExponent:new Uint8Array([0,1,0,1])}).then(sp) => string:pair:privateKey|publicKey;key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":0,"1":1,"2":0,"3":1}},;key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":0,"1":1,"2":0,"3":1}},sign
+gen(P1,['sign'],{modulusLength:2048,publicExponent:new Uint8Array([2])}) => OperationError: The operation failed for an operation-specific reason
+gen(P1,['sign'],{modulusLength:2048,publicExponent:[1,0,1]}) => SyntaxError: An invalid or illegal string was specified
+gen(P1,['sign'],{modulusLength:2047,publicExponent:new Uint8Array([1,0,1])}) => OperationError: The operation failed for an operation-specific reason
+gen({name:'RSASSA-PKCS1-v1_5'},['sign']) => SyntaxError: An invalid or illegal string was specified
+gen(P1,['sign','verify']).then(function(p){return S.sign(P1,p.privateKey,U(5)).then(function(s){return S.verify(P1,p.publicKey,s,U(5))})}) => boolean:true
+sg(P1) => string:61f5aa0f44fbe13706f7618ad63e6d6164a9345b8ae5e3dc4b788661e3acfc1256d41dac1ab71c9b157db2b29d31ecdd7ed5ef8f78ca01b4181cb3805d2e48e317646ca661742384b390d1df275e4d7c9eaa9b8f65bc3f1ceed0365e8f3a6d2373717612d74bed47cdd86580a8260224f04543a4e2794e31dd166c4a7554dbdb093ec4132534db088bcc75c51887ea19db5401b32b432fe3821c9fe307b14a224412e3a4dae76b3b763ad5f81a7cc5be33245d6544b8686fce5185e8ec498674f63f9213c867f3be9518d83cabcf03e2c5301d0cb7644a059825aa51e1531b764b593505191cee88ac06b6acdaabe4da920b5d482b2d7c7d945442fe84529a74
+sg(A('RSASSA-PKCS1-v1_5','SHA-384')) => string:5a66f0ff123ef02714d590d703dc712f1e63a123fa4c3aff3a2f92e6fb631793a3e0fd55f8de78f9f8fef543ab165e0b5181e67539f267704c28c994cf607fdac3a603f024758796cc7c24df4e2356e2f8a7020014c650bf7f4151418f5d1257f537ef73d8ac51707a2cb6708ef95b7a3e5944dcf64f025b89996f660e008088f8df9b07100cc2a22d81e5064cb7efd53747310d35f068565ad893fd21a6844052efcdc0ab8dd9f9792686cadbea3849249652caa7aac400aae140c0de67e579e82b872c13d2cd9cb02ee3173f42b4c16a6b65a65db3eae3f5ba1ee4bdb988237c3f970a3189a14d06eca0fb47d4fb3bdd2c2c6a07180defb823d0298af6bace
+sg(A('RSASSA-PKCS1-v1_5','SHA-512')) => string:204f91846aa4b26204bc28b470780916e10d307edb03ec20a4367432e76beeb525448fbacb0f89532f8e946a8abfc82fd67404f3bfd7f406e8987ffec9ffefc08e86fc17ecc1816b658d012a673071e6482230f3c2c4df3726696d827b8eff77720aefae750eb2df13ba4df458def38f3bcd896368db791dea6470f991292fadfc88a0feacdcdd3c8c892bcdc5c3640cb16714d198dad3f3d32d31baa9cb042b8640ab6ca1cf6b7a7caa72b4a353c12e9d73d263c2c5bf023b69af2dd9a1e29eea0871cd06d1179d7c82b5a293bf5c91199410563e72c725458fdf19c81b34535c650b3f83dfd301844cef0a1ec5e9d0eee0b2c41df743759c60a34d271ff670
+!sg(A('RSASSA-PKCS1-v1_5','SHA-1')) => string:42001ed6d96e480739780d45f41e038f18ff7f72fef13e965faa8f81d7b5e765b6302b06c1c04e8f1cfb73c0e0c08addfcadd9443dc7f65a7681e2a588e54edd65e4d0d391f17a0737fd383ce6b6e4b6131fd7085d8a83943e0a85db133d32df30cd944d7b4add6862587a6215b67e1abb7a956fa74a19e6aeb67955ff9ba7bb9d4e3494ac705c027b27bcfc34cdc90bb953223f8c7aff2bd4379f28d75ca7322c96ce05247fe41bc93979388c187189ec32021fa57b0bc2f833cb04048005d3ab5cdfa0378e380bb614304e3e9edb10a29416a16da69f52534701c0cd1f8177cec0ed0127e87fd096efb0ce116f053d92a07ceb42e93ae5cd4bc3d508a46af0
+sg(P1,{name:'RSASSA-PKCS1-v1_5'}) => string:61f5aa0f44fbe13706f7618ad63e6d6164a9345b8ae5e3dc4b788661e3acfc1256d41dac1ab71c9b157db2b29d31ecdd7ed5ef8f78ca01b4181cb3805d2e48e317646ca661742384b390d1df275e4d7c9eaa9b8f65bc3f1ceed0365e8f3a6d2373717612d74bed47cdd86580a8260224f04543a4e2794e31dd166c4a7554dbdb093ec4132534db088bcc75c51887ea19db5401b32b432fe3821c9fe307b14a224412e3a4dae76b3b763ad5f81a7cc5be33245d6544b8686fce5185e8ec498674f63f9213c867f3be9518d83cabcf03e2c5301d0cb7644a059825aa51e1531b764b593505191cee88ac06b6acdaabe4da920b5d482b2d7c7d945442fe84529a74
+sg(P1,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-512'}) => string:61f5aa0f44fbe13706f7618ad63e6d6164a9345b8ae5e3dc4b788661e3acfc1256d41dac1ab71c9b157db2b29d31ecdd7ed5ef8f78ca01b4181cb3805d2e48e317646ca661742384b390d1df275e4d7c9eaa9b8f65bc3f1ceed0365e8f3a6d2373717612d74bed47cdd86580a8260224f04543a4e2794e31dd166c4a7554dbdb093ec4132534db088bcc75c51887ea19db5401b32b432fe3821c9fe307b14a224412e3a4dae76b3b763ad5f81a7cc5be33245d6544b8686fce5185e8ec498674f63f9213c867f3be9518d83cabcf03e2c5301d0cb7644a059825aa51e1531b764b593505191cee88ac06b6acdaabe4da920b5d482b2d7c7d945442fe84529a74
+sg(P1,PS) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+sg(P1,{name:'ECDSA',hash:'SHA-256'}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+pubk(P1,['verify']).then(function(k){return S.sign(P1,k,U(3))}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+sv(P1,P1) => string:256:true:false
+!sv(A('RSASSA-PKCS1-v1_5','SHA-1'),{name:'RSASSA-PKCS1-v1_5'}) => string:256:true:false
+sv(PS,{name:'RSA-PSS',saltLength:32}) => string:256:true:false
+sv(A('RSA-PSS','SHA-384'),{name:'RSA-PSS',saltLength:48}) => string:256:true:false
+sv(A('RSA-PSS','SHA-512'),{name:'RSA-PSS',saltLength:64}) => string:256:true:false
+!sv(PS,{name:'RSA-PSS',saltLength:0}) => string:256:true:false
+!sv(PS,{name:'RSA-PSS',saltLength:20}) => string:256:true:false
+!sv(A('RSA-PSS','SHA-1'),{name:'RSA-PSS',saltLength:20}) => string:256:true:false
+sv(PS,{name:'RSA-PSS',saltLength:223}) => OperationError: The operation failed for an operation-specific reason
+sv(PS,{name:'RSA-PSS',saltLength:300}) => OperationError: The operation failed for an operation-specific reason
+sg(PS,{name:'RSA-PSS'}) => SyntaxError: An invalid or illegal string was specified
+sg(PS,{name:'RSA-PSS',saltLength:-1}) => SyntaxError: An invalid or illegal string was specified
+sg(PS,{name:'RSA-PSS',saltLength:'32'}).then(function(s){return s.length}) => number:512
+pubk(P1,['verify']).then(function(k){return S.verify(P1,k,U(256),U(3))}) => boolean:false
+pubk(P1,['verify']).then(function(k){return S.verify(P1,k,U(10),U(3))}) => boolean:false
+pubk(P1,['verify']).then(function(k){return S.verify(P1,k,U(300),U(3))}) => boolean:false
+oa('SHA-256',{name:'RSA-OAEP'}) => string:256:09090909090909090909090909090909
+oa('SHA-1',{name:'RSA-OAEP'}) => string:256:09090909090909090909090909090909
+oa('SHA-384',{name:'RSA-OAEP'}) => string:256:09090909090909090909090909090909
+oa('SHA-512',{name:'RSA-OAEP'}) => string:256:09090909090909090909090909090909
+oa('SHA-256',{name:'RSA-OAEP',label:U(4,1)}) => string:256:09090909090909090909090909090909
+oa('SHA-256',{name:'RSA-OAEP',label:U(0)}) => string:256:09090909090909090909090909090909
+oa('SHA-256',{name:'RSA-OAEP'},0) => string:256:
+oa('SHA-256',{name:'RSA-OAEP'},190) => string:256:09090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909
+oa('SHA-256',{name:'RSA-OAEP'},191) => OperationError: The operation failed for an operation-specific reason
+oa('SHA-1',{name:'RSA-OAEP'},214) => string:256:09090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909
+oa('SHA-256',{name:'RSA-OAEP',label:'x'}) => SyntaxError: An invalid or illegal string was specified
+Promise.all([priv(OA,['decrypt']),pubk(OA,['encrypt'])]).then(function(k){return S.encrypt({name:'RSA-OAEP',label:U(2)},k[1],U(3)).then(function(c){return S.decrypt({name:'RSA-OAEP',label:U(3)},k[0],c)})}) => OperationError: The operation failed for an operation-specific reason
+priv(OA,['decrypt']).then(function(k){return S.decrypt({name:'RSA-OAEP'},k,U(256))}) => OperationError: The operation failed for an operation-specific reason
+priv(OA,['decrypt']).then(function(k){return S.decrypt({name:'RSA-OAEP'},k,U(10))}) => OperationError: The operation failed for an operation-specific reason
+pubk(OA,['encrypt']).then(function(k){return S.encrypt(OA,k,U(3)).then(function(c){return c.byteLength})}) => number:256
+pubk(OA,['encrypt']).then(function(k){return S.encrypt({name:'RSA-OAEP'},k,U(3)).then(function(c){return c.byteLength})}) => number:256
+pubk(OA,['encrypt']).then(function(k){return S.encrypt({name:'RSA-PSS'},k,U(3))}) => NotSupportedError: Operation is not supported
+Promise.all([pubk(OA,['wrapKey']),S.importKey('raw',U(16,7),'AES-GCM',true,['encrypt'])]).then(function(k){return S.wrapKey('raw',k[1],k[0],{name:'RSA-OAEP'})}).then(function(w){return w.byteLength}) => number:256
+Promise.all([pubk(OA,['wrapKey']),priv(OA,['unwrapKey']),S.importKey('raw',U(16,7),'AES-GCM',true,['encrypt'])]).then(function(k){return S.wrapKey('jwk',k[2],k[0],{name:'RSA-OAEP'}).then(function(w){return S.unwrapKey('jwk',w,k[1],{name:'RSA-OAEP'},'AES-GCM',true,['encrypt'])})}) => key:secret,true,{"name":"AES-GCM","length":128},encrypt
+priv(P1,['sign']).then(function(k){return S.deriveBits({name:'ECDH',public:k},k,8)}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+gen(P1,['sign'],{modulusLength:2056,publicExponent:new Uint8Array([1,0,1])}).then(function(p){return p.privateKey.algorithm.modulusLength}) => OperationError: The operation failed for an operation-specific reason
+gen(P1,['sign'],{modulusLength:2049,publicExponent:new Uint8Array([1,0,1])}).then(function(p){return p.privateKey.algorithm.modulusLength}) => OperationError: The operation failed for an operation-specific reason
+!gen(P1,['sign'],{modulusLength:512,publicExponent:new Uint8Array([1,0,1])}).then(function(p){return p.privateKey.algorithm.modulusLength}) => number:512
+!gen(P1,['sign'],{modulusLength:256,publicExponent:new Uint8Array([1,0,1])}).then(function(p){return p.privateKey.algorithm.modulusLength}) => number:256
+gen(P1,['sign'],{modulusLength:16392,publicExponent:new Uint8Array([1,0,1])}).then(function(p){return p.privateKey.algorithm.modulusLength}) => OperationError: The operation failed for an operation-specific reason
+gen(P1,['sign'],{modulusLength:3072,publicExponent:new Uint8Array([1,0,1])}).then(function(p){return p.privateKey.algorithm.modulusLength}) => number:3072
+gen(P1,['sign'],{modulusLength:4096,publicExponent:new Uint8Array([1,0,1])}).then(function(p){return p.privateKey.algorithm.modulusLength}) => number:4096
+gen(P1,['sign'],{modulusLength:'2048',publicExponent:new Uint8Array([1,0,1])}).then(function(p){return p.privateKey.algorithm.modulusLength}) => number:2048
+gen(P1,['sign'],{modulusLength:2048,publicExponent:new Uint8Array([1,0,0])}) => OperationError: The operation failed for an operation-specific reason
+gen(P1,['sign'],{modulusLength:2048,publicExponent:new Uint8Array([1])}) => OperationError: The operation failed for an operation-specific reason
+gen(P1,['sign'],{modulusLength:2048,publicExponent:new Uint8Array([])}) => OperationError: The operation failed for an operation-specific reason
+!gen(P1,['sign'],{modulusLength:2048,publicExponent:new Uint8Array([5])}).then(function(p){return p.privateKey.algorithm.modulusLength}) => number:2048
+gen(P1,['sign'],{modulusLength:2048,publicExponent:new Uint8Array([1,0,0,0,1])}).then(function(p){return p.privateKey.algorithm.modulusLength}) => OperationError: The operation failed for an operation-specific reason
+gen(P1,['sign'],{modulusLength:2048,publicExponent:new Uint8Array([1,0,0,0,0,0,0,0,1])}) => InvalidAccessError: A parameter or an operation is not supported by the underlying object
+gen(P1,['sign'],{modulusLength:2048,publicExponent:new Uint16Array([1])}) => SyntaxError: An invalid or illegal string was specified
+gen(A('RSASSA-PKCS1-v1_5','SHA-224'),['sign']) => NotSupportedError: Operation is not supported
+gen(A('RSASSA-PKCS1-v1_5','AES-GCM'),['sign']) => obj:{"privateKey":{},"publicKey":{}}
+gen(A('RSASSA-PKCS1-v1_5','SHA-1'),['sign']).then(function(p){return p.privateKey.algorithm.hash.name}) => string:SHA-1
+gen(P1,['sign','verify'],{modulusLength:2048,publicExponent:new Uint8Array([1,0,1])}).then(function(p){return S.exportKey('jwk',p.privateKey)}).then(function(j){return Object.keys(j).join('|')}) => string:alg|d|dp|dq|e|ext|key_ops|kty|n|p|q|qi
+gen(P1,['sign','verify'],{modulusLength:2048,publicExponent:new Uint8Array([0,1,0,1])}).then(function(p){return S.exportKey('jwk',p.publicKey)}).then(function(j){return j.e}) => string:AQAB
+priv(A('RSASSA-PKCS1-v1_5','AES-GCM'),['sign']).then(function(k){return S.sign({name:'RSASSA-PKCS1-v1_5'},k,U(3))}) => NotSupportedError: Operation is not supported
+!sv(PS,{name:'RSA-PSS',saltLength:222}) => string:256:true:false
+!sv(A('RSA-PSS','SHA-512'),{name:'RSA-PSS',saltLength:190}) => string:256:true:false
+sv(A('RSA-PSS','SHA-512'),{name:'RSA-PSS',saltLength:191}) => OperationError: The operation failed for an operation-specific reason
+!priv(PS,['sign']).then(function(k){return S.sign({name:'RSA-PSS',saltLength:32},k,U(3))}).then(function(s){return pubk(PS,['verify']).then(function(v){return S.verify({name:'RSA-PSS',saltLength:31},v,s,U(3))})}) => boolean:false
+!imp('pkcs8',PK8S,OA,['decrypt']).then(function(k){return k.algorithm.modulusLength}) => number:1024
+jpub(P1,['verify']).then(function(j){j.alg='RS256';j.use='enc';return ij(j,P1,['verify'])}) => key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},verify
+!jpub(P1,['verify']).then(function(j){j.n='AAAA';return ij(j,P1,['verify'])}) => key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":8,"publicExponent":{"0":1,"1":0,"2":1}},verify
+!jpub(P1,['verify']).then(function(j){j.e='AQ';return ij(j,P1,['verify'])}) => key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1}},verify
+!jpub(P1,['verify']).then(function(j){j.e='Ag';return ij(j,P1,['verify'])}) => key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":2}},verify
+jpub(P1,['verify']).then(function(j){j.e='AAEAAQ';return ij(j,P1,['verify']).then(function(k){return JSON.stringify(k.algorithm.publicExponent)})}) => string:{"0":1,"1":0,"2":1}
+!jpub(P1,['verify']).then(function(j){j.n='AA'+j.n;return ij(j,P1,['verify']).then(function(k){return k.algorithm.modulusLength})}) => number:2056
+jpub(P1,['verify']).then(function(j){delete j.kty;return ij(j,P1,['verify'])}) => DataError: Data provided to an operation does not meet requirements
+jw(P1,['sign']).then(function(j){j.d='AQ';return ij(j,P1,['sign'])}) => DataError: Data provided to an operation does not meet requirements
+jw(P1,['sign']).then(function(j){j.oth=[];return ij(j,P1,['sign'])}) => key:private,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},sign
+jw(P1,['sign']).then(function(j){delete j.d;return ij(j,P1,['sign'])}) => SyntaxError: An invalid or illegal string was specified
+jw(P1,['sign']).then(function(j){delete j.d;return ij(j,P1,['verify'])}) => DataError: Data provided to an operation does not meet requirements

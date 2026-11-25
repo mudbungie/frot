@@ -9,6 +9,9 @@ use super::super::sess;
 
 const CAPTURE: &str = include_str!("firefox153.txt");
 
+/// What frot answers on a line the capture marks as a residual.
+const NOT_SUPPORTED: &str = "NotSupportedError: Operation is not supported";
+
 /// The capture's shared helpers: `show` renders a settled value the way the
 /// rig did — a buffer as its length and hex, a key as its four attributes.
 const HELPERS: &str = "\
@@ -36,7 +39,10 @@ fn mismatches(capture: &str) -> (usize, Vec<String>) {
         s.eval(HELPERS).unwrap();
         s.eval(preamble).unwrap();
         for line in probes.lines() {
-            let (expr, want) = line.split_once(" => ").unwrap();
+            // `!`: a declared residual — frot rejects what Firefox answers.
+            let (residual, line) = line.strip_prefix('!').map_or((false, line), |l| (true, l));
+            let (expr, firefox) = line.split_once(" => ").unwrap();
+            let want = if residual { NOT_SUPPORTED } else { firefox };
             let quoted = serde_json::to_string(expr).unwrap();
             s.eval(&format!("probe({quoted});0")).unwrap();
             let got = s.eval("__out").unwrap();
@@ -61,6 +67,20 @@ fn every_captured_call_settles_as_it_does_on_firefox_153() {
 #[test]
 fn every_captured_public_key_call_settles_as_it_does_on_firefox_153() {
     let (checked, wrong) = mismatches(include_str!("firefox153pk.txt"));
+    assert!(
+        wrong.is_empty(),
+        "{} of {checked}:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
+}
+
+/// The RSA half (`bl-2763`): RSASSA-PKCS1-v1_5, RSA-PSS and RSA-OAEP, residuals
+/// marked.
+#[test]
+fn every_captured_rsa_call_settles_as_it_does_on_firefox_153() {
+    let capture = include_str!("firefox153rsa.txt");
+    let (checked, wrong) = mismatches(capture);
     assert!(
         wrong.is_empty(),
         "{} of {checked}:\n{}",

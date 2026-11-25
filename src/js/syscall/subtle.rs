@@ -22,6 +22,7 @@ use super::Host;
 mod aes;
 mod alg;
 mod pk;
+mod rsa;
 
 macro_rules! bind {
     ($ctx:expr, $g:expr, $name:literal, $f:expr) => {
@@ -119,7 +120,55 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, _host: &Host) -> rquickjs::
             out(ctx, run(bytes(&key), bytes(&data)))
         }
     );
-    public_key(ctx, g)
+    public_key(ctx, g)?;
+    rsa_table(ctx, g)
+}
+
+/// The RSA table over [`rsa`] (`bl-2763`): `rsa_generate(bits)` answers
+/// `[pkcs8, spki]`; `rsa_check(private, der)`, `rsa_sign(pss, hash, pkcs8,
+/// data)`, `rsa_verify(pss, hash, spki, sig, data)`, `rsa_oaep(open, hash, der,
+/// label, data)`.
+fn rsa_table<'js>(ctx: &Ctx<'js>, g: &Object<'js>) -> rquickjs::Result<()> {
+    bind!(ctx, g, "__frot_subtle_rsa_generate", |bits: u32| {
+        rsa::generate(bits).map(Vec::from)
+    });
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_rsa_check",
+        |private: bool, der: Bytes<'js>| { rsa::check(private, bytes(&der)) }
+    );
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_rsa_sign",
+        |ctx: Ctx<'js>, pss: bool, h: String, der: Bytes<'js>, data: Bytes<'js>| {
+            out(ctx, rsa::sign(pss, &h, bytes(&der), bytes(&data)))
+        }
+    );
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_rsa_verify",
+        |pss: bool, h: String, der: Bytes<'js>, sig: Bytes<'js>, data: Bytes<'js>| {
+            rsa::verify(pss, &h, bytes(&der), bytes(&sig), bytes(&data))
+        }
+    );
+    bind!(
+        ctx,
+        g,
+        "__frot_subtle_rsa_oaep",
+        |ctx: Ctx<'js>,
+         open: bool,
+         h: String,
+         der: Bytes<'js>,
+         label: Bytes<'js>,
+         data: Bytes<'js>| {
+            let (der, label) = (bytes(&der), bytes(&label));
+            out(ctx, rsa::crypt(open, &h, der, label, bytes(&data)))
+        }
+    );
+    Ok(())
 }
 
 /// The public-key table over [`pk`] (`bl-0cae`): `pk_generate(curve)` answers
@@ -201,3 +250,5 @@ mod tests;
 
 #[cfg(test)]
 mod pk_tests;
+#[cfg(test)]
+mod rsa_tests;

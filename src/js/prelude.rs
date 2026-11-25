@@ -135,6 +135,8 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/subtlepk.js"),
     "\n",
+    include_str!("prelude/subtlersa.js"),
+    "\n",
     include_str!("prelude/subtle.js"),
     "\n",
     // Worker/SharedWorker (bl-342a): coherent constructor presence, no thread —

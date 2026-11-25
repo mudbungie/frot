@@ -82,7 +82,7 @@
     PBKDF2: kdf('PBKDF2', false),
   };
   // An algorithm a key can be OF. The elliptic-curve four join from
-  // subtlepk.js; RSA*, which Firefox has and frot does not, is the residual.
+  // subtlepk.js, the three RSA ones from subtlersa.js.
   k.ALG = ALG;
   k.keyed = function (alg) {
     var n = k.normalize(alg, k.KEYED);
@@ -125,8 +125,8 @@
       return g.__frot_subtle_kw(open, s.bytes, data);
     },
   };
-  // The key must be OF the (already normalised) algorithm. RSA-OAEP is a name
-  // encrypt accepts, and no frot key is one.
+  // The key must be OF the (already normalised) algorithm. RSA-OAEP never
+  // reaches here: subtlersa.js runs it.
   function mine(n, s) {
     if (s.algorithm.name !== n.name) throw fail('InvalidAccessError');
   }

@@ -5,7 +5,7 @@
 // READ off Firefox 153.0esr (identity.md §3.19 rig; the 331-call capture
 // src/js/tests/subtle/firefox153pk.txt). The arithmetic is the provider's,
 // through the __frot_subtle_pk_* / ecdsa / ed25519 / agree syscalls; the DER
-// is written and read here. RSA* is not here: it stays NotSupportedError.
+// is written and read here. RSA* is subtlersa.js's (bl-2763).
 // Adds the four algorithms to `ALG` and `pkImport`, `pkExport`, `pkGenerate`,
 // `pkSign`, `pkVerify` to the toolkit.
 (function (g) {
