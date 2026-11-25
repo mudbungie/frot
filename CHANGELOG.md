@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.7](https://github.com/mudbungie/frot/compare/v0.0.6...v0.0.7) - 2026-11-25
+
+### Changes
+
+- js.md §15.5 — component sites measured after ElementInternals, composed events, slotchange, assign, delegatesFocus, setHTMLUnsafe [bl-d865]
+- delegatesFocus is recorded but focus() on a shadow host does not move focus into its shadow tree [bl-326a]
+- manual slot assignment — slot.assign() is absent and a manual-assignment shadow root assigns nothing [bl-f432]
+- the window's everyday members are absent — event, name, origin, opener, status, scroll/scrollTo/scrollBy, focus/blur/stop/print, alert/confirm/prompt, open/close, structuredClone, getSelection [bl-d8f7]
+- setHTMLUnsafe / parseHTMLUnsafe are absent — no script path to a declarative shadow root [bl-c1a3]
+- NodeIterator and document.createNodeIterator are absent; Firefox 153 has both [bl-33df]
+- iframe windows: an external or module <script> inserted into a frame's document never runs (its pending queue is never drained) [bl-b34e]
+- DOM getters and methods do not brand-check their receiver; Firefox throws 'get X' called on an object that does not implement interface Y. [bl-a1a1]
+- crypto.subtle RSA residual — PSS saltLength other than the digest length, SHA-1 signing, keys under 2048 bits reject NotSupportedError (left by bl-2763) [bl-4ba0]
+- a 0 ms timer set by a parser script fires after load in frot; Firefox fires it before DOMContentLoaded [bl-9f4c]
+- OfflineAudioContext / AudioContext are not EventTargets — addEventListener('complete') throws 'not a function' [bl-bd3d]
+- HTMLScriptElement reflects only src, type and text — async, defer, noModule, charset, crossOrigin, referrerPolicy, integrity, fetchPriority, event, htmlFor absent [bl-f9f2]
+- PerformanceResourceTiming (and PerformanceEntry) are not interface objects — performance entries are plain objects; Cloudflare's challenge reads the global [bl-c378]
+- a <style>/<script>/<title> an author displays (style="display:block") is rendered in Chrome; frot skips it in text, names and bboxes [bl-8f60]
+- should --out dom serialize an ordinary <template>'s contents as its children? [bl-2a85]
+- slotchange never fires [bl-352f]
+- text inside an SVG element SVG does not know (<svg><foo>t</foo></svg>) is painted in frot; Chrome paints none [bl-01b2]
+- autofocus leftovers — a candidate hidden only by a stylesheet, focus before the parse ends, a radio form= parser-history quirk [bl-4248]
+- <img srcset>/sizes and <picture><source> ignored under --images; frot requests src where Firefox requests the chosen candidate [bl-0e4a]
+
 ## [0.0.6](https://github.com/mudbungie/frot/compare/v0.0.5...v0.0.6) - 2026-11-25
 
 ### Changes
