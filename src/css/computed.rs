@@ -8,7 +8,7 @@
 use super::content;
 use super::selector::{Pseudo, Specificity};
 use super::transform::TextTransform;
-use super::{ComputedStyle, Display, FlexDirection, Visibility};
+use super::{ComputedStyle, Display, FlexDirection, Flow, Visibility};
 use crate::dom::Element;
 use crate::tags::is_block;
 
@@ -25,7 +25,7 @@ pub struct Applied {
 type Key = (bool, bool, Specificity, usize);
 
 impl Applied {
-    fn key(&self) -> Key {
+    pub(super) fn key(&self) -> Key {
         (self.important, self.inline, self.spec, self.order)
     }
 }
@@ -55,8 +55,10 @@ pub fn reduce(
         after: generated(applied, Pseudo::After, el),
         before_display: pseudo_display(applied, Pseudo::Before),
         after_display: pseudo_display(applied, Pseudo::After),
-        out_of_flow: out_of_flow(applied, None),
-        pseudo_out_of_flow: [Pseudo::Before, Pseudo::After].map(|p| out_of_flow(applied, Some(p))),
+        flow: flow(applied, None),
+        unmarked: super::list::unmarked(applied, parent.unmarked),
+        pseudo_out_of_flow: [Pseudo::Before, Pseudo::After]
+            .map(|p| flow(applied, Some(p)) != Flow::In),
         text_transform: transform,
         pseudo_transform: [Pseudo::Before, Pseudo::After]
             .map(|p| transform.pseudo(ranked(applied, Some(p), "text-transform"))),
@@ -109,7 +111,7 @@ fn display(applied: &[Applied], el: &Element, js: bool, parent: Display, shown: 
         None if el.hidden() || closed || (js && el.name == "noscript") => Display::None,
         None => implicit_display(&el.name),
     };
-    display.blockified(out_of_flow(applied, None) || parent.has_items())
+    display.blockified(flow(applied, None) != Flow::In || parent.has_items())
 }
 
 /// The computed `display` of a pseudo-element's box: its own declaration,
@@ -117,20 +119,25 @@ fn display(applied: &[Applied], el: &Element, js: bool, parent: Display, shown: 
 fn pseudo_display(applied: &[Applied], pseudo: Pseudo) -> Display {
     display_winner(applied, Some(pseudo), Display::Inline)
         .unwrap_or_default()
-        .blockified(out_of_flow(applied, Some(pseudo)))
+        .blockified(flow(applied, Some(pseudo)) != Flow::In)
 }
 
-/// Whether the box is out of flow: absolutely positioned (`position:
-/// absolute | fixed`) or floated. `relative` and `sticky` stay in flow.
-/// Measured in Chrome 158 (`bl-346e`): each computes `display: block` for a
-/// span and puts it on a line of its own in `innerText`.
-fn out_of_flow(applied: &[Applied], pseudo: Option<Pseudo>) -> bool {
+/// How the box stands in flow ([`Flow`]): absolutely positioned (`position:
+/// absolute | fixed`), else floated, else in flow. Measured in Chrome 158
+/// (`bl-346e`): either way out of flow computes `display: block` for a span
+/// and puts it on a line of its own in `innerText`.
+fn flow(applied: &[Applied], pseudo: Option<Pseudo>) -> Flow {
     let is = |name: &str, values: &[&str]| {
         winner(applied, pseudo, name)
             .is_some_and(|v| values.contains(&v.trim().to_ascii_lowercase().as_str()))
     };
-    is("position", &["absolute", "fixed"])
-        || is("float", &["left", "right", "inline-start", "inline-end"])
+    if is("position", &["absolute", "fixed"]) {
+        Flow::Positioned
+    } else if is("float", &["left", "right", "inline-start", "inline-end"]) {
+        Flow::Float
+    } else {
+        Flow::In
+    }
 }
 
 /// UA-implicit `display` when no rule sets it: `datalist`, `area` and `rp` →
@@ -155,6 +162,7 @@ fn implicit_display(name: &str) -> Display {
         "datalist" | "area" | "rp" => Display::None,
         "slot" => Display::Contents,
         "li" => Display::ListItem,
+        "table" => Display::Table,
         n if is_block(n) => Display::Block,
         _ => Display::Inline,
     }

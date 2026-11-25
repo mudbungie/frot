@@ -234,3 +234,33 @@ fn out_of_flow_children_and_block_pseudo_elements() {
         assert_eq!(outline(html, true), "", "{html}");
     }
 }
+
+/// A grid or table box holds no line; an absolutely positioned one keeps its
+/// node whatever it holds; a list item with no marker is a plain block
+/// (`bl-08c6`).
+#[test]
+fn grid_table_positioned_and_unmarked_boxes() {
+    for (html, want) in [
+        ("<p style='display:grid'>t</p>", ""),
+        ("<p style='display:table'>t</p>", ""),
+        ("<p style='display:inline-grid'>t</p>", "paragraph"),
+        ("<p style='display:inline-table'>t</p>", "paragraph"),
+        ("<div autofocus style='display:table'>t</div>", ""),
+        (
+            "<div autofocus id=d style='display:inline-table'>t</div>",
+            "",
+        ),
+        ("<p style='position:absolute'></p>", "paragraph"),
+        ("<p style='position:fixed;display:grid'>t</p>", "paragraph"),
+        ("<p style='float:left'></p>", ""),
+        ("<p style='display:list-item'></p>", "paragraph"),
+        ("<p style='display:list-item;list-style:none'></p>", ""),
+        (
+            "<p style='display:list-item;list-style:none'>t</p>",
+            "paragraph",
+        ),
+    ] {
+        assert_eq!(outline(html, true), want, "{html}");
+    }
+    assert_eq!(outline("<p style='position:absolute'></p>", false), "");
+}

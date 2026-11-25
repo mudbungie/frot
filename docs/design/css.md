@@ -266,6 +266,10 @@ paragraph gave `p:is(:hover)` as the selector that throws.)
 (inherited). (**Amended 2026-11-22, `bl-e48d`:** `text-transform` was not in
 this list; Mark ruled that the case text is painted in is part of what `text`
 and `ax` claim, as it is of Chrome's `innerText` and accessible names.)
+(**Amended 2026-11-24, `bl-08c6`:** `position` and `float` were read and not
+listed — whether a box is absolutely positioned, floated or in flow — and
+`list-style-type` with the `list-style` shorthand (inherited) joins them, read
+only as "is it `none`" (`src/css/list.rs`): the `ax` view needs both.)
 
 `text-transform` (`src/css/transform.rs`, measured in Chrome 158 on the
 `transform` fixture): `uppercase`, `lowercase`, `capitalize`, `none`, on text

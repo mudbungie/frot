@@ -18,6 +18,12 @@ pub enum Display {
     ListItem,
     Flex,
     InlineFlex,
+    /// A table box (`table`, `block table`): laid out as a block, and no
+    /// block container — it holds no line of its own (`bl-08c6`).
+    Table,
+    /// `inline-table`: an inline-block to every reader but `ax`, where it is
+    /// a table as [`Display::Table`] is.
+    InlineTable,
     /// A grid container: laid out as a block, but its children are grid
     /// items, which CSS blockifies.
     Grid,
@@ -46,10 +52,9 @@ impl Display {
     pub fn parse(value: &str) -> Option<Self> {
         Some(match canonical(value)?.as_str() {
             "none" => Display::None,
-            "block" | "flow" | "flow-root" | "table" | "table-caption" | "-webkit-box"
-            | "block flow" | "block flow-root" | "block table" | "block ruby" | "block math" => {
-                Display::Block
-            }
+            "block" | "flow" | "flow-root" | "table-caption" | "-webkit-box" | "block flow"
+            | "block flow-root" | "block ruby" | "block math" => Display::Block,
+            "table" | "block table" => Display::Table,
             "grid" | "block grid" => Display::Grid,
             "inline-grid" | "inline grid" => Display::InlineGrid,
             "table-column" | "table-column-group" => Display::TableColumn,
@@ -64,8 +69,8 @@ impl Display {
             | "inline flow-root list-item"
             | "initial"
             | "unset" => Display::Inline,
-            "inline-block" | "inline-table" | "-webkit-inline-box" | "inline flow-root"
-            | "inline table" => Display::InlineBlock,
+            "inline-block" | "-webkit-inline-box" | "inline flow-root" => Display::InlineBlock,
+            "inline-table" | "inline table" => Display::InlineTable,
             "list-item" | "block list-item" | "block flow-root list-item" => Display::ListItem,
             "flex" | "-webkit-flex" | "block flex" => Display::Flex,
             "inline-flex" | "-webkit-inline-flex" | "inline flex" => Display::InlineFlex,
@@ -92,6 +97,7 @@ impl Display {
         matches!(
             self,
             Display::Block
+                | Display::Table
                 | Display::ListItem
                 | Display::Flex
                 | Display::Grid
@@ -132,6 +138,7 @@ impl Display {
             {
                 Display::Block
             }
+            Display::InlineTable if out_of_flow => Display::Table,
             Display::InlineFlex if out_of_flow => Display::Flex,
             Display::InlineGrid if out_of_flow => Display::Grid,
             other => other,

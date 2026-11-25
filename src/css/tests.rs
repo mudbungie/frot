@@ -155,4 +155,10 @@ fn an_out_of_flow_box_is_blockified() {
     assert_eq!(styles.before_display(one("u")), Display::Flex);
     assert_eq!(styles.display(one("s")), Display::Block);
     assert!(Display::Flex.block_level() && !Display::InlineBlock.block_level());
+    assert_eq!(Display::InlineTable.blockified(true), Display::Table);
+    assert_eq!(Display::InlineTable.blockified(false), Display::InlineTable);
+    let t = Document::parse("<table></table><p style='float:left;position:absolute'></p>");
+    let styles = compute(&t);
+    assert_eq!(styles.display(t.find_by_tag("table")[0]), Display::Table);
+    assert!(styles.positioned(t.find_by_tag("p")[0]));
 }

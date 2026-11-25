@@ -51,7 +51,8 @@ const PLAIN: &[&str] = &[
 /// `list-style:none`, or under a `role` that is not one (`bl-d61c`) — but
 /// not a `<p>`, a heading, a link or a `<section>`, which keep their own. A
 /// `display:table-cell` box is no group (`bl-824c`): Blink makes it a cell
-/// of an anonymous table.
+/// of an anonymous table; nor is a `table` or `inline-table` box, which is
+/// Blink's layout table (`bl-08c6`).
 pub fn group(
     doc: &Document,
     id: NodeId,
@@ -67,7 +68,11 @@ pub fn group(
         return Some("listitem");
     }
     let marked = || has("autofocus") || has("draggable");
-    let kept = || display != Display::TableCell && lineless::kept(doc, id, el, styles);
+    let table = matches!(
+        display,
+        Display::TableCell | Display::Table | Display::InlineTable
+    );
+    let kept = || !table && lineless::kept(doc, id, el, styles);
     (!has("role") && (has("popover") || marked() && kept())).then_some("group")
 }
 

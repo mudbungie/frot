@@ -16,7 +16,13 @@
 //!   has no node) — nor one with no box (`display:contents`) or a table row's.
 //!   A `display:table-cell` paragraph is a block container and keeps its
 //!   node; a table part or a block *through* a `display:contents` child is a
-//!   block-level child like any other (`bl-e3a0`).
+//!   block-level child like any other (`bl-e3a0`). Nor is a grid or a table
+//!   (`display:grid`, `display:table`), whatever it holds; `inline-grid` and
+//!   `inline-table` are block containers inside and keep it (`bl-08c6`).
+//!
+//! An absolutely positioned `<p>` (`position:absolute` or `fixed`) keeps its
+//! node whatever it holds — empty, a block, a grid; a floated one does not,
+//! and is a block like any other (`bl-08c6`).
 //!
 //! A line is any inline-level box: text that is not all collapsible white
 //! space (a no-break space counts), an inline element even when empty or
@@ -25,8 +31,9 @@
 //! block-level in flow (`p::after { content: "g"; display: block }` leaves no
 //! paragraph; a floated or absolutely positioned one keeps it), a float or an absolutely positioned box. A block *inside* an inline
 //! child does not count against the paragraph (`<p><a><span
-//! style="display:block">`), and a `display:list-item` paragraph always has
-//! its marker.
+//! style="display:block">`), and a `display:list-item` paragraph's marker is
+//! a line — when it has one: with `list-style-type:none`, inherited too
+//! (`css/list.rs`), it is a block like any other (`bl-08c6`).
 //!
 //! The author can hold the node in place: an explicit `role=paragraph` (a
 //! `role` that is no role, `<p role=foo>`, does not: `bl-50ec`), or any of
@@ -61,17 +68,20 @@ pub fn ignored(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>
 /// container with a line in it. The second half is not a `<span>`'s — Blink
 /// never keeps one for its box, even as `display:block` (`bl-0725`).
 pub fn kept(doc: &Document, id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
+    let marked = || styles.is_none_or(|s| s.marked(id));
     let line = || match Display::of(styles, id, &el.name) {
-        Display::ListItem => true,
+        Display::ListItem if marked() => true,
         Display::Block
+        | Display::ListItem
         | Display::InlineBlock
-        | Display::Grid
+        | Display::InlineTable
         | Display::InlineGrid
         | Display::TableCell => has_line(doc, id, styles),
         _ => false,
     };
+    let positioned = || styles.is_some_and(|s| s.positioned(id));
     let authored = || crate::ax::role::explicit(doc, id, el).is_some();
-    el.attrs.iter().any(held) || authored() || (el.name != "span" && line())
+    el.attrs.iter().any(held) || authored() || (el.name != "span" && (positioned() || line()))
 }
 
 /// The attributes that keep a lineless element in the tree — beside a usable

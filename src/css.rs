@@ -22,6 +22,7 @@ mod has;
 mod import;
 mod index;
 mod lang;
+mod list;
 pub mod media;
 mod nth;
 mod parse;
@@ -54,6 +55,17 @@ pub enum Visibility {
     #[default]
     Visible,
     Hidden,
+}
+
+/// How a box stands in its parent's flow. Absolutely positioned (`position:
+/// absolute | fixed`) wins over a float; `relative` and `sticky` stay in
+/// flow.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Flow {
+    #[default]
+    In,
+    Float,
+    Positioned,
 }
 
 /// Computed `flex-direction` — the flex container's main axis. Only consumed by
@@ -105,10 +117,13 @@ pub struct ComputedStyle {
     pub before_display: Display,
     /// Computed `display` of the `::after` box.
     pub after_display: Display,
-    /// Whether the box is out of flow: `position: absolute | fixed`, or a
-    /// float. Such a box is blockified ([`Display::blockified`]) and yet does
-    /// not make its parent's other children block-level.
-    pub out_of_flow: bool,
+    /// Whether the box is in flow, floated or absolutely positioned. A box
+    /// out of flow is blockified ([`Display::blockified`]) and yet does not
+    /// make its parent's other children block-level.
+    pub flow: Flow,
+    /// Computed (inherited) `list-style-type` is `none`: a list-item box
+    /// with no marker (`list.rs`).
+    pub unmarked: bool,
     /// The same fact for the `::before` and the `::after` box, in that order.
     pub pseudo_out_of_flow: [bool; 2],
     /// Computed (inherited) `text-transform` ([`transform`]). `before` and
@@ -197,9 +212,20 @@ impl Styles {
         self.get(id).text.as_deref().unwrap_or(raw)
     }
 
-    /// Whether `id`'s box is out of flow ([`ComputedStyle::out_of_flow`]).
+    /// Whether `id`'s box is out of flow ([`ComputedStyle::flow`]).
     pub fn out_of_flow(&self, id: NodeId) -> bool {
-        self.get(id).out_of_flow
+        self.get(id).flow != Flow::In
+    }
+
+    /// Whether `id`'s box is absolutely positioned ([`Flow::Positioned`]).
+    pub fn positioned(&self, id: NodeId) -> bool {
+        self.get(id).flow == Flow::Positioned
+    }
+
+    /// Whether `id`'s box, as a list item, has a marker
+    /// ([`ComputedStyle::unmarked`]).
+    pub fn marked(&self, id: NodeId) -> bool {
+        !self.get(id).unmarked
     }
 }
 

@@ -81,6 +81,8 @@ fn computed_display_covers_every_keyword() {
          <i id='d10' style='display:grid'></i>\
          <i id='d11' style='display:inline-grid'></i>\
          <i id='d12' style='display:table-column'></i>\
+         <i id='d13' style='display:table'></i>\
+         <i id='d14' style='display:inline-table'></i>\
          </body></html>",
     );
     let want = [
@@ -97,6 +99,8 @@ fn computed_display_covers_every_keyword() {
         "grid",
         "inline-grid",
         "table-column",
+        "table",
+        "inline-table",
     ];
     for (i, kw) in want.iter().enumerate() {
         let js =

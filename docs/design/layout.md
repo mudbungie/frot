@@ -176,6 +176,7 @@ stay out (table row groups, whose rows already break the line).
 | `contents` | no box; the children are laid out in the parent's flow |
 | `table-cell`, `table-row` | block flow, and its own rule in `text` (below) |
 | `grid`, `inline-grid` | laid out as `block` / `inline-block`, kept apart because a grid's children are grid items (below) |
+| `table`, `inline-table` (and `<table>` itself) | laid out as `block` / `inline-block`, kept apart because neither is a container with a line of its own in `ax`: no paragraph for a `display:table` `<p>`, no group for a marked `<div>` (`bl-08c6`) |
 | `table-column`, `table-column-group` | a block that paints none of its content: the content gets no box, no text, no AX node (`bl-9dec`) |
 
 **Coerced (accepted, approximated):** a value frot has no algorithm for takes
@@ -184,8 +185,8 @@ the nearest box it has — nearest in *level* first, because the level is what
 
 | Input | Coerced to | Because |
 |---|---|---|
-| `table`, `table-caption`, `flow-root`, `-webkit-box`, `block ruby`, `block math` | block | table layout is a non-goal (§6); all block-level |
-| `inline-table`, `-webkit-inline-box` | inline-block | the same, inline-level: an atomic box on the line it is written in |
+| `table-caption`, `flow-root`, `-webkit-box`, `block ruby`, `block math` | block | table layout is a non-goal (§6); all block-level |
+| `-webkit-inline-box` | inline-block | the same, inline-level: an atomic box on the line it is written in |
 | `ruby`, `ruby-text`, `math`, `inline list-item` | inline | inline-level and not atomic (Chrome names `va<span style="display:ruby">vb</span>vc` "vavbvc") |
 | `table-row-group`, `table-header-group`, `table-footer-group` | table-row | a group separates the way its rows do |
 | the multi-keyword forms (`inline flex`, `flex inline`, `list-item block`, `inline flow list-item`, …) | their one-keyword twin | CSS Display 3 §2.5; the keywords in any order, each kind once |
@@ -203,6 +204,11 @@ between items, is a line of `text`.
 
 Coercion is deterministic and documented; it is not a silent failure (§6, honest
 signals).
+
+> **Superseded 2026-11-24 (`bl-08c6`).** `table` was coerced to block and
+> `inline-table` to inline-block; the `ax` view could then not tell a
+> `display:table` `<p>` (no paragraph in Chrome 158) from a block one. They
+> are computed now, and lay out as before.
 
 > **Superseded 2026-11-22 (`bl-9dec`).** The coercion table sent `grid` to
 > block, `inline-grid` to inline-block and the table-column values to a block

@@ -93,5 +93,42 @@
 <dir>a dir</dir>
 <dir><li>dir item</li></dir>
 <dir role="none"><li>dir none item</li></dir>
+<h2>Boxes that hold no line</h2>
+<style>.ln { list-style: none } .ln .ld { list-style-type: disc } .lt { list-style-type: none; list-style: square } .lu { list-style: square; list-style-type: NONE }</style>
+<p style="display:grid">grid para</p>
+<p style="display:block grid">block grid para</p>
+<p style="display:table">table para</p>
+<p style="display:inline-grid">inline-grid para</p>
+<p style="display:inline-table">inline-table para</p>
+<p style="display:table-caption">caption para</p>
+<div autofocus style="display:grid"><a href="m.html">grid div</a></div>
+<div autofocus style="display:table"><a href="m.html">table div</a></div>
+<div autofocus style="display:inline-table"><a href="m.html">inline-table div</a></div>
+<p style="position:absolute"></p>
+<p style="position:fixed"></p>
+<p style="float:left"></p>
+<p style="position:absolute"><span style="display:block">absolute block</span></p>
+<p style="position:absolute;display:grid">absolute grid</p>
+<p style="float:right"><span style="display:block">float block</span></p>
+<div autofocus style="position:absolute"></div>
+<div autofocus style="float:left"></div>
+<p>s1 <span autofocus style="position:absolute"></span> s2</p>
+<p style="display:list-item;list-style:none"></p>
+<p style="display:list-item;list-style-type:none"></p>
+<p style="display:list-item"></p>
+<p style="display:list-item;list-style-position:inside"></p>
+<p style="display:list-item;list-style:none">no marker text</p>
+<div class="ln"><p style="display:list-item"></p></div>
+<div class="ln"><p class="ld" style="display:list-item"></p></div>
+<p class="lt" style="display:list-item"></p>
+<p class="lu" style="display:list-item"></p>
+<p style="display:list-item;list-style:inside none"></p>
+<p style="display:list-item;list-style:none none"></p>
+<p style="display:list-item;list-style:square none"></p>
+<p style="display:list-item;list-style:none square"></p>
+<div class="ln"><p style="display:list-item;list-style-type:inherit"></p></div>
+<div class="ln"><p style="display:list-item;list-style-type:initial"></p></div>
+<p style="display:list-item;list-style-type:bogus"></p>
+<ul><li style="list-style:none"></li></ul>
 </body>
 </html>
