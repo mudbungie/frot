@@ -18,8 +18,10 @@ use rquickjs::{CatchResultExt, Coerced, Context, Ctx, FromJs, Runtime, Value};
 
 mod clock;
 mod module;
+mod pattern;
 mod realm;
 pub use clock::{Clock, Deadline, NetBudget, EXEC_CPU_MS, NET_BUDGET_MS};
+pub use pattern::pattern_matches;
 pub use realm::Realms;
 
 /// Engine heap cap. `set_memory_limit` is only honoured on the default C

@@ -5,9 +5,9 @@
 //! attributes, never script-set properties: `input.checked = true` leaves no
 //! mark in the tree, so it is not seen here (`bl-bc6d`).
 
-use super::control;
 use super::focus::{focus_within, focused};
 use super::selector::ancestors;
+use super::{control, validity};
 use crate::dom::{Document, Element, NodeId, NodeKind, WalkEvent};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,6 +40,11 @@ pub enum State {
     Default,
     Indeterminate,
     PlaceholderShown,
+    /// `:valid`/`:invalid`, `:in-range`/`:out-of-range` ([`super::validity`]).
+    Valid,
+    Invalid,
+    InRange,
+    OutOfRange,
     /// `:paused`: every `<video>` and `<audio>` — nothing plays unattended.
     Paused,
     /// `:muted`: a `<video>` or `<audio>` with `muted`.
@@ -78,6 +83,10 @@ impl State {
             "default" => State::Default,
             "indeterminate" => State::Indeterminate,
             "placeholder-shown" => State::PlaceholderShown,
+            "valid" => State::Valid,
+            "invalid" => State::Invalid,
+            "in-range" => State::InRange,
+            "out-of-range" => State::OutOfRange,
             "paused" => State::Paused,
             "muted" => State::Muted,
             "popover-open" => State::PopoverOpen,
@@ -126,6 +135,10 @@ impl State {
             State::Default => control::default(doc, id, el),
             State::Indeterminate => control::indeterminate(doc, id, el),
             State::PlaceholderShown => control::placeholder_shown(doc, id, el),
+            State::Valid => validity::valid(doc, id, el) == Some(true),
+            State::Invalid => validity::valid(doc, id, el) == Some(false),
+            State::InRange => validity::in_range(doc, id, el) == Some(true),
+            State::OutOfRange => validity::in_range(doc, id, el) == Some(false),
             State::Paused => matches!(name, "video" | "audio"),
             State::Muted => matches!(name, "video" | "audio") && has(el, "muted"),
             State::PopoverOpen => has(el, "popover") && doc.popover_open(id),
@@ -142,7 +155,7 @@ pub(super) fn input_type(el: &Element) -> String {
     el.attr("type").unwrap_or_default().to_ascii_lowercase()
 }
 
-fn required(el: &Element) -> bool {
+pub(super) fn required(el: &Element) -> bool {
     let applies = match el.name.as_str() {
         "input" => !NEVER_REQUIRED.contains(&input_type(el).as_str()),
         name => matches!(name, "select" | "textarea"),
@@ -260,7 +273,7 @@ fn last_of_group(doc: &Document, id: NodeId, el: &Element) -> bool {
 /// own `selected`. Otherwise the select picks one: the last option with
 /// `selected`, else — unless it is a list box (`size` above 1) — the first
 /// that is not [`option_off`].
-fn selected(doc: &Document, id: NodeId, el: &Element) -> bool {
+pub(super) fn selected(doc: &Document, id: NodeId, el: &Element) -> bool {
     let Some((select, sel)) = owner_select(doc, id).filter(|(_, s)| !has(s, "multiple")) else {
         return has(el, "selected");
     };

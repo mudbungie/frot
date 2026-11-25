@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Constraint validation</title>
+<style>
+.v:invalid + b::after { content: " invalid"; }
+.v:valid + b::after { content: " valid"; }
+.v:out-of-range + b::before { content: "out "; }
+</style>
+</head>
+<body>
+<h1>Validity</h1>
+<p><input class="v" required aria-label="a"><b>a</b> <input class="v" value="x" required aria-label="b"><b>b</b>
+<input class="v" type="number" min="1" max="5" value="9" aria-label="c"><b>c</b></p>
+<div hidden>
+<form id="f_bad"><input id="t_req" required><input id="t_ok" required value="x"><input id="t_ws" required value=" "></form>
+<form id="f_good"><input id="t_free"><button id="b_sub"></button><button id="b_btn" type="button"></button><button id="b_reset" type="reset"></button><button id="b_bogus" type="bogus"></button></form>
+<input id="i_hidden" type="hidden" required><input id="i_resetin" type="reset"><input id="i_button" type="button"><input id="i_submit" type="submit"><input id="i_image" type="image">
+<input id="i_dis" required disabled><input id="i_ro" required readonly><input id="i_ro_cb" type="checkbox" required readonly><textarea id="ta_ro" required readonly></textarea>
+<datalist><input id="i_dl" required></datalist>
+<output id="out"></output><object id="obj"></object>
+<fieldset id="fs_empty"></fieldset><fieldset id="fs_bad"><div><input id="i_fs" required></div></fieldset><fieldset id="fs_good"><input id="i_fs2"></fieldset>
+<textarea id="ta_req" required></textarea><textarea id="ta_ok" required>t</textarea>
+<input id="n_bad" type="number" required value="1x"><input id="n_req" type="number" required value="2">
+<input id="cb_req" type="checkbox" required><input id="cb_on" type="checkbox" required checked>
+<input id="ra1" type="radio" name="g" required><input id="ra2" type="radio" name="g"><input id="rb1" type="radio" name="h" required><input id="rb2" type="radio" name="h" checked>
+<input id="ra_solo" type="radio" required><input id="ra_solo_on" type="radio" required checked>
+<select id="s_ph" required><option value="">Pick</option><option>A</option></select>
+<select id="s_ph_text" required><option> </option><option>A</option></select>
+<select id="s_pick" required><option value="">Pick</option><option selected>A</option></select>
+<select id="s_nonempty" required><option>A</option></select>
+<select id="s_group" required><optgroup><option value="">x</option></optgroup></select>
+<select id="s_multi" required multiple><option value="">x</option></select>
+<select id="s_multi_on" required multiple><option selected value="">x</option></select>
+<select id="s_size" required size="2"><option value="">x</option></select>
+<select id="s_empty" required></select><select id="s_free"><option value="">x</option></select>
+<input id="file_req" type="file" required><input id="file" type="file">
+<input id="em_bad" type="email" value="bad"><input id="em_ok" type="email" value="a@b"><input id="em_multi" type="email" multiple value="a@b, c"><input id="em_multi_ok" type="email" multiple value="a@b, c@d.e">
+<input id="em_ws" type="email" value=" a@b.c "><input id="em_dash" type="email" value="a@-b">
+<input id="url_bad" type="url" value="nope"><input id="url_ok" type="url" value="https://example.com/">
+<input id="p_bad" pattern="[0-9]+" value="1a"><input id="p_ok" pattern="[0-9]+" value="12"><input id="p_empty" pattern="[0-9]+" value=""><input id="p_alt" pattern="a|ab" value="ab">
+<input id="p_broken" pattern="[" value="x"><input id="p_num" type="number" pattern="[a-z]+" value="3">
+<input id="n_in" type="number" min="1" max="5" value="3"><input id="n_over" type="number" min="1" max="5" value="9"><input id="n_under" type="number" min="1" value="0">
+<input id="n_rev" type="number" max="5" min="7" value="6"><input id="n_blank" type="number" min="1" max="5"><input id="n_free" type="number" value="3">
+<input id="rg" type="range" value="9" max="5"><input id="rg_plain" type="range">
+<input id="d_under" type="date" min="2020-01-02" value="2020-01-01"><input id="d_in" type="date" min="2020-01-01" value="2020-02-29"><input id="d_bad" type="date" min="2020-01-01" value="2021-02-29">
+<input id="mo_over" type="month" max="2020-05" value="2020-06"><input id="wk_over" type="week" max="2020-W05" value="2020-W06">
+<input id="tm_in" type="time" min="09:00" max="17:00" value="12:30:15.5"><input id="tm_rev" type="time" min="22:00" max="02:00" value="23:00"><input id="tm_rev_out" type="time" min="22:00" max="02:00" value="12:00">
+<input id="dt_over" type="datetime-local" max="2020-01-01T10:00" value="2020-01-01T10:00:01">
+<input id="tx_range" type="text" min="1" max="5" value="9">
+<input id="st_bad" type="number" value="4" step="2" min="1"><input id="st_ok" type="number" value="5" step="2" min="1"><input id="st_any" type="number" value="4.5" step="any" min="1">
+<input id="st_val" type="number" value="3" step="2"><input id="st_neg" type="number" value="1.5" step="-1">
+<input id="len" maxlength="1" value="long"><input id="minlen" minlength="9" value="s">
+<input id="col" type="color" value="nope">
+</div>
+<div id="report"></div>
+<script>
+var report = document.getElementById('report');
+[':valid', ':invalid', ':in-range', ':out-of-range'].forEach(function (selector) {
+  var line = document.createElement('p');
+  var ids = [];
+  var hits = document.querySelectorAll(selector);
+  for (var i = 0; i < hits.length; i++) {
+    if (hits[i].id) ids.push(hits[i].id);
+  }
+  line.textContent = selector + ' = ' + ids.join(' ');
+  report.appendChild(line);
+});
+</script>
+</body>
+</html>

@@ -196,6 +196,22 @@ false.)
   custom element name or an `is` attribute — frot registers none. *(Since
   2026-11-24, `bl-688d`: a custom element a definition has upgraded is
   defined too — js.md §15; the custom state is kept in `dom::live`.)*
+- **`:valid` / `:invalid`, `:in-range` / `:out-of-range`** (`bl-51e9`;
+  `src/css/validity.rs` and `validity/value.rs`, whose module docs hold the
+  rules; Chrome 158, held in `tests/fixtures/fidelity/validity.html`):
+  constraint validation at load, with no user edit — candidates (barred when
+  disabled, `readonly` or inside a `<datalist>`), `<form>`/`<fieldset>` by
+  what they hold, a required value missing, `email`/`url` type mismatches,
+  `min`/`max` and `step`. **`pattern`** is a JavaScript regular expression,
+  so it is matched by the JS engine's own `RegExp` (`js::engine::pattern_matches`)
+  — a fresh runtime holding only `RegExp`, built per check, with no page, no
+  prelude and no `--js`, so it holds nothing and runs whatever the recipe. It
+  is compiled as `^(?:p)$` with the `v` flag; one that does not compile — and
+  quickjs-ng's `v` mode does not take set operations such as `[\p{L}--[a-z]]`
+  — is ignored, as HTML ignores a bad pattern, so there it is a residual. A
+  check that runs past 100 ms is abandoned the same way. Not checked: an
+  explicit `step` on `date`, `month` and `week`; `maxlength`/`minlength`
+  (Chrome checks them only after an edit, so at load they never fail).
 
 **`:has()`, `:scope`, `:lang()`, `:dir()`** (`bl-2a85`; `src/css/has.rs`,
 `lang.rs`, measured in Chrome 158 and held in
@@ -221,8 +237,9 @@ false.)
   valid and matches nothing.
 
 Still unsupported, so never matching and failing closed under `:not()`:
-`:valid` / `:invalid` and `:in-range` / `:out-of-range` (`bl-51e9`), and
-any pseudo-class Chrome does not know. (**Superseded 2026-11-22,
+any pseudo-class Chrome does not know. (**Superseded 2026-11-24, `bl-51e9`:**
+the list held `:valid` / `:invalid` and `:in-range` / `:out-of-range`.
+**Superseded 2026-11-22,
 `bl-2a85`:** the list held `:has()`, `:lang()`, `:dir()`, `:scope`, `:open`,
 `:defined`, `:default`, `:indeterminate`, `:placeholder-shown` and the
 media-element states; and, before `bl-5852`, `:target`.)

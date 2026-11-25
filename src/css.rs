@@ -30,6 +30,7 @@ mod selector;
 mod selparse;
 mod state;
 mod transform;
+mod validity;
 
 use crate::dom::NodeId;
 

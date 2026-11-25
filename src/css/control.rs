@@ -126,7 +126,7 @@ pub(super) fn placeholder_shown(doc: &Document, id: NodeId, el: &Element) -> boo
 }
 
 /// An `<input>`'s value as its type sanitizes it (module doc).
-fn sanitized(kind: &str, raw: &str) -> String {
+pub(super) fn sanitized(kind: &str, raw: &str) -> String {
     let flat: String = raw.chars().filter(|&c| c != '\n' && c != '\r').collect();
     match kind {
         "email" | "url" => flat
@@ -139,7 +139,7 @@ fn sanitized(kind: &str, raw: &str) -> String {
 
 /// HTML's valid floating-point number: `-`? digits with an optional
 /// fraction (or a bare fraction), then an optional exponent.
-fn number(s: &str) -> bool {
+pub(super) fn number(s: &str) -> bool {
     let digits = |s: &str| s.len() - s.trim_start_matches(|c: char| c.is_ascii_digit()).len();
     let s = s.strip_prefix('-').unwrap_or(s);
     let (whole, s) = s.split_at(digits(s));
@@ -158,7 +158,7 @@ fn number(s: &str) -> bool {
 }
 
 /// Call `f` on every element in tree order.
-fn elements(doc: &Document, f: &mut dyn FnMut(NodeId, &Element)) {
+pub(super) fn elements(doc: &Document, f: &mut dyn FnMut(NodeId, &Element)) {
     doc.walk(None, &mut |ev, entry| {
         if let (WalkEvent::Enter(n), NodeKind::Element(e)) = (ev, &entry.kind) {
             f(n, e);
