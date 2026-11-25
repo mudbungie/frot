@@ -131,3 +131,19 @@ fn a_one_letter_mi_is_mathematical_italic() {
         "𝑞"
     );
 }
+
+/// `bl-f058`, Chrome 158: Greek titlecase, combining marks, and the line
+/// going on after an atomic inline.
+#[test]
+fn capitalize_titlecase_marks_and_atomic_inlines() {
+    let cap = |s: &str| painted(&format!("<p style='text-transform:capitalize'>{s}</p>"));
+    assert_eq!(cap("ᾳb ᾀx ᾐx ᾠx ῃx ῳx"), "ᾼb ᾈx ᾘx ᾨx ῌx ῼx");
+    assert_eq!(
+        cap("e\u{301}b a\u{1ab0}c x\u{1dc0}y z\u{20d0}w q\u{fe20}r"),
+        "E\u{301}b A\u{1ab0}c X\u{1dc0}y Z\u{20d0}w Q\u{fe20}r"
+    );
+    assert_eq!(
+        cap("<span style='display:inline-block'>ab</span>cd <span style='display:block'>ij</span>kl"),
+        "Abcd\nIj\nKl"
+    );
+}

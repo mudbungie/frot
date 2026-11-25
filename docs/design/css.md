@@ -310,7 +310,10 @@ from content. Attributes are never transformed — `alt`, `title`,
 `<textarea>`, `<select>` and `<button>`, so an inherited transform stops
 there. `capitalize` reads the line across element boundaries
 (`x<span>yz</span>` keeps `yz`); a letter starts a word unless the
-character before it is a letter, a digit, `'`, `’`, `_` or a middle dot.
+character before it is a letter, a digit, a combining mark, `'`, `’`, `_`
+or a middle dot; after an inline-block the line goes on from its last
+character, and a letter takes a one-character titlecase where there is one
+(`ᾳ` → `ᾼ`; 2026-11-24, `bl-f058`).
 `lang` tailors casing for Turkish and Azeri only. `full-width` and
 `full-size-kana` are accepted and change nothing Chrome reports. `math-auto`
 — the UA's value on a `<mi>` without `mathvariant=normal` — paints a text

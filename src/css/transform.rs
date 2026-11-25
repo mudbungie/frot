@@ -9,9 +9,18 @@
 //! capitalized unless the character before it *in the line* — across element
 //! boundaries, so `x<span>yz</span>` keeps `yz` — is a letter, a digit, an
 //! apostrophe, an underscore or a middle dot. `o'neil` is `O'neil`, `x.y` is
-//! `X.Y`, `3rd` is `3rd`. A block, an atomic inline or a replaced element
-//! starts a fresh line context. A capitalized letter takes its titlecase form
-//! when that is a single character (`ǆ` → `ǅ`, `ß` stays `ß`).
+//! `X.Y`, `3rd` is `3rd`, and a combining mark continues the word. A block,
+//! an atomic inline or a replaced element starts a fresh line context; after
+//! an atomic inline the line goes on from its last character
+//! (`<span style="display:inline-block">ab</span>cd` is `Abcd`, `bl-f058`).
+//! A capitalized letter takes its titlecase form when that is a single
+//! character (`ǆ` → `ǅ`, `ᾳ` → `ᾼ`, `ß` stays `ß`).
+//!
+//! `math-auto` — the UA's value on a `<mi>` (not one with `mathvariant=
+//! normal`) — paints a text node of exactly one letter in its mathematical
+//! italic form: `<mi>x</mi>` is `𝑥`, `<mi><span>z</span></mi>` `𝑧`, while
+//! `<mi>sin</mi>`, `<mi> y </mi>` and `<mi>1</mi>` stay (Chrome 158,
+//! `bl-9b22`).
 //!
 //! `math-auto` — the UA's value on a `<mi>` (not one with `mathvariant=
 //! normal`) — paints a text node of exactly one letter in its mathematical
@@ -142,6 +151,14 @@ impl TextTransform {
             '\u{1c7}'..='\u{1c9}' => '\u{1c8}',
             '\u{1ca}'..='\u{1cc}' => '\u{1cb}',
             '\u{1f1}'..='\u{1f3}' => '\u{1f2}',
+            // Greek with ypogegrammeni: the titlecase is the prosgegrammeni
+            // form, one character, where the uppercase is two (`bl-f058`).
+            '\u{1f80}'..='\u{1f87}' | '\u{1f90}'..='\u{1f97}' | '\u{1fa0}'..='\u{1fa7}' => {
+                char::from_u32(c as u32 + 8).unwrap_or(c)
+            }
+            '\u{1fb3}' => '\u{1fbc}',
+            '\u{1fc3}' => '\u{1fcc}',
+            '\u{1ff3}' => '\u{1ffc}',
             c => {
                 let up = self.upper(c);
                 let mut chars = up.chars();
@@ -178,8 +195,13 @@ fn italic(c: char) -> Option<char> {
 }
 
 /// Whether a letter after `c` continues `c`'s word (module docs).
+/// A combining mark continues its letter's word: capitalize `e\u{301}b` is
+/// `E\u{301}b` (`bl-f058`).
 fn in_word(c: char) -> bool {
-    c.is_alphanumeric() || matches!(c, '\'' | '\u{2019}' | '_' | '\u{b7}' | '\u{2027}')
+    c.is_alphanumeric()
+        || matches!(c, '\'' | '\u{2019}' | '_' | '\u{b7}' | '\u{2027}')
+        || matches!(c, '\u{300}'..='\u{36f}' | '\u{1ab0}'..='\u{1aff}' | '\u{1dc0}'..='\u{1dff}')
+        || matches!(c, '\u{20d0}'..='\u{20ff}' | '\u{fe20}'..='\u{fe2f}')
 }
 
 /// One `text-transform` value: `None` when Chrome would drop the declaration.

@@ -118,8 +118,14 @@ fn walk(
         walk(cx, c, tree, &cs, &mut inner, nodes);
     }
     cs.after = cs.after.map(|s| after.apply(&s, &mut inner).unwrap_or(s));
+    // After a block the next line starts fresh; after an atomic inline it
+    // goes on from the inline's last character (`bl-f058`).
     if cs.display != Display::None {
-        *prev = if own_line { ' ' } else { inner };
+        *prev = if holds && !cs.display.block_level() {
+            inner
+        } else {
+            ' '
+        };
     }
     nodes[id as usize] = cs;
 }
