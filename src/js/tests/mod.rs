@@ -34,6 +34,7 @@ mod image;
 mod imagefetch;
 mod imageload;
 mod iterator;
+mod message;
 mod net;
 mod netbudget;
 mod newrequired;

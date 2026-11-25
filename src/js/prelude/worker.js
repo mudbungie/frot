@@ -90,8 +90,9 @@
   constructorLast(Worker);
 
   // --- MessagePort: NOT constructable (`new MessagePort()` throws "Illegal
-  // constructor", so __frot_iface's throwing ctor is exactly right) — only a
-  // SharedWorker's `port` hands one out. Same never-delivers residual.
+  // constructor", so __frot_iface's throwing ctor is exactly right). The shape
+  // is here; message.js makes a MessageChannel's ports deliver (bl-0af7). A
+  // SharedWorker's `port` has no partner, so its posts still go nowhere.
   var MessagePort = g.__frot_iface('MessagePort', {});
   inheritEventTarget(MessagePort);
   MessagePort.prototype.postMessage = noop('postMessage');

@@ -142,9 +142,8 @@
   // MutationObserver is genuine, IO/RO deliver a genuine initial batch.
   // TextEncoder moved out too (bl-53b7): it and TextDecoder are genuine UTF-8.
   // customElements moved out (js.md §15): the registry is genuine.
-  ['MessageChannel'].forEach(function (n) {
-    eq('absent:' + n, typeof globalThis[n], 'undefined');
-  });
+  // MessageChannel, the last one, moved out (bl-0af7): its ports deliver.
+  eq('msg:channel', Object.prototype.toString.call(new MessageChannel().port1), '[object MessagePort]');
   eq('ce:registry', Object.prototype.toString.call(customElements), '[object CustomElementRegistry]');
   eq('encoding:roundtrip', new TextDecoder().decode(new TextEncoder().encode('h\u00e9')), 'h\u00e9');
 

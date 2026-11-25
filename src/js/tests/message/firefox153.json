@@ -1,0 +1,17 @@
+{
+ "shapes": "initMessageEvent:fecw data:gec origin:gec lastEventId:gec source:gec ports:gec constructor:fcw || port1:gec port2:gec constructor:fcw || postMessage:fecw start:fecw close:fecw onmessage:gsec onmessageerror:gsec constructor:fcw || postMessage:fecw close:fecw name:gec onmessage:gsec onmessageerror:gsec constructor:fcw || 1 || 0 || 1 || function || true || 1 || addEventListener:fecw removeEventListene || addEventListener:fecw removeEventListene",
+ "ctor": "{\"a\":1},o,l,true,1,true,true,true",
+ "ctorDefaults": "////0/false",
+ "ctorBadSource": "THROW TypeError: MessageEvent constructor: 'source' member of MessageEventInit could not be converted to any of: WindowProxy, MessagePort, ServiceWorker.",
+ "pmNoArgs": "THROW TypeError: Window.postMessage: 0 is not a valid argument count for any overload.",
+ "pmOneArg": "ok",
+ "pmBadOrigin": "THROW SyntaxError: An invalid or illegal string was specified",
+ "pmFn": "THROW DataCloneError: Function object could not be cloned.",
+ "pmSym": "THROW DataCloneError: unsupported type for structured data",
+ "portSelf": "THROW DataCloneError: The object could not be cloned.",
+ "transferred": "posted-on-neutered",
+ "bcName": "chan,5",
+ "bcClosed": "THROW InvalidStateError: An attempt was made to use an object that is not, or is no longer, usable",
+ "bcNoArg": "THROW TypeError: BroadcastChannel constructor: At least 1 argument required, but only 0 passed",
+ "log": "sync-end\nmicro\nW:1|http://127.0.0.1:8947|win|\"\"|arr0true|truefalsefalse|win|MessageEvent\ntimeout0\nW:{\"a\":[1,2],\"d\":\"1970-01-01T00:00:00.000Z\",\"m\":{}}|http://127.0.0.1:8947|win|\"\"|arr0true|truefalsefalse|win|MessageEvent\nW:\"slash\"|http://127.0.0.1:8947|win|\"\"|arr0true|truefalsefalse|win|MessageEvent\nW:\"exact\"|http://127.0.0.1:8947|win|\"\"|arr0true|truefalsefalse|win|MessageEvent\nW:\"opts\"|http://127.0.0.1:8947|win|\"\"|arr0true|truefalsefalse|win|MessageEvent\nW:\"optsDefault\"|http://127.0.0.1:8947|win|\"\"|arr0true|truefalsefalse|win|MessageEvent\nP2:{\"x\":1}||null|\"\"|arr0true|truefalsefalse|MessagePort|MessageEvent\nP3:\"before-close\"||null|\"\"|arr0true|truefalsefalse|MessagePort|MessageEvent\nP4:\"back\"||null|\"\"|arr0true|truefalsefalse|MessagePort|MessageEvent\nP5:\"carry\"||null|\"\"|arr1true|truefalsefalse|MessagePort|MessageEvent\nB2:{\"hi\":1}|http://127.0.0.1:8947|null|\"\"|arr0true|truefalsefalse|BroadcastChannel|MessageEvent\nF:\"to-frame\"|http://127.0.0.1:8947|win|\"\"|arr0true|truefalsefalse|Window|MessageEvent\nW:\"from-frame\"|http://127.0.0.1:8947|frame|\"\"|arr0true|truefalsefalse|win|MessageEvent\nB1:\"to-all\"|http://127.0.0.1:8947|null|\"\"|arr0true|truefalsefalse|BroadcastChannel|MessageEvent\nFB:\"to-all\"|http://127.0.0.1:8947|null|\"\"|arr0true|truefalsefalse|BroadcastChannel|MessageEvent\nP6:\"via-transferred\"||null|\"\"|arr0true|truefalsefalse|MessagePort|MessageEvent\nP2b:\"queued-before-start\"||null|\"\"|arr0true|truefalsefalse|MessagePort|MessageEvent\nP2b:\"after-start\"||null|\"\"|arr0true|truefalsefalse|MessagePort|MessageEvent"
+}

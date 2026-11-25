@@ -259,6 +259,10 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/audio.js"),
     "\n",
+    // message.js (bl-0af7): postMessage, MessageChannel, BroadcastChannel —
+    // tasks on loop.js's queue; before frame.js, which takes `__frot_loop`.
+    include_str!("prelude/message.js"),
+    "\n",
     // Iframe windows (bl-54ac, js.md §14): after loop.js, whose agent state it
     // hands every window it opens, and dom.js/elem.js (HTMLIFrameElement).
     include_str!("prelude/frame.js"),

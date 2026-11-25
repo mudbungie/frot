@@ -370,6 +370,23 @@ Consequences of the repo's hard rules:
   `onabort` set after a listener now runs after it, as measured). Only events
   frot fires run a handler (§11): `<img onerror>` and `<body onload>` do;
   `onclick` stays inert because nothing clicks.
+- **Messaging (`bl-0af7`, 2026-11-24).** `message.js`, measured on Firefox
+  153.0esr (`src/js/tests/message/`): `window.postMessage` (an own property
+  of every window, `targetOrigin` `*`/`/`/an origin or the options form, an
+  unparsable one a `SyntaxError`, a mismatched one silently dropped),
+  `MessageEvent`, `MessageChannel`/`MessagePort` (a port queues until
+  `start()` or an `onmessage` set; `close` disentangles; a transferred port
+  is replaced in the receiver and goes dead in the sender) and
+  `BroadcastChannel` (every other open channel of that name, in any window of
+  the run). The data is structured-cloned at the post — a function or symbol
+  is a synchronous `DataCloneError`. Every delivery is a task on the one agent
+  loop (§5), FIFO with the zero-delay timers as the binary orders them, so a
+  frame↔parent post needs no new state: the channel registry is the agent's
+  loop state and dies with the run. Declared residual: `event.source` is the
+  **entry** window — the window whose task, timer or script is running — where
+  the binary uses the caller's realm; the two differ only for frame code a
+  parent runs synchronously (`w.eval(…)` posting to `parent` reads the parent
+  as its source). `MessageChannel` leaves the env-contract's absent list.
 
 ## 4. What runs, and when
 
@@ -1809,7 +1826,9 @@ event loop, main.js runs, POSTs once more, and the re-issued navigation
 returned the question page: `status:"ok"`, `http.status 200`,
 `challenge:{rounds:1, passed:true}` — 2 runs of 3, the third answered 429
 (rate-limited by the runs themselves). That wall is `bl-a86b`. The same trace
-found `window.postMessage` absent in every window (`bl-0af7`).
+found `window.postMessage` absent in every window (`bl-0af7`). *(Built
+2026-11-24, `bl-0af7`: postMessage, MessageChannel and BroadcastChannel, §3
+"Messaging".)*
 
 ## 15. Custom elements and shadow DOM (`bl-aff4`, 2026-11-24)
 

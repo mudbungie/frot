@@ -57,6 +57,13 @@
   // frame.js hands `shared` to each window it opens; a frame's initial
   // about:blank document is complete at birth (measured, js.md §14).
   Object.defineProperty(g, '__frot_loop', { value: shared, configurable: true });
+  // A task on this window's loop, FIFO with the zero-delay timers (message.js).
+  Object.defineProperty(g, '__frot_task', {
+    value: function (run) {
+      schedule(run, 0, [], 0);
+    },
+    configurable: true,
+  });
   if (agent) g.__frot_slots(g.document).readyState = 'complete';
   // `performance` is a WebIDL interface, not an object literal: measured on
   // Firefox 153.0esr (identity.md §3.17) its instance owns nothing, its parent
@@ -209,11 +216,17 @@
     } else {
       timers.splice(best, 1);
     }
+    // The entry window while the callback runs: whose task this is
+    // (message.js reads it as a posted message's `source`).
+    var was = shared.entry;
+    shared.entry = t.self;
     try {
       t.cb.apply(t.self, t.args);
       return 0;
     } catch (e) {
       return 1;
+    } finally {
+      shared.entry = was;
     }
   };
 
