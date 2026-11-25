@@ -54,6 +54,7 @@ pub(super) fn host(engine: &Engine, probe: Option<ProbeLog>) -> Host {
         clock: engine.clock(),
         probe,
         current: Rc::new(std::cell::Cell::new(None)),
+        pending: Default::default(),
         location: "https://example.com/".into(),
         realms: engine.realms(),
     }

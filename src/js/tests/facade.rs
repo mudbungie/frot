@@ -230,7 +230,8 @@ fn non_js_type_and_nomodule_scripts_are_skipped_uncounted() {
 
 #[test]
 fn script_inserted_scripts_join_the_queue() {
-    // §4.3: a script that appends another <script> runs the appended one too.
+    // §4.3: a script that appends another <script> runs the appended one too
+    // (on insertion, bl-a86b — `inserted.rs` pins the order).
     let (doc, report) = drive(
         "<body><script>\
          var s = document.createElement('script');\

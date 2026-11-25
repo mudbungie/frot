@@ -164,6 +164,11 @@ impl Document {
         let wrapper = rc.document.children.borrow()[0].clone();
         let fragment = self.create_fragment();
         self.absorb_children(&wrapper, fragment);
+        // The fragment parser starts every script it makes: an `innerHTML`
+        // script never runs (HTML §13.4, `bl-a86b`; measured in Firefox).
+        for id in self.scripts_in(fragment) {
+            self.start(id);
+        }
         fragment
     }
 

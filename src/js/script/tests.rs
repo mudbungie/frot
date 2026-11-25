@@ -1,7 +1,7 @@
 //! `<script>` classification unit tests (js.md §4.1): totality on non-element
 //! ids and the JS-type recognizer, driven directly for full Rust coverage.
 
-use super::{classify, external_intent, initial_externals, is_js_type, Script};
+use super::{classify, external_intent, initial_externals, is_js_type};
 use crate::dom::Document;
 use crate::fetch::Intent;
 
@@ -12,7 +12,7 @@ fn classify_is_total_on_non_element_nodes() {
     let doc = Document::parse("<body>hi</body>");
     let body = doc.find_by_tag("body")[0];
     let text = doc.node(body).children[0];
-    assert!(matches!(classify(&doc, text, None), Script::Skip));
+    assert!(classify(&doc, text, None).is_none());
 }
 
 #[test]

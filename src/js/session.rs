@@ -13,7 +13,7 @@ use crate::fetch::FetchSession;
 
 use super::engine::{self, Deadline, Engine, NetBudget};
 use super::probe::ProbeLog;
-use super::{geometry, script, subfetch, syscall};
+use super::{geometry, subfetch, syscall};
 use super::{Env, EvalError, Log, StyleSource};
 
 /// A JS execution session bound to one document. It owns the engine, shares the
@@ -33,6 +33,8 @@ pub struct Session {
     /// is a query over (js.md §4.1). Set and restored around one classic script
     /// by [`run_script`](Self::run_script); never written from JS.
     current: syscall::CurrentScript,
+    /// Inserted external and module scripts waiting for a task (js.md §4).
+    pending: syscall::Pending,
     /// The final page URL — the document URL every document-relative reference
     /// is ultimately anchored to ([`crate::base`]); external modules use their
     /// own fetched URL.
@@ -128,6 +130,7 @@ impl Session {
         // The transport's one cookie jar (bl-6dad), read and written by JS too.
         let cookie = fetch.cookie_jar();
         let current: syscall::CurrentScript = Rc::new(std::cell::Cell::new(None));
+        let pending = syscall::Pending::default();
         // The ES-module resolver/loader (js.md §4.1/§6) rides the same §6 cache as
         // fetch/XHR/external-src, installed before any module evaluates.
         super::loader::install(&engine, &subfetch);
@@ -145,6 +148,7 @@ impl Session {
                 clock: engine.clock(),
                 probe,
                 current: current.clone(),
+                pending: pending.clone(),
                 location: page_url.clone(),
                 realms: engine.realms(),
             },
@@ -156,6 +160,7 @@ impl Session {
             counters,
             subfetch,
             current,
+            pending,
             page_url,
         }
     }
@@ -286,15 +291,6 @@ impl Session {
     pub(super) fn subfetch(&self, spec: &str, intent: crate::fetch::Intent) -> subfetch::Outcome {
         self.subfetch.borrow_mut().get(spec, intent)
     }
-
-    /// Warm the §6 cache concurrently with the initial external scripts (bl-08f6):
-    /// a preload-scanner pass over the parsed document so the source-ordered
-    /// script queue finds each external `src` already frozen instead of blocking
-    /// on it one round trip at a time. Discovery releases the document borrow
-    /// before the cache's parallel dispatch, which rides — and is charged to —
-    /// the run's `NET_BUDGET_MS` network budget, and its byte pool.
-    pub(super) fn warm_initial_scripts(&self) {
-        let reqs = script::initial_externals(&self.doc.borrow(), &self.page_url);
-        self.subfetch.borrow_mut().warm(&reqs);
-    }
 }
+
+mod scripts;

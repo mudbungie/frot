@@ -937,6 +937,52 @@ correction.
 > has already closed to (`js.md` §4 rule 4, `bl-a86b`). With that one rule
 > relaxed in a throwaway build, the challenge **passed** (2 of 3 runs; the
 > third a 429). Full trace: `js.md` §14.5.
+>
+> **Update 2026-11-24 (`bl-a86b`).** Built: an inserted script runs whenever
+> it arrives (`js.md` §4.7). The challenge now **passes 6 runs of 6** — §11.7.
+
+### 11.7 Cloudflare passed, run by run (`bl-a86b`, 2026-11-24)
+
+Release build of the `bl-a86b` tree (an inserted script runs whenever it
+arrives, `js.md` §4.7), from the machine the session ran on — not verified to
+be the §3 reference egress. `frot https://stackoverflow.com/questions/1732348
+--js --js-errors --out text`, six runs: three within two minutes, then three
+five minutes apart.
+
+| run | envelope | page `js` | text |
+|---|---|---|---|
+| 1 | `ok`, `http.status 200`, `challenge:{declared:"cf-mitigated", rounds:1, passed:true}` | scripts 72, errors 13, `stopped:"budget"` | 67,638 chars |
+| 2 | same | 72, 13, budget | 67,518 |
+| 3 | same | 72, 13, budget | — |
+| 4 | same | 71, 14, budget | — |
+| 5 | same | 38, 6, budget | — |
+| 6 | same | 67, 12, budget | 68,444 |
+
+**Pass rate: 6 of 6.** No run failed, so what a failure looks like on this
+tree was not observed; the throwaway build's one failure of three (§11.5
+update) was a 429 — Cloudflare rate-limiting runs made back to back — which
+frot reports as `error{http.429}`, exit 1, no `challenge` block (the 429
+declares nothing, §11.5 step 3). In order, a pass is: GET → 403 +
+`cf-mitigated: challenge` → the inline script and the challenge-platform
+script run → iframes, `eval` in them, a POST to `/cdn-cgi/challenge-platform/…
+/fo/…` → a timer inserts `<script src=…/precursor/…/main.js>`, which now runs
+→ one more POST → the run has earned its round (§12.1; which cookie earned it
+was not traced) → the re-issued
+GET answers 200 with the question page, which is what is impressed.
+
+**The `js` block is the question page's**, not the challenge's: 38–72 of its
+scripts ran before the compute budget stopped it (§5; which scripts ran is
+network timing). Its first errors are the page's own walls, filed:
+`querySelector("script[src*='otSDKStub']")` threw — attribute operators
+(`bl-1519`, built); `<template>.content` is absent (`bl-52bf`).
+
+**Not every Cloudflare managed challenge takes this path.** medium.com and
+npmjs.com (same `cf-mitigated: challenge`, the `orchestrate/chl_page` script)
+stop earlier: a timer callback reads `ReadableStream.prototype`, frot has no
+`ReadableStream`, and the run ends `needs:["human"]`, `rounds:0` with one
+count-only error (`bl-96f7`; with a throwaway stub it goes on to load
+Turnstile's `api.js`, POST once, and hit `PerformanceResourceTiming` —
+`bl-c378`).
 
 ### 11.6 The undeclared 200 on Amazon, captured (`bl-eed9`, 2026-11-20)
 

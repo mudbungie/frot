@@ -28,13 +28,14 @@ mod env;
 mod frame;
 mod host;
 mod image;
+mod insert;
 mod live;
 mod messages;
 mod net;
 mod subtle;
 mod tree;
 
-pub use host::{Console, Counters, CurrentScript, Env, Host, Log, SharedDoc};
+pub use host::{Console, Counters, CurrentScript, Env, Host, Log, Pending, SharedDoc};
 pub(crate) use image::size as image_size;
 pub use messages::{push as push_message, Message, Messages};
 
@@ -47,6 +48,7 @@ type Group = for<'js> fn(&Ctx<'js>, &rquickjs::Object<'js>, &Host) -> rquickjs::
 const GROUPS: &[Group] = &[
     reads,
     mutations,
+    insert::install,
     query_and_console,
     geometry,
     messages::install,
@@ -171,7 +173,8 @@ fn reads<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquickjs::
     Ok(())
 }
 
-/// The §2 mutation syscalls plus fragment parsing (the `innerHTML` primitive).
+/// The §2 mutation syscalls plus fragment parsing (the `innerHTML` primitive);
+/// the three that can make a `<script>` runnable are [`insert`]'s.
 fn mutations<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquickjs::Result<()> {
     let doc = &h.doc;
     bind!(ctx, g, "__frot_create_element", {
@@ -190,24 +193,9 @@ fn mutations<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquick
         let d = doc.clone();
         move || d.borrow_mut().create_fragment()
     });
-    bind!(ctx, g, "__frot_set_attr", {
-        let d = doc.clone();
-        move |id: u32, name: String, value: String| d.borrow_mut().set_attr(id, &name, &value)
-    });
     bind!(ctx, g, "__frot_remove_attr", {
         let d = doc.clone();
         move |id: u32, name: String| d.borrow_mut().remove_attr(id, &name)
-    });
-    bind!(ctx, g, "__frot_set_text", {
-        let d = doc.clone();
-        move |id: u32, text: String| d.borrow_mut().set_text(id, &text)
-    });
-    bind!(ctx, g, "__frot_insert_child", {
-        let d = doc.clone();
-        // Answers the reason for a refused insertion, `undefined` when done.
-        move |parent: u32, child: u32, before: Option<u32>| {
-            d.borrow_mut().insert_child(parent, child, before).err()
-        }
     });
     // Why `child` may not take the place of `old` under `parent` — asked by
     // `replaceChild` before it removes anything.

@@ -68,6 +68,7 @@
     HTMLLinkElement: 'disabled href rel relList type',
     HTMLLIElement: 'value type',
     HTMLParamElement: 'value type',
+    HTMLScriptElement: 'src type text',
     HTMLImageElement: 'decode alt src srcset crossOrigin useMap referrerPolicy isMap width height ' +
       'decoding loading fetchPriority naturalWidth naturalHeight complete name align hspace vspace ' +
       'longDesc border sizes currentSrc lowsrc x y',

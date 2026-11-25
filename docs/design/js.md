@@ -448,7 +448,9 @@ during parse. So:
    A fetch failure for a `src` skips that script (counted), like a failed
    stylesheet.
 3. Scripts inserted by other scripts (`appendChild` of a `<script>`) join the
-   end of the queue — that is how bundlers chain-load.
+   end of the queue — that is how bundlers chain-load. *(Superseded 2026-11-24,
+   `bl-a86b`: an inserted script runs when it arrives, as in Firefox — see
+   §4.7.)*
 4. After the queue drains: `DOMContentLoaded`, then `load`, then the settle
    loop (§5). `document.readyState` tracks this: `'loading'` while the queue
    runs (deferred scripts included), `'interactive'` immediately before
@@ -456,7 +458,9 @@ during parse. So:
    `readystatechange` on `document`, so readyState-polling init unblocks. Re-entry (rule 3) is a *script-phase* affordance: once the queue
    drains the phase is over, so a `<script>` inserted later by a lifecycle
    handler or a timer callback is not executed — one linear pass, no feedback
-   from the event loop into the script queue.
+   from the event loop into the script queue. *(Superseded 2026-11-24,
+   `bl-a86b`, decided by Mark: "yes" — the last sentence is reversed. A script
+   inserted at any time runs, inside the unchanged §5 budgets; §4.7.)*
 5. **`document.write` throws** (counted). Post-parse `write` implies reopening
    the document — semantics frot will not fake. Ad-tech long-tail is a
    non-goal.
@@ -483,6 +487,75 @@ during parse. So:
    `--css` — added mechanism and behavior risk for zero gain. Views that surface
    `<noscript>` structurally today (`links`, `forms`, raw `dom`) list its
    contents regardless of the cascade, by the same policy-vs-semantics split.
+
+7. **An inserted script runs whenever it arrives (`bl-a86b`, 2026-11-24).**
+   Cloudflare's managed challenge appends its next stage, a `<script src>`,
+   from a timer; with rule 4 it was never fetched and the challenge stalled
+   (§14.5). Firefox runs a script inserted at any time, so frot does, through
+   one gate for every script — HTML's "prepare the script element"
+   (`script::prepare`) — in the order it happens:
+   1. **The parser's scripts.** When the run starts, every `<script>` in the
+      parsed document is the parser's: each is marked *already started* at
+      once (so nothing an earlier script does to a later one — moving it,
+      giving it text — runs it early; in a browser it does not exist yet), then
+      they run in document order as before (rules 1–2). A parser script whose
+      body is empty, or whose `type` is not JavaScript, does not run.
+   2. **The three moments a script may become runnable**, all in
+      `src/js/syscall/insert.rs`, on the mutation syscalls themselves, so every
+      DOM API is covered without a hook per API: it is **inserted** (with its
+      subtree, or into a fragment that is inserted — its scripts in tree
+      order), it **gains children** (`textContent`, `text`, `appendChild` of a
+      text node), or it **gains a `src`**. Each calls the gate, which declines a
+      script that is already started, disconnected, empty with no `src`, or of
+      a non-JS `type` — and leaves the last two *unstarted*, so they can still
+      run later (measured: Firefox runs an empty inserted script once it is
+      given text, and a `type=text/x-foo` script re-inserted after its type
+      was cleared). Otherwise the script is marked started and:
+      - **inline classic** — runs **synchronously, inside the inserting call**,
+        as its own `document.currentScript`; the inserting script sees its
+        effects on its next line. A throw is the inserted script's: counted
+        and captured (§10), and the insertion returns normally. No microtask
+        checkpoint runs in between (the inserting script is still on the stack).
+      - **external `src`, or a module** (inline or external) — waits in the
+        document's pending queue for a task.
+   3. **Pending scripts run after every task**, oldest first, one task each:
+      after the parser's scripts (so before `DOMContentLoaded`, as rule 3 had
+      it), and after every lifecycle event, image task and timer callback. A
+      script a timer inserts therefore runs before the next timer. In Firefox
+      a 0 ms timer queued after it usually wins, because the fetch takes time;
+      frot's fetch completes at once, which is a schedule a browser may also
+      take (a cached script). `async` and `async=false` scripts both run in
+      insertion order — the one order that satisfies both when every fetch is
+      instant. (The `async` property itself is not reflected yet: `bl-f9f2`.)
+   4. **An external script fires `load` after it runs** (even if it threw) or
+      **`error` when its fetch failed** (still counted, §4.2) — every external
+      script, parsed or inserted, as in Firefox (`prelude/scriptload.js`).
+   5. **Never twice, never from markup.** *Already started* is a flag of the
+      element, kept in the arena beside focus (`dom::live`). A moved script
+      does not re-run; a clone of a started script is started (HTML's cloning
+      steps); the fragment parser starts every script it makes, so an
+      `innerHTML`/`outerHTML`/`insertAdjacentHTML` script never runs — which
+      also corrects frot's earlier behaviour, where the script-phase rescan
+      ran them.
+   6. **Frames.** The gate is per document, so an inline script a page inserts
+      into an iframe's document runs in that frame's window (§14). An
+      external or module script inserted into a frame document waits in the
+      frame's queue, which nothing drains yet (`bl-b34e`).
+
+   **Bounds are unchanged.** Every inserted script runs inside the run's one
+   compute window and network budget (§5); a budget trip inside an inserted
+   inline script surfaces there as a throw and the interrupt fires again in
+   the inserting script, which stops the run. Measured on Firefox 153.0esr (the
+   identity.md §3.19 rig, a page served over `http:`): inline inserted runs
+   synchronously with itself as `currentScript`; externals run in insertion
+   order after the inserting task, each followed by its `load`; a failed one
+   fires `error`; a moved or cloned started script does not run; an
+   `innerHTML` script does not run; a fragment's two scripts run in order on
+   insertion; an inserted inline module runs as a later task. frot matches
+   every one; where Firefox's order depended on network time (externals after
+   `DOMContentLoaded`, a 0 ms timer before a late external) frot takes the
+   instant-fetch schedule. Pinned: `src/js/tests/inserted.rs`, and against
+   Chrome by the fidelity fixture `inserted.html`.
 
 ## 5. Bounded execution — the event loop
 
@@ -1841,6 +1914,9 @@ returned the question page: `status:"ok"`, `http.status 200`,
 found `window.postMessage` absent in every window (`bl-0af7`). *(Built
 2026-11-24, `bl-0af7`: postMessage, MessageChannel and BroadcastChannel, §3
 "Messaging".)*
+
+**Update 2026-11-24 (`bl-a86b`).** Built as §4.7: the inserted `main.js`
+runs, and the challenge passed 6 runs of 6 (`challenge.md` §11.7).
 
 ## 15. Custom elements and shadow DOM (`bl-aff4`, 2026-11-24)
 

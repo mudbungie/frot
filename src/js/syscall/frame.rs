@@ -74,6 +74,7 @@ impl Creator {
             clock: self.clock.clone(),
             probe: None,
             current: Rc::new(Cell::new(None)),
+            pending: Default::default(),
             location: INITIAL.into(),
             realms: self.realms.clone(),
         }

@@ -235,6 +235,10 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/image.js"),
     "\n",
+    // A finished external <script>'s load/error (bl-a86b), fired the way
+    // imageload.js fires an image's.
+    include_str!("prelude/scriptload.js"),
+    "\n",
     // WebGL fingerprint (bl-f624): a coherent, deterministic simulation. webglpix.js
     // (the shared FNV digest + xorshift bitmap expansion) first, then webgl.js (the
     // branded WebGL/WebGL2 contexts, masked VENDOR/RENDERER, coherent Mesa/llvmpipe

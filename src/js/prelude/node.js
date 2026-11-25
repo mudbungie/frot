@@ -100,6 +100,8 @@
       g.__frot_attrs(id).forEach(function (a) {
         g.__frot_set_attr(slots(copy).id, a[0], a[1]);
       });
+      // A clone of a script that started is started too: it never runs.
+      g.__frot_clone_started(id, slots(copy).id);
       if (deep) {
         kids(this).forEach(function (kid) {
           copy.appendChild(wrap(kid).cloneNode(true));

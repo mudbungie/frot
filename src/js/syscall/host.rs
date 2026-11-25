@@ -14,6 +14,7 @@ use crate::fetch::SharedJar;
 use crate::js::engine::{Clock, Realms};
 use crate::js::geometry::SharedGeometry;
 use crate::js::probe::ProbeLog;
+use crate::js::script::Script;
 use crate::js::subfetch::SharedSubfetch;
 
 /// The arena, shared between the host and the syscall closures for the JS
@@ -69,6 +70,11 @@ pub struct Counters {
     /// (`location.reload()`, or `assign`/`replace`/`href=` with its own URL):
     /// the one navigation request `run.rs` may honour (`challenge.md` §12).
     pub reload: Rc<Cell<bool>>,
+    /// Inserted inline scripts the insertion hook ran synchronously, and how
+    /// many of them threw (js.md §4, `bl-a86b`) — folded into `js.scripts` and
+    /// `js.errors` beside the ones the run driver ran.
+    pub scripts: Rc<Cell<u32>>,
+    pub threw: Rc<Cell<u32>>,
 }
 
 /// The `<script>` the host is running *right now*, or `None` between scripts
@@ -78,6 +84,11 @@ pub struct Counters {
 /// leave a stale identity behind. Modules never set it — their `currentScript`
 /// is `null` by spec.
 pub type CurrentScript = Rc<Cell<Option<NodeId>>>;
+
+/// Inserted scripts waiting for their task (js.md §4, `bl-a86b`): an external
+/// `src` or a module, in insertion order. The run driver takes one after every
+/// task; an inline classic script never waits here — it runs on insertion.
+pub type Pending = Rc<RefCell<std::collections::VecDeque<(NodeId, Script)>>>;
 
 /// One captured `console` call (level + rendered message), in emission order.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -124,6 +135,8 @@ pub struct Host {
     /// while its origin, cookies and base stay its creator's — which is
     /// everything else in `env`.
     pub location: String,
+    /// This document's inserted scripts waiting for a task — see [`Pending`].
+    pub pending: Pending,
     /// The frame realms the engine owns (js.md §14): a page reading
     /// `contentWindow` opens one through the `__frot_open_frame` syscall.
     pub realms: Realms,

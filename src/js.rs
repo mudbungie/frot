@@ -24,7 +24,7 @@ use crate::dom::{Document, NodeId};
 use crate::envelope::JsStop;
 use crate::fetch::FetchSession;
 use engine::{Deadline, NetBudget};
-use script::{next_script, Script};
+use script::Script;
 
 pub use engine::EvalError;
 pub use geometry::StyleSource;
@@ -172,57 +172,84 @@ pub(crate) fn run_session(session: &Session) -> Report {
     report.reload = session.reload_asked();
     report.errors += session.rejections();
     report.errors += session.reported_errors();
+    let (ran, threw) = session.inserted_tally();
+    report.scripts += ran;
+    report.errors += threw;
     // The bounded §10 message detail captured across the run (§10).
     report.messages = session.messages();
     report
 }
 
-/// Drain the script queue in document order (§4). Scripts a script inserts join
-/// the queue (§4.3): each pass re-scans for the next not-yet-run `<script>`, a
-/// fixpoint that picks up appended ones. A budget trip names the `stopped` bound
-/// and ends the phase; scripts inserted later (by timers/lifecycle) do not re-enter — the
-/// script phase is over once this returns (§4.4).
+/// The parser's scripts, in document order (§4), then every inserted script
+/// they queued. A script a script inserts is not one of the parser's: an inline
+/// one already ran inside the call that inserted it (`syscall::insert`), and an
+/// external or module one waits in the pending queue for [`drain_inserted`]. A
+/// budget trip names the `stopped` bound and ends the phase.
 fn run_script_queue(session: &Session, report: &mut Report) {
-    let mut done: Vec<NodeId> = Vec::new();
+    for id in session.parser_scripts() {
+        if !report.settled() {
+            return;
+        }
+        if let Some(script) = session.prepare_parsed(id) {
+            execute(session, id, script, report);
+        }
+    }
+    drain_inserted(session, report);
+}
+
+/// Run the inserted external and module scripts waiting for a task, oldest
+/// first, one task each (§4, `bl-a86b`) — after the parser's scripts and after
+/// every event-loop task, so a script a timer inserts runs before the next
+/// timer, as a fetch that completes at once would in a browser.
+pub(crate) fn drain_inserted(session: &Session, report: &mut Report) {
     while report.settled() {
-        let Some((id, script)) = next_script(session, &done) else {
-            break;
+        let Some((id, script)) = session.next_inserted() else {
+            return;
         };
-        done.push(id);
-        match script {
-            // External `src`: fetched under the §6 subfetch policy, then run as a
-            // classic script or evaluated as a module (§4.1).
-            Script::External { module, src } => run_external(session, id, module, &src, report),
-            // Non-JS `type` / `nomodule`: not for us (§4.1), skipped silently.
-            Script::Skip => {}
-            // Inline classic body, or an inline module whose imports resolve
-            // against the document base URL (js.md §4.1).
-            Script::Inline {
-                module: false,
-                body,
-            } => run_script(session, id, &body, report),
-            Script::Inline { module: true, body } => {
-                run_module(session, &script::module_base(session), &body, report)
-            }
+        execute(session, id, script, report);
+    }
+}
+
+/// Run one prepared script: an external `src` is fetched under §6 (§4.1), an
+/// inline module's imports resolve against the document base URL.
+fn execute(session: &Session, id: NodeId, script: Script, report: &mut Report) {
+    match script {
+        Script::External { module, src } => run_external(session, id, module, &src, report),
+        Script::Inline {
+            module: false,
+            body,
+        } => run_script(session, id, &body, report),
+        Script::Inline { module: true, body } => {
+            run_module(session, &script::module_base(session), &body, report)
         }
     }
 }
 
-/// Fetch an external `src` under §6 and run its body. A failed or non-2xx fetch
-/// leaves nothing to run, so the script is skipped-and-counted (§4.2) like a
-/// failed stylesheet; a 2xx (or `file://`) body runs as a classic script, or —
-/// for `type="module"` — as a module named by its own fetched URL, so its
-/// imports resolve against it (§4.1).
+/// Fetch an external `src` under §6 and run its body, then fire `load` at the
+/// element — or, when the fetch failed or was non-2xx, count it (§4.2, like a
+/// failed stylesheet) and fire `error`, as Firefox does for every external
+/// script. A 2xx (or `file://`) body runs as a classic script, or — for
+/// `type="module"` — as a module named by its own fetched URL, so its imports
+/// resolve against it (§4.1).
 fn run_external(session: &Session, id: NodeId, module: bool, src: &str, report: &mut Report) {
-    match session.subfetch(src, script::external_intent(module)) {
-        subfetch::Outcome::Got(f) if f.ok && module => run_module(session, &f.url, &f.body, report),
-        subfetch::Outcome::Got(f) if f.ok => run_script(session, id, &f.body, report),
-        // A failed or non-2xx external `src` leaves nothing to run: counted (§4.2)
-        // and captured by its spec, so `--js-errors` names which bundle went dark.
+    let event = match session.subfetch(src, script::external_intent(module)) {
+        subfetch::Outcome::Got(f) if f.ok && module => {
+            run_module(session, &f.url, &f.body, report);
+            "load"
+        }
+        subfetch::Outcome::Got(f) if f.ok => {
+            run_script(session, id, &f.body, report);
+            "load"
+        }
+        // Captured by its spec, so `--js-errors` names which bundle went dark.
         _ => {
             report.errors += 1;
             session.capture("subfetch", src);
+            "error"
         }
+    };
+    if report.settled() {
+        eventloop::script_event(session, id, event, report);
     }
 }
 

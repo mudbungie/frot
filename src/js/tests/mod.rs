@@ -33,6 +33,7 @@ mod idle;
 mod image;
 mod imagefetch;
 mod imageload;
+mod inserted;
 mod iterator;
 mod message;
 mod net;

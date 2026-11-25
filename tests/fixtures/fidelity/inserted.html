@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Inserted scripts</title>
+</head>
+<body>
+<h1>Inserted scripts</h1>
+<div id="log"></div>
+<script>
+function say(text) {
+  var p = document.createElement('p');
+  p.textContent = text;
+  document.getElementById('log').appendChild(p);
+}
+var inline = document.createElement('script');
+inline.text = "say('Inline inserted script ran first.')";
+document.body.appendChild(inline);
+say('The inserting script continued after it.');
+var box = document.createElement('div');
+box.innerHTML = "<script>say('A script from markup ran.')<\/script>";
+document.body.appendChild(box);
+setTimeout(function () {
+  var late = document.createElement('script');
+  late.src = 'inserted.js';
+  late.onload = function () { say('Its load event fired.'); };
+  document.body.appendChild(late);
+}, 50);
+</script>
+</body>
+</html>

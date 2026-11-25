@@ -21,6 +21,17 @@ fn fire(session: &Session, name: &str, report: &mut Report) -> bool {
     errs.map(|n| report.errors += n as u32).is_some()
 }
 
+/// Fire `load` or `error` at the external `<script>` `id` (js.md §4).
+pub(super) fn script_event(session: &Session, id: u32, event: &str, report: &mut Report) {
+    if let Some(n) = drive(
+        session,
+        &format!("__frot_script_event({id},'{event}')"),
+        report,
+    ) {
+        report.errors += n as u32;
+    }
+}
+
 /// Run a driver until it reports nothing left (-1), counting each task's
 /// throws; `false` when the budget tripped mid-task.
 fn drain(session: &Session, driver: &str, report: &mut Report) -> bool {
@@ -36,10 +47,14 @@ fn drain(session: &Session, driver: &str, report: &mut Report) -> bool {
 /// Run one event-loop driver call, returning its integer protocol value, or
 /// `None` when the compute budget tripped (which names `stopped: "budget"`). The
 /// drivers catch callback throws in JS and encode them in the return value, so
-/// the only non-value outcome is a budget hit.
+/// the only non-value outcome is a budget hit. Every task is followed by the
+/// inserted scripts it queued (js.md §4, `bl-a86b`).
 fn drive(session: &Session, src: &str, report: &mut Report) -> Option<i64> {
     match session.run_task(src) {
-        Ok(s) => Some(s.trim().parse::<i64>().unwrap_or(0)),
+        Ok(s) => {
+            super::drain_inserted(session, report);
+            Some(s.trim().parse::<i64>().unwrap_or(0))
+        }
         Err(_) => {
             report.stopped = Some(JsStop::Budget);
             None

@@ -6,10 +6,16 @@
 //! The JS host writes it (`focus()`, `blur()`, `showModal()`, `close()`,
 //! `showPopover()`, `hidePopover()`); the selector engine and
 //! `document.activeElement` read it.
+//!
+//! It also holds each `<script>`'s "already started" flag (HTML, the script element,
+//! `bl-a86b`): a script runs at most once, whenever and however it reaches
+//! the document, and the fragment parser starts every script it makes so an
+//! `innerHTML` script never runs. A flag of the element, so it is here, not
+//! in the JS host.
 
 use std::collections::BTreeSet;
 
-use super::{Document, NodeId};
+use super::{Document, NodeId, NodeKind, WalkEvent};
 
 /// Where a script has put focus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -29,6 +35,8 @@ pub struct Live {
     /// Open popovers and modal dialogs, in the order they were shown.
     popovers: Vec<NodeId>,
     modals: Vec<NodeId>,
+    /// `<script>` elements that are "already started".
+    started: Vec<NodeId>,
     /// Elements whose custom element state is "custom": constructed by
     /// their definition (`:defined`).
     custom: BTreeSet<NodeId>,
@@ -60,6 +68,32 @@ impl Document {
     pub fn set_popover(&mut self, id: NodeId, open: bool) {
         toggle(&mut self.live.popovers, id, open);
         self.generation += 1;
+    }
+
+    /// Whether the script `id` is "already started" — it ran, or never will.
+    pub fn started(&self, id: NodeId) -> bool {
+        self.live.started.contains(&id)
+    }
+
+    /// Mark the script `id` started. Not a rendering fact: no generation bump.
+    pub fn start(&mut self, id: NodeId) {
+        if !self.started(id) {
+            self.live.started.push(id);
+        }
+    }
+
+    /// The `<script>` elements in the subtree at `root`, itself included, in
+    /// tree order.
+    pub fn scripts_in(&self, root: NodeId) -> Vec<NodeId> {
+        let mut out = Vec::new();
+        self.walk(Some(root), &mut |ev, entry| {
+            if let (WalkEvent::Enter(id), NodeKind::Element(e)) = (ev, &entry.kind) {
+                if e.name == "script" {
+                    out.push(id);
+                }
+            }
+        });
+        out
     }
 
     /// Whether a custom element definition has constructed `id`.
