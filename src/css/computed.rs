@@ -62,6 +62,7 @@ pub fn reduce(
         text_transform: transform,
         pseudo_transform: [Pseudo::Before, Pseudo::After]
             .map(|p| transform.pseudo(ranked(applied, Some(p), "text-transform"))),
+        paint: super::Paint::of(applied, el, &parent.paint),
         text: None,
     }
 }

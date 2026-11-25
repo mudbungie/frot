@@ -148,3 +148,54 @@ fn an_authored_part_of_a_layout_table_stays() {
         assert_eq!(outline(html), want, "{html}");
     }
 }
+
+fn has_table_css(html: &str) -> bool {
+    let doc = Document::parse(html);
+    let styles = crate::css::compute(&doc);
+    let v = ax_tree(&doc, Some(&styles));
+    v.as_array()
+        .expect("roots")
+        .iter()
+        .any(|n| n["role"] == "table")
+}
+
+/// The signals read off the cascade (`bl-e143`), and `contenteditable`.
+#[test]
+fn painted_cells_and_editable_tables_are_data() {
+    let rows = |style: &str, n: usize| {
+        let r: String = (0..n)
+            .map(|i| format!("<tr><td>{i}</td><td>v</td></tr>"))
+            .collect();
+        format!("<style>{style}</style><table>{r}</table>")
+    };
+    for (html, want) in [
+        (rows("td{border:1px solid}", 1), true),
+        (rows("td{border-top:1px solid}", 1), true),
+        (rows("td:first-child{border:1px solid}", 2), true),
+        (
+            rows("tr:first-child td:first-child{border-left:1px solid}", 2),
+            false,
+        ),
+        (rows("td{background:red}", 1), true),
+        (rows("table,td{background:red}", 1), false),
+        (rows("table{empty-cells:hide}", 1), true),
+        (rows("tr:nth-child(odd){background:#eee}", 3), true),
+        (rows("tr:nth-child(odd){background:#eee}", 2), false),
+        (rows("tr{background:#eee}", 5), false),
+        (rows("tr:first-child{background:#eee}", 4), false),
+        (
+            rows("td:first-child{display:none} td{border:1px solid}", 1),
+            false,
+        ),
+        (
+            "<table contenteditable><tr><td>x</td><td>y</td></tr></table>".into(),
+            true,
+        ),
+    ] {
+        assert_eq!(has_table_css(&html), want, "{html}");
+    }
+    assert!(has_table(
+        "<div contenteditable><table><tr><td>x</td><td>y</td></tr></table></div>"
+    ));
+    assert!(!has_table(&rows("td{border:1px solid}", 1)));
+}

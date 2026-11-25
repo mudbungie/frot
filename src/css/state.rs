@@ -173,12 +173,16 @@ fn read_write(doc: &Document, id: NodeId, el: &Element) -> bool {
             !NEVER_REQUIRED.contains(&kind.as_str()) && !NEVER_TEXT.contains(&kind.as_str())
         }
         "textarea" => true,
-        _ => {
-            let mut chain = std::iter::once((id, el)).chain(ancestors(doc, id));
-            return chain.find_map(|(_, e)| editing(e)).unwrap_or(false);
-        }
+        _ => return editable(doc, id, el),
     };
     text && !has(el, "readonly") && !disabled(doc, id, el)
+}
+
+/// Whether `el` is editable: the nearest `contenteditable` on it or above it
+/// says so.
+pub fn editable(doc: &Document, id: NodeId, el: &Element) -> bool {
+    let mut chain = std::iter::once((id, el)).chain(ancestors(doc, id));
+    chain.find_map(|(_, e)| editing(e)).unwrap_or(false)
 }
 
 /// What `el`'s own `contenteditable` says, if it says anything.

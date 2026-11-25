@@ -44,5 +44,48 @@
 <table><tr><td>d</td><th>a</th><th>h</th><th>g</th></tr></table>
 <table><tr><th>a</th><th>h</th><td>e</td><td></td></tr></table>
 <table><tr><th>a</th><th>h</th><th>g</th></tr><tr><th>k</th><td>d</td></tr></table>
+<h2>Data-table signals from the cascade</h2>
+<style>
+.b td{border:1px solid} .tb td{border-top:1px solid;border-bottom:2px solid}
+.lr td{border-left:1px solid;border-right:1px solid} .t td{border-top:1px solid}
+.half td:first-child{border:1px solid} .none td{border:1px none}
+.w0 td{border:0 solid} .wonly td{border-width:3px} .sonly td{border-style:solid}
+.ec{empty-cells:hide} .bg td{background:red} .bgc{border-collapse:collapse} .bgc td{background:url(data:,) red no-repeat}
+.zebra tr:nth-child(odd){background-color:#eee} .flat tr{background:#eee}
+.third td:first-child{border:1px solid} .quarter td:first-child{border:1px solid}
+.tw td{border-style:solid;border-width:0 0 1px 0} .tw3 td{border-style:solid;border-width:0 1px 0}
+.ovr td{border:1px solid} .ovr td{border-top-style:none;border-bottom-width:0}
+.same{background:red} .same td{background:red} .clear td{background:transparent}
+.gone td:first-child{display:none} .gone td{border-top:1px solid}
+</style>
+<table class="b"><tr><td>b x</td><td>b y</td></tr></table>
+<table class="tb"><tr><td>tb x</td><td>tb y</td></tr></table>
+<table class="lr"><tr><td>lr x</td><td>lr y</td></tr></table>
+<table class="t"><tr><td>t x</td><td>t y</td></tr></table>
+<table class="half"><tr><td>half x</td><td>half y</td></tr></table>
+<table class="none"><tr><td>none x</td><td>none y</td></tr></table>
+<table class="w0"><tr><td>w0 x</td><td>w0 y</td></tr></table>
+<table class="wonly"><tr><td>wonly x</td><td>wonly y</td></tr></table>
+<table class="sonly"><tr><td>sonly x</td><td>sonly y</td></tr></table>
+<table class="tw"><tr><td>tw x</td><td>tw y</td></tr></table>
+<table class="tw3"><tr><td>tw3 x</td><td>tw3 y</td></tr></table>
+<table class="ovr"><tr><td>ovr x</td><td>ovr y</td></tr></table>
+<table class="ec"><tr><td>ec x</td><td>ec y</td></tr></table>
+<table class="bg"><tr><td>bg x</td><td>bg y</td></tr></table>
+<table class="bgc"><tr><td>bgc x</td><td>bgc y</td></tr></table>
+<table class="same"><tr><td>same x</td><td>same y</td></tr></table>
+<table class="clear"><tr><td>clear x</td><td>clear y</td></tr></table>
+<table class="third"><tr><td>third x</td><td>third y</td><td>third z</td></tr></table>
+<table class="quarter"><tr><td>q1</td><td>q2</td></tr><tr><td>q3</td><td>q4</td></tr></table>
+<table class="gone"><tr><td>gone x</td><td>gone y</td></tr></table>
+<table><tr><td style="empty-cells:hide">ec-td x</td><td>ec-td y</td></tr></table>
+<table class="zebra"><tr><td>0</td><td>r0</td></tr><tr><td>1</td><td>r1</td></tr><tr><td>2</td><td>r2</td></tr><tr><td>3</td><td>r3</td></tr><tr><td>4</td><td>r4</td></tr></table>
+<table class="flat"><tr><td>0</td><td>r0</td></tr><tr><td>1</td><td>r1</td></tr><tr><td>2</td><td>r2</td></tr><tr><td>3</td><td>r3</td></tr><tr><td>4</td><td>r4</td></tr></table>
+<table><tr><td bgcolor="#ff6600">bgc attr x</td><td>bgc attr y</td></tr></table>
+<table bgcolor="#f6f6ef"><tr><td>tbl bgcolor x</td><td>tbl bgcolor y</td></tr></table>
+<table contenteditable><tr><td>ce x</td><td>ce y</td></tr></table>
+<div contenteditable><table><tr><td>ce-anc x</td><td>ce-anc y</td></tr></table></div>
+<div contenteditable><table contenteditable="false"><tr><td>ce-false x</td><td>ce-false y</td></tr></table></div>
+<table style="border:1px solid"><tr><td>tblborder x</td><td>tblborder y</td></tr></table>
 </body>
 </html>

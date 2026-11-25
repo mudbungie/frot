@@ -270,6 +270,12 @@ and `ax` claim, as it is of Chrome's `innerText` and accessible names.)
 listed — whether a box is absolutely positioned, floated or in flow — and
 `list-style-type` with the `list-style` shorthand (inherited) joins them, read
 only as "is it `none`" (`src/css/list.rs`): the `ax` view needs both.)
+(**Amended 2026-11-24, `bl-e143`:** the border properties (`border`,
+`border-<side>`, `border-width`, `border-style` and their longhands), the
+background colour (`background`, `background-color`, the `bgcolor`
+attribute) and `empty-cells` (inherited) are read too, only as far as the
+`ax` view's data-table test asks: which border sides are drawn, which colour
+a box has as written, and whether empty cells hide (`src/css/paint.rs`).)
 
 `text-transform` (`src/css/transform.rs`, measured in Chrome 158 on the
 `transform` fixture): `uppercase`, `lowercase`, `capitalize`, `none`, on text

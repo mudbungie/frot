@@ -18,25 +18,27 @@
 //! Much HTML nests `<table>` purely for visual grid layout (Hacker News is a
 //! canonical example). Real browsers run layout-table heuristics in the AX
 //! layer and demote such tables to `role=presentation`, so their scaffolding
-//! collapses out of the tree and only content surfaces. We apply the
-//! **DOM-only** part of Chromium's test (`IsDataTable`), measured in Chrome 158
-//! (`bl-dfc3`, `bl-7f3a`): a `<table>` is treated as *layout* (and its
+//! collapses out of the tree and only content surfaces. We apply
+//! Chromium's test (`IsDataTable`, [`table`]), measured in Chrome 158
+//! (`bl-dfc3`, `bl-7f3a`, `bl-e143`): a `<table>` is treated as *layout* (and its
 //! table-structural descendants — `table`, `rowgroup`, `row`, `cell`,
 //! `columnheader`, `rowheader`, `gridcell` — collapse to presentation) unless
 //!
 //! 1. it carries a `role`, a non-empty `summary` or a non-empty `rules`, or a
-//!    `<caption>`, `<thead>`, `<tfoot>`, `<colgroup>` or `<col>` child — any
+//!    `<caption>`, `<thead>`, `<tfoot>`, `<colgroup>` or `<col>` child, or
+//!    is editable (`contenteditable` on it or above, not turned off) — any
 //!    of which keeps even a one-cell table; or, short of that,
 //! 2. it is more than one row holding one cell, and it has 20 rows, or a
 //!    `<th>`, or a cell with a non-empty `headers`, `abbr`, `axis` or
 //!    `scope`; or it has two cells and a `border` that is not zero (Chrome
 //!    reads the cell borders the attribute draws: `border=""` and
-//!    `border=abc` count, `border=0px` does not).
+//!    `border=abc` count, `border=0px` does not); or, under a cascade, a
+//!    cell has `empty-cells: hide`, half its cells (rounded down) have
+//!    borders or a background of their own, or the first rows' backgrounds
+//!    alternate ([`table`], `css/paint.rs`).
 //!
 //! `aria-label` and `aria-labelledby` are no signal: Chrome names a layout
-//! table and still leaves it out. Cell borders and backgrounds set by CSS,
-//! and `contenteditable`, are signals in Chrome that this DOM-only reading
-//! does not see. Cells, rows and headers are counted without descending into
+//! table and still leaves it out. Cells, rows and headers are counted without descending into
 //! a nested `<table>`, which re-classifies on its own, so a data table inside
 //! a layout table keeps its structure and an inner header cannot rescue the
 //! outer table.
@@ -51,6 +53,7 @@ use crate::tags;
 use serde_json::{json, Value};
 
 pub(in crate::ax) mod lineless;
+mod table;
 
 /// Children are emitted in DOM order, always: Chrome's AX tree does not follow
 /// flex `order` or `*-reverse` (measured, Chrome 156; `layout.md` §5), so the
@@ -84,7 +87,7 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
     // data table inside a layout table keeps its structure); other elements
     // inherit the ancestor flag.
     let layout_table = if el.name == "table" {
-        is_layout_table(doc, id, el)
+        table::is_layout_table(doc, id, el, styles)
     } else {
         in_layout_table
     };
@@ -144,59 +147,6 @@ fn authored(doc: &Document, id: NodeId, el: &Element) -> bool {
     let explicit = |n: NodeId| doc.element(n).and_then(|e| ax::role::explicit(doc, n, e));
     let row = || doc.node(id).parent.and_then(explicit) == Some("row");
     explicit(id).is_some() || (matches!(el.name.as_str(), "td" | "th") && row())
-}
-
-/// DOM-only layout-table test: `true` (demote to presentation) when a
-/// `<table>` carries none of the data-table signals in the module header.
-fn is_layout_table(doc: &Document, id: NodeId, el: &Element) -> bool {
-    let said = |a: &str| el.attr(a).is_some_and(|s| !s.is_empty());
-    let structure = ["caption", "thead", "tfoot", "colgroup", "col"];
-    let child = doc.node(id).children.iter().any(|&c| {
-        matches!(&doc.node(c).kind, NodeKind::Element(e) if structure.contains(&e.name.as_str()))
-    });
-    if said("summary") || said("rules") || el.attr("role").is_some() || child {
-        return false;
-    }
-    let parts = |tags: &[&str]| {
-        let mut found = Vec::new();
-        parts(doc, id, tags, &mut found);
-        found
-    };
-    let (rows, cells) = (parts(&["tr"]).len(), parts(&["td", "th"]));
-    let marked = |c: &&Element| {
-        c.name == "th"
-            || ["headers", "abbr", "axis", "scope"]
-                .iter()
-                .any(|a| c.attr(a).is_some_and(|v| !v.is_empty()))
-    };
-    let data = rows >= 20 || cells.iter().any(marked) || (cells.len() > 1 && bordered(el));
-    (rows == 1 && cells.len() == 1) || !data
-}
-
-/// Whether the `border` attribute draws cell borders: present, and not a
-/// non-negative integer equal to zero — an unparsable value means 1.
-fn bordered(el: &Element) -> bool {
-    el.attr("border").is_some_and(|v| {
-        let digits: String = v
-            .trim_start()
-            .chars()
-            .take_while(char::is_ascii_digit)
-            .collect();
-        digits.is_empty() || digits.bytes().any(|b| b != b'0')
-    })
-}
-
-/// The `tags` elements in the subtree, without descending into nested
-/// `<table>` elements — an inner data table's header must not rescue an outer
-/// layout table, and its cells are not the outer table's.
-fn parts<'d>(doc: &'d Document, id: NodeId, tags: &[&str], found: &mut Vec<&'d Element>) {
-    for &c in &doc.node(id).children {
-        match &doc.node(c).kind {
-            NodeKind::Element(e) if tags.contains(&e.name.as_str()) => found.push(e),
-            NodeKind::Element(e) if e.name != "table" => parts(doc, c, tags, found),
-            _ => {}
-        }
-    }
 }
 
 #[cfg(test)]

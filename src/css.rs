@@ -25,6 +25,7 @@ mod lang;
 mod list;
 pub mod media;
 mod nth;
+mod paint;
 mod parse;
 mod pseudo;
 mod query;
@@ -41,7 +42,9 @@ pub use control::custom as custom_name;
 pub use display::Display;
 pub use focus::{focusable, focused_element};
 pub use import::imports;
+pub use paint::Paint;
 pub use query::{matches_any, query_all, UnsupportedSelector};
+pub use state::editable;
 pub use transform::{Case, TextTransform};
 
 // This module publishes a table, not a traversal. Every consumer that needs
@@ -130,6 +133,8 @@ pub struct ComputedStyle {
     /// `after` are already transformed by theirs, `pseudo_transform`.
     pub text_transform: TextTransform,
     pub pseudo_transform: [TextTransform; 2],
+    /// What the data-table test reads of a cell or row ([`Paint`]).
+    pub paint: Paint,
     /// A text node's characters as painted, when a transform changed them.
     pub text: Option<String>,
 }
@@ -210,6 +215,11 @@ impl Styles {
     /// `text-transform` changed them.
     pub fn text<'a>(&'a self, id: NodeId, raw: &'a str) -> &'a str {
         self.get(id).text.as_deref().unwrap_or(raw)
+    }
+
+    /// Border sides, background and `empty-cells` of `id` ([`Paint`]).
+    pub fn paint(&self, id: NodeId) -> &Paint {
+        &self.get(id).paint
     }
 
     /// Whether `id`'s box is out of flow ([`ComputedStyle::flow`]).
