@@ -52,6 +52,7 @@ mod receiver;
 mod reflect;
 mod scriptmode;
 mod shadow;
+mod slotchange;
 mod srcdoc;
 mod streams;
 mod subtle;

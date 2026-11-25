@@ -43,7 +43,9 @@
   function notify() {
     scheduled = false;
     var batch = pending;
+    var signals = signalled;
     pending = [];
+    signalled = [];
     for (var i = 0; i < batch.length; i++) {
       var mo = batch[i];
       slots(mo).queued = false;
@@ -58,7 +60,25 @@
         g.reportError(e);
       }
     }
+    // Then each signalled slot's slotchange (HTML "signal a slot change").
+    signals.forEach(function (slot) {
+      var ev = new g.Event('slotchange', { bubbles: true });
+      slots(ev).trusted = true;
+      g.__frot_dispatch(g.__frot_wrap(slot), ev);
+    });
   }
+  // The signal slots (js.md §15.8), delivered in the same microtask.
+  var signalled = [];
+  Object.defineProperty(g, '__frot_signal_slot', {
+    value: g.__frot_brand(function (slot) {
+      if (signalled.indexOf(slot) < 0) signalled.push(slot);
+      if (!scheduled) {
+        scheduled = true;
+        queueMicrotask(notify);
+      }
+    }, '__frot_signal_slot'),
+    configurable: true,
+  });
 
   function enqueue(mo, record) {
     var st = slots(mo);

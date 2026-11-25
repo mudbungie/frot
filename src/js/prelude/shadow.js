@@ -153,4 +153,65 @@
     },
   });
   reflect(g.HTMLSlotElement.prototype, 'name', 'name');
+
+  // --- slotchange (js.md §15.8) ----------------------------------------------
+  // Assignment is a query, so a change is found by asking it around each
+  // mutation: the slots of the shadow trees the mutation can touch
+  // (`__frot_slot_scope`, one call), before and after. A slot that lost nodes is signalled before one that only gained
+  // them, each group in tree order; an unassigned slot whose own children
+  // change is signalled too (Firefox 153.0esr, js/tests/slotchange/).
+  function snapshot(roots, also) {
+    var m = new Map();
+    roots.forEach(function (r) {
+      g.__frot_query(r, 'slot').forEach(function (s) {
+        m.set(s, g.__frot_assigned(s).join());
+      });
+    });
+    also.forEach(function (s) {
+      if (!m.has(s)) m.set(s, g.__frot_assigned(s).join());
+    });
+    return m;
+  }
+  function around(roots, fallback, raw, args) {
+    var before = roots.length ? snapshot(roots, []) : null;
+    var why = raw.f(args[0], args[1], args[2]);
+    if (fallback.length && !why) fallback.forEach(g.__frot_signal_slot);
+    if (!before || why) return why;
+    var after = snapshot(roots, Array.from(before.keys()));
+    var lost = [];
+    var gained = [];
+    after.forEach(function (now, s) {
+      var was = before.has(s) ? before.get(s) : '';
+      if (was !== now) (was ? lost : gained).push(s);
+    });
+    lost.concat(gained).forEach(g.__frot_signal_slot);
+    return why;
+  }
+  // The syscall is called as a method of a realm object: called bare, a
+  // frame's inserted script ran in the window whose script made the call.
+  function seam(name, roots) {
+    var raw = { f: g['__frot_' + name] };
+    g['__frot_' + name] = brand(function () {
+      var a = arguments;
+      var r = roots(a);
+      return around(r[0], r[1], raw, a);
+    }, '__frot_' + name);
+  }
+  seam('insert_child', function (a) {
+    return g.__frot_slot_scope(a[0], a[1]);
+  });
+  seam('detach', function (a) {
+    return g.__frot_slot_scope(null, a[0]);
+  });
+  // A `slot` attribute moves its element between its parent host's slots; a
+  // slot's `name` moves nodes between its tree's slots.
+  function attr(a) {
+    var name = String(a[1]).toLowerCase();
+    var p = name === 'slot' ? g.__frot_parent(a[0]) : null;
+    var slot = name === 'name' && g.__frot_tag(a[0]) === 'slot';
+    var root = p != null ? g.__frot_shadow(p) : slot ? g.__frot_tree_root(a[0]) : null;
+    return [root != null && g.__frot_shadow_info(root) ? [root] : [], []];
+  }
+  seam('set_attr', attr);
+  seam('remove_attr', attr);
 })(globalThis);

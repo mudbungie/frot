@@ -1,0 +1,19 @@
+{
+ "initial": "sync | one>one:truefalsefalse2:a | SR:h>one:truefalsefalse3:a | def>def:truefalsefalse2:b | SR:h>def:truefalsefalse3:b",
+ "append": "sync | MO | def>def:truefalsefalse2:b,c | SR:h>def:truefalsefalse3:b,c",
+ "text": "sync | MO | def>def:truefalsefalse2:b,c,#text | SR:h>def:truefalsefalse3:b,c,#text",
+ "rename": "sync | one>one:truefalsefalse2: | SR:h>one:truefalsefalse3: | two>two:truefalsefalse2:a | SR:h>two:truefalsefalse3:a",
+ "same": "sync",
+ "remove": "sync | MO | def>def:truefalsefalse2:c,#text | SR:h>def:truefalsefalse3:c,#text",
+ "slotName": "sync | two>two:truefalsefalse2: | SR:h>two:truefalsefalse3:",
+ "newSlot": "sync | def>def:truefalsefalse2: | SR:h>def:truefalsefalse3: | first>first:truefalsefalse2:c,#text | SR:h>first:truefalsefalse3:c,#text",
+ "removeSlot": "sync | first>first:truefalsefalse2: | def>def:truefalsefalse2:c,#text | SR:h>def:truefalsefalse3:c,#text",
+ "fallback": "sync | one>one:truefalsefalse2: | SR:h>one:truefalsefalse3:",
+ "twice": "sync | MO | def>def:truefalsefalse2:c,#text | SR:h>def:truefalsefalse3:c,#text",
+ "twoChanges": "sync | MO | def>def:truefalsefalse2:c,#text,q,q | SR:h>def:truefalsefalse3:c,#text,q,q",
+ "declared": "sync | SR:d>ds:truefalsefalse3:i,s",
+ "nested": "sync | outer>outer:truefalsefalse2:nb | deep>outer:truefalsefalse3:nb | SR:inner>outer:truefalsefalse3:nb | SR:n>outer:truefalsefalse3:nb | deep>deep:truefalsefalse2:outer | SR:inner>deep:truefalsefalse3:outer",
+ "nestedAppend": "sync | outer>outer:truefalsefalse2:nb,kbd | deep>outer:truefalsefalse3:nb,kbd | SR:inner>outer:truefalsefalse3:nb,kbd | SR:n>outer:truefalsefalse3:nb,kbd",
+ "detachedHost": "sync | ds2>ds2:truefalsefalse2:p",
+ "onslot": "sync | MO | def>def:truefalsefalse2:c,#text,q,q,var | SR:h>def:truefalsefalse3:c,#text,q,q,var | handler"
+}

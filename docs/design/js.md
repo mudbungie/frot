@@ -2160,7 +2160,7 @@ Attacked before building, per the house rule. Each is filed, none is built:
   elements** and **`ElementInternals`** (`attachInternals` stays absent —
   *built 2026-11-25, §15.6*), **scoped
   registries**, **manual slot assignment** (`slot.assign()`), the
-  **`slotchange`** event, **`::part`/`exportparts`**, **`:host-context()`**,
+  **`slotchange`** event (*built 2026-11-25, §15.8*), **`::part`/`exportparts`**, **`:host-context()`**,
   and `setHTMLUnsafe`/`parseHTMLUnsafe` (which admit declarative shadow roots
   from script).
 - **Parse order.** frot parses the whole document before any script (§4), so
@@ -2378,6 +2378,31 @@ in `prelude/event.js` (its second half), under the one dispatch path (events.js,
 
 Not built: `relatedTarget` retargeting (frot raises no pointer or focus
 events, §11) and the touch target list.
+
+### 15.8 `slotchange` (`bl-352f`, 2026-11-25)
+
+Measured on Firefox 153.0esr (identity.md §3.19 rig, `js/tests/slotchange/`,
+17 steps, each read a task later). A slot whose assigned nodes change is
+*signalled*; in the mutation-observer microtask, after the observers'
+callbacks, each signalled slot gets one `slotchange` (bubbles, not composed,
+not cancelable, trusted) however many changes the task made. Signalled:
+every slot that gains or loses an assigned node — a slottable inserted,
+removed, or given another `slot`; a slot inserted (it takes nodes from the
+slot that had them), removed or renamed; a host with no listener and no
+document (a detached host) included. A slot that lost nodes is signalled
+before one that only gained them (inserting a slot fires the old slot first,
+then the new one), each group in tree order. **Firefox's own rule**, kept:
+a slot with nothing assigned is also signalled when its own child list
+changes (its fallback), though not for a deeper change or a text edit. A
+slot assigned into another slot passes its event up through that slot
+(§15.7's path), so an outer slot's change is heard on the inner slot too.
+Setting a `slot` attribute to the value it has signals nothing.
+
+Assignment stays a query (§15.2 item 7); `prelude/shadow.js` finds a change
+by asking it around each tree mutation — the slots of the shadow trees the
+mutation can touch, before and after — and `observer.js` delivers the
+signals in its microtask. Slots declared by the parser before any script
+ran are never signalled for what the parse assigned them.
 
 ## 16. Streams (`bl-96f7`, 2026-11-24)
 

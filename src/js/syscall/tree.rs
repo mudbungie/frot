@@ -65,6 +65,12 @@ pub(super) fn install<'js>(
         let d = doc.clone();
         move |id: u32| d.borrow().assigned(id)
     });
+    // `[roots, fallback slots]` a mutation can touch (`dom::shadow::scope`);
+    // `parent` null for a removal.
+    bind!(ctx, g, "__frot_slot_scope", {
+        let d = doc.clone();
+        move |parent: Option<u32>, node: u32| d.borrow().slot_scope(parent, node)
+    });
     bind!(ctx, g, "__frot_assigned_slot", {
         let d = doc.clone();
         move |id: u32| d.borrow().assigned_slot(id)

@@ -210,5 +210,7 @@ pub fn valid_host(name: &str) -> bool {
     HOSTS.contains(&name) || crate::css::custom_name(name)
 }
 
+mod scope;
+
 #[cfg(test)]
 mod tests;
