@@ -88,12 +88,12 @@ fn each_svg_text_element_is_its_own_line() {
 
 #[test]
 fn each_mathml_token_is_its_own_line() {
-    // Chrome: "𝑝\n=\n2" — the italic is a font transform frot does not invent,
-    // so it reports the source characters; the line structure is the claim.
-    both(
-        "<math><mrow><mi>p</mi><mo>=</mo><mn>2</mn></mrow></math>",
-        "p\n=\n2",
-    );
+    // Chrome: "𝑝\n=\n2". The italic is the UA's `text-transform: math-auto`
+    // on a one-letter `<mi>`, which needs the cascade (`bl-9b22`); the line
+    // structure holds in both recipes.
+    let html = "<math><mrow><mi>p</mi><mo>=</mo><mn>2</mn></mrow></math>";
+    assert_eq!(t(html), "p\n=\n2");
+    assert_eq!(t_css(html), "\u{1d45d}\n=\n2");
 }
 
 #[test]

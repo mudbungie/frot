@@ -287,7 +287,10 @@ there. `capitalize` reads the line across element boundaries
 (`x<span>yz</span>` keeps `yz`); a letter starts a word unless the
 character before it is a letter, a digit, `'`, `’`, `_` or a middle dot.
 `lang` tailors casing for Turkish and Azeri only. `full-width` and
-`full-size-kana` are accepted and change nothing Chrome reports.
+`full-size-kana` are accepted and change nothing Chrome reports. `math-auto`
+— the UA's value on a `<mi>` without `mathvariant=normal` — paints a text
+node of one letter in its Mathematical Italic form (`<mi>x</mi>` is `𝑥`;
+2026-11-24, `bl-9b22`).
 
 `content` generates nothing on an element whose box takes no children
 (2026-11-22, `bl-082b`; until then every element generated it): a replaced

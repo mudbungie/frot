@@ -13,6 +13,12 @@
 //! starts a fresh line context. A capitalized letter takes its titlecase form
 //! when that is a single character (`ǆ` → `ǅ`, `ß` stays `ß`).
 //!
+//! `math-auto` — the UA's value on a `<mi>` (not one with `mathvariant=
+//! normal`) — paints a text node of exactly one letter in its mathematical
+//! italic form: `<mi>x</mi>` is `𝑥`, `<mi><span>z</span></mi>` `𝑧`, while
+//! `<mi>sin</mi>`, `<mi> y </mi>` and `<mi>1</mi>` stay (Chrome 158,
+//! `bl-9b22`).
+//!
 //! The `lang` that tailors casing is honoured for Turkish and Azeri alone
 //! (`istanbul` → `İSTANBUL`, `IŞIK` → `ışık`). `full-width` and
 //! `full-size-kana` are valid and change nothing Chrome reports.
@@ -26,6 +32,9 @@ pub enum Case {
     Upper,
     Lower,
     Capitalize,
+    /// `math-auto`: a text of one letter is painted in its mathematical
+    /// italic form ([`italic`]).
+    MathAuto,
 }
 
 /// The computed `text-transform`, with the one piece of `lang` casing needs.
@@ -47,10 +56,15 @@ impl TextTransform {
         el: &Element,
         parent: TextTransform,
     ) -> TextTransform {
-        let ua = if UA_NONE.contains(&el.name.as_str()) {
-            Case::None
-        } else {
-            parent.case
+        let normal = || {
+            el.attr("mathvariant")
+                .is_some_and(|v| v.eq_ignore_ascii_case("normal"))
+        };
+        let ua = match el.name.as_str() {
+            n if UA_NONE.contains(&n) => Case::None,
+            "mi" if normal() => Case::None,
+            "mi" => Case::MathAuto,
+            _ => parent.case,
         };
         let turkic = el.attr("lang").map_or(parent.turkic, |l| {
             let primary = l.split(['-', '_']).next().unwrap_or_default();
@@ -81,6 +95,13 @@ impl TextTransform {
             Case::Upper => Some(text.chars().map(|c| self.upper(c)).collect::<String>()),
             Case::Lower => Some(self.lower(text)),
             Case::Capitalize => Some(self.capitalize(text, *prev)),
+            Case::MathAuto => {
+                let mut chars = text.chars();
+                match (chars.next().and_then(italic), chars.next()) {
+                    (Some(c), None) => Some(c.to_string()),
+                    _ => None,
+                }
+            }
         };
         *prev = text.chars().last().unwrap_or(*prev);
         out
@@ -133,6 +154,29 @@ impl TextTransform {
     }
 }
 
+/// The Mathematical Italic form of a letter (Unicode's Mathematical
+/// Alphanumeric Symbols block), as Chrome 158 paints a one-letter `<mi>`:
+/// Latin and Greek letters, dotless `ı` and `ȷ`, and the Greek symbol
+/// variants; the italic `h` is the older U+210E. Anything else has none.
+fn italic(c: char) -> Option<char> {
+    let at = |base: u32, from: char| char::from_u32(base + (c as u32 - from as u32));
+    match c {
+        'h' => Some('\u{210e}'),
+        'A'..='Z' => at(0x1d434, 'A'),
+        'a'..='z' => at(0x1d44e, 'a'),
+        '\u{131}' => Some('\u{1d6a4}'),
+        '\u{237}' => Some('\u{1d6a5}'),
+        '\u{391}'..='\u{3a9}' if c != '\u{3a2}' => at(0x1d6e2, '\u{391}'),
+        '\u{3f4}' => Some('\u{1d6f3}'),
+        '\u{2207}' => Some('\u{1d6fb}'),
+        '\u{3b1}'..='\u{3c9}' => at(0x1d6fc, '\u{3b1}'),
+        _ => "\u{2202}\u{3f5}\u{3d1}\u{3f0}\u{3d5}\u{3f1}\u{3d6}"
+            .chars()
+            .position(|v| v == c)
+            .and_then(|i| char::from_u32(0x1d715 + i as u32)),
+    }
+}
+
 /// Whether a letter after `c` continues `c`'s word (module docs).
 fn in_word(c: char) -> bool {
     c.is_alphanumeric() || matches!(c, '\'' | '\u{2019}' | '_' | '\u{b7}' | '\u{2027}')
@@ -156,6 +200,7 @@ fn parse(value: &str, parent: Case, ua: Case) -> Option<Case> {
             "uppercase" => Case::Upper,
             "lowercase" => Case::Lower,
             "capitalize" => Case::Capitalize,
+            "math-auto" => Case::MathAuto,
             "full-width" | "full-size-kana" => continue,
             _ => return None,
         };

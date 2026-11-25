@@ -101,3 +101,33 @@ fn apply_advances_the_context_and_keeps_it_over_empty_text() {
     assert_eq!(t.apply("", &mut prev), Option::None);
     assert_eq!(prev, 'b');
 }
+
+/// `math-auto` on a one-letter `<mi>` (`bl-9b22`, Chrome 158).
+#[test]
+fn a_one_letter_mi_is_mathematical_italic() {
+    let mi = |s: &str| painted(&format!("<math><mi>{s}</mi></math>"));
+    for (from, to) in [
+        ("x", "𝑥"),
+        ("X", "𝑋"),
+        ("h", "ℎ"),
+        ("ı", "𝚤"),
+        ("ȷ", "𝚥"),
+        ("Ω", "𝛺"),
+        ("ϴ", "𝛳"),
+        ("∇", "𝛻"),
+        ("α", "𝛼"),
+        ("∂", "𝜕"),
+        ("ϖ", "𝜛"),
+        ("é", "é"),
+        ("\u{3a2}", "\u{3a2}"),
+        ("sin", "sin"),
+        ("<span>z</span>", "𝑧"),
+    ] {
+        assert_eq!(mi(from), to, "{from}");
+    }
+    assert_eq!(painted("<math><mi mathvariant=NORMAL>n</mi></math>"), "n");
+    assert_eq!(
+        painted("<span style='text-transform:math-auto'>q</span>"),
+        "𝑞"
+    );
+}
