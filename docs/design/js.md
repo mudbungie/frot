@@ -2173,7 +2173,10 @@ Attacked before building, per the house rule. Each is filed, none is built:
   changed. ParentNode's `firstElementChild` / `lastElementChild` /
   `childElementCount` were missing on every node and are built (a
   component's `importNode(template.content).firstElementChild` was
-  `undefined`). Measured: the fidelity corpus gains `shadow` (declarative,
+  `undefined`). *(2026-11-24, `bl-59f7`: the NonDocumentTypeChildNode pair,
+  `previousElementSibling`/`nextElementSibling`, followed on Element and
+  CharacterData — a doctype has neither — pinned against Firefox 153.0esr in
+  `src/js/tests/traverse.rs`.)* Measured: the fidelity corpus gains `shadow` (declarative,
   no script) and `shadowjs` (custom elements, `attachShadow`,
   `importNode`, adopted sheets), both equal to Chrome 158 on all five
   channels with no ledger row, once the recorder's rulers were taught the

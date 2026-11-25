@@ -53,11 +53,11 @@
       'removeAttribute removeAttributeNS hasAttribute hasAttributes closest matches getElementsByTagName ' +
       'getElementsByClassName getBoundingClientRect attachShadow getHTML remove prepend append querySelector ' +
       'querySelectorAll localName tagName id className classList attributes clientWidth clientHeight ' +
-      'innerHTML outerHTML shadowRoot assignedSlot slot children firstElementChild lastElementChild ' +
-      'childElementCount',
+      'innerHTML outerHTML shadowRoot assignedSlot slot previousElementSibling nextElementSibling ' +
+      'children firstElementChild lastElementChild childElementCount',
     HTMLElement: 'focus blur style offsetTop offsetLeft offsetWidth offsetHeight ' + ON + ' dataset onerror',
     SVGElement: 'focus blur style ' + ON + ' dataset onerror',
-    CharacterData: 'remove data length',
+    CharacterData: 'remove data length previousElementSibling nextElementSibling',
     DocumentFragment: 'getElementById prepend append querySelector querySelectorAll children ' +
       'firstElementChild lastElementChild childElementCount',
     Document: 'getElementsByTagName getElementsByClassName createElement createElementNS ' +

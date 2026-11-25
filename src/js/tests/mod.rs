@@ -50,6 +50,7 @@ mod srcdoc;
 mod subtle;
 mod template;
 mod title;
+mod traverse;
 mod treewalker;
 mod writable;
 

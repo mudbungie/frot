@@ -145,6 +145,24 @@
   parentNode(proto, false);
   parentNode(g.DocumentFragment.prototype, true);
   parentNode(g.Document.prototype, true);
+  // NonDocumentTypeChildNode (bl-59f7): the nearest element sibling either
+  // way, on Element and CharacterData — a doctype has neither (Firefox 153.0esr).
+  function elementSibling(step) {
+    return function () {
+      var id = slots(this).id, p = g.__frot_parent(id);
+      var ids = p === null || p === undefined ? [] : g.__frot_children(p);
+      for (var j = ids.indexOf(id) + step; j >= 0 && j < ids.length; j += step) {
+        if (g.__frot_kind(ids[j]) === 'element') return wrap(ids[j]);
+      }
+      return null;
+    };
+  }
+  [proto, g.CharacterData.prototype].forEach(function (P) {
+    g.__frot_ifaceattrs(P, {
+      previousElementSibling: elementSibling(-1),
+      nextElementSibling: elementSibling(1),
+    });
+  });
 
   // The form-control reflections frameworks/jQuery read off cloned nodes, each
   // on the interfaces Firefox 153.0esr defines that name on (bl-78cb; a `<div>`
