@@ -7,29 +7,8 @@
 //! prelude is exercised end-to-end by the golden fixture suite (subtask 9). The
 //! Rust syscall closures it calls are covered directly in `syscall::tests`.
 //!
-//! This is the **core** prelude plus the framework-facing Element/Node breadth
-//! (`elem.js`/`elem2.js`: the `instanceof` interface constructors, `style`,
-//! `dataset`, faithful `cloneNode`, form-control reflections, and
-//! the DOMTokenList surface — `classList`/`relList` — in `tokenlist.js`, and
-//! the `document`/`createDocumentFragment` breadth React/Vue/jQuery probe in
-//! `doc.js`), the
-//! geometry facade, the §7 environment breadth, the §5 event loop, and the §6
-//! network layer: `Node`/`Element`/`Document`, `querySelector`,
-//! the HTML-string direction pair `innerHTML`/`outerHTML` and its one
-//! serializer (`markup.js`), `textContent`, `console`, the
-//! geometry facade (`getBoundingClientRect`/`offset*`/`getComputedStyle`, js.md
-//! §8), the environment shims (`env.js`: cookie, `self`/`window` aliasing, the
-//! viewport facts, spec-legal denials — with the four ambient objects that are
-//! real interfaces, `Storage`/`Location`/`History`/`MediaQueryList`, in
-//! `envobj.js`), the
-//! WHATWG-subset `URL`/`URLSearchParams` (`url.js`, over the `__frot_url_parse`
-//! syscall), the
-//! event registry and interfaces (`events.js`: `EventTarget`/`Event`/
-//! `CustomEvent`, `addEventListener`/`dispatchEvent`), the virtual-clock loop
-//! (`loop.js`: `setTimeout`/`setInterval`/`requestAnimationFrame` and the
-//! `DOMContentLoaded`/`load` lifecycle — WHEN the host fires, not what an event
-//! IS), and `fetch`/`XMLHttpRequest` over the
-//! once-then-frozen subfetch cache (`net.js`, js.md §6).
+//! What each module builds is said once, beside its `include_str!` below and
+//! in the module's own header — not restated here, where it drifted.
 
 /// **Cite the document, not just the section.** `identity.md` and `js.md` both
 /// number their sections 1-13, and the same number means different things in
@@ -101,6 +80,9 @@ pub const SOURCE: &str = concat!(
     // doc.js (bl-6da7): the `document` object's members, split off elem2.js
     // on the seam that file already named.
     include_str!("prelude/doc.js"),
+    "\n",
+    // form.js (bl-09c8): document.URL/forms, form owners, form.elements.
+    include_str!("prelude/form.js"),
     "\n",
     // TreeWalker/NodeFilter (bl-b8c0): adds createTreeWalker to the Document
     // prototype doc.js completes.

@@ -388,6 +388,27 @@ Consequences of the repo's hard rules:
   parent runs synchronously (`w.eval(…)` posting to `parent` reads the parent
   as its source). `MessageChannel` leaves the env-contract's absent list.
 
+- **Forms and the document's address (`bl-09c8`, 2026-11-24).** `form.js`,
+  measured on Firefox 153.0esr (`src/js/tests/form/`): `document.URL` and
+  `documentURI` read the window's address; `HTMLElement.title` and the
+  form-associated elements' `name` reflect; a listed element's `form` is its
+  form owner, read on every access from the arena's one answer
+  (`src/dom/form.rs`, shared with `--out forms` and `ElementInternals.form`),
+  and a legend/option/label
+  reports its fieldset's/select's/control's. `form.elements` is an
+  `HTMLFormControlsCollection` of the listed elements the form owns, in tree
+  order, image buttons excluded; a name several share reads as a
+  `RadioNodeList` (whose `value` is the checked radio's). `form.action` is
+  the resolved attribute, or the document's URL when absent or empty.
+  `document.forms` and `form.elements` carry their ids and names as
+  unenumerable named properties — only those two: every other
+  `HTMLCollection` would pay two attribute reads per element on every read.
+  Declared residuals: both are snapshots like every collection here (a new
+  object per read, not live); `elements` leaves out form-associated custom
+  elements; the parser's form pointer for a control
+  foster-parented out of its form is not kept; named access on a form, the
+  document and the window is not built (`bl-de60`, `bl-226d`).
+
 ## 4. What runs, and when
 
 Parsing already happened (html5ever ran to completion); frot never executes

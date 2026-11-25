@@ -19,21 +19,19 @@ const CAPTURE: &str = include_str!("handlers/firefox153.json");
 /// answers: a syntax error's message is the engine's wording (identity.md §11,
 /// "Engine error messages"); a reported exception's `lineno`/`colno`/`filename`
 /// are 0/0/`''` (js.md §3, "One dispatch path"); quickjs lists a function's own
-/// `length` first; `scope` and `withVar` reach members frot does not build
-/// (HTMLElement `title` — a handler finds the document's instead — the form's
-/// `elements`/`action` and named controls, named access on document and
-/// window, `document.URL`); and the two images'
+/// `length` first; `scope` reaches the named access frot does not build (a
+/// form's named controls, document and window named properties — `bl-09c8`
+/// built the rest); and the two images'
 /// tasks end in document order, where Firefox's network ended the `data:` one
 /// first.
-const DECLARED: [(&str, &str); 10] = [
+const DECLARED: [(&str, &str); 9] = [
     ("syntaxErr", "null;ErrorEvent:ReferenceError: log is not defined:ReferenceError:0 ErrorEvent:SyntaxError: unexpected token in expression: '}':SyntaxError:0;"),
     ("syntaxErrDispatch", "1;ErrorEvent:SyntaxError: unexpected token in expression: '}':SyntaxError:0;2;"),
     ("throwing", "ErrorEvent:RangeError: rr:RangeError:0"),
     ("throwingNonError", "ErrorEvent:uncaught exception: ss:undefined:0"),
-    ("scope", "undefined,undefined,undefined,string,q,function,object,undefined,true,undefined"),
+    ("scope", "undefined,object,string,string,q,function,object,undefined,true,undefined"),
     ("winOnerror", "on:string/Error: w1/string/0/0/w1/true/5 L:true on:object/[object Event]/undefined////true/1 L:false plain:true1 L:true true ee:mm5 L:true true"),
     ("winOnerrorAttr", "function;5;\"function onerror(event, source, lineno, colno, error) {\\nwindow.OE = [event, source, lineno, colno, error && error.message, typeof arguments[0]].join(\\\"/\\\"); return true\\n}\";Error: w2//0/0/w2/string;ErrorEvent:Error: w2:Error:0"),
-    ("withVar", "number,wv,string,functionundefined"),
     ("handlerName", "onload,length/name/prototype"),
     ("imgAttr", "err:error:i1:true load:i2"),
 ];

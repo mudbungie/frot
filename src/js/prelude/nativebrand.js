@@ -55,7 +55,7 @@
       'querySelectorAll localName tagName id className classList attributes clientWidth clientHeight ' +
       'innerHTML outerHTML shadowRoot assignedSlot slot previousElementSibling nextElementSibling ' +
       'children firstElementChild lastElementChild childElementCount',
-    HTMLElement: 'focus blur style offsetTop offsetLeft offsetWidth offsetHeight ' + ON + ' dataset onerror',
+    HTMLElement: 'focus blur title style offsetTop offsetLeft offsetWidth offsetHeight ' + ON + ' dataset onerror',
     SVGElement: 'focus blur style ' + ON + ' dataset onerror',
     CharacterData: 'remove data length previousElementSibling nextElementSibling',
     DocumentFragment: 'getElementById prepend append querySelector querySelectorAll children ' +
@@ -63,12 +63,15 @@
     Document: 'getElementsByTagName getElementsByClassName createElement createElementNS ' +
       'createDocumentFragment createTextNode createComment importNode adoptNode createEvent ' +
       'createTreeWalker getElementsByName ' +
-      'hasFocus getElementById prepend append querySelector querySelectorAll implementation ' +
-      'compatMode doctype documentElement referrer cookie ' +
-      'readyState title body head scripts defaultView onreadystatechange currentScript hidden ' +
+      'hasFocus getElementById prepend append querySelector querySelectorAll implementation URL ' +
+      'documentURI compatMode doctype documentElement referrer cookie ' +
+      'readyState title body head forms scripts defaultView onreadystatechange currentScript hidden ' +
       'visibilityState activeElement adoptedStyleSheets ' + ON + ' onerror children firstElementChild ' +
       'lastElementChild childElementCount',
     HTMLLinkElement: 'disabled href rel relList type',
+    HTMLFieldSetElement: 'disabled form name type elements',
+    HTMLFormElement: 'action name rel relList elements length',
+    HTMLObjectElement: 'data type name useMap form width height contentDocument contentWindow',
     HTMLLIElement: 'value type',
     HTMLParamElement: 'value type',
     HTMLScriptElement: 'src type text',
@@ -78,7 +81,8 @@
   };
   // The tag-specific members sit in this relative order on every HTML<Tag>
   // interface but the four named above.
-  var TAGGED = 'getContext toDataURL defaultChecked checked disabled indeterminate src srcdoc rel relList href ' +
+  var TAGGED = 'getContext toDataURL defaultChecked checked disabled form indeterminate name src srcdoc rel ' +
+    'relList href ' +
     'type defaultValue defaultSelected selected ' +
     'value width height contentDocument contentWindow';
   Object.getOwnPropertyNames(g).forEach(function (name) {

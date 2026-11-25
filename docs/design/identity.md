@@ -1893,7 +1893,7 @@ visibilityState, activeElement, children`. The listener trio is no longer the
 document's own: it inherits `EventTarget`'s through `Node`.
 
 Left, each in §11: the 203 `Document.prototype` members frot does not
-implement (`title`, `URL`, `referrer`, `createEvent`, `createRange`,
+implement (`title`, `URL` *(built 2026-11-24, `bl-09c8`, with `documentURI` and `forms`)*, `referrer`, `createEvent`, `createRange`,
 `doctype` *(built 2026-11-23, `bl-3d15`)*, … — a page that calls one gets `undefined`, as before);
 `document.cloneNode()` returns an empty text node where the binary returns a
 second `HTMLDocument` (frot has one document); `document.implementation` is a

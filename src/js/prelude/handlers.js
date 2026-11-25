@@ -104,12 +104,10 @@
     st.value = null;
   }
 
-  // The form owner of a form-associated element: its nearest form ancestor.
+  // The form owner of a listed element (form.js's `form`, bl-09c8).
   var LISTED = { button: 1, fieldset: 1, input: 1, object: 1, output: 1, select: 1, textarea: 1 };
   function formOf(el) {
-    if (!LISTED[tagOf(el)]) return null;
-    for (var p = el.parentNode; p; p = p.parentNode) if (tagOf(p) === 'form') return p;
-    return null;
+    return LISTED[tagOf(el)] ? el.form : null;
   }
   // "Get the current value of the event handler": compile an attribute's
   // source on first use; a syntax error is reported and leaves null.
