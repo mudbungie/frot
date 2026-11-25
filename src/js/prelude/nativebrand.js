@@ -109,6 +109,47 @@
   var built = g.__frot_iface_seal([g.EventTarget, g.Worker, g.SharedWorker, g.Notification,
     g.AbortSignal, g.AbortController, g.Event, g.CustomEvent, g.AudioContext, g.OfflineAudioContext]);
 
+  // Every member of the node interfaces checks its receiver (bl-a1a1), as
+  // Firefox 153.0esr's do: a getter, setter or operation called on anything
+  // that does not implement its interface — the prototype itself included —
+  // throws "'<member>' called on an object that does not implement interface
+  // <I>.", and a promise-returning one rejects with it. A null or undefined
+  // receiver is the window (WebIDL); another window's node passes by its
+  // chain's interface names. The other interfaces: bl-a1a1's follow-up.
+  var isProto = Object.prototype.isPrototypeOf, TAG = Symbol.toStringTag;
+  var PROMISED = { decode: 1, requestFullscreen: 1, exitFullscreen: 1 };
+  function implementsIface(o, P, name) {
+    if (isProto.call(P, o)) return true;
+    for (var q = Object.getPrototypeOf(Object(o)); q; q = Object.getPrototypeOf(q)) {
+      var d = Object.getOwnPropertyDescriptor(q, TAG);
+      if (d && d.value === name) return true;
+    }
+    return false;
+  }
+  function guard(fn, member, P, name) {
+    var w = function () {
+      if (implementsIface(this == null ? g : this, P, name)) return fn.apply(this, arguments);
+      var e = new TypeError("'" + member + "' called on an object that does not implement interface "
+        + name + '.');
+      if (PROMISED[member]) return Promise.reject(e);
+      throw e;
+    };
+    Object.defineProperty(w, 'length', { value: fn.length, configurable: true });
+    return brand(w, fn.name);
+  }
+  built.forEach(function (C) {
+    var P = C.prototype, name = C.name;
+    if (P !== g.Node.prototype && !(P instanceof g.Node)) return;
+    Object.getOwnPropertyNames(P).forEach(function (k) {
+      var d = Object.getOwnPropertyDescriptor(P, k);
+      if (k === 'constructor') return;
+      if (d.get) d.get = guard(d.get, 'get ' + k, P, name);
+      if (d.set) d.set = guard(d.set, 'set ' + k, P, name);
+      if (typeof d.value === 'function') d.value = guard(d.value, k, P, name);
+      Object.defineProperty(P, k, d);
+    });
+  });
+
   sweep(g); // window's own methods + the raw __frot_* syscalls (source hidden)
   // Every node interface, not only the ones one sample element reaches.
   built.forEach(function (C) {

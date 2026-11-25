@@ -14,6 +14,7 @@ use crate::fetch::FetchSession;
 mod attr;
 mod audioctx;
 mod blob;
+mod brandck;
 mod clock;
 mod composed;
 mod cssom;

@@ -426,6 +426,15 @@ Consequences of the repo's hard rules:
   (`window.someId`) needs an exotic object, and a Proxy there makes quickjs
   answer `undefined` for every unresolvable identifier instead of throwing
   `ReferenceError` — declared, `bl-de60`.
+- **The node interfaces check their receiver (`bl-a1a1`, 2026-11-24).**
+  `nativebrand.js`, after every prototype is complete, wraps each getter,
+  setter and operation of `Node` and every interface under it: called on
+  anything that does not implement the interface — the prototype itself
+  included — it throws Firefox 153.0esr's `TypeError: '<member>' called on an
+  object that does not implement interface <I>.` (a promise-returning one
+  rejects with it). A null/undefined receiver is the window; another window's
+  node passes by its chain's interface names. Measured in
+  `src/js/tests/brandck/`; the other interfaces are `bl-9df0`.
 
 ## 4. What runs, and when
 
