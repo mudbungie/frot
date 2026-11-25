@@ -76,6 +76,7 @@
     HTMLLIElement: 'value type',
     HTMLParamElement: 'value type',
     HTMLScriptElement: 'src type text',
+    HTMLSourceElement: 'src type srcset sizes media width height',
     HTMLImageElement: 'decode alt src srcset crossOrigin useMap referrerPolicy isMap width height ' +
       'decoding loading fetchPriority naturalWidth naturalHeight complete name align hspace vspace ' +
       'longDesc border sizes currentSrc lowsrc x y',

@@ -39,6 +39,7 @@ mod idle;
 mod image;
 mod imagefetch;
 mod imageload;
+mod imagesource;
 mod inserted;
 mod internals;
 mod iterator;

@@ -1304,6 +1304,51 @@ that, a page walking any of them read frot's implementation instead.
   on vs blocked, showed no text change on the same pages. Sending the GET is a
   separate, open decision: `bl-49f1`.
 
+  *Amended 2026-11-24 (`bl-0e4a`): which URL.* *(Supersedes "frot requests
+  `src`", the `--images` residual below.)* The request is for the candidate
+  the HTML source selection picks, as Firefox 153.0esr picks it at the
+  persona's device pixel ratio 1 and 1280×720 viewport — `currentSrc` names
+  it, with or without `--images`. Measured on the rig, page by page; the rule
+  is `src/js/syscall/image/source.rs` (`__frot_image_source`), in the order it
+  happens:
+  1. *The set.* In a `<picture>`, each `<source>` before the `<img>` in order
+     is taken when its `srcset` yields a candidate, its `media` matches, and
+     its `type` (essence, case-insensitive; empty restricts nothing) is one
+     Firefox decodes: png, x-png, apng, jpeg, jpg, pjpeg, gif, webp, avif,
+     bmp, x-ms-bmp, svg+xml, x-icon, vnd.microsoft.icon, icon — not jxl, tiff,
+     heic, jp2, avif-sequence. Else the `<img>`'s `srcset`, plus `src` as a
+     `1x` candidate when the set has neither a `1x` nor any `w` candidate.
+  2. *Parsing.* The HTML srcset tokenizer; a candidate repeating an earlier
+     one's descriptor is skipped (first wins). `x`: `-`? digits with optional
+     fraction, or a bare fraction, optional exponent, not negative (`.5x`,
+     `0x`, `1e-1x` valid; `+1x`, `1.x`, `-1x`, `1X` not). `w`/`h`: digits with
+     no leading zero, positive (`0400w`, `+400w`, `400.0w` invalid); `h` only
+     beside `w`; no descriptor is `1x`.
+  3. *Sizes.* The first entry whose media condition (no media type: `screen
+     150px` is invalid) holds and whose length is valid, else `100vw`.
+     Lengths: px, em/rem (16), vw/vh/vmin/vmax, in/cm/mm/q/pt/pc, unitless 0,
+     `calc`/`min`/`max`/`clamp`; negative, percentage and unitless non-zero
+     are invalid. `auto` is the `width` attribute (else 300) on a
+     `loading=lazy` image and invalid on an eager one.
+  4. *Pick.* A `w` candidate's density is its width over the size. Firefox's
+     rule: the lowest density not below 1, else the highest; the first on a
+     tie.
+  5. *Size.* `naturalWidth`/`naturalHeight` (and the `width`/`height` they
+     stand in for) are the image's over the density, rounded half up (101×51
+     at 2x is 51×26); density 0 leaves it as is.
+  6. *Mutations.* Setting or removing `src`/`srcset`/`sizes` on the `<img>`
+     starts a new request; the `<img>` entering or leaving a `<picture>`, or a
+     `<source>` entering, leaving or changing `srcset`/`sizes`/`media`/`type`
+     in one, starts one only when the pick moves. `HTMLSourceElement` now
+     reflects `srcset`, `sizes`, `media`, `width`, `height` (Firefox's order).
+  **Residuals:** `ex`/`ch` in `sizes` are invalid (Firefox resolves them from
+  font metrics); `sizes=auto` reads the `width` attribute, not the laid-out
+  width (a CSS or percentage width differs); a media condition takes only
+  what `css/media.rs` evaluates (no `orientation`, no range syntax);
+  `currentSrc` is set as `src` is set, where Firefox sets it at the next
+  microtask; the pick is made once and never re-made on a viewport change
+  (frot's viewport does not change).
+
   *Amended 2026-11-24 (`bl-49f1`; Mark's ruling: real image fetching behind a
   flag, default off).* **`--images`** lets an image request leave frot. It
   requires `--js` — bare, it is a usage error, as `--js-errors` is: without
@@ -1358,8 +1403,7 @@ that, a page walking any of them read frot's implementation instead.
      image not yet fetched fails (`error`) and the run reports the existing
      `stopped: "network"` (settled `false`) — the same fact a refused fetch
      records. No new field, and no separate image budget.
-  **Residuals (`--images`):** `srcset`/`sizes`/`<picture>` are ignored — frot
-  requests `src` where Firefox picks a candidate (`bl-0e4a`); an in-viewport
+  **Residuals (`--images`):** an in-viewport
   lazy image is released after the document's `load` (by an observer task),
   where Firefox may release it before; the lazy margin is measured from the
   full 1280×720 viewport, where Firefox's root excludes a classic scrollbar,

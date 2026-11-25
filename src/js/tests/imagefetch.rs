@@ -208,3 +208,22 @@ fn an_image_the_budget_cut_off_fails_and_names_the_network() {
     assert_eq!(out(&doc), "error");
     assert_eq!(report.stopped, Some(JsStop::Network));
 }
+
+#[test]
+fn the_picked_candidate_is_what_is_fetched() {
+    // bl-0e4a: the `<picture>`'s webp source and a `w` candidate for a 50vw
+    // size go on the wire; the fallbacks never do (measured on the rig).
+    let mut server = Server::new();
+    let webp = img(&mut server, "/b.webp", "u=4, i", &png(), 1);
+    let w800 = img(&mut server, "/w800.png", "u=4, i", &png(), 1);
+    let (out, _) = page(
+        &server,
+        "<picture><source type=image/jxl srcset=/a.jxl><source type=image/webp srcset=/b.webp>\
+         <img id=p src=/fb.png></picture><img id=w sizes=50vw srcset='/w400.png 400w, /w800.png 800w'>\
+         <script>watch(document.getElementById('p'),'p');watch(document.getElementById('w'),'w')</script>",
+    );
+    webp.assert();
+    w800.assert();
+    // A 2×3 image at 800w for 640px is density 1.25: shown at 2×2.
+    assert_eq!(out, "p:load:true:2:3 w:load:true:2:2");
+}

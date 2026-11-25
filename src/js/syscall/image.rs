@@ -27,11 +27,20 @@ use super::Host;
 use crate::js::subfetch::{data, SharedSubfetch};
 
 mod avif;
+mod length;
+mod source;
+mod srcset;
 mod svg;
 
-/// Register `__frot_image_size(url) -> [w, h] | null` and, under `--images`
-/// only, `__frot_image_fetch(requests)`.
+/// Register `__frot_image_size(url) -> [w, h] | null`,
+/// `__frot_image_source(id) -> [url, density] | null` (the candidate the
+/// `<img>` requests, [`source`]) and, under `--images` only,
+/// `__frot_image_fetch(requests)`.
 pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::Result<()> {
+    bind!(ctx, g, "__frot_image_source", {
+        let d = host.doc.clone();
+        move |id: u32| source::select(&d.borrow(), id).map(rquickjs::convert::List)
+    });
     bind!(ctx, g, "__frot_image_size", {
         let sf = host.subfetch.clone();
         move |url: String| sized(&sf, &url).map(|(w, h)| vec![w, h])

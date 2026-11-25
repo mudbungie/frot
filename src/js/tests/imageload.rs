@@ -10,7 +10,7 @@ const GIF: &str = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAA
 
 /// Run a page whose scripts write `log` into `<body data-out>` at the end of
 /// the run (a far timer), and return it with the report.
-fn run(script: &str) -> (String, Report) {
+pub(super) fn run(script: &str) -> (String, Report) {
     let (doc, report) = drive(&format!(
         "<body><script>var log=[];function L(){{log.push([].slice.call(arguments).join(':'))}}\
          {script};setTimeout(function(){{document.body.setAttribute('data-out',log.join(' '))}},9000)\

@@ -156,4 +156,26 @@
     d.configurable = true;
     Object.defineProperty(proto, k, d);
   });
+
+  // HTMLSourceElement's selection inputs (bl-0e4a): what a framework sets on
+  // a `<picture>`'s `<source>` — reflected, so imageload.js's attribute seam
+  // sees them (measured: `width = '7x'` and `height = -3` both write "0").
+  var source = {
+    srcset: reflect('srcset', text),
+    sizes: reflect('sizes', text),
+    media: reflect('media', text),
+    width: reflect('width', integer, function (el, v) {
+      el.setAttribute('width', String(dimension(v)));
+    }),
+    height: reflect('height', integer, function (el, v) {
+      el.setAttribute('height', String(dimension(v)));
+    }),
+  };
+  Object.keys(source).forEach(function (k) {
+    var d = source[k];
+    brand(d.get, 'get ' + k);
+    brand(d.set, 'set ' + k);
+    d.configurable = true;
+    Object.defineProperty(g.HTMLSourceElement.prototype, k, d);
+  });
 })(globalThis);

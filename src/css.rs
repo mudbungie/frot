@@ -51,6 +51,7 @@ pub use lang::{foreign, language};
 pub use paint::Paint;
 pub use query::{matches_any, query_all, UnsupportedSelector};
 pub use quote::Quotes;
+pub(crate) use selparse::split_top;
 pub use state::editable;
 pub use transform::{Case, TextTransform};
 
