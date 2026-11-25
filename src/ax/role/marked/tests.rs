@@ -152,3 +152,25 @@ fn custom_elements_click_handlers_and_table_cells() {
         assert_eq!(outline(html), want, "{html}");
     }
 }
+
+/// A `popover` makes a plain container a group whatever its box (`bl-cf7b`);
+/// a never-shown one has no box unless a stylesheet gives it one.
+#[test]
+fn popover_makes_a_plain_container_a_group() {
+    for (html, want) in [
+        ("<div popover style='display:block'>x</div>", "group"),
+        (
+            "<p>a <span popover style='display:inline'>x</span></p>",
+            "paragraph, group",
+        ),
+        ("<div popover>x</div>", ""),
+        ("<div popover role=none style='display:block'>x</div>", ""),
+        ("<section popover style='display:block'>x</section>", ""),
+        (
+            "<ul popover style='display:block'><li>x</li></ul>",
+            "list, listitem",
+        ),
+    ] {
+        assert_eq!(outline(html), want, "{html}");
+    }
+}

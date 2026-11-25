@@ -13,9 +13,16 @@ b::after { content: " no"; }
 <div id="w"><input id="c" aria-label="c"><b class="w">within</b></div>
 <div popover id="p"><b>pop</b> <input id="pi" autofocus aria-label="pi"><b>pi</b></div>
 <div popover id="q">closed-pop</div>
+<p>r1 <span popover="manual" id="m1">span pop</span> r2 <span popover="manual" id="m2"></span> r3</p>
+<div popover="manual" id="m3"><p>block pop</p></div>
+<section popover="manual" id="m4">section pop</section>
+<div popover="manual" id="m5" role="none">none pop</div>
+<ul popover="manual" id="m6"><li>list pop</li></ul>
+<div popover id="m7" style="display:block">shown by style</div>
 <button id="e" disabled>dis</button><b>dis</b>
 <p id="out"></p>
 <script>
+['m1', 'm2', 'm3', 'm4', 'm5', 'm6'].forEach(function (id) { document.getElementById(id).showPopover(); });
 document.getElementById('c').focus();
 document.getElementById('a').focus();
 document.getElementById('e').focus();

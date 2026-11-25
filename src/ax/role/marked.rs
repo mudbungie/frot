@@ -19,9 +19,18 @@
 //!   an unnamed `<section>`, an `<a>` without `href`, a `<summary>` outside
 //!   `<details>`, `<slot>`, SVG's `<g>`.
 //!
+//! `popover` does it too, and with no condition on the box (`bl-cf7b`,
+//! Chrome 158): a shown `<div popover>`, an empty `<span popover>` and one
+//! made `display:inline` are each `group ""`, and so is a `<div popover>`
+//! never shown that a stylesheet displays. A `role` turns it off here as
+//! well (`role=none` stays out), an unnamed `<section popover>` stays
+//! `generic`, and an element with a role of its own keeps it (`<ul popover>`
+//! is a `list`, `<button popover>` a `button`).
+//!
 //! No other attribute does it: `tabindex`, `contenteditable`, `onclick`,
-//! `title`, `lang`, `popover`, `accesskey` and every `aria-*` attribute tried
-//! leave a kept span `generic`.
+//! `title`, `lang`, `accesskey` and every `aria-*` attribute tried leave a
+//! kept span `generic`. (**Corrected 2026-11-24, `bl-cf7b`:** `popover` was
+//! in that list — measured on a popover never shown, which has no box.)
 
 use crate::ax::tree::lineless;
 use crate::css::{Display, Styles};
@@ -57,9 +66,9 @@ pub fn group(
     if display == Display::ListItem {
         return Some("listitem");
     }
-    let marked = !has("role") && (has("autofocus") || has("draggable"));
+    let marked = || has("autofocus") || has("draggable");
     let kept = || display != Display::TableCell && lineless::kept(doc, id, el, styles);
-    (marked && kept()).then_some("group")
+    (!has("role") && (has("popover") || marked() && kept())).then_some("group")
 }
 
 #[cfg(test)]

@@ -49,8 +49,5 @@ pub const LEDGER: &[Row] = &[
     // Open divergences, one ball per root cause.
     // text
     // ax
-    row("focusjs", "ax", "- group \"\"", Why::Defect("bl-cf7b")),
-    row("focusjs", "ax", "- (", Why::Defect("bl-cf7b")),
-    row("focusjs", "ax", "- )", Why::Defect("bl-cf7b")),
     // bboxes
 ];
