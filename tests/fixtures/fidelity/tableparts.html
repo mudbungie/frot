@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Table parts outside a table</title>
+</head>
+<body>
+<div>ia<span style='display:table-cell'>ib</span><span style='display:table-cell'>ic</span>id</div>
+<div>ja<span style='display:table-row'>jb</span><span style='display:table-row'>jc</span>jd</div>
+<div>la<span style='display:table-cell'>lb</span> <span style='display:table-cell'>lc</span>ld</div>
+<div>ra<span style='display:table-cell'>rb</span>rc<span style='display:table-cell'>rd</span>re</div>
+<div>ka<span style='display:table-cell'>kb</span><img alt=''><span style='display:table-cell'>kc</span>kd</div>
+<div>na<b><span style='display:table-cell'>nb</span></b><span style='display:table-cell'>nc</span>nd</div>
+<div>ma<span style='display:table-row'>mb</span><span style='display:table-cell'>mc</span>md</div>
+<div>m1<span style='display:table-cell'>m2</span><span style='display:table-row'>m3</span><span style='display:table-cell'>m4</span>m5</div>
+<div><span style='display:table-row-group'>ka</span><span style='display:table-row-group'>kb</span></div>
+<div><span style='display:table-row-group'><span style='display:table-row'>ga</span></span><span style='display:table-row-group'><span style='display:table-row'>gb</span></span></div>
+<div><span style='display:table-row'>ha</span><span style='display:table-row-group'>hb</span></div>
+<div><span style='display:table-row'><span style='display:table-cell'>c1</span><span style='display:table-cell'>c2</span></span><span style='display:table-row'><span style='display:table-cell'>c3</span></span></div>
+<div><span style='display:table-row'><span style='display:table-cell'>d1</span>d2</span></div>
+<div><span style='display:table-cell'>e1</span><b>e2</b><span style='display:table-cell'>e3</span></div>
+<div><span style='display:table-row-group'><span style='display:table-row'>f1</span></span><span style='display:table-row'>f2</span></div>
+<div>s1 <span style='display:table-cell'>s2</span> s3</div>
+<div style="display:table-cell"><a href="m.html">table-cell div</a></div>
+<div style="display:inline-block"><a href="m.html">inline-block div</a></div>
+<div><p style="display:contents">p1</p> <p style="display:table-cell">p2</p></div>
+</body>
+</html>

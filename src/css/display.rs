@@ -36,11 +36,14 @@ pub enum Display {
     TableColumn,
     /// No box of its own: the children stand in the parent's flow.
     Contents,
-    /// A table cell: laid out as a block, and in `text` set off only from
-    /// the cell before it.
+    /// A table cell: laid out as a block; in `text` separated by the
+    /// anonymous table it stands in (`views/text/state.rs`).
     TableCell,
-    /// A table row or row group: the same, from the row before it.
+    /// A table row: the same.
     TableRow,
+    /// A row group (`table-row-group`, `-header-group`, `-footer-group`):
+    /// the same, and no row of its own (`bl-34f1`).
+    TableRowGroup,
 }
 
 impl Display {
@@ -71,8 +74,9 @@ impl Display {
             "inline-flex" | "-webkit-inline-flex" | "inline flex" => Display::InlineFlex,
             "contents" => Display::Contents,
             "table-cell" => Display::TableCell,
-            "table-row" | "table-row-group" | "table-header-group" | "table-footer-group" => {
-                Display::TableRow
+            "table-row" => Display::TableRow,
+            "table-row-group" | "table-header-group" | "table-footer-group" => {
+                Display::TableRowGroup
             }
             _ => return None,
         })
@@ -122,9 +126,12 @@ impl Display {
         self.block_level() || self.table_part()
     }
 
-    /// Whether the box is a table cell or row.
+    /// Whether the box is a table cell, row or row group.
     pub fn table_part(self) -> bool {
-        matches!(self, Display::TableCell | Display::TableRow)
+        matches!(
+            self,
+            Display::TableCell | Display::TableRow | Display::TableRowGroup
+        )
     }
 
     /// The computed `display` of a box taken out of flow — absolutely
@@ -134,7 +141,11 @@ impl Display {
     /// `contents` has no box to take out of flow — it is `self`.
     pub fn blockified(self, out_of_flow: bool) -> Self {
         match self {
-            Display::Inline | Display::InlineBlock | Display::TableCell | Display::TableRow
+            Display::Inline
+            | Display::InlineBlock
+            | Display::TableCell
+            | Display::TableRow
+            | Display::TableRowGroup
                 if out_of_flow =>
             {
                 Display::Block

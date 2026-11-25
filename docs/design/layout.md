@@ -176,7 +176,7 @@ stay out (table row groups, whose rows already break the line).
 | `flex` | flex container (§ flex) |
 | `none` | no box; subtree skipped (already the `display_none` behavior) |
 | `contents` | no box; the children are laid out in the parent's flow |
-| `table-cell`, `table-row` | block flow, and its own rule in `text` (below) |
+| `table-cell`, `table-row`, `table-row-group` (and `-header-` / `-footer-group`) | block flow; in `text` separated as Chrome's anonymous table boxes separate them — a tab after a cell another cell follows in its row, a line after a row element another row follows in its table, nothing else, and white space beside the run gone (`views/text/state.rs`; 2026-11-24, `bl-34f1`) |
 | `grid`, `inline-grid` | laid out as `block` / `inline-block`, kept apart because a grid's children are grid items (below) |
 | `inline list-item` | laid out as `inline`, kept apart because it is a `listitem` in `ax` whatever its tag (`bl-90c1`) |
 | `table`, `inline-table` (and `<table>` itself) | laid out as `block` / `inline-block`, kept apart because neither is a container with a line of its own in `ax`: no paragraph for a `display:table` `<p>`, no group for a marked `<div>` (`bl-08c6`) |
@@ -191,7 +191,6 @@ the nearest box it has — nearest in *level* first, because the level is what
 | `table-caption`, `flow-root`, `-webkit-box`, `block ruby`, `block math` | block | table layout is a non-goal (§6); all block-level |
 | `-webkit-inline-box` | inline-block | the same, inline-level: an atomic box on the line it is written in |
 | `ruby`, `ruby-text`, `math` | inline | inline-level and not atomic (Chrome names `va<span style="display:ruby">vb</span>vc` "vavbvc") |
-| `table-row-group`, `table-header-group`, `table-footer-group` | table-row | a group separates the way its rows do |
 | the multi-keyword forms (`inline flex`, `flex inline`, `list-item block`, `inline flow list-item`, …) | their one-keyword twin | CSS Display 3 §2.5; the keywords in any order, each kind once |
 | `initial`, `unset` | inline | the property's initial value; `display` is not inherited |
 | `inherit` | the parent's computed `display` | measured: a `<p style="display:inherit">` in a `<span>` is inline |
@@ -210,6 +209,12 @@ pseudo-element's `display: inherit` is its element's display (2026-11-24,
 
 Coercion is deterministic and documented; it is not a silent failure (§6, honest
 signals).
+
+> **Superseded 2026-11-24 (`bl-34f1`).** The row groups were coerced to
+> `table-row`, and `text` set a cell off from the cell just before it and a
+> row from the row just before it; Chrome separates by the anonymous boxes
+> around the run, so `<row>a</row><cell>b</cell>` is two lines and two row
+> groups of bare text are one token.
 
 > **Superseded 2026-11-24 (`bl-08c6`).** `table` was coerced to block and
 > `inline-table` to inline-block; the `ax` view could then not tell a

@@ -45,9 +45,9 @@ fn every_value_chrome_accepts_takes_the_nearest_box() {
         ("contents", Display::Contents),
         ("table-cell", Display::TableCell),
         ("table-row", Display::TableRow),
-        ("table-row-group", Display::TableRow),
-        ("table-header-group", Display::TableRow),
-        ("table-footer-group", Display::TableRow),
+        ("table-row-group", Display::TableRowGroup),
+        ("table-header-group", Display::TableRowGroup),
+        ("table-footer-group", Display::TableRowGroup),
         // Keywords in any order (`bl-9dec`).
         ("flex inline", Display::InlineFlex),
         ("list-item inline", Display::InlineListItem),

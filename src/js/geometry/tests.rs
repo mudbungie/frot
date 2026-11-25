@@ -239,3 +239,15 @@ fn generated_content_has_geometry_that_tracks_attribute_changes() {
         "[16,0,32,20]"
     );
 }
+
+/// A row group is its own keyword (`bl-34f1`), and out of flow a block.
+#[test]
+fn a_row_group_is_its_own_display() {
+    let s = bare("<html><body><i id='g' style='display:table-header-group'></i></body></html>");
+    let js = "__frot_computed_style(__frot_query(__frot_document, '#g')[0], 'display')";
+    assert_eq!(s.eval(js).unwrap(), "table-row-group");
+    assert_eq!(
+        crate::css::Display::TableRowGroup.blockified(true),
+        crate::css::Display::Block
+    );
+}

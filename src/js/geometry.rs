@@ -127,6 +127,7 @@ fn display_keyword(d: Display) -> &'static str {
         Display::Contents => "contents",
         Display::TableCell => "table-cell",
         Display::TableRow => "table-row",
+        Display::TableRowGroup => "table-row-group",
     }
 }
 

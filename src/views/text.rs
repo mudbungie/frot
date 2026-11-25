@@ -15,8 +15,8 @@
 //!   `--css` "block-level" is the computed `display`, so a `display:block`
 //!   span breaks the line and a `display:inline` div does not; without it,
 //!   the tag's own ([`breaks_line`]). A `display:contents` element and a
-//!   table part break none: a cell is set off from the cell before it by a
-//!   space, a row from the row before it by a line ([`State::open`]).
+//!   table part break none: table parts are separated as Chrome's
+//!   anonymous table boxes separate them (`text/state.rs`).
 //! - With `--css` (a [`Styles`] table is passed): `display:none` subtrees are
 //!   dropped — which is how the author-overridable `[hidden]` rule reaches this
 //!   view, and why *that* one does need the recipe — an element's own text is
@@ -26,8 +26,11 @@
 //!   `text-transform` paints it (`bl-e48d`). None of it reaches below a
 //!   `<select>`, whose options are listed whatever their own style says.
 
+mod state;
+
 use crate::css::{Display, Styles, Visibility};
 use crate::dom::{Document, NodeId, NodeKind};
+use state::State;
 
 /// Elements whose text a browser never paints, whatever it is for: source and
 /// data (`<script>`, `<style>`, `<template>`, `<noscript>`) and the descriptive
@@ -56,124 +59,6 @@ const SKIP_TAGS: &[&str] = &[
     "annotation-xml",
 ];
 
-struct State {
-    out: String,
-    pre_depth: u32,
-    pending_break: bool,
-    pending_space: bool,
-    /// The table part ([`Display::table_part`]) that has just ended, while
-    /// nothing has come after it.
-    part: Option<Display>,
-}
-
-impl State {
-    fn new() -> Self {
-        Self {
-            out: String::new(),
-            pre_depth: 0,
-            pending_break: true,
-            pending_space: false,
-            part: None,
-        }
-    }
-
-    /// The start of an element whose box is `display`. A table cell is set
-    /// off from the cell just before it by a space and a row from the row
-    /// before it by a line — Chrome's `innerText` writes a tab and a newline
-    /// — and from nothing else: `ia<span cell>ib</span><span cell>ic</span>id`
-    /// is `iaib icid`, and `rb` and `rd` either side of `rc` stay `rbrcrd`
-    /// (Chrome 158, `bl-e3a0`).
-    fn open(&mut self, display: Display) {
-        match self.part.take() {
-            Some(Display::TableRow) if display == Display::TableRow => self.block_break(),
-            Some(Display::TableCell) if display == Display::TableCell => self.pending_space = true,
-            _ => {}
-        }
-    }
-
-    fn close(&mut self, display: Display) {
-        self.part = display.table_part().then_some(display);
-    }
-
-    /// Whitespace never needs an "is there anything before me?" guard: the
-    /// state starts with a break pending — the start of the document is the
-    /// start of a line — so the first text flushes through the break arm of
-    /// [`State::flush_pending`], which writes nothing while `out` is empty
-    /// and drops any pending space. It does not rest on `<html>` or `<body>`
-    /// being block-level, which a stylesheet can undo (`bl-fe2c`).
-    fn push_text(&mut self, s: &str) {
-        if self.pre_depth > 0 {
-            self.part = None;
-            self.flush_pending();
-            self.out.push_str(s);
-            return;
-        }
-        for ch in s.chars() {
-            if ch.is_whitespace() {
-                self.pending_space = true;
-            } else {
-                self.part = None;
-                self.flush_pending();
-                self.out.push(ch);
-            }
-        }
-    }
-
-    /// `::before`/`::after` text: inline, unless the pseudo-element's own box
-    /// is block-level — then it stands on a line of its own, as an element
-    /// would (`bl-346e`: an absolutely positioned `::after` label).
-    fn push_generated(&mut self, text: Option<&str>, display: Display) {
-        let Some(text) = text else { return };
-        if display.block_level() {
-            self.block_break();
-        }
-        self.push_text(text);
-        if display.block_level() {
-            self.block_break();
-        }
-    }
-
-    fn push_newline(&mut self) {
-        if self.pre_depth > 0 {
-            self.out.push('\n');
-            return;
-        }
-        self.pending_space = false;
-        self.pending_break = true;
-    }
-
-    /// A block boundary, inside `<pre>` as much as outside it: `<pre>one
-    /// <div>two</div>three</pre>` is three lines in Chrome 158 (`bl-2f42`).
-    /// The break is only pending, so a newline the source already wrote
-    /// there is not doubled.
-    fn block_break(&mut self) {
-        self.pending_space = false;
-        self.pending_break = true;
-    }
-
-    fn flush_pending(&mut self) {
-        if self.pending_break {
-            if !self.out.is_empty() && !self.out.ends_with('\n') {
-                self.out.push('\n');
-            }
-            self.pending_break = false;
-            self.pending_space = false;
-            return;
-        }
-        if self.pending_space {
-            self.out.push(' ');
-            self.pending_space = false;
-        }
-    }
-
-    fn finish(mut self) -> String {
-        while self.out.ends_with([' ', '\n']) {
-            self.out.pop();
-        }
-        self.out
-    }
-}
-
 /// Whether the element starts and ends a line: its box is block-level — the
 /// computed `display` under a cascade, the tag's own without one
 /// ([`Display::of`]) — or it is a `<p>`. Measured in Chrome 158 `innerText`
@@ -189,7 +74,9 @@ impl State {
 /// (`bl-e3a0`): `x<p style="display:table-cell">pp</p>y` is `xppy`.
 fn breaks_line(styles: Option<&Styles>, id: NodeId, tag: &str) -> bool {
     match Display::of(styles, id, tag) {
-        Display::Contents | Display::TableCell | Display::TableRow => false,
+        Display::Contents | Display::TableCell | Display::TableRow | Display::TableRowGroup => {
+            false
+        }
         display => display.block_level() || tag == "p",
     }
 }

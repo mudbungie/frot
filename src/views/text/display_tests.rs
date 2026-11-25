@@ -57,9 +57,10 @@ fn a_cell_is_set_off_from_the_cell_before_it_and_a_row_from_the_row() {
     assert_eq!(t_css(&html), "kakbkckd");
     let html = format!("<div>na<b>{}</b>{}nd</div>", cell("nb"), cell("nc"));
     assert_eq!(t_css(&html), "nanbncnd");
-    // A cell after a row is neither.
+    // A row before a bare cell is set off from the cell's anonymous row
+    // (Chrome 158, `bl-34f1`; this read "mambmcmd" before).
     let html = format!("<div>ma{}{}md</div>", row("mb"), cell("mc"));
-    assert_eq!(t_css(&html), "mambmcmd");
+    assert_eq!(t_css(&html), "mamb\nmcmd");
     // Preformatted text is content too.
     let html = format!("<pre>{}\n{}</pre>", cell("a"), cell("b"));
     assert_eq!(t_css(&html), "a\nb");
@@ -129,4 +130,32 @@ fn a_legend_and_the_other_ua_blocks_stand_on_their_own_line() {
     assert_eq!(t_css("<div>a<plaintext>b"), "a\nb");
     // `<marquee>` is an inline-block.
     assert_eq!(t_css("<div>a<marquee>b</marquee>c</div>"), "abc");
+}
+
+/// Separators follow Chrome's anonymous table boxes (`bl-34f1`, Chrome 158;
+/// `tests/fixtures/fidelity/tableparts.html` holds the same cases).
+#[test]
+fn table_parts_are_separated_by_their_anonymous_table() {
+    let cell = |s: &str| format!("<span style='display:table-cell'>{s}</span>");
+    let row = |s: &str| format!("<span style='display:table-row'>{s}</span>");
+    let rg = |s: &str| format!("<span style='display:table-row-group'>{s}</span>");
+    for (html, want) in [
+        (
+            format!("m1{}{}{}m5", cell("m2"), row("m3"), cell("m4")),
+            "m1m2m3\nm4m5",
+        ),
+        (format!("{}{}", rg("ka"), rg("kb")), "kakb"),
+        (format!("{}{}", rg(&row("ga")), rg(&row("gb"))), "ga\ngb"),
+        (format!("{}{}", row("ha"), rg("hb")), "ha\nhb"),
+        (row(&(cell("d1") + "d2")), "d1 d2"),
+        (format!("{}<b>e2</b>{}", cell("e1"), cell("e3")), "e1e2e3"),
+        (format!("{}{}", rg(&row("f1")), row("f2")), "f1\nf2"),
+        (format!("s1 {} s3", cell("s2")), "s1s2s3"),
+        (format!("{}<br>x", cell("c")), "c\nx"),
+        (rg(&(rg("a") + "b")), "ab"),
+    ] {
+        assert_eq!(t_css(&format!("<div>{html}</div>")), want, "{html}");
+    }
+    let html = "<div><p style='display:contents'>p1</p> <p style='display:table-cell'>p2</p></div>";
+    assert_eq!(t_css(html), "p1p2");
 }
