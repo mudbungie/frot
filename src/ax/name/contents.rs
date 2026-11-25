@@ -167,7 +167,11 @@ fn node_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) 
         // (caught by [`Document::ax_children`], which is the only way in).
         NodeKind::Text(t) => out.push_str(w.styles.map_or(t, |s| s.text(id, t))),
         NodeKind::Element(el) => element_text(w, id, el, visited, out),
-        NodeKind::Comment(_) | NodeKind::Doctype(_) | NodeKind::Document | NodeKind::Fragment => {}
+        NodeKind::Comment(_)
+        | NodeKind::Doctype(_)
+        | NodeKind::Document
+        | NodeKind::Fragment
+        | NodeKind::Shadow(_) => {}
     }
 }
 

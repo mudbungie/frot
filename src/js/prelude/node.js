@@ -47,12 +47,15 @@
   }
 
   g.__frot_ifaceops(Node.prototype, {
-    // No shadow DOM (js.md §11): the root is the top of the parent chain — the
-    // document for a connected node, the subtree top for a detached one.
-    getRootNode: function getRootNode() {
-      var top = this;
-      while (top.parentNode) top = top.parentNode;
-      return top;
+    // The top of the node's tree — the document, a shadow root, or a
+    // detached subtree's top — and `{composed: true}` goes on through each
+    // shadow root to its host (js.md §15).
+    getRootNode: function getRootNode(options) {
+      var top = g.__frot_tree_root(slots(this).id);
+      while (options && options.composed && g.__frot_shadow_info(top)) {
+        top = g.__frot_tree_root(g.__frot_shadow_info(top)[0]);
+      }
+      return wrap(top);
     },
     hasChildNodes: function hasChildNodes() {
       return kids(this).length > 0;
@@ -91,6 +94,8 @@
     cloneNode: function cloneNode(deep) {
       var id = slots(this).id;
       var kind = g.__frot_kind(id);
+      var shadow = g.__frot_shadow(id);
+      if (g.__frot_shadow_info(id)) throw g.__frot_domerror('NotSupportedError', 'Operation is not supported');
       var copy = wrap(
         kind === 'element' ? g.__frot_create_element(g.__frot_tag(id))
           : kind === 'document-fragment' ? g.__frot_create_fragment()
@@ -108,6 +113,15 @@
         });
         // A template's contents are cloned into the copy's (js.md §15).
         if (copy instanceof g.HTMLTemplateElement) copy.content.appendChild(this.content.cloneNode(true));
+      }
+      // A clonable shadow root is cloned with its host, deep whatever `deep`.
+      var root = shadow !== null && shadow !== undefined && wrap(shadow);
+      if (root && root.clonable) {
+        var into = copy.attachShadow({ mode: root.mode, clonable: true, serializable: root.serializable,
+          delegatesFocus: root.delegatesFocus, slotAssignment: root.slotAssignment });
+        kids(root).forEach(function (kid) {
+          into.appendChild(wrap(kid).cloneNode(true));
+        });
       }
       return copy;
     },
@@ -134,7 +148,7 @@
       return tag ? tag.toUpperCase() : dt ? dt[0] : '#' + kindOf(this);
     },
     isConnected: function () {
-      return this.getRootNode() === g.document;
+      return g.__frot_connected(slots(this).id);
     },
     // The one document (no frames, js.md §11), which has no owner itself.
     ownerDocument: function () {

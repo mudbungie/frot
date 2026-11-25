@@ -2038,7 +2038,9 @@ Attacked before building, per the house rule. Each is filed, none is built:
 
 - **Events do not cross shadow boundaries.** frot's dispatch has no
   propagation at all yet (`bl-810b`); `composed`, retargeting and
-  `composedPath()` wait for it.
+  `composedPath()` wait for it. *(2026-11-24: `bl-810b` has landed; an event
+  in a shadow tree propagates to its shadow root and stops there, composed
+  or not, and nothing is retargeted — filed as its own ball.)*
 - **Focus delegation** (`delegatesFocus`), **form-associated custom
   elements** and **`ElementInternals`** (`attachInternals` stays absent), **scoped
   registries**, **manual slot assignment** (`slot.assign()`), the
@@ -2098,3 +2100,23 @@ Attacked before building, per the house rule. Each is filed, none is built:
   (46 answers, the reaction log of every operation in 15.1; two declared, the
   15.3 `innerHTML` upgrade, held at Chrome 158's answers) and `js/tests/attr/`
   (17; `NamedNodeMap`'s write half declared).
+- **Stage 3 (`bl-3787`), shadow roots.** `NodeKind::Shadow` (`dom/shadow.rs`)
+  records a root's host and the options it was attached with; the host's
+  `content` names it. `absorb_children` attaches a declarative root for the
+  document's parse only (`innerHTML` never does), reading `shadowrootmode`
+  ASCII case-insensitively as Firefox does (html5ever compares it exactly,
+  and frot makes the decision itself). `attach_shadow` answers Firefox's
+  refusals and re-uses an untouched declarative root; the hierarchy rule is
+  host-including, so a host cannot go into its own shadow tree. Slot
+  assignment is `assigned`/`assigned_slot`, a query over the tree; manual
+  assignment assigns nothing (`slot.assign()` is not built). Six syscalls join
+  `syscall/tree.rs`; `prelude/shadow.js` builds `ShadowRoot`, `attachShadow`,
+  `shadowRoot`, `assignedSlot`, `slot`, `getHTML` and `HTMLSlotElement`'s
+  members; `markup.js` serializes a chosen root as `<template
+  shadowrootmode>`; `getRootNode({composed})`, `isConnected` and the custom
+  element reactions are shadow-including. Pinned by a 49-answer Firefox
+  153.0esr capture (`js/tests/shadow/`; the `ShadowRoot` and
+  `HTMLSlotElement` member lists are declared subsets). The views still read
+  the light tree: stage 4 flattens it. Measured after it, Amazon's home page:
+  `js.errors` 0 on three runs (the Lit bundle defines, upgrades and renders
+  into its shadow roots; its text is not yet in `--out text`).

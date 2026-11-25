@@ -51,9 +51,9 @@
   var ORDER = {
     Element: 'getAttributeNames getAttribute getAttributeNS toggleAttribute setAttribute setAttributeNS ' +
       'removeAttribute removeAttributeNS hasAttribute hasAttributes closest matches getElementsByTagName ' +
-      'getElementsByClassName getBoundingClientRect remove prepend append querySelector querySelectorAll ' +
-      'localName tagName id className classList attributes clientWidth clientHeight innerHTML outerHTML ' +
-      'children',
+      'getElementsByClassName getBoundingClientRect attachShadow getHTML remove prepend append querySelector ' +
+      'querySelectorAll localName tagName id className classList attributes clientWidth clientHeight ' +
+      'innerHTML outerHTML shadowRoot assignedSlot slot children',
     HTMLElement: 'focus blur style offsetTop offsetLeft offsetWidth offsetHeight ' + ON + ' dataset onerror',
     SVGElement: 'focus blur style ' + ON + ' dataset onerror',
     CharacterData: 'remove data length',

@@ -110,7 +110,7 @@
     var tag = g.__frot_tag(id);
     var proto =
       tag == null
-        ? KIND[g.__frot_kind(id)]
+        ? g.__frot_shadow_info(id) ? g.ShadowRoot.prototype : KIND[g.__frot_kind(id)]
         : byTag[tag] || (tag.indexOf('-') < 0 ? g.HTMLUnknownElement : HTMLElement).prototype;
     return adopt(Object.create(proto), id);
   }

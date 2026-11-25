@@ -261,7 +261,7 @@ fn geometry<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquickj
 fn kind_label(doc: &Document, id: u32) -> &'static str {
     match doc.node(id).kind {
         NodeKind::Document => "document",
-        NodeKind::Fragment => "document-fragment",
+        NodeKind::Fragment | NodeKind::Shadow(_) => "document-fragment",
         NodeKind::Element(_) => "element",
         NodeKind::Text(_) => "text",
         NodeKind::Comment(_) => "comment",

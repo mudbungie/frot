@@ -121,7 +121,7 @@ impl Document {
         // DOM "insert": a fragment is never linked — its children move, in
         // order, to where it was aimed, and it is left empty.
         let moved = match self.nodes[child as usize].kind {
-            NodeKind::Fragment => self.nodes[child as usize].children.clone(),
+            NodeKind::Fragment | NodeKind::Shadow(_) => self.nodes[child as usize].children.clone(),
             _ => vec![child],
         };
         for node in moved {
@@ -163,7 +163,7 @@ impl Document {
         // (`#document > <html> > fragment nodes`); absorb the wrapper's children.
         let wrapper = rc.document.children.borrow()[0].clone();
         let fragment = self.create_fragment();
-        self.absorb_children(&wrapper, fragment);
+        self.absorb_children(&wrapper, fragment, false);
         // The fragment parser starts every script it makes: an `innerHTML`
         // script never runs (HTML §13.4, `bl-a86b`; measured in Firefox).
         for id in self.scripts_in(fragment) {

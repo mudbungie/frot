@@ -43,6 +43,7 @@ mod persona_gold;
 mod receiver;
 mod reflect;
 mod scriptmode;
+mod shadow;
 mod subtle;
 mod template;
 mod title;

@@ -48,13 +48,27 @@
   }
 
   // Every read is a fresh syscall against the arena (js.md §2) — the serializer
-  // holds no state and caches nothing, like every other wrapper here.
-  function nodes(ids, raw) {
+  // holds no state and caches nothing, like every other wrapper here. `roots`
+  // is getHTML's choice of shadow roots to serialize, `null` for none.
+  function nodes(ids, raw, roots) {
     var out = '';
-    for (var i = 0; i < ids.length; i++) out += node(ids[i], raw);
+    for (var i = 0; i < ids.length; i++) out += node(ids[i], raw, roots);
     return out;
   }
-  function node(id, raw) {
+  // A host's shadow root, when `roots` takes it, serializes as a declarative
+  // one — the `<template shadowrootmode>` the parser turns back into it.
+  var FLAGS = [[5, 'delegatesfocus'], [4, 'serializable'], [3, 'clonable']];
+  function shadow(id, roots) {
+    var root = roots && g.__frot_shadow(id);
+    if (root === null || root === undefined || !roots(root)) return '';
+    var info = g.__frot_shadow_info(root);
+    var out = '<template shadowrootmode="' + (info[1] ? 'closed' : 'open') + '"';
+    FLAGS.forEach(function (f) {
+      if (info[f[0]]) out += ' shadowroot' + f[1] + '=""';
+    });
+    return out + '>' + nodes(g.__frot_children(root), false, roots) + '</template>';
+  }
+  function node(id, raw, roots) {
     var kind = g.__frot_kind(id);
     if (kind === 'comment') return '<!--' + g.__frot_text(id) + '-->';
     // Text — and the doctype, whose text is '', so it needs no case of its own.
@@ -72,14 +86,36 @@
     if (is !== undefined) out += ' is="' + esc(is, true) + '"';
     out += '>';
     if (listed(VOID, tag)) return out;
-    return out + nodes(g.__frot_children(inner(id)), listed(RAW, tag)) + '</' + tag + '>';
+    out += shadow(id, roots);
+    return out + nodes(g.__frot_children(inner(id)), listed(RAW, tag), roots) + '</' + tag + '>';
   }
+
+  // The markup of `id`'s contents — an element's, a template's, a shadow
+  // root's. `options` is getHTML's: the shadow roots to serialize are the
+  // serializable ones when `serializableShadowRoots` is set, and any listed
+  // in `shadowRoots`.
+  function markup(id, options) {
+    var roots = null;
+    if (options) {
+      var listed_ = Array.prototype.map.call(options.shadowRoots || [], function (r) {
+        return slots(r).id;
+      });
+      var serializable = !!options.serializableShadowRoots;
+      roots = function (root) {
+        return (serializable && g.__frot_shadow_info(root)[4]) || listed_.indexOf(root) >= 0;
+      };
+    }
+    return shadow(id, roots) + nodes(g.__frot_children(inner(id)), listed(RAW, g.__frot_tag(id)), roots);
+  }
+  Object.defineProperty(g, '__frot_markup', {
+    value: g.__frot_brand(markup, '__frot_markup'),
+    configurable: true,
+  });
 
   Object.defineProperty(proto, 'innerHTML', {
     configurable: true,
     get: function () {
-      var id = slots(this).id;
-      return nodes(g.__frot_children(inner(id)), listed(RAW, g.__frot_tag(id)));
+      return markup(slots(this).id);
     },
     set: function (html) {
       var id = inner(slots(this).id);

@@ -193,9 +193,9 @@ fn node_data_to_kind_collapses_document_and_pi_to_empty_comment() {
     use html5ever::tendril::StrTendril;
     use markup5ever_rcdom::NodeData;
 
-    let doc = node_data_to_kind(&NodeData::Document);
+    let doc = super::parse::node_data_to_kind(&NodeData::Document);
     assert_eq!(doc, NodeKind::Comment(String::new()));
-    let pi = node_data_to_kind(&NodeData::ProcessingInstruction {
+    let pi = super::parse::node_data_to_kind(&NodeData::ProcessingInstruction {
         target: StrTendril::from_slice("xml"),
         contents: StrTendril::from_slice("foo"),
     });

@@ -269,7 +269,11 @@ fn emit(
                 state.push_text(styles.map_or(t, |s| s.text(id, t)));
             }
         }
-        NodeKind::Comment(_) | NodeKind::Doctype(_) | NodeKind::Document | NodeKind::Fragment => {}
+        NodeKind::Comment(_)
+        | NodeKind::Doctype(_)
+        | NodeKind::Document
+        | NodeKind::Fragment
+        | NodeKind::Shadow(_) => {}
     }
 }
 

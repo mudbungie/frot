@@ -217,6 +217,7 @@
   scoped(g.Node.prototype, 'cloneNode');
   scoped(g.Element.prototype, 'innerHTML');
   scoped(g.Element.prototype, 'outerHTML');
+  scoped(g.ShadowRoot.prototype, 'innerHTML');
 
   ce.raw = raw;
   ce.valid = valid;

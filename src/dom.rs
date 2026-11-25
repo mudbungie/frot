@@ -5,9 +5,6 @@
 //! parser/storage later (e.g. arena-allocated nodes for `--css` side tables)
 //! without rewriting every view.
 
-use html5ever::tendril::TendrilSink;
-use markup5ever_rcdom::{Handle, NodeData, RcDom};
-
 pub type NodeId = u32;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,6 +70,8 @@ pub enum NodeKind {
     /// `<!DOCTYPE name PUBLIC "public" "system">`: what `DocumentType`'s
     /// `name`, `publicId` and `systemId` read (each '' when absent).
     Doctype([String; 3]),
+    /// A shadow root: a fragment its host owns (js.md §15, [`shadow`]).
+    Shadow(shadow::Shadow),
 }
 
 #[derive(Debug, Clone)]
@@ -81,7 +80,8 @@ pub struct NodeEntry {
     pub children: Vec<NodeId>,
     pub parent: Option<NodeId>,
     /// The one fragment an element owns outside its child list: a
-    /// `<template>`'s contents (js.md §15). It is not a child — `walk`,
+    /// `<template>`'s contents or a host's shadow root (js.md §15) — never
+    /// both, since no template can host one. It is not a child — `walk`,
     /// selectors and `textContent` never enter it — and its own top-level
     /// nodes have it as their parent.
     pub content: Option<NodeId>,
@@ -134,13 +134,6 @@ impl Document {
     /// The document node's id. It is entry 0 of every arena, so a view that
     /// walks [`Document::roots`] never meets it and a parent chain ends on it.
     pub const ROOT: NodeId = 0;
-
-    pub fn parse(html: &str) -> Self {
-        let rc = html5ever::parse_document(RcDom::default(), Default::default()).one(html);
-        let mut doc = Document::default();
-        doc.absorb_children(&rc.document, Self::ROOT);
-        doc
-    }
 
     /// The document's top-level nodes: the document node's children.
     pub fn roots(&self) -> &[NodeId] {
@@ -213,34 +206,6 @@ impl Document {
         s
     }
 
-    /// Copy the parsed node `h` and its subtree into the arena under `parent`
-    /// (not yet in `parent`'s child list). A `<template>`'s contents, which
-    /// html5ever keeps beside its children, become the fragment it owns.
-    fn absorb(&mut self, h: &Handle, parent: Option<NodeId>) -> NodeId {
-        let id = self.push(node_data_to_kind(&h.data), parent);
-        if let NodeData::Element {
-            template_contents, ..
-        } = &h.data
-        {
-            if let Some(contents) = template_contents.borrow().as_ref() {
-                let fragment = self.push(NodeKind::Fragment, None);
-                self.absorb_children(contents, fragment);
-                self.nodes[id as usize].content = Some(fragment);
-            }
-        }
-        self.absorb_children(h, id);
-        id
-    }
-
-    /// Absorb every child of `h` and append it to `id`'s child list.
-    fn absorb_children(&mut self, h: &Handle, id: NodeId) {
-        let kids: Vec<_> = h.children.borrow().iter().cloned().collect();
-        for k in kids {
-            let cid = self.absorb(&k, Some(id));
-            self.nodes[id as usize].children.push(cid);
-        }
-    }
-
     /// Append a node with no children to the arena and return its id.
     fn push(&mut self, kind: NodeKind, parent: Option<NodeId>) -> NodeId {
         let id = self.nodes.len() as NodeId;
@@ -254,42 +219,16 @@ impl Document {
     }
 }
 
-fn node_data_to_kind(data: &NodeData) -> NodeKind {
-    match data {
-        NodeData::Element { name, attrs, .. } => NodeKind::Element(Element {
-            name: name.local.to_string().to_ascii_lowercase(),
-            attrs: attrs
-                .borrow()
-                .iter()
-                .map(|a| Attr {
-                    name: a.name.local.to_string().to_ascii_lowercase(),
-                    value: a.value.to_string(),
-                })
-                .collect(),
-        }),
-        NodeData::Text { contents } => NodeKind::Text(contents.borrow().to_string()),
-        NodeData::Comment { contents } => NodeKind::Comment(contents.to_string()),
-        NodeData::Doctype {
-            name,
-            public_id,
-            system_id,
-        } => NodeKind::Doctype([name, public_id, system_id].map(|t| t.to_string())),
-        // html5ever in HTML mode never emits Document/PI as a child; we map
-        // them to empty comments rather than carry an `Option` everywhere.
-        NodeData::Document | NodeData::ProcessingInstruction { .. } => {
-            NodeKind::Comment(String::new())
-        }
-    }
-}
-
 mod conceal;
 mod custom;
 mod form;
 mod hierarchy;
 pub mod live;
 mod mutate;
+mod parse;
 mod pseudo;
 mod select;
+pub mod shadow;
 mod target;
 
 #[cfg(test)]

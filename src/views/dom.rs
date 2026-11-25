@@ -40,7 +40,7 @@ fn node_json(doc: &Document, id: NodeId) -> Value {
         NodeKind::Text(t) => json!({ "type": "text", "value": t }),
         NodeKind::Comment(c) => json!({ "type": "comment", "value": c }),
         NodeKind::Doctype(_) => json!({ "type": "doctype" }),
-        NodeKind::Document | NodeKind::Fragment => children_json(doc, id),
+        NodeKind::Document | NodeKind::Fragment | NodeKind::Shadow(_) => children_json(doc, id),
     }
 }
 

@@ -43,10 +43,20 @@ impl Document {
     ) -> Option<String> {
         let into = &self.node(parent).kind;
         let in_document = matches!(into, NodeKind::Document);
-        if !in_document && !matches!(into, NodeKind::Element(_) | NodeKind::Fragment) {
+        if !in_document
+            && !matches!(
+                into,
+                NodeKind::Element(_) | NodeKind::Fragment | NodeKind::Shadow(_)
+            )
+        {
             return Some(format!("Cannot add children to a {}", interface(into)));
         }
-        if std::iter::successors(Some(parent), |&a| self.node(a).parent).any(|a| a == child) {
+        // Host-including: a host is never put inside its own shadow tree.
+        let up = |&a: &NodeId| match self.node(a).kind {
+            NodeKind::Shadow(s) => Some(s.host),
+            _ => self.node(a).parent,
+        };
+        if std::iter::successors(Some(parent), up).any(|a| a == child) {
             return Some("The new child is an ancestor of the parent".into());
         }
         let kind = &self.node(child).kind;
@@ -60,7 +70,7 @@ impl Document {
         // children in its place.
         let single = [child];
         let moved: &[NodeId] = match kind {
-            NodeKind::Fragment => &self.node(child).children,
+            NodeKind::Fragment | NodeKind::Shadow(_) => &self.node(child).children,
             _ => &single,
         };
         let is = |k: NodeId, element: bool| match self.node(k).kind {
@@ -122,7 +132,7 @@ fn article(name: &str) -> &'static str {
 fn interface(kind: &NodeKind) -> &'static str {
     match kind {
         NodeKind::Document => "Document",
-        NodeKind::Fragment => "DocumentFragment",
+        NodeKind::Fragment | NodeKind::Shadow(_) => "DocumentFragment",
         NodeKind::Element(_) => "Element",
         NodeKind::Text(_) => "Text",
         NodeKind::Comment(_) => "Comment",

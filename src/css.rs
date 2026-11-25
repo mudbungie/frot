@@ -35,6 +35,7 @@ mod validity;
 use crate::dom::NodeId;
 
 pub use cascade::{compute, compute_bare, compute_with};
+pub use control::custom as custom_name;
 pub use display::Display;
 pub use focus::{focusable, focused_element};
 pub use import::imports;

@@ -65,7 +65,7 @@ pub(super) fn defined(doc: &Document, id: NodeId, el: &Element) -> bool {
 /// A valid custom element name: a lower-case ASCII letter first, a `-`
 /// somewhere, not reserved. (The parser lower-cases tag names, and Chrome
 /// takes any other character: `<x-y!>` is a custom element.)
-fn custom(name: &str) -> bool {
+pub fn custom(name: &str) -> bool {
     let first = name.chars().next().is_some_and(|c| c.is_ascii_lowercase());
     first && name.contains('-') && !RESERVED.contains(&name)
 }
