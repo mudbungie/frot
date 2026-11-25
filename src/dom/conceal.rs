@@ -4,7 +4,7 @@
 //! Answered for text nodes as much as elements — the box the UA skips is the
 //! parent's, so everything inside it goes, markup or not.
 //!
-//! Two rules, both of them "the parent's box swallows the child":
+//! Three rules, each of them "the parent's box swallows the child":
 //!
 //! - A **`<details>` without `open`** renders only its first `<summary>`
 //!   element child — the disclosure control. Every other child is disclosure
@@ -16,6 +16,8 @@
 //! - A **fallback-content element** paints *none* of its children
 //!   ([`crate::tags`], which owns that fact and is also read by the
 //!   recipe-independent subtree skip in `views::text`).
+//! - In **SVG content** (`bl-01b2`, Chrome 158), an element SVG does not
+//!   know renders nothing, and text renders only inside a `<text>`.
 //!
 //! Neither is author-overridable: the skipped box is not the child's, and frot
 //! has no anonymous boxes to give it one.
@@ -79,6 +81,55 @@
 use super::{Document, NodeId, NodeKind};
 use crate::tags;
 
+/// The SVG elements a UA knows (SVG 2 plus the filter primitives, lowercased
+/// as the arena keeps them). Any other element in SVG content renders nothing,
+/// its subtree included (`bl-01b2`, Chrome 158: `<svg><foo>t</foo></svg>`
+/// paints no `t` and gives `<foo>` no box).
+fn svg_known(name: &str) -> bool {
+    const KNOWN: &[&str] = &[
+        "a",
+        "animate",
+        "animatemotion",
+        "animatetransform",
+        "circle",
+        "clippath",
+        "defs",
+        "desc",
+        "discard",
+        "ellipse",
+        "filter",
+        "foreignobject",
+        "g",
+        "image",
+        "line",
+        "lineargradient",
+        "marker",
+        "mask",
+        "metadata",
+        "mpath",
+        "path",
+        "pattern",
+        "polygon",
+        "polyline",
+        "radialgradient",
+        "rect",
+        "script",
+        "set",
+        "stop",
+        "style",
+        "svg",
+        "switch",
+        "symbol",
+        "text",
+        "textpath",
+        "title",
+        "tspan",
+        "use",
+        "view",
+    ];
+    KNOWN.contains(&name) || name.starts_with("fe")
+}
+
 impl Document {
     /// Whether `id` generates no box because of what its parent is — the wider
     /// of the two structural queries (module docs). A `<video>`'s prose, a
@@ -105,6 +156,30 @@ impl Document {
         };
         matches!(&self.node(parent).kind, NodeKind::Element(el) if !keeps(&el.name))
             || (self.closed_details(parent) && self.first_summary(parent) != Some(id))
+            || self.svg_swallows(parent, id)
+    }
+
+    /// The SVG half (`bl-01b2`): under an SVG element `parent` (not a
+    /// `<foreignObject>`, whose children are HTML), an element SVG does not
+    /// know renders nothing, and text renders only inside a `<text>`
+    /// (Chrome 158: text directly in `<svg>` or `<g>` is not painted).
+    fn svg_swallows(&self, parent: NodeId, id: NodeId) -> bool {
+        if self.nearest(parent, &["svg", "math", "foreignobject"]) != Some("svg") {
+            return false;
+        }
+        match &self.node(id).kind {
+            NodeKind::Element(el) => !svg_known(&el.name),
+            NodeKind::Text(_) => self.nearest(parent, &["text", "svg"]) != Some("text"),
+            _ => false,
+        }
+    }
+
+    /// The name of the nearest of `names` among `id` and its ancestors.
+    fn nearest(&self, id: NodeId, names: &[&str]) -> Option<&str> {
+        std::iter::successors(Some(id), |&n| self.node(n).parent)
+            .filter_map(|n| self.element(n))
+            .map(|e| e.name.as_str())
+            .find(|name| names.contains(name))
     }
 
     /// `id`'s children as the page paints them — the accessor form of

@@ -176,3 +176,18 @@ fn an_out_of_flow_box_is_a_line_of_its_own() {
         assert_eq!(t_css(html), want, "{html}");
     }
 }
+
+/// Chrome 158 (`bl-01b2`, `svg.html`): an element SVG does not know paints
+/// nothing, its subtree included, and SVG text paints only inside `<text>` —
+/// not directly in `<svg>` or `<g>`, nor in an unknown element inside `<text>`.
+/// A comment is no text either way, and `<foreignObject>`'s children are HTML.
+#[test]
+fn svg_paints_text_only_in_text_and_nothing_in_an_unknown_element() {
+    both(
+        "<p>six <svg><foo style=display:block>svgfoo</foo><foo><text>footext</text></foo>\
+         rawsvg<!--c--><g>rawg</g><g><text>gtext</text></g><text><foo>intextfoo</foo>\
+         <tspan>tsp</tspan></text><feBlend>fe</feBlend>\
+         <foreignObject>fo<b>bold</b></foreignObject></svg></p>",
+        "six\ngtext\ntsp\nfobold",
+    );
+}
