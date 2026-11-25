@@ -19,7 +19,8 @@
 //! aria-label=s><text style="display:none">x</text></svg>` is an `img`, and
 //! so is one whose `<text>` is `visibility:hidden` — though a `visible`
 //! `<tspan>` inside it brings the document back. One Chrome quirk is not
-//! followed: it still exposes what is inside a `display:none` `<g>`.
+//! followed: it still exposes what is inside a `display:none` `<g>` — a stated
+//! residual (`layout.md` §2, `bl-1177`).
 
 use super::context;
 use crate::ax;

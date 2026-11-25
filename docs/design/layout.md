@@ -433,6 +433,18 @@ other options might have belonged with `<video>`'s prose. Measured in Chrome
   button itself (`ax/name/contents/native.rs` `OPAQUE`, `range_value`,
   `input_alternative`).
 
+- **Residual: what is inside a `display:none` SVG `<g>`** (2026-11-24,
+  `bl-1177`, Mark: do not follow Chrome). Chrome 158 (`bl-b3db`) still
+  exposes it: `<svg aria-label=s><g style="display:none"><text>x</text></g></svg>`
+  is `graphics-document` with the text in the tree, and a titled `<circle>` or
+  `<g>` inside the hidden `<g>` keeps its node — though `display:none` on the
+  `<text>`, an `<a>` or a `<foreignObject>` itself does hide it. Nothing inside
+  that `<g>` is painted. frot cuts the subtree at the `<g>` (the `svg` is an
+  `img`, `ax/role/svg.rs`): following Chrome would put unpainted content in
+  `ax`, the class of defect the fidelity oracle exists to remove
+  (`fidelity.md` §1). No corpus page shows it; a page that ever does gets a
+  ledger `Residual` row citing this paragraph, not a fix.
+
 ## 3. "On-demand" — the exact trigger
 
 VISION: "Layout runs implicitly when something needs geometry … Outside that,
