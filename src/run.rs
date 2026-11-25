@@ -21,9 +21,10 @@ pub use deliver::run;
 pub(crate) use deliver::{run_bounded, run_io};
 
 fn build_envelope(args: &cli::Args, bounds: Bounds) -> Envelope {
-    // What a declared challenge took (`docs/design/challenge.md` §5.1), reported
-    // on whatever envelope the navigation ends in. `None` — no challenge was
-    // declared — adds nothing: the ordinary path is byte-identical.
+    // What a declared challenge or a reload round took
+    // (`docs/design/challenge.md` §5.1), reported on whatever envelope the
+    // navigation ends in. `None` — neither happened — adds nothing: the
+    // ordinary path is byte-identical.
     let mut challenge = None;
     navigate(args, bounds, &mut challenge).with_challenge(challenge)
 }
@@ -85,12 +86,10 @@ fn navigate(args: &cli::Args, bounds: Bounds, challenge: &mut Option<ChallengeIn
         // URL asked again: a declared challenge (`docs/design/challenge.md`
         // §4.2).
         let asked = if let Some(header) = declared {
-            // Declared after a round a reload earned: that round is counted.
-            let info = ChallengeInfo {
-                rounds,
-                ..ChallengeInfo::declared(header)
-            };
-            challenge.get_or_insert(info);
+            // The first header to declare one names it; a block a reload
+            // round opened keeps that round's count.
+            let info = challenge.get_or_insert_with(ChallengeInfo::default);
+            info.declared.get_or_insert_with(|| header.to_string());
             let verdict = |kind| Envelope::needs(url.clone(), args.out, vec![kind], None);
             // No `--js`: a recipe change genuinely helps, so say which.
             if !args.js {
@@ -138,7 +137,10 @@ fn navigate(args: &cli::Args, bounds: Bounds, challenge: &mut Option<ChallengeIn
         let open = (asked || reload) && rounds < CHALLENGE_ROUNDS;
         if open && nav.request().earned_since(&before) {
             rounds += 1;
-            challenge.iter_mut().for_each(|c| c.rounds = rounds);
+            // A round opens the block whatever asked for it (§5.1): no header
+            // may have declared anything, and the caller still learns that the
+            // delivered page is not what the URL first answered.
+            challenge.get_or_insert_with(ChallengeInfo::default).rounds = rounds;
             answered = ran.1;
             loaded = nav.load();
             continue;

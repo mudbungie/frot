@@ -264,8 +264,8 @@ impl Envelope {
         self
     }
 
-    /// Attach the declared-challenge signal (`docs/design/challenge.md` §5.1).
-    /// Additive; `None` — no challenge was declared — leaves the envelope
+    /// Attach the challenge signal (`docs/design/challenge.md` §5.1).
+    /// Additive; `None` — no challenge declared, no round taken — leaves the envelope
     /// untouched, byte for byte.
     pub fn with_challenge(mut self, challenge: Option<ChallengeInfo>) -> Self {
         self.challenge = challenge;

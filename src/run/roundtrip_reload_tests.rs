@@ -74,9 +74,11 @@ fn an_interstitial_that_asks_to_reload_after_its_verify_gets_the_page() {
     real.assert();
     assert_eq!(env["status"], "ok", "{env}");
     assert_eq!(env["out"], "the real page");
-    // Nothing declared a challenge, so there is no `challenge` block to say
-    // what it took (`bl-14f9`): `http` and `js` are the delivered page's.
-    assert!(env.get("challenge").is_none(), "{env}");
+    // No header declared a challenge, but a round was taken: the block says
+    // so, `declared` absent (`bl-14f9`); `http` and `js` are the delivered
+    // page's.
+    let block = serde_json::json!({"rounds": 1, "passed": true});
+    assert_eq!(env["challenge"], block, "{env}");
     assert_eq!(env["http"]["status"], 200);
     assert_eq!(env["js"]["scripts"], 0);
 }

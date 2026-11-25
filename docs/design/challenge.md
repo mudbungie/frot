@@ -367,7 +367,10 @@ the envelope.**
 
 - `declared` — the header that declared it. Constrained to `envelope::http::SURFACED`
   (single source: it is the same capture `needs::challenge` decides on and
-  `http.headers` surfaces — they cannot disagree, `bl-acec`).
+  `http.headers` surfaces — they cannot disagree, `bl-acec`). **Omitted** when
+  no header declared one: the round was a script-asked reload (§12.2,
+  `bl-14f9`). Its absence is the fact "no header declared this"; it never
+  holds anything but a header name.
 - `rounds` — navigations **after** the first. `0` when frot stopped without one.
 - `passed` — whether the re-navigation returned a non-challenge response.
 
@@ -382,14 +385,16 @@ the envelope.**
 > server refused — and a re-issue that got **no response** (timeout, redirect
 > loop) is `passed: false` beside the fetch error.
 
-> **2026-11-22 (`bl-99b7`, open: `bl-14f9`).** A round a script's reload
-> earned on an undeclared page has no header to name, so — until Mark decides
-> `bl-14f9` — it emits **no block**: the envelope is the delivered page's,
-> and does not say a stand-in preceded it. If that round is answered by a
-> declared challenge, the block appears as usual and `rounds` counts the
-> reload round (`rounds:1, passed:false`).
+> **2026-11-22 (`bl-99b7`), superseded 2026-11-24 (`bl-14f9`, Mark: option
+> b).** A round a script's reload earned on an undeclared page has no header
+> to name. It first emitted no block, so the envelope hid that a stand-in
+> preceded the page. Now the round opens the block with `declared` omitted —
+> Amazon via its Akamai interstitial is `"challenge":{"rounds":1,"passed":true}`.
+> If that round is answered by a declared challenge, `declared` names that
+> header and `rounds` counts the reload round (`rounds:1, passed:false`). A
+> caller reading `challenge.declared` must allow it to be absent.
 
-Present only when a challenge was declared; absent otherwise
+Present only when a challenge was declared or a round was taken; absent otherwise
 (`skip_serializing_if = "Option::is_none"`, exactly as `js` and `http` do in
 `src/envelope.rs`). **The envelope has never renamed a field** — `js`, `http`,
 `http.headers` all arrived additively, and so does this. Division of labour:
@@ -1112,7 +1117,7 @@ measured script needs (`loadend` to a listener) were built with it (`js.md`
 | what happened | envelope |
 |---|---|
 | ordinary page, script asked nothing (or asked and changed nothing) | the page's impression, one navigation — unchanged |
-| undeclared page, script reloaded and earned it, re-issue is the page | the delivered page's `ok`/`needs`; `http` and `js` are the delivered page's; **no `challenge` block** (open: `bl-14f9`) |
+| undeclared page, script reloaded and earned it, re-issue is the page | the delivered page's `ok`/`needs`; `http` and `js` are the delivered page's; `challenge:{rounds:1, passed:true}`, `declared` omitted (`bl-14f9`) |
 | undeclared page, reload round answered by a declared challenge | `needs:["human"]`, `challenge:{declared:…, rounds:1, passed:false}`, two navigations |
 | a page a round delivered asks to reload again | its impression — the round is spent |
 
