@@ -21,6 +21,10 @@ pub const FIREFOX_153_ESR: BrowserProfile = BrowserProfile {
     build_id: "20181001000000",
     hardware_concurrency: 8,
     color_depth: 24,
+    // A common desktop screen taller than the window (Mark, `bl-ca20`), as the
+    // §3.19 rig reports it: headless at 1920×1080, `avail*` == the screen and
+    // the window at its top-left corner (identity.md §8).
+    screen: [1920, 1080],
     // Measured, not chosen: a fresh profile's tab strip + navigation toolbar.
     // At the persona's own viewport (inner 1280×720) 153.0esr's window is
     // 1280×806; at 1366×768 it is 1366×682 inside (identity.md §3.12, §8).

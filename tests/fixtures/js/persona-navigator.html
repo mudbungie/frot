@@ -99,10 +99,14 @@
 
   // --- screen / devicePixelRatio / visibility (§8, bl-1cb7) --------------------
   eq('screen:tag', Object.prototype.toString.call(screen), '[object Screen]');
-  eq('screen.width', screen.width, 1280);
-  eq('screen.height', screen.height, 720);
-  eq('screen.availWidth', screen.availWidth, 1280);
-  eq('screen.availHeight', screen.availHeight, 720);
+  // The persona's 1920×1080 screen pin (bl-ca20), as Firefox 153.0esr reports
+  // it on the headless rig: avail == screen, the window at its top-left corner.
+  eq('screen.width', screen.width, 1920);
+  eq('screen.height', screen.height, 1080);
+  eq('screen.availWidth', screen.availWidth, 1920);
+  eq('screen.availHeight', screen.availHeight, 1080);
+  eq('screen.availLeft+availTop', screen.availLeft + screen.availTop, 0);
+  eq('screenX+screenY', screenX + screenY, 0);
   eq('screen.colorDepth', screen.colorDepth, 24);
   eq('screen.pixelDepth', screen.pixelDepth, 24);
   eq('devicePixelRatio', devicePixelRatio, 1);
@@ -110,8 +114,8 @@
   eq('visibilityState', document.visibilityState, 'visible');
   eq('hidden', document.hidden, false);
   ok('hasFocus', document.hasFocus() === true);
-  // screen agrees with the window viewport (no contradiction across surfaces).
-  eq('screen==inner', screen.width, window.innerWidth);
+  // The window fits inside the screen (no contradiction across surfaces).
+  ok('window<=screen', outerWidth <= screen.availWidth && outerHeight <= screen.availHeight);
 
   // --- Intl: minimal DateTimeFormat resolvedOptions matching the profile (§8) --
   eq('intl:tag', Object.prototype.toString.call(Intl), '[object Intl]');

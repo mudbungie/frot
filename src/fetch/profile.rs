@@ -7,7 +7,7 @@
 //!
 //! `bl-abca` landed the **transport subset** (version, EOL tripwire I8, ALPN, TLS,
 //! h2); the struct extends *additively* (`bl-20ec` headers, `bl-3972` navigator,
-//! `bl-e707` clock, `bl-05e6` canvas seed, `bl-9663` chrome). New fields, not files.
+//! `bl-e707` clock, `bl-05e6` canvas seed, `bl-9663` chrome, `bl-ca20` screen). New fields.
 //!
 //! ## What Option C (Mark, 2026-07-21) makes this const mean
 //!
@@ -34,8 +34,7 @@ pub struct H2Profile {
     /// SETTINGS_HEADER_TABLE_SIZE (id 1) — **declared residual**: absent from
     /// frot's wire, `hyper-util` exposes no setter (`transport.rs`).
     pub header_table_size: u32,
-    /// SETTINGS_ENABLE_PUSH (id 2) — Firefox disables push. Oracle-pinned only;
-    /// hyper hardcodes the same value.
+    /// SETTINGS_ENABLE_PUSH (id 2), off as in Firefox; oracle-pinned only (hyper's own value).
     pub enable_push: bool,
     /// SETTINGS_INITIAL_WINDOW_SIZE (id 4). Enforced.
     pub initial_window_size: u32,
@@ -115,8 +114,10 @@ pub struct BrowserProfile {
     /// JS `navigator.hardwareConcurrency` — pinned low-entropy `8`, not the true
     /// host count (identity.md §8: entropy + determinism; `1` implausibly low).
     pub hardware_concurrency: u8,
-    /// JS `screen.colorDepth`/`pixelDepth` — 24-bit truecolor (identity.md §8).
+    /// JS `screen`: `colorDepth`/`pixelDepth` (24-bit truecolor), and the
+    /// `[width, height]` its `avail*` equal — no taskbar (identity.md §8).
     pub color_depth: u8,
+    pub screen: [u16; 2],
     /// `outerHeight - innerHeight`, px: the toolbars above the viewport (`bl-9663`).
     pub chrome_height: u16,
     /// JS 2D-canvas fingerprint digest seed (`bl-05e6`, identity.md §11): a FIXED
@@ -135,9 +136,8 @@ pub struct BrowserProfile {
     pub tls: TlsProfile,
     /// h2 wire facts.
     pub h2: H2Profile,
-    /// `Accept` for a document navigation (identity.md §4.1 `accept_document`).
-    /// Firefox-shaped: no `image/avif,image/webp` (that pair is the Chrome tell
-    /// §3.3 row 5 removes).
+    /// `Accept` for a document navigation (identity.md §4.1): Firefox-shaped, no
+    /// `image/avif,image/webp` (the Chrome tell §3.3 row 5 removes).
     pub accept_document: &'static str,
     /// `Accept` for an external stylesheet (`<link rel=stylesheet>`).
     pub accept_style: &'static str,

@@ -966,8 +966,8 @@ that, a page walking any of them read frot's implementation instead.
   env-contract fixture pins the surface; the `vite-react-tailwind` field
   fixture replays the whole page end-to-end.
 - `screen` / `devicePixelRatio` / visibility (`bl-1cb7`, LANDED): a branded
-  `Screen` (`screen.width`/`height`/`availWidth`/`availHeight` = the 1280×720
-  layout viewport, **not** a second constant, identity.md §8), `colorDepth`/
+  `Screen` (`screen.width`/`height`/`availWidth`/`availHeight` = the persona's
+  1920×1080 screen pin — the 1280×720 layout viewport until `bl-ca20`, identity.md §8), `colorDepth`/
   `pixelDepth` = 24 and `devicePixelRatio` = 1 from the profile, `screenX`/`Y` and
   the scroll offsets 0, `document.visibilityState: 'visible'` / `hidden: false` /
   `hasFocus(): true` (one foreground impression). Coherent by construction: screen

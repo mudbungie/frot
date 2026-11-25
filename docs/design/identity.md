@@ -705,7 +705,7 @@ constant, because the real value is host/device entropy.
 | `Intl` constructor enumerability | **wrong**: `Object.keys(Intl)` is `[]` on Firefox (12 non-enumerable constructors); frot's one was enumerable | read |
 | `Intl.DateTimeFormat` tag | **wrong**: `[object Intl.DateTimeFormat]`, not `[object Object]` | read |
 | `resolvedOptions()` shape, `gregory`, `latn` | **was right** | read |
-| screen geometry 1280×720, DPR 1 | unchanged — the capture box's 1366×768 is a headless default (§8) | **pinned** |
+| screen geometry 1280×720, DPR 1 | unchanged — the capture box's 1366×768 is a headless default (§8; *screen 1920×1080 since `bl-ca20`*) | **pinned** |
 | `Intl` `timeZone: UTC` | unchanged — a host zone leaks entropy and varies output (§9) | **pinned** |
 | canvas `10px sans-serif`, 300×150, PNG data-URL prefix, `[object TextMetrics]` | **was right** | read |
 
@@ -1906,6 +1906,7 @@ Today these facts are scattered across four files, which is the defect:
 | `accept_encoding` | `gzip, deflate, br, zstd` — **subject to I2**, see §6.3 |
 | `js_build_id` | `20181001000000` — Gecko's *privacy-frozen* constant, not the real BuildID |
 | `js_hardware_concurrency` | `8` — a pinned low-entropy constant, see §8 |
+| `screen` | `1920×1080`, `avail*` equal (no taskbar), the window at `screenX/Y` 0 — a pinned common desktop, see §8 (`bl-ca20`) |
 
 **Where this table lives (`bl-7523`, 2026-08-12): `src/fetch/profile/pin.rs`,
 and nothing else is in that file.** It was split out of `profile.rs` — which now
@@ -2496,7 +2497,7 @@ and a row may never claim to be both).
 | **`webdriver`** | capture shows `true` on both lines — **Marionette's distortion, not stock** | read, and *rejected* as an artefact of the harness | **`false`** | **keep `false`. Real Firefox reports `false`; frot is under no remote control. Do not copy `true` into a golden capture.** |
 | `hardwareConcurrency` | `16` on the capture box | **pinned** — host entropy, so the read is discarded, not adopted | `1` | **pin `8`** — see below |
 | `screen.colorDepth` / `pixelDepth` | `24` / `24` | read — both lines | matching | keep |
-| screen geometry | `1366×768` on the capture box | **pinned** — a *headless* default, not a persona fact | frot's `1280×720` | keep frot's (see below) |
+| screen geometry | `1366×768` on the capture box | **pinned** — a *headless* default, not a persona fact | frot's `1280×720` | keep frot's (see below; *superseded 2026-11-24, `bl-ca20`: pinned 1920×1080*) |
 
 **`hardwareConcurrency`: pinned, not reported.** The real value is host-dependent
 (this box: 16). Reporting the true host count would leak host entropy *and* make
@@ -2520,6 +2521,24 @@ window no real browser has. The screen is untouched (still the 1280×720
 viewport), so `outerHeight` 806 exceeds `screen.height`/`availHeight` 720 —
 as on the reference itself, whose headless screen (1366×768) is shorter than
 that window too; a coherent screen is a change to the screen pin, `bl-ca20`.)*
+
+*(Superseded 2026-11-24, `bl-ca20`, Mark: the screen is 1920×1080, the window
+stays 1280×806.)* The screen is now its own persona pin (`BrowserProfile.screen`,
+`pin.rs`), no longer the viewport: no desktop maximized window is taller than
+its screen, and 1920×1080 is the commonest desktop. Read on the §3.19 rig with
+the headless screen set to that size (`MOZ_HEADLESS_WIDTH=1920
+MOZ_HEADLESS_HEIGHT=1080`, `--width 1280 --height 806`): `screen.width/height`
+1920×1080, `availWidth/availHeight` **1920×1080** (the headless rig has no
+desktop, so no taskbar or panel to subtract — the rig's value, chosen as the
+pin; a headful desktop would report less), `availLeft/availTop` 0, `left/top`
+0, `screenX/screenY` and `screenLeft/screenTop` **0** (the window at the
+screen's top-left corner), inner 1280×720, outer 1280×806,
+`mozInnerScreenX/Y` 0/86, `colorDepth`/`pixelDepth` 24, DPR 1,
+`orientation.type` `landscape-primary`. frot reports every one of those
+except `mozInnerScreenX/Y`, which it does not publish. The viewport is
+still the one layout constant (`layout.rs`); only `screen.*` reads the new
+pin, and CSS media queries still see the viewport. Pinned in the
+persona golden (`tests/fixtures/js/persona-navigator.html`).
 
 **LANDED (`bl-3972`, the Phase-5 framework task).** The whole supported subset
 above is built and gated. All facts flow through **one** channel —

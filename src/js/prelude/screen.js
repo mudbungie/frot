@@ -1,17 +1,16 @@
 // screen / devicePixelRatio / visibility (identity.md §8, js.md §7/§8, bl-3972 /
-// bl-1cb7). Geometry derives from the ONE layout viewport constant (1280×720,
-// __frot_viewport_*), never a second screen constant — depth/DPR from the persona
-// profile: screen == avail == the viewport (no taskbar), DPR 1, 24-bit colour,
-// and a visible/focused document. One disagreement is declared: the window adds
-// 86px of chrome above the viewport (bl-9663), so outerHeight exceeds
-// screen.height — a screen pin question, bl-ca20.
+// bl-1cb7). The screen is the persona's pin, not the viewport (bl-ca20): a
+// 1920×1080 desktop with avail == screen (no taskbar, as the headless reference
+// reports), the 1280×806 window at its top-left corner — so screenX/Y are 0 and
+// the window fits inside the screen. Depth/DPR from the same profile: DPR 1,
+// 24-bit colour, and a visible/focused document.
 // Runs after brand.js (needs __frot_iface) and dom.js (extends document).
 (function (g) {
   'use strict';
   var onEvent = g.__frot_onevent;
   var P = JSON.parse(g.__frot_env_profile());
-  var W = g.__frot_viewport_width();
-  var H = g.__frot_viewport_height();
+  var W = P.screen[0];
+  var H = P.screen[1];
 
   // A ScreenOrientation shim: a fixed landscape-primary desktop. Shape READ off
   // Firefox 153.0esr (`bl-1ab7`, identity.md §3.12) — the prototype carries
