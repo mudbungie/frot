@@ -48,7 +48,7 @@ use std::time::Duration;
 
 use crate::js::ScriptBody;
 
-use super::request::derive_headers;
+use super::request::{derive_headers, Lineage};
 use super::{
     build_transport, dispatch, CookieJar, FetchError, FetchResult, Intent, Request, SharedJar,
     Transport, MAX_REDIRECTS, TIMEOUT_SECS,
@@ -189,8 +189,7 @@ impl Navigation {
     }
 
     /// GET `target` because the document at `from` directed the navigation
-    /// there (a zero-delay meta refresh): `from` is the referrer, exactly as the
-    /// pre-redirect hop is for a 3xx.
+    /// there (a zero-delay meta refresh): `from` is the referrer, at every hop.
     pub fn follow(&mut self, target: &str, from: &str) -> Result<FetchResult, FetchError> {
         self.go(target, Some(from))
     }
@@ -201,13 +200,13 @@ impl Navigation {
     /// order, beside the page script's share of its cookies.
     pub fn request(&self) -> Reading {
         let (jar, anchor) = (self.session.jar.lock().unwrap(), &self.anchor);
-        let cookie = jar.header_for(anchor, None, Intent::Navigation);
+        let cookie = jar.header_for(anchor, &[], Intent::Navigation);
         let caller = &self.session.headers;
         let mut headers = derive_headers(
             Intent::Navigation,
             anchor,
             anchor,
-            None,
+            &Lineage::new(None),
             caller,
             cookie.as_deref(),
             None,

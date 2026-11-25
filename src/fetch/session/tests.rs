@@ -176,9 +176,8 @@ fn redirects_are_followed_through_the_session() {
 }
 
 #[test]
-fn a_subresource_redirect_is_followed_without_a_navigation_referrer_bump() {
-    // A non-navigation redirect exercises the derivation's `matches!(Navigation)`
-    // false arm: the referrer source stays the document across the hop.
+fn a_subresource_redirect_is_followed() {
+    // The referrer stays the document across the hop (`bl-b298`).
     let mut server = mockito::Server::new();
     let _m1 = server
         .mock("GET", "/sheet")

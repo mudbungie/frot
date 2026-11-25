@@ -22,7 +22,15 @@ const IMG: &str = "image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,*
 
 #[test]
 fn a_navigation_carries_the_document_set_in_firefox_order() {
-    let h = derive_headers(Intent::Navigation, PAGE, PAGE, None, &[], None, None);
+    let h = derive_headers(
+        Intent::Navigation,
+        PAGE,
+        PAGE,
+        &Lineage::new(None),
+        &[],
+        None,
+        None,
+    );
     assert_eq!(
         names(&h),
         [
@@ -84,7 +92,15 @@ fn each_subresource_intent_gets_its_own_dest_mode_accept_priority() {
         ),
     ];
     for (intent, dest, mode, accept, prio) in table {
-        let h = derive_headers(intent, PAGE, PAGE, Some(PAGE), &[], None, None);
+        let h = derive_headers(
+            intent,
+            PAGE,
+            PAGE,
+            &Lineage::new(Some(PAGE)),
+            &[],
+            None,
+            None,
+        );
         assert_eq!(value(&h, "Sec-Fetch-Dest"), Some(dest));
         assert_eq!(value(&h, "Sec-Fetch-Mode"), Some(mode));
         assert_eq!(value(&h, "Accept"), Some(accept));
@@ -102,7 +118,7 @@ fn sec_fetch_site_is_a_fact_of_the_two_urls() {
         Intent::Style,
         "https://cdn.site.example/a.css",
         "https://cdn.site.example/a.css",
-        Some(PAGE),
+        &Lineage::new(Some(PAGE)),
         &[],
         None,
         None,
@@ -113,7 +129,7 @@ fn sec_fetch_site_is_a_fact_of_the_two_urls() {
         Intent::Style,
         "https://site.example/a.css",
         "https://site.example/a.css",
-        Some(PAGE),
+        &Lineage::new(Some(PAGE)),
         &[],
         None,
         None,
@@ -124,7 +140,7 @@ fn sec_fetch_site_is_a_fact_of_the_two_urls() {
         Intent::Style,
         "https://other.test/a.css",
         "https://other.test/a.css",
-        Some(PAGE),
+        &Lineage::new(Some(PAGE)),
         &[],
         None,
         None,
@@ -186,7 +202,15 @@ fn a_caller_override_is_final_case_insensitive_and_never_duplicates() {
         ("accept".to_string(), "application/json".to_string()),
         ("X-Frot".to_string(), "1".to_string()),
     ];
-    let h = derive_headers(Intent::Navigation, PAGE, PAGE, None, &caller, None, None);
+    let h = derive_headers(
+        Intent::Navigation,
+        PAGE,
+        PAGE,
+        &Lineage::new(None),
+        &caller,
+        None,
+        None,
+    );
     // The derived Accept is replaced in place (one line, canonical name kept).
     assert_eq!(value(&h, "Accept"), Some("application/json"));
     assert_eq!(
@@ -204,13 +228,21 @@ fn caller_headers_do_not_leak_cross_origin() {
     // Anchor is the page; a cross-origin target (a redirect hop) carries none of
     // the caller set — Authorization included.
     let caller = vec![("Authorization".to_string(), "secret".to_string())];
-    let same = derive_headers(Intent::Navigation, PAGE, PAGE, None, &caller, None, None);
+    let same = derive_headers(
+        Intent::Navigation,
+        PAGE,
+        PAGE,
+        &Lineage::new(None),
+        &caller,
+        None,
+        None,
+    );
     assert_eq!(value(&same, "Authorization"), Some("secret"));
     let cross = derive_headers(
         Intent::Navigation,
         "https://evil.test/",
         PAGE,
-        None,
+        &Lineage::new(None),
         &caller,
         None,
         None,

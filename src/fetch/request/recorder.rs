@@ -27,7 +27,7 @@ use rustls_pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use tokio::net::TcpListener as TokioListener;
 use tokio_rustls::TlsAcceptor;
 
-use super::derive_headers;
+use super::{derive_headers, Lineage};
 use crate::fetch::firefox_tls::webpki_roots;
 use crate::fetch::{Intent, Transport, MAX_BODY_BYTES};
 
@@ -103,7 +103,7 @@ fn expect_h1(
     authority: &str,
 ) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> =
-        derive_headers(intent, target, target, page, &[], None, None)
+        derive_headers(intent, target, target, &Lineage::new(page), &[], None, None)
             .iter()
             .map(|(n, v)| (title_case(n), norm(v, authority)))
             .collect();
@@ -120,7 +120,7 @@ fn expect_h2(
     page: Option<&str>,
     authority: &str,
 ) -> Vec<(String, String)> {
-    derive_headers(intent, target, target, page, &[], None, None)
+    derive_headers(intent, target, target, &Lineage::new(page), &[], None, None)
         .iter()
         .map(|(n, v)| (n.to_ascii_lowercase(), norm(v, authority)))
         .collect()
@@ -225,7 +225,15 @@ fn h1_recorder_matches_the_derivation_for_every_intent() {
         let target = format!("http://{authority}/t");
         let origin = format!("http://{authority}");
         let page = page(rel, &origin);
-        let headers = derive_headers(intent, &target, &target, page.as_deref(), &[], None, None);
+        let headers = derive_headers(
+            intent,
+            &target,
+            &target,
+            &Lineage::new(page.as_deref()),
+            &[],
+            None,
+            None,
+        );
         let _ = Transport::new(webpki_roots()).request_once(
             &target,
             &headers,
@@ -249,7 +257,15 @@ fn h2_recorder_matches_the_derivation_for_every_intent() {
         let target = format!("https://{authority}/t");
         let origin = format!("https://{authority}");
         let page = page(rel, &origin);
-        let headers = derive_headers(intent, &target, &target, page.as_deref(), &[], None, None);
+        let headers = derive_headers(
+            intent,
+            &target,
+            &target,
+            &Lineage::new(page.as_deref()),
+            &[],
+            None,
+            None,
+        );
         let _ =
             Transport::new(test_roots()).request_once(&target, &headers, MAX_BODY_BYTES, GENEROUS);
         let (got_authority, hs) = rx.recv().unwrap();

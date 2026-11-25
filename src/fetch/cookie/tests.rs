@@ -25,7 +25,7 @@ fn jar(sets: &[(&str, &str)]) -> CookieJar {
 
 /// The nav `Cookie` for `target` from `ctx` (`None` = first-hop navigation).
 fn nav(j: &CookieJar, target: &str, ctx: Option<&str>) -> Option<String> {
-    j.header_for(target, ctx, Intent::Navigation)
+    j.header_for(target, ctx.as_slice(), Intent::Navigation)
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn samesite_gates_the_cross_site_context() {
     assert_eq!(
         j.header_for(
             "https://example.com/api",
-            Some("https://example.com/p"),
+            &["https://example.com/p"],
             Intent::Style
         )
         .as_deref(),
@@ -114,7 +114,7 @@ fn samesite_gates_the_cross_site_context() {
     assert_eq!(
         j.header_for(
             "https://example.com/px",
-            Some("https://other.com/"),
+            &["https://other.com/"],
             Intent::Style
         )
         .as_deref(),
@@ -133,7 +133,7 @@ fn an_unparseable_context_is_treated_cross_site() {
     // withholds the cookie rather than guessing.
     let j = jar(&[("l=1; SameSite=Lax", "https://example.com/")]);
     assert_eq!(
-        j.header_for("https://example.com/api", Some("::bad"), Intent::Style),
+        j.header_for("https://example.com/api", &["::bad"], Intent::Style),
         None
     );
 }
@@ -145,7 +145,7 @@ fn fetch_xhr_sends_cookies_only_same_origin() {
     assert_eq!(
         j.header_for(
             "https://example.com/api",
-            Some("https://example.com/p"),
+            &["https://example.com/p"],
             Intent::FetchXhr
         )
         .as_deref(),
@@ -155,7 +155,7 @@ fn fetch_xhr_sends_cookies_only_same_origin() {
     assert_eq!(
         j.header_for(
             "https://example.com/api",
-            Some("https://sub.example.com/p"),
+            &["https://sub.example.com/p"],
             Intent::FetchXhr
         ),
         None
@@ -275,4 +275,17 @@ fn the_scripted_share_is_the_cookies_the_page_script_last_wrote() {
         nav(&j, u, None).as_deref(),
         Some("nav=1; src=1; doc=1; xhr=2")
     );
+}
+
+#[test]
+fn one_cross_site_hop_on_the_redirect_chain_withholds_strict() {
+    // bl-b298, Firefox 153: a typed navigation other → site → site withholds
+    // the Strict cookie at both site hops; Lax still rides a navigation.
+    let j = jar(&[
+        ("s=1; SameSite=Strict", "https://example.com/"),
+        ("l=1; SameSite=Lax", "https://example.com/"),
+    ]);
+    let chain = ["https://other.com/r", "https://example.com/r"];
+    let landing = j.header_for("https://example.com/land", &chain, Intent::Navigation);
+    assert_eq!(landing.as_deref(), Some("l=1"));
 }

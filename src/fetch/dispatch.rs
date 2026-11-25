@@ -17,7 +17,7 @@ use crate::js::ScriptBody;
 /// One request as a call site describes it. `initiator` is the caller-`-H`
 /// origin anchor; `referrer` is the URL that caused the request — `None` for
 /// the caller's own navigation, the document for a subresource or for a hop the
-/// document itself directed (`src/refresh.rs`).
+/// document itself directed (`src/refresh.rs`) — and stays so across redirects.
 pub(crate) struct Request<'a> {
     pub url: &'a str,
     pub intent: Intent,
@@ -70,9 +70,9 @@ pub(crate) fn dispatch(
     // same landing reached through a 302 would disagree about their own URL
     // (bl-2832). The caller's byte-for-byte spelling stays in `url.requested`.
     let mut current = parsed.to_string();
-    // The referrer source: a subresource references its document across every
-    // hop; a navigation redirect adopts the pre-redirect hop as the new source.
-    let mut referrer = req.referrer.map(str::to_string);
+    // How each hop came to be: the redirect chain grows, the referrer never
+    // becomes a hop (`bl-b298` — a typed navigation sends none at any hop).
+    let mut lineage = request::Lineage::new(req.referrer);
     let mut body = req.body;
     loop {
         // The jar's applicable Cookie for this hop; `apply_caller` still layers a
@@ -80,12 +80,12 @@ pub(crate) fn dispatch(
         let cookie = jar
             .lock()
             .unwrap()
-            .header_for(&current, referrer.as_deref(), intent);
+            .header_for(&current, &lineage.context(), intent);
         let headers = request::derive_headers(
             intent,
             &current,
             initiator,
-            referrer.as_deref(),
+            &lineage,
             caller,
             cookie.as_deref(),
             body,
@@ -109,9 +109,7 @@ pub(crate) fn dispatch(
         };
         spend(hops)?;
         body = body.filter(|_| matches!(resp.status, 307 | 308));
-        if matches!(intent, Intent::Navigation) {
-            referrer = Some(current.clone());
-        }
+        lineage.redirected(current, header_value(&headers, "referer"));
         current = next;
     }
 }

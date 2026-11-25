@@ -127,41 +127,36 @@ impl CookieJar {
         }
     }
 
-    /// The `Cookie` header value for a wire request to `target` initiated with
-    /// `referrer_source` (the site/origin context) under `intent`, or `None` when
-    /// nothing applies. `intent` fixes the credential rules: a navigation is a
+    /// The `Cookie` value for `target` under `intent`, or `None`: `context` is
+    /// the initiating document and every earlier redirect hop (empty for the
+    /// user's first request), and the request is same-site (same-origin) only if
+    /// all of it is (Firefox 153, `bl-b298`). `intent` fixes the credential rules: a navigation is a
     /// top-level context (Lax/Strict sent); fetch/XHR is same-origin only;
     /// subresources are credentialed cross-origin (SameSite still gates).
-    pub fn header_for(
-        &self,
-        target: &str,
-        referrer_source: Option<&str>,
-        intent: Intent,
-    ) -> Option<String> {
-        self.header_where(target, referrer_source, intent, false)
+    pub fn header_for(&self, target: &str, context: &[&str], intent: Intent) -> Option<String> {
+        self.header_where(target, context, intent, false)
     }
 
     /// [`header_for`](Self::header_for) a first-hop navigation of `target`,
     /// counting only the cookies the page script last wrote — the script's
     /// share of that request (`docs/design/challenge.md` §12).
     pub fn scripted_for(&self, target: &str) -> Option<String> {
-        self.header_where(target, None, Intent::Navigation, true)
+        self.header_where(target, &[], Intent::Navigation, true)
     }
 
     fn header_where(
         &self,
         target: &str,
-        referrer_source: Option<&str>,
+        context: &[&str],
         intent: Intent,
         only_scripted: bool,
     ) -> Option<String> {
         let url = Url::parse(target).ok()?;
-        let ctx = referrer_source.unwrap_or(target);
         let cx = Context {
-            same_site: same_site(ctx, &url),
+            same_site: context.iter().all(|c| same_site(c, &url)),
             top_level_nav: matches!(intent, Intent::Navigation),
             require_same_origin: matches!(intent, Intent::FetchXhr),
-            same_origin: same_origin(ctx, target),
+            same_origin: context.iter().all(|c| same_origin(c, target)),
             exclude_http_only: false,
             only_scripted,
         };

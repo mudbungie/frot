@@ -37,9 +37,8 @@ use crate::js::ScriptBody;
 ///   URL): overrides apply only when `target` is same-origin as it, so
 ///   credentials and custom headers never leak cross-origin — subsuming the
 ///   `Authorization` safe-redirect rule.
-/// - `referrer_source` drives both `Sec-Fetch-Site` and `Referer`: `None` is a
-///   user navigation (site `none`, no referer); `Some(url)` is the document (a
-///   subresource) or the pre-redirect hop (a navigation redirect).
+/// - `lineage` is how this hop's request came to be ([`Lineage`]): it drives
+///   `Referer`, `Sec-Fetch-Site`, `Sec-Fetch-User` and a POST's `Origin`.
 /// - `cookie` is the jar's applicable `Cookie` value for this hop (bl-6dad),
 ///   computed by [`super::cookie::CookieJar::header_for`] and threaded in so the
 ///   caller `-H Cookie` override ([`apply_caller`]) still fires last as a single
@@ -54,7 +53,7 @@ pub(crate) fn derive_headers(
     intent: Intent,
     target: &str,
     anchor: &str,
-    referrer_source: Option<&str>,
+    lineage: &Lineage,
     caller: &[(String, String)],
     cookie: Option<&str>,
     body: Option<&ScriptBody>,
@@ -66,12 +65,12 @@ pub(crate) fn derive_headers(
     push(&mut h, "Accept", meta.accept.to_string());
     push(&mut h, "Accept-Language", p.accept_language());
     push(&mut h, "Accept-Encoding", ACCEPT_ENCODING.to_string());
-    if let Some(referer) = referer(referrer_source, target) {
+    if let Some(referer) = referer(lineage.referrer.as_deref(), target) {
         push(&mut h, "Referer", referer);
     }
     if let Some(body) = body {
         push(&mut h, "Content-Type", body.content_type().to_string());
-        push(&mut h, "Origin", origin(referrer_source));
+        push(&mut h, "Origin", origin(lineage.initiator()));
     }
     if let Some(cookie) = cookie {
         push(&mut h, "Cookie", cookie.to_string());
@@ -81,12 +80,10 @@ pub(crate) fn derive_headers(
     }
     push(&mut h, "Sec-Fetch-Dest", meta.dest.to_string());
     push(&mut h, "Sec-Fetch-Mode", meta.mode.to_string());
-    push(
-        &mut h,
-        "Sec-Fetch-Site",
-        site(referrer_source, target).to_string(),
-    );
-    if let Some(user) = meta.user {
+    push(&mut h, "Sec-Fetch-Site", lineage.site(target).to_string());
+    // Only the user's own navigation is user-activated: a hop the document
+    // directed (a followed refresh) sends no `Sec-Fetch-User` (`bl-b298`).
+    if let Some(user) = meta.user.filter(|_| lineage.initiator().is_none()) {
         push(&mut h, "Sec-Fetch-User", user.to_string());
     }
     push(&mut h, "Priority", meta.priority.to_string());
@@ -101,14 +98,63 @@ fn push(h: &mut Vec<(String, String)>, name: &str, value: String) {
     h.push((name.to_string(), value));
 }
 
-/// `Sec-Fetch-Site` from URL facts (never a caller label): `none` for a user
-/// navigation, else the origin relation between the referrer source and target.
-fn site(referrer_source: Option<&str>, target: &str) -> &'static str {
-    match referrer_source {
-        None => "none",
-        Some(src) if same_origin(src, target) => "same-origin",
-        Some(src) if same_site(src, target) => "same-site",
-        Some(_) => "cross-site",
+/// How one hop's request came to be (`bl-b298`, identity.md §3.22): the
+/// document that caused it — absent for the user's own navigation — then every
+/// URL its redirect chain already requested, and the `Referer` the previous hop
+/// sent. Firefox 153 never lets a redirect hop *become* the referrer: the
+/// request keeps its own, re-trimmed hop by hop (once cut to an origin it stays
+/// cut), while the chain taints the site: one cross-site URL anywhere on it
+/// makes every later hop cross-site, for `Sec-Fetch-Site` and SameSite alike.
+pub(crate) struct Lineage {
+    /// The initiating document (when there is one), then each requested hop.
+    chain: Vec<String>,
+    initiated: bool,
+    referrer: Option<String>,
+}
+
+impl Lineage {
+    /// A request caused by `initiator` (the document), or by the user (`None`).
+    pub(crate) fn new(initiator: Option<&str>) -> Self {
+        Lineage {
+            chain: initiator.into_iter().map(str::to_string).collect(),
+            initiated: initiator.is_some(),
+            referrer: initiator.map(str::to_string),
+        }
+    }
+
+    /// Record a redirect away from `from`, whose request sent `referer`.
+    pub(crate) fn redirected(&mut self, from: String, referer: Option<String>) {
+        self.chain.push(from);
+        self.referrer = referer;
+    }
+
+    /// The initiating document, if the request has one.
+    fn initiator(&self) -> Option<&str> {
+        self.chain
+            .first()
+            .filter(|_| self.initiated)
+            .map(String::as_str)
+    }
+
+    /// The URLs a hop to some target is judged against: the initiator and
+    /// every earlier hop. Empty for the user's first request — its own context.
+    pub(crate) fn context(&self) -> Vec<&str> {
+        self.chain.iter().map(String::as_str).collect()
+    }
+
+    /// `Sec-Fetch-Site` for `target`: `none` for the user's navigation at every
+    /// hop (Firefox, measured), else the worst relation along the chain.
+    fn site(&self, target: &str) -> &'static str {
+        let ctx = self.context();
+        if !self.initiated {
+            "none"
+        } else if ctx.iter().all(|c| same_origin(c, target)) {
+            "same-origin"
+        } else if ctx.iter().all(|c| same_site(c, target)) {
+            "same-site"
+        } else {
+            "cross-site"
+        }
     }
 }
 
@@ -192,6 +238,8 @@ fn apply_caller(
     }
 }
 
+#[cfg(test)]
+mod lineage_tests;
 #[cfg(test)]
 mod recorder;
 #[cfg(test)]

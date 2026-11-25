@@ -1900,6 +1900,41 @@ second `HTMLDocument` (frot has one document); `document.implementation` is a
 plain object, not a `DOMImplementation`, and `createHTMLDocument()` returns a
 plain object, not a document.
 
+### 3.22 Referrer, site and cookies across redirects (`bl-b298`, 2026-11-24)
+
+**Method.** The §3.19 rig (Firefox 153.0esr, fresh profile, Marionette
+`Navigate` = a typed navigation) against a local server logging every
+request's headers, reached as `127.0.0.1` (site B) and `localhost` (site A,
+cross-site with B). `SameSite=Strict` and `Lax` cookies were set on A first.
+
+| case | Firefox 153.0esr, landing request | frot before |
+|---|---|---|
+| typed → B `/r` 302 → B `/land` | no `Referer`; `Sec-Fetch-Site: none`; `Sec-Fetch-User: ?1`; `document.referrer` `''` | `Referer: B/r`, site `same-origin`, `document.referrer` `B/r` |
+| typed → B 302 → A `/land` | as above; cookie `lx=1` only (Strict withheld) | `Referer` B's origin, site `cross-site` |
+| typed → B 302 → A `/r` 302 → A `/land` | both A hops: site `none`, Strict withheld (one cross-site hop taints the rest) | landing sent Strict (only the previous hop was judged) |
+| meta refresh F → `/r` 302 → `/land` | `Referer` F (both hops); site `same-origin`; **no `Sec-Fetch-User`** | `Referer: /r`; `Sec-Fetch-User: ?1` on every followed hop |
+| subresources of a redirected landing | `Referer` the landing; site against it | same |
+| page A → `img` A `/x` 302 → B 302 → A `/img.png` | B hop: `Referer` A's origin, `cross-site`; back on A: **`Referer` still A's origin, `cross-site`, no cookies** | A hop sent the full page URL, `same-origin`, and every cookie |
+| `location.reload()` | the document's URL (the post-redirect one), no `Referer`, site `none`, no `Sec-Fetch-User` | see below |
+| `location.replace(location.href)` / `location.href = location.href` | `Referer` the document, site `same-origin`, no `Sec-Fetch-User` | see below |
+
+**Rule, as built.** `src/fetch/request.rs` `Lineage`: a request carries its
+initiator (the document, or none for the user's navigation), the URLs its
+redirect chain already requested, and the `Referer` the previous hop sent. A
+hop's `Referer` is that previous value re-trimmed for the new target (so once
+cut to an origin it stays cut); a hop never becomes the referrer.
+`Sec-Fetch-Site` is `none` at every hop of the user's navigation, else the
+worst relation of the initiator and every earlier hop to the target; the
+cookie jar judges SameSite (and fetch's same-origin credentials) against the
+same chain. `Sec-Fetch-User` rides only the user's navigation, never a hop the
+document directed.
+
+**Not fixed — filed.** frot's re-issue (a challenge round or a script-asked
+reload, `challenge.md` §12) is a second *typed* navigation of the caller's
+URL: it walks the caller's redirects again and sends `Sec-Fetch-User: ?1`.
+Firefox's `location.reload()` GETs the document's own URL with neither, and
+`location.replace(self)` adds `Referer` = the document and `same-origin`.
+
 ## 4. The one profile
 
 `BrowserProfile` is a single `const` (proposed home: `src/fetch/profile.rs`).
