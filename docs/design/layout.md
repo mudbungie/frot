@@ -445,6 +445,19 @@ other options might have belonged with `<video>`'s prose. Measured in Chrome
   (`fidelity.md` §1). No corpus page shows it; a page that ever does gets a
   ledger `Residual` row citing this paragraph, not a fix.
 
+- **Residual: browser UI strings are not page content** (2026-11-24,
+  `bl-a510`, Mark: do not match Chrome). Chrome 158 names `<input
+  type=file>` "Choose File" and reads it as "Choose File: No file chosen"
+  inside a name, and a `<video>`/`<audio>` gives "Unable to play media."
+  (Firefox says "Browse…" / "No file selected." instead). These strings come
+  from the browser's own user-agent shadow tree, in its UI language — none of
+  them is in the page. frot gives the file input an empty value (so
+  `<h2>a<input type=file>c</h2>` is "a c") and the media element nothing
+  ("ac"): matching one browser would pin frot to that browser's locale and
+  UI. No corpus page shows it (the fidelity projection already splices
+  UA-shadow nodes, `fidelity.md` §3.1); a page that ever does gets a ledger
+  `Residual` row citing this paragraph.
+
 ## 3. "On-demand" — the exact trigger
 
 VISION: "Layout runs implicitly when something needs geometry … Outside that,
