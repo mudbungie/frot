@@ -2070,7 +2070,8 @@ Attacked before building, per the house rule. Each is filed, none is built:
   propagation at all yet (`bl-810b`); `composed`, retargeting and
   `composedPath()` wait for it. *(2026-11-24: `bl-810b` has landed; an event
   in a shadow tree propagates to its shadow root and stops there, composed
-  or not, and nothing is retargeted — filed as its own ball.)*
+  or not, and nothing is retargeted — filed as its own ball.)* *(2026-11-25:
+  built, §15.7.)*
 - **Focus delegation** (`delegatesFocus`), **form-associated custom
   elements** and **`ElementInternals`** (`attachInternals` stays absent —
   *built 2026-11-25, §15.6*), **scoped
@@ -2264,3 +2265,32 @@ ARIA element-reference members are held but reach no view
 (`ariaLabelledByElements` does not name); a FACE's owner is not re-computed
 when a form with a matching `id` is inserted or renamed; `CSS.supports` does
 not exist in frot, so the probe does not ask it.
+
+### 15.7 Events across shadow boundaries (`bl-9872`, 2026-11-25)
+
+Measured on Firefox 153.0esr (identity.md §3.19 rig, `js/tests/composed/`,
+16 answers, every listener's phase, target and `composedPath()`), and built
+in `prelude/event.js` (its second half), under the one dispatch path (events.js, `bl-810b`):
+
+- **Get the parent.** A slotted node's parent is its slot (so an event in
+  the light tree passes through the slot and the shadow root on its way to
+  the host); a shadow root's is its host, except when the event is not
+  `composed` and the root is the target's own — then the path ends there.
+  An event dispatched at a shadow root that is not composed reaches that
+  root alone.
+- **Retargeting.** Each object on the path sees `event.target` retargeted
+  into its own tree (DOM "retarget": the host of the shadow tree holding
+  the target, repeatedly, until the object can see it). An object is *at
+  target* (phase 2) where that target is itself: the first object, and
+  every shadow host the event leaves — so a host's listeners run, in phase
+  2, even for an event that does not bubble.
+- **`composedPath()`.** The path during dispatch, less what a closed shadow
+  tree holds when the current target is outside it (DOM's hidden-level
+  count over closed roots and slots in closed trees); empty after.
+- **After dispatch** `event.target` is the target the last object saw, or
+  `null` if that is still inside a shadow tree (DOM "clearTargets"): a
+  composed event from a shadow tree reads its host, an uncomposed one
+  `null`.
+
+Not built: `relatedTarget` retargeting (frot raises no pointer or focus
+events, §11) and the touch target list.

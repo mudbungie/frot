@@ -65,10 +65,11 @@
     if (st.cancelable && !st.passive) st.defaultPrevented = true;
   }
   g.__frot_ifaceops(Event.prototype, {
-    // The path, from the target out, while the event is being dispatched;
-    // empty before and after (no shadow trees: nothing is hidden from it).
+    // The path, from the target out, while the event is being dispatched,
+    // less what a closed shadow tree hides from the current target (below).
     composedPath: function composedPath() {
-      return slots(this).path.slice();
+      var st = slots(this);
+      return g.__frot_event_path.composed(st.path, st.currentTarget);
     },
     stopPropagation: function stopPropagation() {
       slots(this).stop = true;
@@ -186,6 +187,114 @@
       if (C === CustomEvent) slots(e).detail = null;
       return e;
     }, '__frot_create_event'),
+    configurable: true,
+  });
+})(globalThis);
+
+// The event path across shadow boundaries (DOM §2.9 "get the parent",
+// "retarget", `composedPath()`; js.md §15.7), as Firefox 153.0esr walks it
+// (js/tests/composed/): a slotted node's parent is its slot; a shadow root's
+// is its host unless the event is not composed and the root is the target's
+// own; each object on the path sees the target retargeted into its tree,
+// and is at its target when that is itself; `composedPath()` hides what a
+// closed tree holds from a listener outside it. events.js dispatches over it.
+(function (g) {
+  'use strict';
+  var slots = g.__frot_slots;
+  var brand = g.__frot_brand;
+
+  function id(o) {
+    return o === g ? undefined : slots(o).id;
+  }
+  function node(n) {
+    return typeof n === 'number';
+  }
+  // [host, closed, …] of a shadow root, else null.
+  function shadow(n) {
+    var info = g.__frot_shadow_info(n);
+    return info === null || info === undefined ? null : info;
+  }
+  // Whether `root` is a shadow-including inclusive ancestor of `n`.
+  function above(root, n) {
+    for (var r = g.__frot_tree_root(n); r !== root; r = g.__frot_tree_root(shadow(r)[0])) {
+      if (!shadow(r)) return false;
+    }
+    return true;
+  }
+  // DOM "retarget A against B": A, or the host of the shadow tree holding it,
+  // repeatedly, until B can see it.
+  function retarget(a, b) {
+    for (;;) {
+      var root = g.__frot_tree_root(a);
+      var info = shadow(root);
+      if (!info || above(root, b)) return a;
+      a = info[0];
+    }
+  }
+  // "Get the parent" of `o` for the event `st` whose path starts at `first`.
+  function parentOf(o, st, first) {
+    var n = id(o);
+    if (!node(n)) return null;
+    var slot = g.__frot_assigned_slot(n);
+    if (slot !== null && slot !== undefined) return g.__frot_wrap(slot);
+    var info = shadow(n);
+    if (info) return !st.composed && g.__frot_tree_root(first) === n ? null : g.__frot_wrap(info[0]);
+    var p = g.__frot_parent(n);
+    if (p !== null && p !== undefined) return g.__frot_wrap(p);
+    return o === g.document && st.type !== 'load' ? g : null;
+  }
+  // The path from `target` out: each entry the object, the target it sees,
+  // and the two closed-tree marks `composedPath()` counts by.
+  function path(target, st) {
+    var first = id(target);
+    var out = [];
+    for (var o = target; o; o = parentOf(o, st, first)) {
+      var n = id(o);
+      var seen = node(first) ? g.__frot_wrap(retarget(first, node(n) ? n : slots(g.document).id)) : target;
+      var info = node(n) && shadow(n);
+      var slotRoot = node(n) && g.__frot_tag(n) === 'slot' && shadow(g.__frot_tree_root(n));
+      out.push({ item: o, target: seen, closedRoot: !!info && !!info[1], closedSlot: !!slotRoot && !!slotRoot[1] });
+    }
+    return out;
+  }
+  // After dispatch the target is the last one seen, unless that is still in
+  // a shadow tree (DOM "clearTargets").
+  function settled(p) {
+    var last = p[p.length - 1].target;
+    var n = id(last);
+    return node(n) && shadow(g.__frot_tree_root(n)) ? null : last;
+  }
+  // `composedPath()` (DOM §2.2): the path as `current` may see it.
+  function composed(p, current) {
+    if (!p.length) return [];
+    var at = 0;
+    var level = 0;
+    for (var i = p.length - 1; i >= 0; i--) {
+      if (p[i].closedRoot) level++;
+      if (p[i].item === current) {
+        at = i;
+        break;
+      }
+      if (p[i].closedSlot) level--;
+    }
+    var out = [current];
+    var cur = level;
+    var max = level;
+    for (var j = at - 1; j >= 0; j--) {
+      if (p[j].closedRoot) cur++;
+      if (cur <= max) out.unshift(p[j].item);
+      if (p[j].closedSlot && --cur < max) max = cur;
+    }
+    cur = max = level;
+    for (var k = at + 1; k < p.length; k++) {
+      if (p[k].closedSlot) cur++;
+      if (cur <= max) out.push(p[k].item);
+      if (p[k].closedRoot && --cur < max) max = cur;
+    }
+    return out;
+  }
+  Object.defineProperty(g, '__frot_event_path', {
+    value: { path: brand(path, 'path'), settled: brand(settled, 'settled'), composed: brand(composed, 'composed') },
     configurable: true,
   });
 })(globalThis);

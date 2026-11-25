@@ -6,7 +6,8 @@
 // which runs the DOM standard's algorithm (§2.9 "Dispatching events") as
 // Firefox 153.0esr does it, measured (src/js/tests/dispatch/firefox153.json):
 // the path from the target up the tree to the document and on to the window
-// (never the window for `load`), a capture pass down it, the target's own
+// (never the window for `load`; across shadow boundaries as event.js
+// builds it), a capture pass down it, the target's own
 // listeners (capture ones first), and — for an event that bubbles — a bubble
 // pass back up; `stopPropagation` ends the walk after the current object,
 // `stopImmediatePropagation` at once. A listener that throws is REPORTED (DOM
@@ -125,17 +126,6 @@
   });
   g.__frot_extends(g.Node, g.EventTarget);
 
-  // "Get the parent" (DOM §2.9): a node's parent node; the document's, the
-  // window — except for a `load` event, which never reaches the window from
-  // the tree (HTML; Gecko's "bug 335251", measured); everything else, none.
-  function parentOf(o, ev) {
-    var id = o === g ? undefined : slots(o).id;
-    if (typeof id !== 'number') return null;
-    var p = g.__frot_parent(id);
-    if (p !== null && p !== undefined) return g.__frot_wrap(p);
-    return o === g.document && slots(ev).type !== 'load' ? g : null;
-  }
-
   // Report an exception (HTML "report the exception"): an ErrorEvent at the window, through
   // the path like any event, then `window.onerror`; counted unless one of them
   // handled it. An exception thrown while one is being reported is counted
@@ -166,7 +156,9 @@
 
   // Inner invoke (DOM §2.9): `object`'s listeners for this pass, cloned first
   // so a listener added during dispatch waits for the next one.
-  function invoke(object, ev, st, phase, capturePass) {
+  function invoke(entry, ev, st, phase, capturePass) {
+    var object = entry.item;
+    st.target = entry.target;
     st.currentTarget = object;
     st.eventPhase = phase;
     g.__frot_handler_discover(object, st.type);
@@ -200,15 +192,19 @@
     if (st.dispatching || !st.initialized)
       throw g.__frot_domerror('InvalidStateError', 'An attempt was made to use an object that is not, or is no longer, usable');
     st.dispatching = true;
-    st.target = as || target;
-    var path = [target];
-    if (!as) for (var p = parentOf(target, ev); p; p = parentOf(p, ev)) path.push(p);
+    // The path (event.js): each object with the target it sees, at its
+    // target where that is itself — the first, or a shadow host.
+    var path = as ? [{ item: target, target: as }] : g.__frot_event_path.path(target, st);
+    var at = function (k) {
+      return !k || path[k].item === path[k].target;
+    };
     st.path = path;
     try {
-      for (var i = path.length - 1; i >= 0 && !st.stop; i--) invoke(path[i], ev, st, i ? 1 : 2, true);
+      for (var i = path.length - 1; i >= 0 && !st.stop; i--) invoke(path[i], ev, st, at(i) ? 2 : 1, true);
       for (var j = 0; j < path.length && !st.stop; j++)
-        if (!j || st.bubbles) invoke(path[j], ev, st, j ? 3 : 2, false);
+        if (at(j) || st.bubbles) invoke(path[j], ev, st, at(j) ? 2 : 3, false);
     } finally {
+      st.target = as || g.__frot_event_path.settled(path);
       st.eventPhase = 0;
       st.currentTarget = null;
       st.path = [];
