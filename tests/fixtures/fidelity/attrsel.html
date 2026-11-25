@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Attribute selectors</title>
+<style>
+[data-k^="hide"] { display: none; }
+[data-k$="-gone"] { display: none; }
+[data-k*="vanish"] { display: none; }
+[data-w~="off"] { display: none; }
+[lang|="x"] { display: none; }
+[data-c="CASE" i] { display: none; }
+[data-e^=""] { display: none; }
+</style>
+</head>
+<body>
+<h1>Attribute selectors</h1>
+<p data-k="hide-me">Prefix hidden.</p>
+<p data-k="do-not-hide">Prefix kept.</p>
+<p data-k="now-gone">Suffix hidden.</p>
+<p data-k="gone-not">Suffix kept.</p>
+<p data-k="to-vanish-here">Substring hidden.</p>
+<p data-w="on off maybe">Word hidden.</p>
+<p data-w="offline">Word kept.</p>
+<p lang="x-pig">Dash hidden.</p>
+<p lang="xy">Dash kept.</p>
+<p data-c="case">Case-insensitive hidden.</p>
+<p data-e="anything">Empty prefix never matches, kept.</p>
+<p id="count">count</p>
+<script>
+document.getElementById('count').textContent = 'Matched ' +
+  document.querySelectorAll('[data-k^="hide"], [data-k$="-gone"], [data-k*="vanish"], [data-w~="off"], [lang|="x"], [data-c="CASE" i]').length +
+  ' by query.';
+</script>
+</body>
+</html>

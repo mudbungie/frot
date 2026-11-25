@@ -164,7 +164,7 @@ fn parse_compound(s: &str) -> Option<Compound> {
                 i = n;
             }
             '[' => {
-                let (simple, n) = parse_attr(&b, i + 1)?;
+                let (simple, n) = super::attrsel::parse_attr(&b, i + 1)?;
                 simples.push(simple);
                 i = n;
             }
@@ -200,44 +200,7 @@ pub(super) fn ident(b: &[char], start: usize) -> (String, usize) {
     (b[start..i].iter().collect(), i)
 }
 
-fn parse_attr(b: &[char], start: usize) -> Option<(Simple, usize)> {
-    let (name, mut i) = ident(b, start);
-    if name.is_empty() {
-        return None;
-    }
-    i = skip_ws(b, i);
-    if i < b.len() && b[i] == ']' {
-        return Some((attr(name, None), i + 1));
-    }
-    if i >= b.len() || b[i] != '=' {
-        return None;
-    }
-    i = skip_ws(b, i + 1);
-    let val = if i < b.len() && (b[i] == '"' || b[i] == '\'') {
-        let q = b[i];
-        let s: String = b[i + 1..].iter().take_while(|&&c| c != q).collect();
-        i += s.chars().count() + 2;
-        s
-    } else {
-        let (v, n) = ident(b, i);
-        i = n;
-        v
-    };
-    i = skip_ws(b, i);
-    if i >= b.len() || b[i] != ']' {
-        return None;
-    }
-    Some((attr(name, Some(val)), i + 1))
-}
-
-fn attr(name: String, val: Option<String>) -> Simple {
-    Simple::Attr {
-        name: name.to_ascii_lowercase(),
-        val,
-    }
-}
-
-fn skip_ws(b: &[char], mut i: usize) -> usize {
+pub(super) fn skip_ws(b: &[char], mut i: usize) -> usize {
     while i < b.len() && b[i].is_whitespace() {
         i += 1;
     }

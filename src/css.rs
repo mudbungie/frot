@@ -10,6 +10,7 @@
 //! `matchMedia` delegates to). There is no layout and no
 //! `cssparser`/`selectors` dependency; see `VISION.md`.
 
+mod attrsel;
 mod cascade;
 mod computed;
 mod content;

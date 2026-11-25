@@ -53,7 +53,16 @@ next-sibling (`+`) and subsequent-sibling (`~`; `bl-6363`) —
 (below; `bl-e987`, `bl-00d1`), the state pseudo-classes (below; `bl-1508`,
 `bl-2a85`), `:has()`, `:scope`, `:lang()` and `:dir()` (below; `bl-2a85`),
 and `::before` / `::after`. Any other pseudo-class, pseudo-element or
-attribute operator makes its selector never match. (**Superseded 2026-11-22,
+attribute operator makes its selector never match. (**Superseded 2026-11-24,
+`bl-1519`:** every attribute operator is supported — `[a=v]`, `[a~=v]`
+(one whitespace-separated word), `[a|=v]` (the value, or its prefix before
+`-`), `[a^=v]`, `[a$=v]`, `[a*=v]` — each with an optional `i` (ASCII
+case-insensitive) or `s` flag; an empty `v` never matches `~=` `^=` `$=` `*=`
+(Selectors 4 §6; `src/css/attrsel.rs`, fixture `fidelity/attrsel.html`). Found
+after frot passed Cloudflare on stackoverflow.com: the question page's
+`querySelector("script[src*='otSDKStub']")` threw. HTML's list of attributes
+whose values match case-insensitively without a flag (`type`, `lang`, …) is
+not applied.) (**Superseded 2026-11-22,
 `bl-00d1`:** this sentence went on "the other structural pseudo-classes
 included (`:only-child`, `:nth-child()`, `:nth-last-child()`,
 `:first-of-type` and its family, `:empty`, `:root`)"; all of those are

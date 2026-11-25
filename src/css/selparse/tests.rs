@@ -1,4 +1,5 @@
 use super::*;
+use crate::css::attrsel::{AttrOp, AttrTest};
 use crate::css::selector::{Combinator, Pseudo, Simple};
 
 fn one(s: &str) -> Selector {
@@ -57,41 +58,58 @@ fn lenient_about_bare_pseudo_and_trailing_combinator() {
     assert_eq!(one("a >").parts.len(), 1);
 }
 
+fn eq(val: impl Into<String>) -> AttrTest {
+    AttrTest {
+        op: AttrOp::Equals,
+        val: val.into(),
+        fold: false,
+    }
+}
+
 #[test]
 fn attribute_selectors() {
     assert_eq!(
         simples("[data-k]"),
         vec![Simple::Attr {
             name: "data-k".into(),
-            val: None
+            test: None
         }]
     );
     assert_eq!(
         simples("[Data-X = y ]"),
         vec![Simple::Attr {
             name: "data-x".into(),
-            val: Some("y".into())
+            test: Some(eq("y"))
         }]
     );
     assert_eq!(
         simples(r#"[a="b c"]"#),
         vec![Simple::Attr {
             name: "a".into(),
-            val: Some("b c".into())
+            test: Some(eq("b c"))
         }]
     );
     assert_eq!(
         simples("[a=]"),
         vec![Simple::Attr {
             name: "a".into(),
-            val: Some(String::new())
+            test: Some(eq(String::new()))
         }]
     );
 }
 
 #[test]
 fn malformed_attribute_selectors_drop() {
-    for bad in ["[=x]", "[a~=b]", "[a", "[a=b", r#"[a="b]"#, "[a b]"] {
+    for bad in [
+        "[=x]",
+        "[a~b]",
+        "[a",
+        "[a=b",
+        r#"[a="b]"#,
+        "[a b]",
+        "[a=b x]",
+        "[a!=b]",
+    ] {
         assert!(parse_selector_list(bad).is_empty(), "{bad:?} should drop");
     }
 }
@@ -142,7 +160,7 @@ fn combinators() {
     // Inside brackets or parentheses `+` and `~` are not combinators.
     assert_eq!(one("a:nth-child(2n+1)").parts.len(), 1);
     assert_eq!(one("a:is(b + c, d ~ e)").parts.len(), 1);
-    assert!(parse_selector_list("[a~=b]").is_empty());
+    assert_eq!(one("[a~=b]").parts.len(), 1);
     // leading whitespace flushes an empty buffer (no spurious compound).
     assert_eq!(one("   p").parts.len(), 1);
 }

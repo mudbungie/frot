@@ -1,6 +1,7 @@
 //! Selector AST, specificity, and matching.
 //!
-//! Supported: `*`, type, `.class`, `#id`, `[attr]`, `[attr=val]`, compound
+//! Supported: `*`, type, `.class`, `#id`, attribute selectors with every
+//! operator and flag ([`super::attrsel`]), compound
 //! sequences, the descendant (whitespace), child (`>`), next-sibling (`+`)
 //! and subsequent-sibling (`~`) combinators, the logical pseudo-classes
 //! `:is()` / `:where()` / `:not()` over complex selector lists
@@ -12,6 +13,7 @@
 //! `::first-line`, …) parses into a [`Simple::Unsupported`] marker so the
 //! whole compound fails to match — a rule we cannot evaluate must never apply.
 
+use super::attrsel::AttrTest;
 use super::nth::Nth;
 use super::state::State;
 use super::{has, lang};
@@ -39,9 +41,11 @@ pub enum Simple {
     Type(String),
     Class(String),
     Id(String),
+    /// `[name]`, or `[name OP value]` when `test` is present
+    /// ([`super::attrsel`]).
     Attr {
         name: String,
-        val: Option<String>,
+        test: Option<AttrTest>,
     },
     /// `:is(…)`: matches when any argument does; as specific as its most
     /// specific argument.
@@ -177,11 +181,9 @@ fn compound_matches(c: &Compound, cx: Context, id: NodeId, el: &Element) -> bool
         Simple::Type(t) => el.name == *t,
         Simple::Class(cl) => class_list(el).contains(&cl.as_str()),
         Simple::Id(id) => el.attr("id") == Some(id.as_str()),
-        Simple::Attr { name, val } => match (el.attr(name), val) {
-            (Some(_), None) => true,
-            (Some(v), Some(want)) => v == want,
-            (None, _) => false,
-        },
+        Simple::Attr { name, test } => el
+            .attr(name)
+            .is_some_and(|v| test.as_ref().is_none_or(|t| t.holds(v))),
     })
 }
 
