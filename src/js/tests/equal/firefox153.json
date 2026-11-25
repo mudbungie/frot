@@ -1,0 +1,23 @@
+{
+ "attrOrder": "true",
+ "attrMissing": "false",
+ "self": "true",
+ "clone": "true",
+ "shallow": "false",
+ "nul": "false",
+ "none": "THROW TypeError:Node.isEqualNode: At least 1 argument required, but only 0 passed",
+ "obj": "THROW TypeError:Node.isEqualNode: Argument 1 does not implement interface Node.",
+ "str": "THROW TypeError:Node.isEqualNode: Argument 1 is not an object.",
+ "text": "true,false,false",
+ "comment": "true",
+ "doctype": "true,false",
+ "frag": "true",
+ "doc": "true",
+ "tagcase": "true",
+ "svg": "false",
+ "len": "1,value/writable/enumerable/configurable",
+ "attrNode": "true",
+ "doctypeClone": "true,false",
+ "attrHandle": "true,false",
+ "textSplit": "false"
+}

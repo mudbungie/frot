@@ -24,6 +24,7 @@ mod domiface;
 mod domrect;
 mod encoding;
 mod envgold;
+mod equal;
 mod evloop;
 mod facade;
 mod filereader;

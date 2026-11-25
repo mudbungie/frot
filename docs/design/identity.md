@@ -1737,7 +1737,7 @@ binary's order.
 
 | question | Firefox 153.0esr | frot before | frot now |
 |---|---|---|---|
-| `Object.getOwnPropertyNames(Node.prototype).length` | 48 | 75 | 41 — the 48 less `normalize`, `isEqualNode`, `compareDocumentPosition`, `lookupPrefix`, `lookupNamespaceURI`, `isDefaultNamespace`, `baseURI` |
+| `Object.getOwnPropertyNames(Node.prototype).length` | 48 | 75 | 41 — the 48 less `normalize`, `isEqualNode` *(built 2026-11-24, `bl-d5dc`)*, `compareDocumentPosition`, `lookupPrefix`, `lookupNamespaceURI`, `isDefaultNamespace`, `baseURI` |
 | …`Element.prototype` / `HTMLElement.prototype` / `CharacterData.prototype` | 144 / 138 / 14 | 1 / 1 / absent | 27 / 9 / 4 |
 | `HTMLElement.prototype → Element.prototype → Node.prototype → EventTarget.prototype`; `Object.getPrototypeOf(Node) === EventTarget` | holds | no | holds |
 | a text node's prototype; `typeof textNode.getAttribute` | `Text.prototype`; `undefined` | `Node.prototype`; `function` | `Text.prototype`; `undefined` |

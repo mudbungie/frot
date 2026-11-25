@@ -132,6 +132,16 @@
     isSameNode: function isSameNode(other) {
       return other === this;
     },
+    // DOM §4.4 "equals" (bl-d5dc): same type and own facts, then the children
+    // pairwise; Firefox 153.0esr's argument checks.
+    isEqualNode: function isEqualNode(other) {
+      var at = 'Node.isEqualNode: ';
+      if (!arguments.length) throw new TypeError(at + 'At least 1 argument required, but only 0 passed');
+      if (other === null) return false;
+      if (Object(other) !== other) throw new TypeError(at + 'Argument 1 is not an object.');
+      if (!(other instanceof g.Node)) throw new TypeError(at + 'Argument 1 does not implement interface Node.');
+      return equals(this, other);
+    },
     contains: function contains(other) {
       for (var n = other; n; n = n.parentNode) if (n === this) return true;
       return false;
@@ -185,6 +195,25 @@
       return sibling(this, 1);
     },
   });
+
+  var FACTS = { 1: ['namespaceURI', 'prefix', 'localName'], 2: ['namespaceURI', 'localName', 'value'],
+    3: ['data'], 4: ['data'], 7: ['target', 'data'], 8: ['data'], 10: ['name', 'publicId', 'systemId'] };
+  function equals(a, b) {
+    var same = function (k) {
+      return a[k] === b[k];
+    };
+    if (a.nodeType !== b.nodeType || !(FACTS[a.nodeType] || []).every(same)) return false;
+    if (a.nodeType === 1) {
+      var names = a.getAttributeNames();
+      if (names.length !== b.getAttributeNames().length) return false;
+      if (!names.every(function (n) { return b.getAttribute(n) === a.getAttribute(n); })) return false;
+    }
+    // An Attr is a leaf: it has no children to compare.
+    var ak = a.nodeType === 2 ? [] : a.childNodes, bk = a.nodeType === 2 ? [] : b.childNodes;
+    if (ak.length !== bk.length) return false;
+    for (var i = 0; i < ak.length; i++) if (!equals(ak[i], bk[i])) return false;
+    return true;
+  }
 
   // Character data IS its arena text, an attribute's its value; an element or
   // doctype has no node value.
