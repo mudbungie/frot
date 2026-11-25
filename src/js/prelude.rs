@@ -285,6 +285,10 @@ pub const SOURCE: &str = concat!(
     // hands every window it opens, and dom.js/elem.js (HTMLIFrameElement).
     include_str!("prelude/frame.js"),
     "\n",
+    // srcdoc.js (bl-7b86): an <iframe srcdoc> navigates its window in place —
+    // after frame.js, whose contentWindow it opens.
+    include_str!("prelude/srcdoc.js"),
+    "\n",
     // nativebrand.js LAST: sweeps the whole existing web-API surface into the
     // brand registry so no function's toString discloses prelude source (§8).
     include_str!("prelude/nativebrand.js"),

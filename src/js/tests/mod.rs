@@ -46,6 +46,7 @@ mod receiver;
 mod reflect;
 mod scriptmode;
 mod shadow;
+mod srcdoc;
 mod subtle;
 mod template;
 mod title;

@@ -243,6 +243,8 @@ fn parse_fragment_returns_a_fragment_holding_the_parsed_nodes() {
     assert_eq!(el_name(&doc, ids[0]), "p");
     assert_eq!(el_name(&doc, ids[1]), "span");
     assert!(doc.find_by_tag("p").is_empty(), "in no document yet");
+    let whole = doc.parse_document("<!DOCTYPE html><title>t</title>"); // doctype + <html>
+    assert_eq!(doc.node(whole).children.len(), 2);
 }
 
 /// DOM "insert": a fragment is never linked. Its children move, in order, to

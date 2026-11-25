@@ -78,7 +78,7 @@
   };
   // The tag-specific members sit in this relative order on every HTML<Tag>
   // interface but the four named above.
-  var TAGGED = 'getContext toDataURL defaultChecked checked disabled indeterminate src rel relList href ' +
+  var TAGGED = 'getContext toDataURL defaultChecked checked disabled indeterminate src srcdoc rel relList href ' +
     'type defaultValue defaultSelected selected ' +
     'value width height contentDocument contentWindow';
   Object.getOwnPropertyNames(g).forEach(function (name) {

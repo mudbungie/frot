@@ -180,6 +180,17 @@ impl Document {
         fragment
     }
 
+    /// Parse a whole document — an iframe's `srcdoc` (js.md §14, bl-7b86) —
+    /// into the arena as a detached fragment holding its top-level nodes (the
+    /// doctype, comments, the `<html>` element), for the caller to put in
+    /// place of a document's own.
+    pub fn parse_document(&mut self, html: &str) -> NodeId {
+        let rc = html5ever::parse_document(RcDom::default(), Default::default()).one(html);
+        let fragment = self.create_fragment();
+        self.absorb_children(&rc.document, fragment, true);
+        fragment
+    }
+
     fn append_node(&mut self, kind: NodeKind) -> NodeId {
         self.generation += 1;
         self.push(kind, None)

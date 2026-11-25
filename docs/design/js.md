@@ -1884,8 +1884,18 @@ an invention.
 - **No `load` event** for a frame — Firefox fires it synchronously on
   insertion. A script that waits for an `about:blank` frame's `load` waits
   forever.
-- **No navigation:** `src` is never fetched; `srcdoc` is never parsed or run
-  (`bl-7b86`); `location` writes in a frame are the usual counted no-op.
+- **No navigation:** `src` is never fetched; `location` writes in a frame are
+  the usual counted no-op. *(2026-11-24, `bl-7b86`: `srcdoc` is parsed and
+  run — `srcdoc.js`, measured in `src/js/tests/srcdoc/`. A task after
+  insertion, behind the zero-delay timers queued with it, the frame navigates
+  in place to `about:srcdoc`: its document's nodes are replaced by the parsed
+  srcdoc (`__frot_parse_document`) — inserting them runs their scripts in
+  order in the frame's global, through §4.7's one gate — DOMContentLoaded and load fire in the frame, then `load`
+  at the iframe; setting `srcdoc` again navigates again, removing it from a
+  frame with no `src` navigates back to `about:blank`. The window stays the
+  same object — Firefox keeps it too, for a same-origin navigation away from
+  the initial about:blank. **Declared:** the document object stays as well
+  (Firefox's is new).)*
 - ~~**Removal keeps the window.**~~ *Built 2026-11-24 (`bl-2aaa`, measured in
   `src/js/tests/framelife/`):* removing an iframe — or moving it, which is a
   removal and an insertion — closes its window (`closed` true; `parent`,

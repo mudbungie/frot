@@ -145,6 +145,17 @@
 
   var L = g.__frot_location();
   var loc = Object.create(Location.prototype);
+  // A frame navigated in place — to `about:srcdoc`, or back to `about:blank`
+  // (srcdoc.js) — reads its new address here; nothing else ever moves it.
+  Object.defineProperty(g, '__frot_relocate', {
+    value: function (href) {
+      var p = g.__frot_url_parse(href, undefined);
+      ['href', 'origin', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash'].forEach(function (k) {
+        L[k] = p[k];
+      });
+    },
+    configurable: true,
+  });
   // Navigation is the denial (js.md §7/§11): assigning `href` or calling
   // assign/replace/reload is observable, so each is counted, never silent. The
   // URL asked for goes with it — `reload()` asks for `''`, the page itself — so
