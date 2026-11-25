@@ -71,6 +71,10 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/elem2.js"),
     "\n",
+    // attr.js (js.md §15): the attribute list beyond get/set — names,
+    // toggle, `attributes` and its Attr handles — after elem2.js's accessors.
+    include_str!("prelude/attr.js"),
+    "\n",
     // DOMTokenList (bl-3a36): classList/relList as the spec-named interface —
     // after elem2.js (extends the same Element prototype), before anything reads
     // classList.
@@ -182,6 +186,13 @@ pub const SOURCE: &str = concat!(
     include_str!("prelude/observer.js"),
     "\n",
     include_str!("prelude/observer2.js"),
+    "\n",
+    // ce.js (js.md §15) after observer.js: the custom element reactions wrap
+    // the same mutation syscalls MutationObserver wraps, and the registry
+    // drives the HTML constructors dom.js builds.
+    include_str!("prelude/cereact.js"),
+    "\n",
+    include_str!("prelude/ce.js"),
     "\n",
     include_str!("prelude/viewobserver.js"),
     "\n",

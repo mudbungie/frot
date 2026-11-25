@@ -19,8 +19,9 @@
 //!   is not a valid number is empty. A textarea's value is its text.
 //! - **`:defined`** — every element but an HTML one whose name is a valid
 //!   custom element name (a lower-case letter first, a `-`, not one of eight
-//!   reserved names), or that carries `is` (no element is registered:
-//!   frot has no `customElements`). SVG and MathML elements are defined.
+//!   reserved names), or that carries `is`, and that no definition has
+//!   upgraded yet (js.md §15: the custom state is kept in `dom::live`). SVG
+//!   and MathML elements are defined.
 
 use super::lang::foreign;
 use super::state::{group, has, input_type};
@@ -58,7 +59,7 @@ const NO_PLACEHOLDER: [&str; 15] = [
 ];
 
 pub(super) fn defined(doc: &Document, id: NodeId, el: &Element) -> bool {
-    foreign(doc, id) || !(has(el, "is") || custom(&el.name))
+    foreign(doc, id) || doc.custom(id) || !(has(el, "is") || custom(&el.name))
 }
 
 /// A valid custom element name: a lower-case ASCII letter first, a `-`

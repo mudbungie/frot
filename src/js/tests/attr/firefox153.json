@@ -1,0 +1,19 @@
+{
+ "names": "[\"id\",\"a\",\"b\",\"data-x\"] true",
+ "hasAttrs": "true false",
+ "toggle": "[true,\"<i hidden=\\\"\\\"></i>\",false,\"<i></i>\",true,true,\"<i x=\\\"\\\"></i>\",false,false,\"<i></i>\",true,\"<i x=\\\"\\\"></i>\"]",
+ "toggleBad": true,
+ "toggleNone": "THROW TypeError: Element.toggleAttribute: At least 1 argument required, but only 0 passed",
+ "localName": "div x-y svg",
+ "attrs": "[object NamedNodeMap] 4 id=d a y null true [object Attr]",
+ "attrIter": "id,a,b,data-x id/id/2/true/true/null/null,a/a/2/true/true/null/null,b/b/2/true/true/null/null,data-x/data-x/2/true/true/null/null",
+ "attrLive": "5 4",
+ "attrSet": "1 q q q",
+ "attrStale": "y null",
+ "nnmProto": "getNamedItem setNamedItem removeNamedItem item getNamedItemNS setNamedItemNS removeNamedItemNS length constructor",
+ "attrProto": "localName value name namespaceURI prefix specified ownerElement constructor | true",
+ "nnmKeys": "0,1,2,3 | 0,1,2,3,id,a,b,data-x",
+ "attrOwn": 0,
+ "attrSame": true,
+ "elemOrder": "getAttributeNames getAttribute toggleAttribute hasAttributes localName tagName attributes"
+}

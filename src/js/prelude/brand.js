@@ -188,7 +188,7 @@
     holder[name] = body
       ? function () {
         requireNew(new.target, name);
-        body(this, arguments);
+        return body(this, arguments, new.target); // may answer the instance (js.md §15)
       }
       : function () {
         // Measured on 153.0esr (`bl-1ab7`): the message ends in a period.

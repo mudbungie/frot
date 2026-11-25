@@ -11,9 +11,11 @@ use super::{run, Bounds, Env, Report, Session, StyleSource};
 use crate::dom::Document;
 use crate::fetch::FetchSession;
 
+mod attr;
 mod blob;
 mod clock;
 mod currentscript;
+mod customel;
 mod dispatch;
 mod docnode;
 mod domiface;

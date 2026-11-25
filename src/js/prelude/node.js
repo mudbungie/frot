@@ -11,10 +11,12 @@
   var slots = g.__frot_slots;
   var wrap = g.__frot_wrap;
   var Node = g.Node;
-  var TYPE = { element: 1, text: 3, comment: 8, document: 9, doctype: 10, 'document-fragment': 11 };
+  var TYPE = { element: 1, attribute: 2, text: 3, comment: 8, document: 9, doctype: 10, 'document-fragment': 11 };
 
+  // An Attr (attr.js) is a Node with no arena id: its state names the
+  // attribute it stands for.
   function kindOf(n) {
-    return g.__frot_kind(slots(n).id);
+    return slots(n).attr ? 'attribute' : g.__frot_kind(slots(n).id);
   }
   function kids(n) {
     return g.__frot_children(slots(n).id);
@@ -123,6 +125,7 @@
     // An element's upper-cased tag, a doctype's own name (`html`, measured),
     // else `#text`, `#comment`, `#document`, `#document-fragment`.
     nodeName: function () {
+      if (slots(this).attr) return slots(this).attr.name;
       var id = slots(this).id;
       var tag = g.__frot_tag(id);
       var dt = g.__frot_doctype(id);
@@ -163,14 +166,17 @@
     },
   });
 
-  // Character data IS its arena text; an element or doctype has no node value.
+  // Character data IS its arena text, an attribute's its value; an element or
+  // doctype has no node value.
   function data(n) {
-    return g.__frot_text(slots(n).id);
+    return slots(n).attr ? n.value : g.__frot_text(slots(n).id);
   }
   // `null` is the empty string ([LegacyNullToEmptyString] on `data`; `nodeValue`
   // is nullable), measured on 153.0esr for both.
   function setData(v) {
-    g.__frot_set_text(slots(this).id, v === null ? '' : String(v));
+    var text = v === null ? '' : String(v);
+    if (slots(this).attr) this.value = text;
+    else g.__frot_set_text(slots(this).id, text);
   }
   function rw(proto, key, get, set) {
     Object.defineProperty(proto, key, {
@@ -184,10 +190,10 @@
     Node.prototype,
     'nodeValue',
     function () {
-      return this instanceof g.CharacterData ? data(this) : null;
+      return this instanceof g.CharacterData || slots(this).attr ? data(this) : null;
     },
     function (v) {
-      if (this instanceof g.CharacterData) setData.call(this, v);
+      if (this instanceof g.CharacterData || slots(this).attr) setData.call(this, v);
     }
   );
   // Setting an element's textContent replaces its children with one text node,
@@ -204,7 +210,7 @@
     function (v) {
       var text = v === null || v === undefined ? '' : String(v);
       if (TEXTLESS[kindOf(this)]) return;
-      if (this instanceof g.CharacterData) return setData.call(this, text);
+      if (this instanceof g.CharacterData || slots(this).attr) return setData.call(this, text);
       g.__frot_clear(this);
       if (text) g.__frot_insert_child(slots(this).id, g.__frot_create_text(text), null);
     }

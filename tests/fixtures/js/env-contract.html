@@ -140,9 +140,11 @@
   // through. The observer trio moved OUT of this list (bl-07ab, js.md §7):
   // MutationObserver is genuine, IO/RO deliver a genuine initial batch.
   // TextEncoder moved out too (bl-53b7): it and TextDecoder are genuine UTF-8.
-  ['customElements', 'MessageChannel'].forEach(function (n) {
+  // customElements moved out (js.md §15): the registry is genuine.
+  ['MessageChannel'].forEach(function (n) {
     eq('absent:' + n, typeof globalThis[n], 'undefined');
   });
+  eq('ce:registry', Object.prototype.toString.call(customElements), '[object CustomElementRegistry]');
   eq('encoding:roundtrip', new TextDecoder().decode(new TextEncoder().encode('h\u00e9')), 'h\u00e9');
 
   // --- DOM collections (§3, bl-e5c3): every query result is an instance of the

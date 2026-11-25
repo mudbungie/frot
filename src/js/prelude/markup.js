@@ -62,9 +62,14 @@
     var tag = g.__frot_tag(id);
     var attrs = g.__frot_attrs(id);
     var out = '<' + tag;
+    var is = g.__frot_is_value(id);
     for (var i = 0; i < attrs.length; i++) {
+      if (attrs[i][0] === 'is') is = undefined;
       out += ' ' + attrs[i][0] + '="' + esc(attrs[i][1], true) + '"';
     }
+    // A customized built-in made by `createElement(tag, {is})` or `new`
+    // carries its `is` value in no attribute, and serializes it (js.md §15).
+    if (is !== undefined) out += ' is="' + esc(is, true) + '"';
     out += '>';
     if (listed(VOID, tag)) return out;
     return out + nodes(g.__frot_children(inner(id)), listed(RAW, tag)) + '</' + tag + '>';

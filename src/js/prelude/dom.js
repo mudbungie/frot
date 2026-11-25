@@ -32,7 +32,14 @@
   }
   var Node = iface('Node');
   var Element = sub('Element', Node);
-  var HTMLElement = sub('HTMLElement', Element);
+  // The HTML element interfaces are [HTMLConstructor]s: `new` (or `super()`
+  // from a class) constructs only a defined custom element — ce.js answers.
+  function html(name) {
+    return function (inst, args, target) {
+      return g.__frot_html_construct(target, name);
+    };
+  }
+  var HTMLElement = sub('HTMLElement', Element, html('HTMLElement'));
   var CharacterData = sub('CharacterData', Node);
   // `new Text(data)`, `new Comment(data)` and `new DocumentFragment()` make the
   // detached arena node `document.create*` does; the object IS its wrapper.
@@ -76,7 +83,7 @@
   var byTag = Object.create(null);
   Object.keys(TAGS).forEach(function (n) {
     var parent = n === 'Video' || n === 'Audio' ? g.HTMLMediaElement : HTMLElement;
-    var C = n ? sub('HTML' + n + 'Element', parent) : HTMLElement;
+    var C = n ? sub('HTML' + n + 'Element', parent, html('HTML' + n + 'Element')) : HTMLElement;
     TAGS[n].split(' ').forEach(function (tag) {
       byTag[tag] = C.prototype;
     });

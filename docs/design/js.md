@@ -1846,6 +1846,15 @@ Attacked before building, per the house rule. Each is filed, none is built:
 - **Firefox does not upgrade an element made by `innerHTML` before its
   definition existed**, even after `customElements.upgrade` (measured); Chrome
   and the specification do, and so does frot.
+- **No `adoptedCallback`**: frot has one document per realm, so nothing is
+  ever adopted into another.
+- **An `is` value given to `createElement` is not seen by `:defined`** while
+  the element is not upgraded: it lives in the realm (it is serialized, as
+  Firefox does), not in the arena.
+- **`Attr` is a partial node.** `attributes` is a live `NamedNodeMap` of
+  `Attr` handles answering their own members and `nodeType`/`nodeName`/
+  `nodeValue`/`textContent`; the tree members of `Node` do not apply to one,
+  and `NamedNodeMap`'s write half (`setNamedItem`…) is not built.
 - **Chrome's `innerText` does not see shadow content** (15.1), so the
   fidelity recorder's text ruler is blind to it, as it was to generated
   content (fidelity.md §15.1): the ruler is repaired, not the view.
@@ -1864,3 +1873,19 @@ Attacked before building, per the house rule. Each is filed, none is built:
   frot gives differently is the 15.3 `ownerDocument` residual, which the
   probe does not ask. The TreeWalker capture's `litlike` walk (lit-html's
   own) is no longer a declared difference.
+
+- **Stage 2 (`bl-688d`), custom elements.** `prelude/cereact.js` holds the
+  element queues, the upgrade algorithm and the mutation seam (the six
+  creation, insertion, removal and attribute syscalls, wrapped once), and
+  `prelude/ce.js` the registry, the `[HTMLConstructor]` every HTML element
+  interface now is (`dom.js`; `brand.js`'s `iface` lets a constructor body
+  answer the instance), and `createElement` of a defined name. Three
+  syscalls join `syscall/tree.rs` — `__frot_connected`, `__frot_custom_nodes`
+  (the subtree's elements that are or may become custom), `__frot_set_custom`
+  (the arena's custom state, `dom::live`, read by `:defined`). lit-html needs
+  the attribute list beyond get/set, so `prelude/attr.js` adds
+  `getAttributeNames`, `hasAttributes`, `toggleAttribute`, `localName` and
+  `attributes`. Pinned by two Firefox 153.0esr captures, `js/tests/customel/`
+  (46 answers, the reaction log of every operation in 15.1; two declared, the
+  15.3 `innerHTML` upgrade, held at Chrome 158's answers) and `js/tests/attr/`
+  (17; `NamedNodeMap`'s write half declared).

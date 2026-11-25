@@ -193,7 +193,9 @@ false.)
   checked, selected and default-button controls; a valueless `<progress>` and
   a radio group nobody checked; a text-taking control with a `placeholder`
   and an empty (sanitized) value; every element but an HTML one with a
-  custom element name or an `is` attribute — frot registers none.
+  custom element name or an `is` attribute — frot registers none. *(Since
+  2026-11-24, `bl-688d`: a custom element a definition has upgraded is
+  defined too — js.md §15; the custom state is kept in `dom::live`.)*
 
 **`:has()`, `:scope`, `:lang()`, `:dir()`** (`bl-2a85`; `src/css/has.rs`,
 `lang.rs`, measured in Chrome 158 and held in

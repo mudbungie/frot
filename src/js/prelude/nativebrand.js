@@ -46,10 +46,11 @@
   // files; `tests/fixtures/js/dom-interfaces.json` holds the measured lists a
   // test checks every prototype against.
   var ORDER = {
-    Element: 'getAttribute getAttributeNS setAttribute setAttributeNS removeAttribute removeAttributeNS ' +
-      'hasAttribute closest matches getElementsByTagName getElementsByClassName getBoundingClientRect ' +
-      'remove prepend append querySelector querySelectorAll tagName id className classList clientWidth ' +
-      'clientHeight innerHTML outerHTML children',
+    Element: 'getAttributeNames getAttribute getAttributeNS toggleAttribute setAttribute setAttributeNS ' +
+      'removeAttribute removeAttributeNS hasAttribute hasAttributes closest matches getElementsByTagName ' +
+      'getElementsByClassName getBoundingClientRect remove prepend append querySelector querySelectorAll ' +
+      'localName tagName id className classList attributes clientWidth clientHeight innerHTML outerHTML ' +
+      'children',
     HTMLElement: 'focus blur style offsetTop offsetLeft offsetWidth offsetHeight dataset',
     SVGElement: 'focus blur style dataset',
     CharacterData: 'remove data length',

@@ -1,10 +1,13 @@
 //! Page state a script sets without leaving a mark in the tree (`bl-bc6d`):
-//! where focus is, and which popovers and modal dialogs are shown. It lives
+//! where focus is, which popovers and modal dialogs are shown, and which
+//! elements a custom element definition has upgraded (js.md §15). It lives
 //! in the arena beside the nodes, so the one document the views, the cascade
 //! and the JS host share carries it — nothing global, nothing cached in JS.
 //! The JS host writes it (`focus()`, `blur()`, `showModal()`, `close()`,
 //! `showPopover()`, `hidePopover()`); the selector engine and
 //! `document.activeElement` read it.
+
+use std::collections::BTreeSet;
 
 use super::{Document, NodeId};
 
@@ -26,6 +29,9 @@ pub struct Live {
     /// Open popovers and modal dialogs, in the order they were shown.
     popovers: Vec<NodeId>,
     modals: Vec<NodeId>,
+    /// Elements whose custom element state is "custom": constructed by
+    /// their definition (`:defined`).
+    custom: BTreeSet<NodeId>,
 }
 
 impl Document {
@@ -53,6 +59,17 @@ impl Document {
     /// Show or hide the popover `id`.
     pub fn set_popover(&mut self, id: NodeId, open: bool) {
         toggle(&mut self.live.popovers, id, open);
+        self.generation += 1;
+    }
+
+    /// Whether a custom element definition has constructed `id`.
+    pub fn custom(&self, id: NodeId) -> bool {
+        self.live.custom.contains(&id)
+    }
+
+    /// Record that `id`'s definition has constructed it.
+    pub fn set_custom(&mut self, id: NodeId) {
+        self.live.custom.insert(id);
         self.generation += 1;
     }
 
