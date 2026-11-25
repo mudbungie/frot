@@ -70,6 +70,7 @@
       'lastElementChild childElementCount',
     HTMLLinkElement: 'disabled href rel relList type',
     HTMLFieldSetElement: 'disabled form name type elements',
+    HTMLIFrameElement: 'src srcdoc name width height contentDocument contentWindow',
     HTMLFormElement: 'action name rel relList elements length',
     HTMLObjectElement: 'data type name useMap form width height contentDocument contentWindow',
     HTMLLIElement: 'value type',

@@ -1,0 +1,21 @@
+{
+ "chain": "true,[object Window],[object WindowProperties],true,true",
+ "ppNames": "|function EventTarget() {\n    [native code]\n}|undefined",
+ "protoNames": "constructor",
+ "protoSyms": "Symbol(Symbol.toStringTag)",
+ "ctor": "0,Window,function,fcw,true,[object Window],true,true,true",
+ "newW": "THROW TypeError:Illegal constructor.",
+ "callW": "THROW TypeError:Illegal constructor.",
+ "tag": "[object Window],Window,vc,vc",
+ "aelOwn": "none,fecw,true",
+ "named": "object,object,object,undefined,object,object,undefined,object,undefined",
+ "namedDesc": "none,vcw,true,-1,-1,true",
+ "namedBare": "object,object,object,true",
+ "namedDup": "[object HTMLParagraphElement]|undefined|undefined",
+ "namedLive": "undefined,true,undefined",
+ "shadow": "function,5,true",
+ "iframeNamed": "true,object",
+ "setPP": "TypeError",
+ "defPP": "TypeError:can't define property \"xx\" on window's named properties object",
+ "globalThisSame": "true,true,true,true,ge,gsec,ge,gse,ge"
+}

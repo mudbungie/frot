@@ -4,11 +4,10 @@
 //! a window and its iframe, logging each delivery in order;
 //! `message/firefox153.json` is what Firefox 153.0esr answered (identity.md
 //! §3.19 rig, over `message/page.html`). frot must answer every key
-//! identically, with the page's origin read as the test's, but two declared
-//! residuals in the log: a frame window's constructor is `Object` (frot builds
-//! no `Window` interface), and the `source` of a post made by frame code its
-//! parent ran synchronously (`FW.eval`) is the parent — the entry window, not
-//! the caller's realm (js.md §3, "Messaging").
+//! identically, with the page's origin read as the test's, but one declared
+//! residual in the log: the `source` of a post made by frame code its parent
+//! ran synchronously (`FW.eval`) is the parent — the entry window, not the
+//! caller's realm (js.md §3, "Messaging").
 
 use serde_json::Value;
 
@@ -37,7 +36,6 @@ fn every_captured_message_answers_as_firefox_153_does() {
     let got: Value = serde_json::from_str(el.attr("data-out").unwrap()).unwrap();
     let capture = CAPTURE
         .replace("http://127.0.0.1:8947", "https://example.com")
-        .replace("|Window|MessageEvent", "|Object|MessageEvent")
         .replace(".com|frame|", ".com|win|");
     let want: Value = serde_json::from_str(&capture).unwrap();
     let want = want.as_object().unwrap();

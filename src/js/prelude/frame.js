@@ -130,6 +130,8 @@
   });
   relay();
   // Member order on the interface is nativebrand.js's TAGGED list.
+  // `name` is the frame's target name: the window's named property (window.js).
+  g.__frot_tagdef('IFrame', 'name', g.__frot_reflect('name'));
   g.__frot_tagdef('IFrame', 'contentDocument', {
     get: brand(function () {
       var w = windowOf(this);

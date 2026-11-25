@@ -20,8 +20,8 @@ const CAPTURE: &str = include_str!("handlers/firefox153.json");
 /// "Engine error messages"); a reported exception's `lineno`/`colno`/`filename`
 /// are 0/0/`''` (js.md §3, "One dispatch path"); quickjs lists a function's own
 /// `length` first; `scope` reaches the named access frot does not build (a
-/// form's named controls, document and window named properties — `bl-09c8`
-/// built the rest); and the two images'
+/// form's named controls, document and window named properties, `bl-de60` —
+/// `bl-09c8` built the rest); and the two images'
 /// tasks end in document order, where Firefox's network ended the `data:` one
 /// first.
 const DECLARED: [(&str, &str); 9] = [

@@ -73,6 +73,10 @@ pub const SOURCE: &str = concat!(
     // module that gives an interface one through `__frot_onevent`.
     include_str!("prelude/handlers.js"),
     "\n",
+    // window.js (bl-226d): the Window interface and the named properties
+    // object under it; the window inherits the EventTarget trio from here on.
+    include_str!("prelude/window.js"),
+    "\n",
     // adopt.js (bl-2aaa): another window's node inserted here is adopted —
     // node.js and doc.js call it, so it is in place before any page script.
     include_str!("prelude/adopt.js"),

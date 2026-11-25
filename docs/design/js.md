@@ -409,6 +409,17 @@ Consequences of the repo's hard rules:
   foster-parented out of its form is not kept; named access on a form, the
   document and the window is not built (`bl-de60`, `bl-226d`).
 
+- **The Window interface (`bl-226d`, 2026-11-24).** `window.js`, measured on
+  Firefox 153.0esr (`src/js/tests/window/`): the window's chain is
+  `Window.prototype` (`constructor`, @@toStringTag) → the named properties
+  object (`[object WindowProperties]`) → `EventTarget.prototype`, so
+  `window instanceof Window`/`EventTarget` hold and the window inherits the
+  listener trio instead of owning copies; `new Window()` is an Illegal
+  constructor. The named properties object is inert: window named access
+  (`window.someId`) needs an exotic object, and a Proxy there makes quickjs
+  answer `undefined` for every unresolvable identifier instead of throwing
+  `ReferenceError` — declared, `bl-de60`.
+
 ## 4. What runs, and when
 
 Parsing already happened (html5ever ran to completion); frot never executes

@@ -56,6 +56,7 @@ mod template;
 mod title;
 mod traverse;
 mod treewalker;
+mod window;
 mod writable;
 
 fn test_env() -> Env {
