@@ -193,7 +193,24 @@ impl Engine {
     /// prelude is written in; page input goes through
     /// [`eval_script`](Self::eval_script) or [`eval_module`](Self::eval_module).
     pub fn eval_armed(&self, src: &str) -> Result<String, EvalError> {
-        self.eval_global(src, true)
+        self.eval_global(None, src, true)
+    }
+
+    /// [`eval_armed`](Self::eval_armed) (`strict`) or
+    /// [`eval_script`](Self::eval_script) in the frame `realm`'s window, or the
+    /// top's (`bl-b34e`): a script inserted into a frame runs in it.
+    pub fn eval_in(
+        &self,
+        realm: Option<usize>,
+        src: &str,
+        strict: bool,
+    ) -> Result<String, EvalError> {
+        self.eval_global(realm, src, strict)
+    }
+
+    /// The context `realm` names: a frame's ([`Realms`]), or the top's.
+    fn realm(&self, realm: Option<usize>) -> Context {
+        realm.map_or_else(|| self.ctx.clone(), |i| self.realms.context(i))
     }
 
     /// Evaluate one **page classic script** inside the current budget window
@@ -204,15 +221,20 @@ impl Engine {
     /// on the generated `__sveltekit_*` global its untyped inline script assigns
     /// undeclared). ES modules stay strict by definition ([`eval_module`]).
     pub fn eval_script(&self, src: &str) -> Result<String, EvalError> {
-        self.eval_global(src, false)
+        self.eval_global(None, src, false)
     }
 
     /// Global-code eval in the named language mode, draining the microtask queue,
     /// returning the result coerced to a string. Once the budget has tripped the
     /// result is [`EvalError::Budget`] regardless of the eval's own outcome — so
     /// a JS `try/catch` that swallows the interrupt still stops the loop.
-    fn eval_global(&self, src: &str, strict: bool) -> Result<String, EvalError> {
-        let res = self.ctx.with(|ctx| {
+    fn eval_global(
+        &self,
+        realm: Option<usize>,
+        src: &str,
+        strict: bool,
+    ) -> Result<String, EvalError> {
+        let res = self.realm(realm).with(|ctx| {
             // Every flag stated, none inherited: `global` is script-not-module
             // code, `promise` off because top-level await is a module thing, and
             // the backtrace barrier off so a throw names the page's own frames.

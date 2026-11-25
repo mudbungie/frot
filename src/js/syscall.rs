@@ -36,7 +36,7 @@ mod net;
 mod subtle;
 mod tree;
 
-pub use host::{Console, Counters, CurrentScript, Env, Host, Log, Pending, SharedDoc};
+pub use host::{Console, Counters, CurrentScript, Env, Host, Log, Pending, SharedDoc, Window};
 pub(crate) use image::size as image_size;
 pub use messages::{push as push_message, Message, Messages};
 

@@ -34,6 +34,7 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::R
         cookie: host.cookie.clone(),
         clock: host.clock.clone(),
         realms: host.realms.clone(),
+        pending: host.pending.clone(),
     };
     let open = move |ctx: Ctx<'js>, agent: Value<'js>| open(&ctx, creator.host(), agent);
     g.set(
@@ -51,6 +52,7 @@ struct Creator {
     cookie: crate::fetch::SharedJar,
     clock: crate::js::engine::Clock,
     realms: crate::js::engine::Realms,
+    pending: super::Pending,
 }
 
 impl Creator {
@@ -74,7 +76,9 @@ impl Creator {
             clock: self.clock.clone(),
             probe: None,
             current: Rc::new(Cell::new(None)),
-            pending: Default::default(),
+            // The agent's one queue, tagged with the realm about to open.
+            pending: self.pending.clone(),
+            realm: Some(self.realms.next_index()),
             location: INITIAL.into(),
             realms: self.realms.clone(),
         }

@@ -8,7 +8,7 @@
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 
-use crate::dom::{Document, NodeId};
+use crate::dom::Document;
 use crate::fetch::FetchSession;
 
 use super::engine::{self, Deadline, Engine, NetBudget};
@@ -149,6 +149,7 @@ impl Session {
                 probe,
                 current: current.clone(),
                 pending: pending.clone(),
+                realm: None,
                 location: page_url.clone(),
                 realms: engine.realms(),
             },
@@ -170,37 +171,6 @@ impl Session {
     /// budget needs no arming — only real dispatch spends it (`bl-79dc`).
     pub fn begin(&self) {
         self.engine.arm();
-    }
-
-    /// Evaluate one of frot's own event-loop driver calls inside the armed
-    /// bounds (§5), draining microtasks — the [`super::run`] path's host
-    /// primitive, strict like the prelude it calls into.
-    pub fn run_task(&self, src: &str) -> Result<String, EvalError> {
-        self.engine.eval_armed(src)
-    }
-
-    /// Evaluate one page **classic script** — the element `id`'s — inside the
-    /// armed bounds (§5). Sloppy mode unless the source says otherwise, which is
-    /// what a browser does with a classic script (js.md §4.1);
-    /// [`run_task`](Self::run_task) is frot's own code and stays strict.
-    ///
-    /// `id` is what `document.currentScript` reports while this body runs. The
-    /// prior value is restored on the way out whatever the outcome — a throw, a
-    /// budget trip, or a nested evaluation — because the restore is the host's,
-    /// not something the script could skip.
-    pub fn run_script(&self, id: NodeId, src: &str) -> Result<String, EvalError> {
-        let prior = self.current.replace(Some(id));
-        let out = self.engine.eval_script(src);
-        self.current.set(prior);
-        out
-    }
-
-    /// Evaluate `src` as an ES module named `name` (its URL) inside the armed
-    /// bounds (§5), draining microtasks — the [`super::run`] path's module
-    /// primitive. Imports resolve/load through the §6 loader; failures surface as
-    /// [`EvalError`] exactly like [`run_task`](Self::run_task).
-    pub fn run_module(&self, name: &str, src: &str) -> Result<String, EvalError> {
-        self.engine.eval_module(name, src)
     }
 
     /// The final page URL — the anchor the document base URL derives from

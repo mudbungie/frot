@@ -990,6 +990,40 @@ count-only error (`bl-96f7`; with a throwaway stub it goes on to load
 Turnstile's `api.js`, POST once, and hit `PerformanceResourceTiming` —
 `bl-c378`).
 
+### 11.8 medium.com and npmjs.com after Streams (`bl-96f7`, `bl-c378`, 2026-11-24)
+
+With `ReadableStream` (js.md §16) and `PerformanceResourceTiming` (js.md §5
+"Resource timing") built, from the machine the session ran on — not verified
+to be the §3 reference egress. `frot https://medium.com/ --js --js-errors`
+three times, ten-odd minutes apart, and `frot https://www.npmjs.com/package/react
+--js --js-errors` once; the last three with a throwaway trace build (wire
+requests, absent-global reads, `src`/`setAttribute`/`appendChild` of scripts
+and iframes logged; not committed).
+
+| run | envelope | `js` |
+|---|---|---|
+| medium 1 | `needs:["human"]`, `http.status 403`, `challenge:{declared:"cf-mitigated", rounds:0, passed:false}` | scripts 3, errors 0, settled |
+| medium 2 | same | 3, 0, settled |
+| medium 3 | same | 3, 0, `stopped:"budget"` |
+| npm 1 | `needs:["human"]`, 403, `challenge:{rounds:1, passed:false}` — the re-issued GET was challenged again | 3, 0, `stopped:"budget"` |
+
+**Not passed; the `ReadableStream` throw is gone** (errors 1 → 0). In order,
+both sites alike: the inline script → `<script src=/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1?ray=…>`
+→ an `about:blank` iframe for `eval` (js.md §14) → a read of
+`RTCPeerConnection` (absent; Firefox has it) → Turnstile's
+`challenges.cloudflare.com/turnstile/v0/b/<v>/api.js?onload=<cb>&render=explicit`
+runs → one POST to `/cdn-cgi/challenge-platform/h/b/fo/…` (200) → Turnstile
+renders its widget: an `<iframe src="https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/turnstile/f/av0/rch/<id>/<sitekey>/light/fbE/new/normal?lang=auto">`
+appended into a shadow root. **The next wall is that iframe:** frot never
+navigates an iframe's `src` (js.md §14.4, declared), so the widget's
+document never exists, nothing is posted back, and the page waits — on
+medium run 3 and npm, polling until the compute budget. Loading a
+cross-origin frame is a boundary move (a second origin's document, its
+scripts, cross-origin `WindowProxy` rules, `postMessage` with a real
+origin), not a small wall: filed for Mark as `bl-3169`. Whether Turnstile
+then passes unattended was not measured — an interactive checkbox would be
+the refused side (§6).
+
 ### 11.6 The undeclared 200 on Amazon, captured (`bl-eed9`, 2026-11-20)
 
 Captured with a throwaway build that saves each navigation's response, from

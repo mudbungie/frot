@@ -21,17 +21,21 @@ pub(super) fn run(session: &Session, report: &mut Report) {
 
 /// Fire one lifecycle event; `false` when the budget tripped.
 fn fire(session: &Session, name: &str, report: &mut Report) -> bool {
-    let errs = drive(session, &format!("__frot_fire('{name}')"), report);
+    let errs = drive(session, None, &format!("__frot_fire('{name}')"), report);
     errs.map(|n| report.errors += n as u32).is_some()
 }
 
-/// Fire `load` or `error` at the external `<script>` `id` (js.md §4).
-pub(super) fn script_event(session: &Session, id: u32, event: &str, report: &mut Report) {
-    if let Some(n) = drive(
-        session,
-        &format!("__frot_script_event({id},'{event}')"),
-        report,
-    ) {
+/// Fire `load` or `error` at the external `<script>` `id` (js.md §4), in the
+/// window whose document holds it: a frame's `realm`, or the top's.
+pub(super) fn script_event(
+    session: &Session,
+    realm: Option<usize>,
+    id: u32,
+    event: &str,
+    report: &mut Report,
+) {
+    let src = format!("__frot_script_event({id},'{event}')");
+    if let Some(n) = drive(session, realm, &src, report) {
         report.errors += n as u32;
     }
 }
@@ -40,7 +44,7 @@ pub(super) fn script_event(session: &Session, id: u32, event: &str, report: &mut
 /// throws; `false` when the budget tripped mid-task.
 fn drain(session: &Session, driver: &str, report: &mut Report) -> bool {
     loop {
-        match drive(session, driver, report) {
+        match drive(session, None, driver, report) {
             Some(n) if n < 0 => return true,
             Some(n) => report.errors += n as u32,
             None => return false,
@@ -53,10 +57,10 @@ fn drain(session: &Session, driver: &str, report: &mut Report) -> bool {
 /// drivers catch callback throws in JS and encode them in the return value, so
 /// the only non-value outcome is a budget hit. Every task is followed by the
 /// inserted scripts it queued (js.md §4, `bl-a86b`).
-fn drive(session: &Session, src: &str, report: &mut Report) -> Option<i64> {
-    match session.run_task(src) {
+fn drive(session: &Session, realm: Option<usize>, src: &str, report: &mut Report) -> Option<i64> {
+    match session.run_task_in(realm, src) {
         Ok(s) => {
-            super::drain_inserted(session, report);
+            super::queue::drain_inserted(session, report);
             Some(s.trim().parse::<i64>().unwrap_or(0))
         }
         Err(_) => {

@@ -86,9 +86,19 @@ pub struct Counters {
 pub type CurrentScript = Rc<Cell<Option<NodeId>>>;
 
 /// Inserted scripts waiting for their task (js.md §4, `bl-a86b`): an external
-/// `src` or a module, in insertion order. The run driver takes one after every
-/// task; an inline classic script never waits here — it runs on insertion.
-pub type Pending = Rc<RefCell<std::collections::VecDeque<(NodeId, Script)>>>;
+/// `src` or a module, in insertion order, each with the frame window it was
+/// inserted into (`None`: the top one). One queue for the agent's every window
+/// (`bl-b34e`): the run driver takes one after every task and runs it in its
+/// own window; an inline classic script never waits here — it runs on insertion.
+pub type Pending = Rc<RefCell<std::collections::VecDeque<(NodeId, Script, Option<Window>)>>>;
+
+/// A frame's window as a queued script needs it: the engine realm it runs in
+/// and its `currentScript` cell.
+#[derive(Clone)]
+pub struct Window {
+    pub realm: usize,
+    pub current: CurrentScript,
+}
 
 /// One captured `console` call (level + rendered message), in emission order.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -135,8 +145,11 @@ pub struct Host {
     /// while its origin, cookies and base stay its creator's — which is
     /// everything else in `env`.
     pub location: String,
-    /// This document's inserted scripts waiting for a task — see [`Pending`].
+    /// The agent's inserted scripts waiting for a task — see [`Pending`].
     pub pending: Pending,
+    /// A frame's realm (`bl-b34e`), which its queued scripts are tagged with;
+    /// `None` for the top window.
+    pub realm: Option<usize>,
     /// The frame realms the engine owns (js.md §14): a page reading
     /// `contentWindow` opens one through the `__frot_open_frame` syscall.
     pub realms: Realms,

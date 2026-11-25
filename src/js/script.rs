@@ -2,7 +2,7 @@
 //!
 //! Pure over the DOM: given the document and a node id, decide whether the
 //! script runs (inline vs external, classic vs module) or is skipped. The run
-//! driver (`super::run_script_queue`) and the insertion hook
+//! driver (`super::queue::run_script_queue`) and the insertion hook
 //! (`super::syscall::insert`) own the ordering and execution; this owns only
 //! the "may this script run, and what kind is it" question.
 

@@ -55,6 +55,7 @@ pub(super) fn host(engine: &Engine, probe: Option<ProbeLog>) -> Host {
         probe,
         current: Rc::new(std::cell::Cell::new(None)),
         pending: Default::default(),
+        realm: None,
         location: "https://example.com/".into(),
         realms: engine.realms(),
     }

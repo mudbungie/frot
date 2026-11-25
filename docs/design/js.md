@@ -618,7 +618,16 @@ during parse. So:
    6. **Frames.** The gate is per document, so an inline script a page inserts
       into an iframe's document runs in that frame's window (§14). An
       external or module script inserted into a frame document waits in the
-      frame's queue, which nothing drains yet (`bl-b34e`).
+      frame's queue, which nothing drains yet (`bl-b34e`). *(Built
+      2026-11-24, `bl-b34e`: there is one queue for the agent's every
+      window, each entry tagged with the window it was inserted into; the
+      driver runs it there — evaluated in the frame's realm, as the frame's
+      `currentScript`, its `load`/`error` fired in the frame — so an
+      external, an adopted external, an external module and an inline module
+      inserted into a frame all run in the frame's window, as measured on
+      Firefox 153.0esr (`js::tests::inserted`). Same turn as at the top:
+      after the inserting task, before a 0 ms timer queued with it, where
+      Firefox — fetching — ran the timer first.)*
 
    **Bounds are unchanged.** Every inserted script runs inside the run's one
    compute window and network budget (§5); a budget trip inside an inserted

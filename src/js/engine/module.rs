@@ -25,9 +25,15 @@ impl Engine {
     /// top-level await / dynamic `import()` drain here and, for timer-bound waits,
     /// across the §5 settle loop; a late unhandled rejection is caught by the §10
     /// net ([`Engine::rejections`]). A budget trip anywhere is [`EvalError::Budget`].
-    pub fn eval_module(&self, name: &str, src: &str) -> Result<String, EvalError> {
+    /// `realm` is the frame window it runs in, `None` the top's (`bl-b34e`).
+    pub fn eval_module(
+        &self,
+        realm: Option<usize>,
+        name: &str,
+        src: &str,
+    ) -> Result<String, EvalError> {
         let before = self.rejections.get();
-        let res = self.ctx.with(|ctx| -> Result<(), String> {
+        let res = self.realm(realm).with(|ctx| -> Result<(), String> {
             let promise = Module::evaluate(ctx.clone(), name.to_string(), src.to_string())
                 // A synchronous hard failure — syntax error, an unresolvable
                 // specifier, or a failed module fetch (the loader threw) — reaches

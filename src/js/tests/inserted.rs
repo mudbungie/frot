@@ -166,6 +166,32 @@ fn a_frame_runs_what_is_inserted_into_its_document_in_its_own_window() {
     assert_eq!(out, "1:undefined p2");
 }
 
+/// `bl-b34e`, measured on Firefox 153.0esr (identity.md §3.19 rig): an
+/// external, an adopted external, an external module and an inline module
+/// inserted into a same-origin `about:blank` frame each run in the frame's
+/// window, the classic ones as its `currentScript`, each external then firing
+/// `load` (or `error`) at its element. Firefox ran them after a 0 ms timer the
+/// page queued, because they were fetched; frot's fetch is instant, so they
+/// take their turn after the parser's scripts, as at the top (js.md §4.7).
+#[test]
+fn a_frame_runs_an_external_or_module_script_inserted_into_it_in_its_own_window() {
+    let ext = "data:text/javascript,parent.L('ext',window!==parent,document.currentScript.id)";
+    let (out, report) = run_at(
+        NOWHERE,
+        &format!(
+            "var f=document.createElement('iframe');document.body.appendChild(f);             var d=f.contentDocument;function put(doc,p){{var s=doc.createElement('script');             for(var k in p)s[k]=p[k];s.onload=function(){{L('load',s.id)}};             s.onerror=function(){{L('error',s.id)}};d.head.appendChild(s)}}             put(d,{{id:'own',src:\"{ext}\"}});put(document,{{id:'adopted',src:\"{ext}\"}});             put(d,{{id:'m',type:'module',text:\"parent.L('mod',window!==parent)\"}});             put(d,{{id:'xm',type:'module',src:\"data:text/javascript,parent.L('xmod')\"}});\
+             put(d,{{id:'bad',src:'missing.js'}});L('after')"
+        ),
+        "L('p2')",
+    );
+    assert_eq!(
+        out,
+        "after p2 ext:true:own load:own ext:true:adopted load:adopted mod:true xmod load:xm \
+         error:bad"
+    );
+    assert_eq!((report.scripts, report.errors), (6, 1));
+}
+
 #[test]
 fn the_budget_stops_an_inserted_script_and_everything_queued_after_it() {
     let spin = "data:text/javascript,for(;;){}";

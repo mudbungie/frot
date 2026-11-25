@@ -5,8 +5,9 @@
 //!
 //! An inline classic script runs here, synchronously, inside the call that
 //! connected it — the inserting script sees its effects on the next line. An
-//! external `src` or a module waits in the document's [`Pending`] queue for
-//! the run driver, which takes one after every task (`super::super::drain`).
+//! external `src` or a module waits in the agent's [`Pending`] queue, tagged
+//! with its window, for the run driver, which takes one after every task and
+//! runs it in that window (`super::super::queue::drain_inserted`, `bl-b34e`).
 //! Which scripts may run at all is [`script::prepare`]'s one answer, so a
 //! parsed script, an inserted one and one a frame inserts obey the same gate.
 
@@ -87,6 +88,7 @@ struct Runner {
     current: super::CurrentScript,
     pending: super::Pending,
     location: String,
+    realm: Option<usize>,
 }
 
 impl Runner {
@@ -97,6 +99,7 @@ impl Runner {
             current: h.current.clone(),
             pending: h.pending.clone(),
             location: h.location.clone(),
+            realm: h.realm,
         }
     }
 
@@ -119,7 +122,13 @@ impl Runner {
                 module: false,
                 body,
             }) => self.run(ctx, id, &body),
-            Some(s) => h.pending.borrow_mut().push_back((id, s)),
+            Some(s) => {
+                let window = h.realm.map(|realm| super::Window {
+                    realm,
+                    current: h.current.clone(),
+                });
+                h.pending.borrow_mut().push_back((id, s, window));
+            }
             None => {}
         }
     }

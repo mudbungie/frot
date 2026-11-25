@@ -99,6 +99,16 @@ impl Realms {
         self.uncapped(ctx, || ctx.eval_with_options::<(), _>(src, opts))
     }
 
+    /// The index the next [`open`](Self::open)ed realm will have (`bl-b34e`).
+    pub fn next_index(&self) -> usize {
+        self.owned.borrow().len()
+    }
+
+    /// The realm opened `i`th, to evaluate in from outside any call.
+    pub(super) fn context(&self, i: usize) -> Context {
+        self.owned.borrow()[i].clone()
+    }
+
     /// Close every frame context (the engine's teardown, before its runtime).
     pub(super) fn close_all(&self) {
         self.owned.borrow_mut().clear();
