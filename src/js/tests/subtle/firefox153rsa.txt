@@ -5,8 +5,8 @@
 # `src/js/tests/subtle/firefox.rs` runs each in frot and requires the same answer —
 # except a line marked `!`, the declared residual (identity.md §3.19): Firefox's
 # answer is kept, and frot must reject it NotSupportedError, because aws-lc-rs
-# cannot compute it (a key outside 2048–8192 bits, SHA-1 signing, a PSS salt other
-# than the digest length, generating another size or exponent). Nothing here was
+# cannot compute it (a key outside 2048–8192 bits, SHA-1 signing, PSS with SHA-1,
+# generating another size or exponent; the PSS salt rows lifted with bl-4ba0). Nothing here was
 # produced by frot. PKCS #1 v1.5 signatures are deterministic, so they are compared
 # byte for byte; PSS and OAEP are randomised, so a round trip is. Test keys: a
 # 2048-bit (PK8/SPKI) and a 1024-bit (PK8S) key openssl generated for this capture.
@@ -135,8 +135,8 @@ sv(P1,P1) => string:256:true:false
 sv(PS,{name:'RSA-PSS',saltLength:32}) => string:256:true:false
 sv(A('RSA-PSS','SHA-384'),{name:'RSA-PSS',saltLength:48}) => string:256:true:false
 sv(A('RSA-PSS','SHA-512'),{name:'RSA-PSS',saltLength:64}) => string:256:true:false
-!sv(PS,{name:'RSA-PSS',saltLength:0}) => string:256:true:false
-!sv(PS,{name:'RSA-PSS',saltLength:20}) => string:256:true:false
+sv(PS,{name:'RSA-PSS',saltLength:0}) => string:256:true:false
+sv(PS,{name:'RSA-PSS',saltLength:20}) => string:256:true:false
 !sv(A('RSA-PSS','SHA-1'),{name:'RSA-PSS',saltLength:20}) => string:256:true:false
 sv(PS,{name:'RSA-PSS',saltLength:223}) => OperationError: The operation failed for an operation-specific reason
 sv(PS,{name:'RSA-PSS',saltLength:300}) => OperationError: The operation failed for an operation-specific reason
@@ -187,10 +187,10 @@ gen(A('RSASSA-PKCS1-v1_5','SHA-1'),['sign']).then(function(p){return p.privateKe
 gen(P1,['sign','verify'],{modulusLength:2048,publicExponent:new Uint8Array([1,0,1])}).then(function(p){return S.exportKey('jwk',p.privateKey)}).then(function(j){return Object.keys(j).join('|')}) => string:alg|d|dp|dq|e|ext|key_ops|kty|n|p|q|qi
 gen(P1,['sign','verify'],{modulusLength:2048,publicExponent:new Uint8Array([0,1,0,1])}).then(function(p){return S.exportKey('jwk',p.publicKey)}).then(function(j){return j.e}) => string:AQAB
 priv(A('RSASSA-PKCS1-v1_5','AES-GCM'),['sign']).then(function(k){return S.sign({name:'RSASSA-PKCS1-v1_5'},k,U(3))}) => NotSupportedError: Operation is not supported
-!sv(PS,{name:'RSA-PSS',saltLength:222}) => string:256:true:false
-!sv(A('RSA-PSS','SHA-512'),{name:'RSA-PSS',saltLength:190}) => string:256:true:false
+sv(PS,{name:'RSA-PSS',saltLength:222}) => string:256:true:false
+sv(A('RSA-PSS','SHA-512'),{name:'RSA-PSS',saltLength:190}) => string:256:true:false
 sv(A('RSA-PSS','SHA-512'),{name:'RSA-PSS',saltLength:191}) => OperationError: The operation failed for an operation-specific reason
-!priv(PS,['sign']).then(function(k){return S.sign({name:'RSA-PSS',saltLength:32},k,U(3))}).then(function(s){return pubk(PS,['verify']).then(function(v){return S.verify({name:'RSA-PSS',saltLength:31},v,s,U(3))})}) => boolean:false
+priv(PS,['sign']).then(function(k){return S.sign({name:'RSA-PSS',saltLength:32},k,U(3))}).then(function(s){return pubk(PS,['verify']).then(function(v){return S.verify({name:'RSA-PSS',saltLength:31},v,s,U(3))})}) => boolean:false
 !imp('pkcs8',PK8S,OA,['decrypt']).then(function(k){return k.algorithm.modulusLength}) => number:1024
 jpub(P1,['verify']).then(function(j){j.alg='RS256';j.use='enc';return ij(j,P1,['verify'])}) => key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":2048,"publicExponent":{"0":1,"1":0,"2":1}},verify
 !jpub(P1,['verify']).then(function(j){j.n='AAAA';return ij(j,P1,['verify'])}) => key:public,true,{"name":"RSASSA-PKCS1-v1_5","hash":{"name":"SHA-256"},"modulusLength":8,"publicExponent":{"0":1,"1":0,"2":1}},verify

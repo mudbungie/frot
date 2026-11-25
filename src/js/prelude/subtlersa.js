@@ -209,20 +209,20 @@
     };
   };
 
-  // The key's own hash. PSS takes a salt length: absent or negative is
-  // SyntaxError, longer than the modulus leaves room for OperationError.
+  // The key's own hash, and the salt the provider is handed: -1 for PKCS #1
+  // v1.5. PSS takes a salt length: absent or negative is SyntaxError, longer
+  // than the modulus leaves room for OperationError.
   function scheme(n, s) {
-    var hash = s.algorithm.hash.name, pss = n.name === 'RSA-PSS';
+    var hash = s.algorithm.hash.name, pss = n.name === 'RSA-PSS', salt = -1;
     if (pss) {
-      var salt = n.p.saltLength === undefined ? -1 : Number(n.p.saltLength);
+      salt = n.p.saltLength === undefined ? -1 : Number(n.p.saltLength);
       if (!(salt >= 0)) throw fail('SyntaxError');
       if (salt > s.pk.rsa.n.length - (HLEN[hash] || 0) - 2) throw fail('OperationError');
-      if (salt !== HLEN[hash]) throw fail('NotSupportedError');
     }
     if (!HLEN[hash] || (hash === 'SHA-1' && (pss || s.type === 'private'))) {
       throw fail('NotSupportedError');
     }
-    return [pss, hash];
+    return [salt, hash];
   }
   var pkSign = k.pkSign, pkVerify = k.pkVerify;
   k.pkSign = function (n, s, data) {

@@ -125,8 +125,9 @@ pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, _host: &Host) -> rquickjs::
 }
 
 /// The RSA table over [`rsa`] (`bl-2763`): `rsa_generate(bits)` answers
-/// `[pkcs8, spki]`; `rsa_check(private, der)`, `rsa_sign(pss, hash, pkcs8,
-/// data)`, `rsa_verify(pss, hash, spki, sig, data)`, `rsa_oaep(open, hash, der,
+/// `[pkcs8, spki]`; `rsa_check(private, der)`, `rsa_sign(salt, hash, pkcs8,
+/// data)`, `rsa_verify(salt, hash, spki, sig, data)` (a negative `salt` is
+/// PKCS #1 v1.5, any other PSS salted with it), `rsa_oaep(open, hash, der,
 /// label, data)`.
 fn rsa_table<'js>(ctx: &Ctx<'js>, g: &Object<'js>) -> rquickjs::Result<()> {
     bind!(ctx, g, "__frot_subtle_rsa_generate", |bits: u32| {
@@ -142,16 +143,16 @@ fn rsa_table<'js>(ctx: &Ctx<'js>, g: &Object<'js>) -> rquickjs::Result<()> {
         ctx,
         g,
         "__frot_subtle_rsa_sign",
-        |ctx: Ctx<'js>, pss: bool, h: String, der: Bytes<'js>, data: Bytes<'js>| {
-            out(ctx, rsa::sign(pss, &h, bytes(&der), bytes(&data)))
+        |ctx: Ctx<'js>, salt: i32, h: String, der: Bytes<'js>, data: Bytes<'js>| {
+            out(ctx, rsa::sign(salt, &h, bytes(&der), bytes(&data)))
         }
     );
     bind!(
         ctx,
         g,
         "__frot_subtle_rsa_verify",
-        |pss: bool, h: String, der: Bytes<'js>, sig: Bytes<'js>, data: Bytes<'js>| {
-            rsa::verify(pss, &h, bytes(&der), bytes(&sig), bytes(&data))
+        |salt: i32, h: String, der: Bytes<'js>, sig: Bytes<'js>, data: Bytes<'js>| {
+            rsa::verify(salt, &h, bytes(&der), bytes(&sig), bytes(&data))
         }
     );
     bind!(

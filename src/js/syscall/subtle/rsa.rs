@@ -3,9 +3,8 @@
 //! PKCS #8 for a private key, `SubjectPublicKeyInfo` for a public one — and
 //! nothing is held between calls; the JWK members, the containers' layout and
 //! every WebCrypto rule are the prelude's. What the provider cannot do — a
-//! key outside 2048–8192 bits, signing with SHA-1, a PSS salt other than the
-//! digest's length, generating with another exponent or size — the prelude
-//! refuses before it gets here.
+//! key outside 2048–8192 bits, signing with SHA-1, PSS with SHA-1, generating
+//! with another exponent or size — the prelude refuses before it gets here.
 
 use aws_lc_rs::encoding::AsDer;
 use aws_lc_rs::rand::SystemRandom;
@@ -14,7 +13,7 @@ use aws_lc_rs::rsa::{
     PrivateDecryptingKey, PublicEncryptingKey, OAEP_SHA1_MGF1SHA1, OAEP_SHA256_MGF1SHA256,
     OAEP_SHA384_MGF1SHA384, OAEP_SHA512_MGF1SHA512,
 };
-use aws_lc_rs::signature::{self as s, KeyPair as _, RsaEncoding, RsaParameters};
+use aws_lc_rs::signature::{self as s, KeyPair as _, RsaEncoding, RsaParameters, RsaPssSaltLength};
 
 /// A fresh key of `bits` — 2048, 3072 or 4096; 8192 is left out, its search
 /// runs past the compute budget — with exponent 65537: `[pkcs8, spki]`.
@@ -45,26 +44,41 @@ pub fn check(private: bool, der: &[u8]) -> i32 {
     }
 }
 
-/// The signing encoding and the verification parameters of a scheme and hash.
+/// The signing encoding and verification parameters of `hash` under PKCS #1
+/// v1.5 (`salt` negative) or under PSS salted with `salt` bytes (`bl-4ba0`).
+/// The provider takes only `'static` ones, so a PSS pair is leaked: a few
+/// dozen bytes per call, for the life of the one-shot process.
 fn scheme(
-    pss: bool,
+    salt: i32,
     hash: &str,
 ) -> Option<(Option<&'static dyn RsaEncoding>, &'static RsaParameters)> {
-    Some(match (pss, hash) {
-        (false, "SHA-1") => (None, &s::RSA_PKCS1_2048_8192_SHA1_FOR_LEGACY_USE_ONLY),
-        (false, "SHA-256") => (Some(&s::RSA_PKCS1_SHA256), &s::RSA_PKCS1_2048_8192_SHA256),
-        (false, "SHA-384") => (Some(&s::RSA_PKCS1_SHA384), &s::RSA_PKCS1_2048_8192_SHA384),
-        (false, "SHA-512") => (Some(&s::RSA_PKCS1_SHA512), &s::RSA_PKCS1_2048_8192_SHA512),
-        (true, "SHA-256") => (Some(&s::RSA_PSS_SHA256), &s::RSA_PSS_2048_8192_SHA256),
-        (true, "SHA-384") => (Some(&s::RSA_PSS_SHA384), &s::RSA_PSS_2048_8192_SHA384),
-        (true, "SHA-512") => (Some(&s::RSA_PSS_SHA512), &s::RSA_PSS_2048_8192_SHA512),
+    if salt < 0 {
+        return Some(match hash {
+            "SHA-1" => (None, &s::RSA_PKCS1_2048_8192_SHA1_FOR_LEGACY_USE_ONLY),
+            "SHA-256" => (Some(&s::RSA_PKCS1_SHA256), &s::RSA_PKCS1_2048_8192_SHA256),
+            "SHA-384" => (Some(&s::RSA_PKCS1_SHA384), &s::RSA_PKCS1_2048_8192_SHA384),
+            "SHA-512" => (Some(&s::RSA_PKCS1_SHA512), &s::RSA_PKCS1_2048_8192_SHA512),
+            _ => return None,
+        });
+    }
+    let len = RsaPssSaltLength::Custom(u16::try_from(salt).ok()?);
+    let (encoding, params) = match hash {
+        "SHA-256" => (s::RSA_PSS_SHA256, s::RSA_PSS_2048_8192_SHA256),
+        "SHA-384" => (s::RSA_PSS_SHA384, s::RSA_PSS_2048_8192_SHA384),
+        "SHA-512" => (s::RSA_PSS_SHA512, s::RSA_PSS_2048_8192_SHA512),
         _ => return None,
-    })
+    };
+    let encoding: &'static dyn RsaEncoding =
+        Box::leak(Box::new(encoding.with_pss_salt_length(len)));
+    Some((
+        Some(encoding),
+        Box::leak(Box::new(params.with_pss_salt_length(len))),
+    ))
 }
 
-/// A PKCS #1 v1.5 or PSS signature (PSS salted with the digest's length).
-pub fn sign(pss: bool, hash: &str, pkcs8: &[u8], data: &[u8]) -> Option<Vec<u8>> {
-    let encoding = scheme(pss, hash)?.0?;
+/// A PKCS #1 v1.5 signature (`salt` negative) or a PSS one salted with `salt`.
+pub fn sign(salt: i32, hash: &str, pkcs8: &[u8], data: &[u8]) -> Option<Vec<u8>> {
+    let encoding = scheme(salt, hash)?.0?;
     let pair = KeyPair::from_pkcs8(pkcs8).ok()?;
     let mut sig = vec![0; pair.public_modulus_len()];
     pair.sign(encoding, &SystemRandom::new(), data, &mut sig)
@@ -72,8 +86,8 @@ pub fn sign(pss: bool, hash: &str, pkcs8: &[u8], data: &[u8]) -> Option<Vec<u8>>
     Some(sig)
 }
 
-pub fn verify(pss: bool, hash: &str, spki: &[u8], sig: &[u8], data: &[u8]) -> bool {
-    scheme(pss, hash).is_some_and(|(_, params)| {
+pub fn verify(salt: i32, hash: &str, spki: &[u8], sig: &[u8], data: &[u8]) -> bool {
+    scheme(salt, hash).is_some_and(|(_, params)| {
         s::UnparsedPublicKey::new(params, spki)
             .verify(data, sig)
             .is_ok()

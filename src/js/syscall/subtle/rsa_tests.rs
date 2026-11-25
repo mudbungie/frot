@@ -34,30 +34,38 @@ fn keys_the_provider_takes_and_refuses() {
 #[test]
 fn signatures_match_firefox_and_verify() {
     let data = [4; 33];
-    let sig = rsa::sign(false, "SHA-256", &h(PK8), &data).unwrap();
+    let sig = rsa::sign(-1, "SHA-256", &h(PK8), &data).unwrap();
     assert_eq!(sig, h(SIG));
-    assert!(rsa::verify(false, "SHA-256", &h(SPKI), &sig, &data));
-    assert!(!rsa::verify(false, "SHA-256", &h(SPKI), &sig, &[5; 33]));
-    for (pss, hash) in [
-        (false, "SHA-384"),
-        (false, "SHA-512"),
-        (true, "SHA-256"),
-        (true, "SHA-384"),
-        (true, "SHA-512"),
+    assert!(rsa::verify(-1, "SHA-256", &h(SPKI), &sig, &data));
+    assert!(!rsa::verify(-1, "SHA-256", &h(SPKI), &sig, &[5; 33]));
+    for (salt, hash) in [
+        (-1, "SHA-384"),
+        (-1, "SHA-512"),
+        (32, "SHA-256"),
+        (48, "SHA-384"),
+        (64, "SHA-512"),
+        (0, "SHA-256"),
+        (222, "SHA-256"),
+        (190, "SHA-512"),
     ] {
-        let sig = rsa::sign(pss, hash, &h(PK8), &data).unwrap();
+        let sig = rsa::sign(salt, hash, &h(PK8), &data).unwrap();
         assert!(
-            rsa::verify(pss, hash, &h(SPKI), &sig, &data),
-            "{pss} {hash}"
+            rsa::verify(salt, hash, &h(SPKI), &sig, &data),
+            "{salt} {hash}"
         );
     }
-    // SHA-1 verifies (legacy) but never signs; PSS has no SHA-1 at all; and
-    // a key that is not one signs nothing.
-    assert_eq!(rsa::sign(false, "SHA-1", &h(PK8), &data), None);
-    assert!(!rsa::verify(false, "SHA-1", &h(SPKI), &sig, &data));
-    assert_eq!(rsa::sign(true, "SHA-1", &h(PK8), &data), None);
-    assert!(!rsa::verify(true, "SHA-1", &h(SPKI), &sig, &data));
-    assert_eq!(rsa::sign(false, "SHA-256", &h(SPKI), &data), None);
+    // PSS checks the salt length it was told: 32 bytes signed, 31 expected.
+    let pss = rsa::sign(32, "SHA-256", &h(PK8), &data).unwrap();
+    assert!(!rsa::verify(31, "SHA-256", &h(SPKI), &pss, &data));
+    // SHA-1 verifies (legacy) but never signs; PSS has no SHA-1 at all; a salt
+    // past u16 is none; and a key that is not one signs nothing.
+    assert_eq!(rsa::sign(-1, "SHA-1", &h(PK8), &data), None);
+    assert!(!rsa::verify(-1, "SHA-1", &h(SPKI), &sig, &data));
+    assert_eq!(rsa::sign(20, "SHA-1", &h(PK8), &data), None);
+    assert!(!rsa::verify(20, "SHA-1", &h(SPKI), &sig, &data));
+    assert_eq!(rsa::sign(70_000, "SHA-256", &h(PK8), &data), None);
+    assert_eq!(rsa::sign(-1, "MD5", &h(PK8), &data), None);
+    assert_eq!(rsa::sign(-1, "SHA-256", &h(SPKI), &data), None);
 }
 
 #[test]
