@@ -52,7 +52,9 @@
     }, 'get innerHTML'),
     set: brand(function (html) {
       g.__frot_clear(this);
-      g.__frot_insert_child(slots(this).id, g.__frot_fragment(String(html)), null);
+      // The host is the context element (HTML, ShadowRoot `innerHTML`).
+      var host = this.host.localName;
+      g.__frot_insert_child(slots(this).id, g.__frot_fragment(String(html), host), null);
     }, 'set innerHTML'),
     enumerable: true,
     configurable: true,

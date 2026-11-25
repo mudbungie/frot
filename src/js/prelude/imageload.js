@@ -105,8 +105,8 @@
     raw.remove(id, name);
     if (had && isSrc(id, name)) request(id);
   });
-  seam('__frot_fragment', function (html) {
-    var f = raw.fragment(html);
+  seam('__frot_fragment', function (html, context) {
+    var f = raw.fragment(html, context);
     scan(f);
     return f;
   });

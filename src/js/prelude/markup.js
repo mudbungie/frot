@@ -118,9 +118,11 @@
       return markup(slots(this).id);
     },
     set: function (html) {
+      // The element itself is the fragment parser's context (bl-538f): a
+      // <title>'s markup stays its text.
       var id = inner(slots(this).id);
       g.__frot_clear(g.__frot_wrap(id));
-      g.__frot_insert_child(id, g.__frot_fragment(String(html)), null);
+      g.__frot_insert_child(id, g.__frot_fragment(String(html), this.localName), null);
     },
   });
 
@@ -149,8 +151,41 @@
           'Modifications are not allowed for this document'
         );
       }
-      g.__frot_insert_child(parent, g.__frot_fragment(String(html)), slots(this).id);
+      // The parent is the context; a fragment parent parses as a <body>.
+      var ctx = g.__frot_kind(parent) === 'element' ? g.__frot_wrap(parent).localName : 'body';
+      g.__frot_insert_child(parent, g.__frot_fragment(String(html), ctx), slots(this).id);
       g.__frot_detach(slots(this).id);
+    },
+  });
+
+  // The fragment parser's context for markup parsed into `id`'s children: the
+  // element itself, or a <body> for a fragment, a document or <html> (HTML
+  // "insertAdjacentHTML" step 3).
+  function contextOf(id) {
+    var tag = g.__frot_kind(id) === 'element' ? g.__frot_tag(id) : 'html';
+    return tag === 'html' ? 'body' : tag;
+  }
+  // insertAdjacentHTML (bl-538f), with Firefox 153.0esr's checks and messages:
+  // the two outer positions parse in the parent's context and need one that
+  // is not the document; the two inner ones parse in the element's own.
+  var WHERE = { beforebegin: 1, afterbegin: 1, beforeend: 1, afterend: 1 };
+  g.__frot_ifaceops(proto, {
+    insertAdjacentHTML: function insertAdjacentHTML(position, text) {
+      if (arguments.length < 2) {
+        throw new TypeError('Element.insertAdjacentHTML: At least 2 arguments required, but only '
+          + arguments.length + ' passed');
+      }
+      var where = String(position).toLowerCase(), id = slots(this).id;
+      if (!WHERE[where]) throw g.__frot_domerror('SyntaxError', 'An invalid or illegal string was specified');
+      var outer = where === 'beforebegin' || where === 'afterend';
+      var into = outer ? g.__frot_parent(id) : id;
+      if (into === null || into === undefined || into === g.__frot_document) {
+        throw g.__frot_domerror('NoModificationAllowedError', 'Modifications are not allowed for this document');
+      }
+      var kids = g.__frot_children(into);
+      var ref = { beforebegin: id, afterend: kids[kids.indexOf(id) + 1], afterbegin: kids[0] }[where];
+      var frag = g.__frot_fragment(String(text), contextOf(into));
+      g.__frot_insert_child(into, frag, ref === undefined ? null : ref);
     },
   });
 })(globalThis);

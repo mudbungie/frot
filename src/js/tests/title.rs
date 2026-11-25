@@ -3,10 +3,7 @@
 //! none, one in the body, one inside SVG, no head, an iframe's — and reads the
 //! referrer of a typed navigation; `title/firefox153.json` is what Firefox
 //! 153.0esr answered (identity.md §3.19 rig, over `title/page.html`). frot must
-//! answer every key identically but `child`: `innerHTML` on a `<title>` parses
-//! its markup as elements (the fragment parser's context is always `<body>`),
-//! where Firefox's RCDATA context keeps it as text — so the title's child text
-//! is `prs`, not the literal markup.
+//! answer every key identically.
 
 use serde_json::Value;
 
@@ -30,9 +27,8 @@ fn every_captured_title_answers_as_firefox_153_does() {
     assert_eq!(want.len(), 14);
     let wrong: Vec<String> = want
         .iter()
-        .filter(|(k, v)| *k != "child" && &got[k.as_str()] != *v)
+        .filter(|(k, v)| &got[k.as_str()] != *v)
         .map(|(k, v)| format!("{k}: got {} want {v}", got[k.as_str()]))
         .collect();
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
-    assert_eq!(got["child"], "\"prs\"");
 }

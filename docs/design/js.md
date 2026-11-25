@@ -205,7 +205,14 @@ Consequences of the repo's hard rules:
   element throws `NoModificationAllowedError`: browsers reach the Document node
   and swap the documentElement, and the arena has no document node (§2), so the
   **one declared divergence** here is that `document.documentElement.outerHTML =
-  …` throws instead of replacing the root — loudly, not silently.
+  …` throws instead of replacing the root — loudly, not silently. *(2026-11-24, `bl-538f`: the fragment parser now gets the
+  context element HTML names — the element for `innerHTML` (a shadow root's
+  host), the parent for `outerHTML`, a `<body>` for a fragment parent — so a
+  `<title>`/`<textarea>` keeps markup as RCDATA text, `<style>`/`<script>`/
+  `<xmp>`/`<iframe>`/`<noembed>`/`<noframes>`/`<noscript>`/`<plaintext>` as
+  raw text, and a `<table>`/`<tbody>`/`<select>` parses its rows/options;
+  `insertAdjacentHTML` is built on the same rule. 32 answers matched against
+  Firefox 153.0esr in `src/js/tests/fragctx/`.)*
 - **`document.body` is writable, and replacement is one primitive** (bl-273b).
   The setter is `replaceChild` under a type rule: a value that is not a `body`
   or `frameset` throws `HierarchyRequestError` (getter-only had swallowed both

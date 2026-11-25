@@ -234,7 +234,7 @@ fn detach_of_a_parentless_orphan_is_a_no_op_relink() {
 #[test]
 fn parse_fragment_returns_a_fragment_holding_the_parsed_nodes() {
     let mut doc = Document::parse("<body></body>");
-    let frag = doc.parse_fragment("<p>hi</p><span>yo</span>");
+    let frag = doc.parse_fragment("<p>hi</p><span>yo</span>", "body");
     assert_eq!(doc.node(frag).kind, NodeKind::Fragment);
     assert_eq!(doc.node(frag).parent, None);
     let ids = doc.node(frag).children.clone();
@@ -254,7 +254,7 @@ fn inserting_a_fragment_moves_its_children_in_its_place() {
     let mut doc = Document::parse("<body><u></u></body>");
     let body = doc.find_by_tag("body")[0];
     let u = doc.find_by_tag("u")[0];
-    let frag = doc.parse_fragment("<p>deep <b>text</b></p>x<i></i>");
+    let frag = doc.parse_fragment("<p>deep <b>text</b></p>x<i></i>", "body");
     let ids = doc.node(frag).children.clone();
     doc.insert_child(body, frag, Some(u)).unwrap();
     assert_eq!(doc.node(body).children, [ids[0], ids[1], ids[2], u]);
@@ -294,6 +294,6 @@ fn every_mutation_bumps_the_generation_counter() {
     step(doc.generation());
     doc.detach(t);
     step(doc.generation());
-    doc.parse_fragment("<p>p</p>");
+    doc.parse_fragment("<p>p</p>", "body");
     step(doc.generation());
 }

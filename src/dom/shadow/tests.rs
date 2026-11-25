@@ -38,7 +38,10 @@ fn the_parser_attaches_a_declarative_root_instead_of_a_child() {
     assert_eq!(doc.shadow_root(t), None);
     // Fragment parsing makes no root.
     let mut doc = doc;
-    let f = doc.parse_fragment("<div><template shadowrootmode=open>z</template></div>");
+    let f = doc.parse_fragment(
+        "<div><template shadowrootmode=open>z</template></div>",
+        "body",
+    );
     let div = doc.node(f).children[0];
     assert_eq!(doc.shadow_root(div), None);
 }

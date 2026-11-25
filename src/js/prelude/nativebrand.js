@@ -51,7 +51,7 @@
   var ORDER = {
     Element: 'getAttributeNames getAttribute getAttributeNS toggleAttribute setAttribute setAttributeNS ' +
       'removeAttribute removeAttributeNS hasAttribute hasAttributes closest matches getElementsByTagName ' +
-      'getElementsByClassName getBoundingClientRect attachShadow getHTML remove prepend append querySelector ' +
+      'getElementsByClassName getBoundingClientRect insertAdjacentHTML attachShadow getHTML remove prepend append querySelector ' +
       'querySelectorAll localName tagName id className classList attributes clientWidth clientHeight ' +
       'innerHTML outerHTML shadowRoot assignedSlot slot previousElementSibling nextElementSibling ' +
       'children firstElementChild lastElementChild childElementCount',

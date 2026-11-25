@@ -8,7 +8,7 @@
 
 use super::*;
 use html5ever::tendril::TendrilSink;
-use html5ever::{local_name, ns, QualName};
+use html5ever::{ns, LocalName, QualName};
 use markup5ever_rcdom::RcDom;
 
 impl Document {
@@ -157,16 +157,20 @@ impl Document {
         self.generation += 1;
     }
 
-    /// Parse an `innerHTML` fragment into the arena, returning the fragment
-    /// that holds the parsed nodes, for the caller to splice in with one
+    /// Parse an `innerHTML` fragment into the arena in the context of an
+    /// element named `context`, returning the fragment that holds the parsed
+    /// nodes, for the caller to splice in with one
     /// [`insert_child`].
     ///
     /// [`insert_child`]: Document::insert_child
-    pub fn parse_fragment(&mut self, html: &str) -> NodeId {
-        let ctx = QualName::new(None, ns!(html), local_name!("body"));
-        let rc =
-            html5ever::parse_fragment(RcDom::default(), Default::default(), ctx, vec![], false)
-                .one(html);
+    pub fn parse_fragment(&mut self, html: &str, context: &str) -> NodeId {
+        // The context element decides the tokenizer's start state: a
+        // `<title>`/`<textarea>` is RCDATA, `<style>`/`<script>`/… RAWTEXT, a
+        // `<table>` starts in table mode (HTML §13.4, `bl-538f`). Scripting is
+        // on — a script is what asked — so `<noscript>` is RAWTEXT too.
+        let ctx = QualName::new(None, ns!(html), LocalName::from(context));
+        let rc = html5ever::parse_fragment(RcDom::default(), Default::default(), ctx, vec![], true)
+            .one(html);
         // Fragment parsing nests the result under a synthetic <html> wrapper
         // (`#document > <html> > fragment nodes`); absorb the wrapper's children.
         let wrapper = rc.document.children.borrow()[0].clone();

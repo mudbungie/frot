@@ -113,7 +113,7 @@ fn mutations_build_relink_and_detach_nodes() {
     assert_eq!(s.eval("__frot_text(d)").unwrap(), "");
     // Fragment parsing returns one fragment node holding the parsed nodes;
     // inserting it moves them and leaves it (and a created one) empty.
-    s.eval("globalThis.f = __frot_fragment('<span>a</span><span>b</span>')")
+    s.eval("globalThis.f = __frot_fragment('<span>a</span><span>b</span>', 'body')")
         .unwrap();
     assert_eq!(
         s.eval("[__frot_kind(f),__frot_children(f).length,__frot_text(f)].join()")

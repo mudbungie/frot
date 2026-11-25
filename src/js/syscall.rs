@@ -211,7 +211,7 @@ fn mutations<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquick
     });
     bind!(ctx, g, "__frot_fragment", {
         let d = doc.clone();
-        move |html: String| d.borrow_mut().parse_fragment(&html)
+        move |html: String, context: String| d.borrow_mut().parse_fragment(&html, &context)
     });
     bind!(ctx, g, "__frot_parse_document", {
         let d = doc.clone();
