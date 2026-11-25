@@ -2232,7 +2232,7 @@ Attacked before building, per the house rule. Each is filed, none is built:
   registries**, **manual slot assignment** (`slot.assign()`), the
   **`slotchange`** event (*built 2026-11-25, §15.8*), **`::part`/`exportparts`**, **`:host-context()`**,
   and `setHTMLUnsafe`/`parseHTMLUnsafe` (which admit declarative shadow roots
-  from script).
+  from script; *`setHTMLUnsafe` built 2026-11-25, §15.10*).
 - **Parse order.** frot parses the whole document before any script (§4), so
   a parsed custom element is upgraded when its definition runs, not when the
   parser reaches it after that definition: its `connectedCallback` runs at
@@ -2473,6 +2473,26 @@ by asking it around each tree mutation — the slots of the shadow trees the
 mutation can touch, before and after — and `observer.js` delivers the
 signals in its microtask. Slots declared by the parser before any script
 ran are never signalled for what the parse assigned them.
+
+### 15.10 `setHTMLUnsafe` (`bl-c1a3`, 2026-11-25)
+
+Measured on Firefox 153.0esr (identity.md §3.19 rig, `js/tests/sethtml/`, 12
+answers). `Element.prototype.setHTMLUnsafe(html)` and
+`ShadowRoot.prototype.setHTMLUnsafe(html)` (one required argument, coerced
+to a string) replace what the node holds — a template's contents for a
+`<template>` — as the `innerHTML` setter does, but the parse admits
+declarative shadow roots: a `<template shadowrootmode=open|closed>` child of
+a valid host becomes its shadow root, at any depth, inside a template's
+contents too. Scripts it makes never run. Built as `innerHTML`'s one
+parse with the flag `Document::parse_fragment` already had for the
+document's own parse (`__frot_fragment(html, true)`, `markup.js`
+`__frot_set_inner`); the custom element reactions scope it like `innerHTML`.
+
+Declared: **`Document.parseHTMLUnsafe`** is absent — Firefox answers a new
+`HTMLDocument`, and frot has one document per realm (§2; `bl-f7f0`). **A
+defined element `setHTMLUnsafe` makes** is upgraded at once by frot, as
+`innerHTML`'s is; Firefox upgrades it a task later without its
+`connectedCallback` (measured), which frot does not copy.
 
 ## 16. Streams (`bl-96f7`, 2026-11-24)
 

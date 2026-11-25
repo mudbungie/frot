@@ -182,8 +182,8 @@
     touched(from, id);
     return r;
   });
-  seam('__frot_fragment', function (html, context) {
-    var f = raw.fragment(html, context);
+  seam('__frot_fragment', function (html, context, roots) {
+    var f = raw.fragment(html, context, !!roots);
     scan(f);
     return f;
   });

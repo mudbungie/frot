@@ -18,7 +18,7 @@ const CAPTURE: &str = include_str!("shadow/firefox153.json");
 const DECLARED: [(&str, &str); 2] = [
     (
         "protoSR",
-        "getElementById getHTML mode delegatesFocus slotAssignment clonable serializable host \
+        "getElementById setHTMLUnsafe getHTML mode delegatesFocus slotAssignment clonable serializable host \
          onslotchange innerHTML activeElement adoptedStyleSheets constructor | true",
     ),
     (

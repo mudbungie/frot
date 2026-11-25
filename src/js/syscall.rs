@@ -211,7 +211,10 @@ fn mutations<'js>(ctx: &Ctx<'js>, g: &rquickjs::Object<'js>, h: &Host) -> rquick
     });
     bind!(ctx, g, "__frot_fragment", {
         let d = doc.clone();
-        move |html: String, context: String| d.borrow_mut().parse_fragment(&html, &context)
+        move |html: String, context: String, roots: rquickjs::function::Opt<bool>| {
+            d.borrow_mut()
+                .parse_fragment(&html, &context, roots.0 == Some(true))
+        }
     });
     bind!(ctx, g, "__frot_parse_document", {
         let d = doc.clone();

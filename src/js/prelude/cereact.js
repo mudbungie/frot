@@ -217,6 +217,7 @@
       d[k] = brand(function () {
         return ce.count ? within(f, this, arguments) : f.apply(this, arguments);
       }, (k === 'set' ? 'set ' : '') + key);
+      Object.defineProperty(d[k], 'length', { value: f.length });
     });
     Object.defineProperty(proto, key, d);
   }
@@ -224,6 +225,8 @@
   scoped(g.Element.prototype, 'innerHTML');
   scoped(g.Element.prototype, 'outerHTML');
   scoped(g.ShadowRoot.prototype, 'innerHTML');
+  scoped(g.Element.prototype, 'setHTMLUnsafe');
+  scoped(g.ShadowRoot.prototype, 'setHTMLUnsafe');
 
   ce.raw = raw;
   ce.valid = valid;

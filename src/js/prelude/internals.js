@@ -288,12 +288,4 @@
       return i;
     },
   });
-  // Gecko lists it second, after `click`: move every later member after it.
-  var H = g.HTMLElement.prototype;
-  Object.getOwnPropertyNames(H).forEach(function (k) {
-    if (k === 'click' || k === 'attachInternals') return;
-    var d = Object.getOwnPropertyDescriptor(H, k);
-    delete H[k];
-    Object.defineProperty(H, k, d);
-  });
 })(globalThis);

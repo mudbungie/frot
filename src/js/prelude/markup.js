@@ -112,6 +112,18 @@
     configurable: true,
   });
 
+  // Replace what `w` holds (a template: its contents) with `html` parsed in
+  // the context of an element named `context`; `roots` admits declarative
+  // shadow roots, as setHTMLUnsafe does (shadow.js, js.md §15.10).
+  function setInner(w, html, context, roots) {
+    var id = inner(slots(w).id);
+    g.__frot_clear(g.__frot_wrap(id));
+    g.__frot_insert_child(id, g.__frot_fragment(String(html), context, roots), null);
+  }
+  Object.defineProperty(g, '__frot_set_inner', {
+    value: g.__frot_brand(setInner, '__frot_set_inner'),
+    configurable: true,
+  });
   Object.defineProperty(proto, 'innerHTML', {
     configurable: true,
     get: function () {
@@ -120,9 +132,7 @@
     set: function (html) {
       // The element itself is the fragment parser's context (bl-538f): a
       // <title>'s markup stays its text.
-      var id = inner(slots(this).id);
-      g.__frot_clear(g.__frot_wrap(id));
-      g.__frot_insert_child(id, g.__frot_fragment(String(html), this.localName), null);
+      setInner(this, html, this.localName, false);
     },
   });
 

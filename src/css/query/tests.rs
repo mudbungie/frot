@@ -61,7 +61,7 @@ fn element_scope_keeps_ancestor_context_above_root() {
 fn a_detached_subtree_is_queried_from_its_own_top() {
     let mut doc = Document::parse("<p>in</p>");
     let top = doc.create_element("div");
-    let frag = doc.parse_fragment("<p><b>out</b></p>", "body");
+    let frag = doc.parse_fragment("<p><b>out</b></p>", "body", false);
     let ids = doc.node(frag).children.clone();
     doc.insert_child(top, frag, None).unwrap();
     assert_eq!(query_all(&doc, top, "p").unwrap(), [ids[0]]);

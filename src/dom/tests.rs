@@ -227,7 +227,7 @@ fn a_templates_contents_are_the_fragment_it_owns_not_its_children() {
     assert_eq!(doc.text_content(Document::ROOT), "y");
     assert_eq!(doc.node(first_element(&doc, "div")).content, None);
     // Fragment parsing fills it too, and a created template owns an empty one.
-    let f = doc.parse_fragment("<template><i>z</i></template>", "body");
+    let f = doc.parse_fragment("<template><i>z</i></template>", "body", false);
     let inner = doc.node(f).children[0];
     let c = doc.node(inner).content.unwrap();
     assert_eq!(doc.text_content(c), "z");

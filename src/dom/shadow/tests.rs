@@ -41,6 +41,7 @@ fn the_parser_attaches_a_declarative_root_instead_of_a_child() {
     let f = doc.parse_fragment(
         "<div><template shadowrootmode=open>z</template></div>",
         "body",
+        false,
     );
     let div = doc.node(f).children[0];
     assert_eq!(doc.shadow_root(div), None);

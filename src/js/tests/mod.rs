@@ -57,6 +57,7 @@ mod receiver;
 mod reflect;
 mod scriptmode;
 mod scriptprops;
+mod sethtml;
 mod shadow;
 mod slotchange;
 mod srcdoc;

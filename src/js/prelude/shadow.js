@@ -23,10 +23,21 @@
     };
   }
 
+  // setHTMLUnsafe (js.md §15.10): `innerHTML`'s parse, admitting declarative
+  // shadow roots.
+  function unsafe(iface) {
+    return function setHTMLUnsafe(html) {
+      if (!arguments.length) {
+        throw new TypeError(iface + '.setHTMLUnsafe: At least 1 argument required, but only 0 passed');
+      }
+      g.__frot_set_inner(this, html, (iface === 'ShadowRoot' ? this.host : this).localName, true);
+    };
+  }
   g.__frot_ifaceops(P, {
     getElementById: function getElementById(id) {
       return g.DocumentFragment.prototype.getElementById.call(this, id);
     },
+    setHTMLUnsafe: unsafe('ShadowRoot'),
     getHTML: function getHTML() {
       return g.__frot_markup(slots(this).id, arguments[0] || {});
     },
@@ -93,6 +104,7 @@
       if (why) throw err('NotSupportedError', at + why);
       return wrap(g.__frot_shadow(id));
     },
+    setHTMLUnsafe: unsafe('Element'),
     getHTML: function getHTML() {
       return g.__frot_markup(slots(this).id, arguments[0] || {});
     },

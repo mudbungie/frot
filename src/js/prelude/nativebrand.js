@@ -51,11 +51,12 @@
   var ORDER = {
     Element: 'getAttributeNames getAttribute getAttributeNS toggleAttribute setAttribute setAttributeNS ' +
       'removeAttribute removeAttributeNS hasAttribute hasAttributes closest matches getElementsByTagName ' +
-      'getElementsByClassName getBoundingClientRect insertAdjacentHTML attachShadow getHTML remove prepend append querySelector ' +
+      'getElementsByClassName getBoundingClientRect insertAdjacentHTML attachShadow setHTMLUnsafe getHTML ' +
+      'remove prepend append querySelector ' +
       'querySelectorAll localName tagName id className classList attributes clientWidth clientHeight ' +
       'innerHTML outerHTML shadowRoot assignedSlot slot previousElementSibling nextElementSibling ' +
       'children firstElementChild lastElementChild childElementCount',
-    HTMLElement: 'focus blur title style offsetTop offsetLeft offsetWidth offsetHeight ' + ON + ' dataset onerror',
+    HTMLElement: 'attachInternals showPopover hidePopover togglePopover focus blur title style offsetTop offsetLeft offsetWidth offsetHeight ' + ON + ' dataset onerror',
     SVGElement: 'focus blur style ' + ON + ' dataset onerror',
     CharacterData: 'remove data length previousElementSibling nextElementSibling',
     DocumentFragment: 'getElementById prepend append querySelector querySelectorAll children ' +

@@ -1,0 +1,14 @@
+{
+ "shape": "function 1 function function true",
+ "plain": "undefined <b>new</b> text",
+ "dsd": "true | <i>shadow</i><slot></slot> | light | <div id=\"host\">light</div>",
+ "dsdClosed": "null  <div id=\"c\"></div>",
+ "innerHTMLNo": "null <template shadowrootmode=\"open\">z</template>",
+ "shadowRoot": "<p id=\"sp\">in</p> | true | deep",
+ "template": "0 1 true <div id=\"q\"></div>",
+ "custom": " true",
+ "script": 0,
+ "arg": "5",
+ "none": "THROW TypeError: Element.setHTMLUnsafe: At least 1 argument required, but only 0 passed",
+ "parse": "[object HTMLDocument] T true false about:blank"
+}
