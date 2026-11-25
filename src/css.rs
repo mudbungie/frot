@@ -42,7 +42,7 @@ use crate::dom::NodeId;
 
 pub use cascade::{compute, compute_bare, compute_with};
 pub use checked::{pick, picked};
-pub use control::custom as custom_name;
+pub use control::{custom as custom_name, takes_placeholder};
 pub use display::Display;
 pub use focus::{focusable, focused_element};
 pub use import::imports;

@@ -161,5 +161,25 @@
 <h3>a<math><mi>sin</mi><mn>2</mn></math>c</h3>
 <h3>a<meter value=".5">half</meter>c<progress value="5" max="10">p</progress>d<progress>p</progress>e</h3>
 <h3>a<iframe srcdoc="" title="frame title"></iframe>c</h3>
+<h2>A placeholder names a text box</h2>
+<p><input type="text" placeholder="ph text"> <input placeholder="ph bare"> <input placeholder="ph over title" title="title under ph"> <textarea placeholder="ph area"></textarea>
+<input type="search" placeholder="ph search"> <input type="email" placeholder="ph email"> <input type="url" placeholder="ph url"> <input type="tel" placeholder="ph tel"> <input type="password" placeholder="ph password"> <input type="number" placeholder="ph number">
+<input type="checkbox" placeholder="ph checkbox"> <input type="range" placeholder="ph range"> <input type="button" placeholder="ph button"> <select placeholder="ph select"><option>o</option></select>
+<input placeholder="  "> <input placeholder="ph   spaced  out"> <input placeholder="ph valued" value="v"> <label>Lab <input placeholder="ph labelled"></label> <input placeholder="ph aria" aria-label="aria wins">
+<input placeholder="ph upper" style="text-transform:uppercase"> <div role="textbox" aria-placeholder="ap div"></div> <input aria-placeholder="ap input"> <input placeholder="ph both" aria-placeholder="ap both"> <div role="textbox" placeholder="ph div"></div> <div contenteditable placeholder="ph editable"></div></p>
+<h3>a<input placeholder="ph inside">c</h3>
+<p><button aria-labelledby="phref">x</button><input id="phref" placeholder="ph referenced"></p>
+<h3>a<input placeholder="ph emb" value="val emb">c</h3>
+<h3>a<input aria-label="al emb">c</h3>
+<h3>a<input title="ti emb">c</h3>
+<h3>a<textarea placeholder="ph emb area"></textarea>c</h3>
+<h3>a<textarea placeholder="ph emb area2">area text</textarea>c</h3>
+<h3>a<input aria-placeholder="ap emb">c</h3>
+<h3>a<span role="textbox" aria-placeholder="ap emb span"></span>c</h3>
+<h3>a<input type="number" placeholder="ph emb num">c</h3>
+<h3>a<input type="checkbox" placeholder="ph emb check">c</h3>
+<p><button aria-labelledby="phref2">x</button><input id="phref2" placeholder="ph ref2" value="val ref2"> <button aria-labelledby="phref3">y</button><input id="phref3" placeholder="ph ref3" title="ti ref3"> <button aria-labelledby="phref4">z</button><textarea id="phref4" placeholder="ph ref4"></textarea></p>
+<h3>a<input id="lq">c</h3><label for="lq">for emb</label>
+<p><input aria-placeholder="ap under title" title="title over ap"> <span role="searchbox" aria-placeholder="ap searchbox"></span> <span role="combobox" aria-placeholder="ap combobox"></span> <input list="dl" placeholder="ph list"><datalist id="dl"><option>d</option></datalist></p>
 </body>
 </html>

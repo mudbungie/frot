@@ -13,6 +13,12 @@ pub fn control_label_text(
     el: &Element,
     styles: Option<&Styles>,
 ) -> Option<String> {
+    label(doc, control_id, el).map(|id| contents::element_name(doc, id, styles, &[control_id]))
+}
+
+/// A control's `<label>`: the first whose `for` names its `id`, else the
+/// outermost one around it.
+pub(super) fn label(doc: &Document, control_id: NodeId, el: &Element) -> Option<NodeId> {
     let target = el.attr("id");
     let mut for_match: Option<NodeId> = None;
     let mut label_stack: Vec<NodeId> = Vec::new();
@@ -40,9 +46,7 @@ pub fn control_label_text(
             }
         }
     });
-    for_match
-        .or(wrapping_label)
-        .map(|id| contents::element_name(doc, id, styles, &[control_id]))
+    for_match.or(wrapping_label)
 }
 
 pub fn fieldset_legend_text(

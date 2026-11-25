@@ -243,8 +243,27 @@ pub fn hidden(id: NodeId, el: &Element, styles: Option<&Styles>) -> bool {
 fn alternative(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>) -> Option<String> {
     super::collapsed_attr(el, "aria-label")
         .or_else(|| labelledby(w, el, visited))
-        .or_else(|| native_alternative(w.doc, id, el))
+        .or_else(|| native_alternative(w.doc, id, el).map(|v| unfilled(w, id, el, v, visited)))
         .or_else(|| native::range_value(w.doc, id, el))
+}
+
+/// A text field with no value speaks its own name instead — its label, else
+/// its `title`, else its placeholder ([`super::placeholder`]). Measured in
+/// Chrome 158 (`bl-2d76`): `a<input placeholder=P>c` is "a P c" (with
+/// `value=V`, "a V c"), and so are an input titled `P`, one whose
+/// `<label for>` says `P`, and an empty `<textarea placeholder=P>`. The label
+/// is read with `visited` as its spent set, so two fields labelled by each
+/// other's labels end.
+fn unfilled(w: &Walk, id: NodeId, el: &Element, value: String, visited: &[NodeId]) -> String {
+    if !value.is_empty() || !crate::css::takes_placeholder(el) {
+        return value;
+    }
+    super::related::label(w.doc, id, el)
+        .map(|l| element_name(w.doc, l, w.styles, visited))
+        .filter(|l| !l.trim_ascii().is_empty())
+        .or_else(|| super::collapsed_attr(el, "title"))
+        .or_else(|| super::placeholder(w.doc, id, el))
+        .unwrap_or_default()
 }
 
 /// `aria-labelledby`, resolved through the same recursion so the visited set

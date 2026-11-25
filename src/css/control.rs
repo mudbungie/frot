@@ -117,16 +117,24 @@ pub(super) fn indeterminate(doc: &Document, id: NodeId, el: &Element) -> bool {
     }
 }
 
+/// Whether `el` takes a placeholder: a `<textarea>`, or an `<input>` of a
+/// type not in [`NO_PLACEHOLDER`] (an unknown type is `text`). The one home of
+/// "a text field" for `:placeholder-shown` and for the accessible name a
+/// placeholder gives (`ax::name`).
+pub fn takes_placeholder(el: &Element) -> bool {
+    match el.name.as_str() {
+        "textarea" => true,
+        "input" => !NO_PLACEHOLDER.contains(&input_type(el).as_str()),
+        _ => false,
+    }
+}
+
 pub(super) fn placeholder_shown(doc: &Document, id: NodeId, el: &Element) -> bool {
-    let kind = input_type(el);
-    let value = match el.name.as_str() {
+    let value = || match el.name.as_str() {
         "textarea" => doc.text_content(id),
-        "input" if !NO_PLACEHOLDER.contains(&kind.as_str()) => {
-            sanitized(&kind, el.attr("value").unwrap_or_default())
-        }
-        _ => return false,
+        _ => sanitized(&input_type(el), el.attr("value").unwrap_or_default()),
     };
-    has(el, "placeholder") && value.is_empty()
+    takes_placeholder(el) && has(el, "placeholder") && value().is_empty()
 }
 
 /// An `<input>`'s value as its type sanitizes it (module doc).

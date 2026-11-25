@@ -21,11 +21,12 @@
 //!      §2F recursion, [`contents`]), but *only* when the element's role is
 //!      name-from-contents (see [`NAME_FROM_CONTENTS`]); containers (list,
 //!      paragraph, nav, a plain table's row, …) yield no native name
-//! 4. `title` — last, only where the node's own name is at stake, and never
+//! 4. `title` — only where the node's own name is at stake, and never
 //!    for a `term` ([`title_names`]). `title`
 //!    is positional (`contents/walk.rs`): a `<label>`/`<legend>` and every node
 //!    inside an `aria-labelledby` reference read it too, a descendant read for
 //!    its contribution does not.
+//! 5. A text field's `placeholder`, else `aria-placeholder` ([`placeholder`]).
 //!
 //! Returns the trimmed result, or `None` if nothing produced text. With
 //! `Some(styles)` (`--css`), the text-content sources drop `display:none`
@@ -65,7 +66,24 @@ pub fn accessible_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> O
             return Some(t);
         }
     }
-    collapsed_attr(el, "title").filter(|_| title_names(doc, id, el, styles))
+    collapsed_attr(el, "title")
+        .filter(|_| title_names(doc, id, el, styles))
+        .or_else(|| placeholder(doc, id, el))
+}
+
+/// The last name source of a text field: its `placeholder`, else its
+/// `aria-placeholder` — which also names an ARIA `textbox` or `searchbox`.
+/// Measured in Chrome 158 (`bl-2d76`): `<input placeholder=P>` is
+/// `textbox "P"` for every type that takes a placeholder
+/// ([`crate::css::takes_placeholder`]) and a `<textarea>`; a label and `title`
+/// outrank it, and it outranks `aria-placeholder`. A checkbox, range or date
+/// input, a `<select>`, and a `<div role=textbox placeholder=P>` are not named
+/// by it; `<span role=combobox aria-placeholder=P>` is not either.
+fn placeholder(doc: &Document, id: NodeId, el: &crate::dom::Element) -> Option<String> {
+    let field = crate::css::takes_placeholder(el);
+    let aria = field || matches!(crate::ax::role(doc, id), Some("textbox" | "searchbox"));
+    let attr = |on: bool, name| on.then(|| collapsed_attr(el, name)).flatten();
+    attr(field, "placeholder").or_else(|| attr(aria, "aria-placeholder"))
 }
 
 /// Whether `title` is a name source for the node at all. Measured in Chrome
@@ -258,6 +276,9 @@ mod opaque_tests;
 
 #[cfg(test)]
 mod option_tests;
+
+#[cfg(test)]
+mod placeholder_tests;
 
 #[cfg(test)]
 mod reference_tests;

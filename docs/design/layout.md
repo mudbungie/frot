@@ -428,6 +428,16 @@ other options might have belonged with `<video>`'s prose. Measured in Chrome
   `time` — `<p title=T>text</p>` is `paragraph ""` — nor a `<caption>`; every
   other role measured is named by it (`ax/name.rs` `UNTITLED`).
 
+  After `title` comes a text field's **placeholder** (2026-11-24, `bl-2d76`,
+  Chrome 158): `<input placeholder=P>` — every type that takes one
+  (`css::takes_placeholder`: not the date/time types, `range`, `color`,
+  `checkbox`, `radio`, `file`, `hidden` or the buttons) — and `<textarea
+  placeholder=P>` are named "P"; a label and `title` outrank it, and it
+  outranks `aria-placeholder`, which also names an ARIA `textbox` or
+  `searchbox`. Inside a name, an embedded field with no value says its own
+  name — label, `title`, placeholder — so `a<input placeholder=P>c` is
+  "a P c" (`ax/name/contents.rs` `unfilled`).
+
 - **What a descendant gives** (2026-11-23, `bl-d94b`, Chrome 158). Inside a
   name, a descendant whose role does not name from its contents — a
   container (`group` written by the author, `figure`, `article`, `dialog`,
