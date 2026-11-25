@@ -61,6 +61,7 @@ usage_error "missing option-argument" "$OKURL" --out
 usage_error "duplicate flag" "$OKURL" --css --css --out text
 usage_error "second operand" "$OKURL" extra --out text
 usage_error "--js-errors without --js" "$OKURL" --js-errors --out text
+usage_error "--images without --js" "$OKURL" --images --out text
 usage_error "-H with file://" "$OKURL" -H "X-A: b" --out text
 # XBD 12.2 G10: the first -- ends the options; everything after it is an
 # operand, so a flag word after it is the second operand (a usage error), and

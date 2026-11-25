@@ -1,11 +1,13 @@
 //! The `<img>` size syscall (`bl-91a4`, js.md §7 "Images").
 //!
-//! frot fetches no image, so the only image it can *have* is one whose bytes
-//! are already in the page: a `data:` URL. `__frot_image_size(url)` decodes
-//! one and reads its intrinsic size off the header — `[width, height]`, or
-//! `null` for anything that is not a whole image frot can size (any other
-//! scheme, a non-image payload, a truncated file). The prelude turns `null`
-//! into an `error` event and a size into a `load` (`prelude/imageload.js`).
+//! An image frot can *have* is one whose bytes are in the page — a `data:` URL
+//! — or, under `--images` (`bl-49f1`), one the image wave fetched
+//! (`subfetch/image.rs`). `__frot_image_size(url)` reads its intrinsic size —
+//! `[width, height]`, or `null` for anything that is not a whole image frot
+//! can size (an unfetched or failed URL, a non-image, a truncated file). The
+//! prelude turns `null` into an `error` event and a size into a `load`
+//! (`prelude/imageload.js`). `__frot_image_fetch(urls, backgrounds)`,
+//! bound only under `--images`, is the wave.
 //!
 //! Hand-written header readers, no decoder dependency. The raster formats are
 //! told apart by their signature, whatever type the URL declares — Firefox
@@ -22,29 +24,47 @@
 use rquickjs::{Ctx, Function, Object};
 
 use super::Host;
-use crate::js::subfetch::data;
+use crate::js::subfetch::{data, SharedSubfetch};
 
+mod avif;
 mod svg;
 
-/// Register `__frot_image_size(url) -> [w, h] | null`.
-pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, _host: &Host) -> rquickjs::Result<()> {
-    g.set(
-        "__frot_image_size",
-        Function::new(ctx.clone(), |url: String| {
-            size(&url).map(|(w, h)| vec![w, h])
-        })?
-        .with_name("__frot_image_size")?,
-    )
+/// Register `__frot_image_size(url) -> [w, h] | null` and, under `--images`
+/// only, `__frot_image_fetch(requests)`.
+pub fn install<'js>(ctx: &Ctx<'js>, g: &Object<'js>, host: &Host) -> rquickjs::Result<()> {
+    bind!(ctx, g, "__frot_image_size", {
+        let sf = host.subfetch.clone();
+        move |url: String| sized(&sf, &url).map(|(w, h)| vec![w, h])
+    });
+    if host.env.images {
+        bind!(ctx, g, "__frot_image_fetch", {
+            let sf = host.subfetch.clone();
+            move |urls: Vec<String>, background: Vec<bool>| {
+                let reqs: Vec<_> = urls.into_iter().zip(background).collect();
+                sf.borrow_mut().fetch_images(&reqs)
+            }
+        });
+    }
+    Ok(())
 }
 
-/// The intrinsic size of the image a resolved `src` names, if frot has it.
-fn size(url: &str) -> Option<(u32, u32)> {
-    let (mime, bytes) = data::bytes(data::payload(url)?).ok()?;
+/// The intrinsic size of the image a resolved `src` names, if frot has it: a
+/// `data:` URL from its own bytes, anything else from the image wave.
+fn sized(sf: &SharedSubfetch, url: &str) -> Option<(u32, u32)> {
+    match data::payload(url) {
+        Some(payload) => data::bytes(payload).ok().and_then(|(m, b)| size(m, &b)),
+        None => sf.borrow().image(url),
+    }
+}
+
+/// The size of image `bytes` declared as `mime`: raster formats by signature
+/// whatever the declared type (Firefox sniffs), SVG only when declared.
+pub(crate) fn size(mime: &str, bytes: &[u8]) -> Option<(u32, u32)> {
     let essence = mime.split(';').next().unwrap_or_default().trim();
     if essence.eq_ignore_ascii_case("image/svg+xml") {
-        return svg::size(std::str::from_utf8(&bytes).ok()?);
+        return svg::size(std::str::from_utf8(bytes).ok()?);
     }
-    raster(&bytes)
+    raster(bytes)
 }
 
 /// A raster image's size, by signature.
@@ -56,6 +76,7 @@ fn raster(b: &[u8]) -> Option<(u32, u32)> {
         [b'R', b'I', b'F', b'F', _, _, _, _, b'W', b'E', b'B', b'P', ..] => webp(b),
         [b'B', b'M', ..] => bmp(b),
         [0, 0, 1, 0, ..] => ico(b),
+        [_, _, _, _, b'f', b't', b'y', b'p', ..] => avif::size(b),
         _ => None,
     }
 }

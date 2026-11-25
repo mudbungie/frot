@@ -7,8 +7,17 @@
 // - on a later task the request ends: a `data:` URL holding a whole image frot
 //   can size (`__frot_image_size`) LOADS — `naturalWidth`/`naturalHeight` take
 //   its size and `load` fires; anything else FAILS — `error` fires, the size
-//   stays 0. No request leaves frot for an image, so no beacon is sent;
+//   stays 0. Without `--images` no request leaves frot for an image, so no
+//   beacon is sent;
 // - removing `src` abandons the request and fires nothing.
+//
+// Under `--images` (bl-49f1) the size syscall also knows the network images
+// the host fetched: before ending an image task, every queued current request
+// not yet sent goes out in one wave (`__frot_image_fetch`, bound only under the
+// flag). A `loading=lazy` image is held back, as Firefox holds it, until its
+// box comes within 600px of the viewport (an IntersectionObserver); one that
+// never does stays pending. `Priority` is the lower one (`background`) for a
+// lazy image or one not in the document as its request starts.
 //
 // A document's `load` waits for its images, as a browser's does: the host runs
 // every queued image task before firing it (`__frot_next_image`, js.rs). After
@@ -22,7 +31,9 @@
   var brand = g.__frot_brand;
   var raw = { set: g.__frot_set_attr, remove: g.__frot_remove_attr, fragment: g.__frot_fragment };
   var states = Object.create(null); // <img> node id -> its current request
-  var queue = []; // [id, generation] image tasks, in the order they were queued
+  var queue = []; // [id, generation, background, sent] image tasks, in order
+  var fetch = g.__frot_image_fetch; // bound only under --images
+  var lazy = fetch && new g.IntersectionObserver(release, { rootMargin: '600px' });
 
   function isSrc(id, name) {
     return String(name).toLowerCase() === 'src' && g.__frot_tag(id) === 'img';
@@ -49,7 +60,34 @@
     st.url = src ? g.__frot_wrap(id).src : '';
     st.pending = !!src;
     st.size = null;
-    if (src != null) queue.push([id, st.gen]);
+    var img = g.__frot_wrap(id);
+    st.lazy = !!(lazy && src && String(g.__frot_attr(id, 'loading')).toLowerCase() === 'lazy');
+    if (st.lazy) lazy.observe(img);
+    else if (src != null) queue.push([id, st.gen, !img.isConnected]);
+  }
+  // The lazy-load observer's callback: a held-back image whose box now meets
+  // the margin starts its request.
+  function release(entries) {
+    entries.forEach(function (e) {
+      var st = states[slots(e.target).id];
+      if (!e.isIntersecting || !st.lazy) return;
+      st.lazy = false;
+      lazy.unobserve(e.target);
+      queue.push([slots(e.target).id, st.gen, true]);
+    });
+  }
+  // Send every queued current request not sent yet, in one wave.
+  function send() {
+    var urls = [];
+    var bgs = [];
+    queue.forEach(function (t) {
+      var st = states[t[0]];
+      if (t[3] || st.gen !== t[1] || !st.url) return;
+      t[3] = true;
+      urls.push(st.url);
+      bgs.push(t[2]);
+    });
+    if (urls.length) fetch(urls, bgs);
   }
   function scan(root) {
     g.__frot_query(root, 'img[src]').forEach(request);
@@ -76,6 +114,7 @@
   // Host driver: end the oldest queued request — -1 when none is queued, else 0
   // (a handler's throw is reported, and counted, on the dispatch path).
   seam('__frot_next_image', function () {
+    if (fetch) send();
     var task = queue.shift();
     if (!task) return -1;
     var id = task[0];

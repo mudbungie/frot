@@ -10,7 +10,7 @@
 
 use std::io::Read;
 
-use super::{header_value, FetchError, MAX_BODY_BYTES};
+use super::{header_value, FetchError, Intent, MAX_BODY_BYTES};
 use crate::envelope::kinds;
 
 /// The `Accept-Encoding` frot advertises — exactly the decoders [`inflate`]
@@ -57,6 +57,30 @@ pub(crate) fn extract_charset_from_content_type(ct: &str) -> Option<String> {
     } else {
         Some(trimmed.to_string())
     }
+}
+
+/// An image body as text, byte for byte: WHATWG `x-user-defined` maps
+/// `0x00–0x7F` to ASCII and `0x80–0xFF` to `U+F780–U+F7FF`, so
+/// [`binary_bytes`] recovers every byte exactly. The one decoding a body that is
+/// not text takes ([`super::Intent::is_image`]); the charset reads as its label.
+fn binary(bytes: &[u8]) -> (String, String) {
+    let (text, _) = encoding_rs::X_USER_DEFINED.decode_without_bom_handling(bytes);
+    (text.into_owned(), "x-user-defined".to_string())
+}
+
+/// Decode a response body for `intent`: an image byte for byte ([`binary`]),
+/// anything else as text ([`decode_body`]). Both transports' one decoding seam.
+pub(crate) fn body(intent: Intent, bytes: &[u8], content_type: Option<&str>) -> (String, String) {
+    if intent.is_image() {
+        binary(bytes)
+    } else {
+        decode_body(bytes, content_type)
+    }
+}
+
+/// The bytes a [`binary`] body holds.
+pub(crate) fn binary_bytes(text: &str) -> Vec<u8> {
+    text.chars().map(|c| (c as u32 & 0xff) as u8).collect()
 }
 
 pub(crate) fn decode_body(bytes: &[u8], content_type: Option<&str>) -> (String, String) {

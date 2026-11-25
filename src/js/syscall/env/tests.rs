@@ -7,10 +7,15 @@ use crate::fetch::FetchSession;
 use crate::js::{Env, Session, StyleSource};
 
 fn sess(url: &str, ua: &str) -> Session {
+    sess_env(url, ua, "en-US,en;q=0.5")
+}
+
+fn sess_env(url: &str, ua: &str, accept_language: &str) -> Session {
     let env = Env {
         url: url.into(),
         user_agent: ua.into(),
-        accept_language: "en-US,en;q=0.5".into(),
+        accept_language: accept_language.into(),
+        images: false,
     };
     Session::new(
         Document::parse("<html><body></body></html>"),
@@ -40,17 +45,8 @@ fn env_profile_feeds_navigator() {
 /// A session with an explicit effective `Accept-Language`, to drive the
 /// `navigator.language(s)` derivation from a non-default header (I5).
 fn sess_lang(accept_language: &str) -> Session {
-    let env = Env {
-        url: "https://example.com/".into(),
-        user_agent: crate::fetch::user_agent(&[]),
-        accept_language: accept_language.into(),
-    };
-    Session::new(
-        Document::parse("<html><body></body></html>"),
-        StyleSource::Bare,
-        env,
-        &FetchSession::new(Vec::new()),
-    )
+    let ua = crate::fetch::user_agent(&[]);
+    sess_env("https://example.com/", &ua, accept_language)
 }
 
 #[test]

@@ -30,6 +30,7 @@ fn navigator_persona_contract_holds() {
         url: "https://example.com/".into(),
         user_agent: ua.clone(),
         accept_language: crate::fetch::accept_language(&[]),
+        images: false,
     };
     // `drive_env` runs on frozen manual clocks (bl-1e54). This probe renders the
     // canvas/WebGL/audio fingerprints and is the heaviest page in the suite, so on
@@ -101,6 +102,7 @@ fn navigator_persona_contract_holds() {
             url: "https://example.com/".into(),
             user_agent: ua,
             accept_language: crate::fetch::accept_language(&[]),
+            images: false,
         },
     );
     assert_eq!(

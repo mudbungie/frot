@@ -240,6 +240,9 @@ mod ax_tests;
 mod js_tests;
 
 #[cfg(test)]
+mod images_tests;
+
+#[cfg(test)]
 mod js_concurrency_tests;
 
 #[cfg(test)]

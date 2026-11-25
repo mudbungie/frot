@@ -1,6 +1,7 @@
 //! Hand-rolled argv parser. clap is avoided for binary-size reasons.
 //!
-//! Surface: `frot <url> [-H "Name: value"] [--css] [--js] --out <view>`.
+//! Surface: `frot <url> [-H "Name: value"] [--css] [--js] [--js-errors]
+//! [--images] --out <view>`.
 
 use crate::envelope::View;
 
@@ -14,6 +15,9 @@ pub struct Args {
     /// Surface the bounded `js.messages` error detail (`docs/design/js.md` §10).
     /// Requires `--js`; the count `js.errors` is emitted with or without it.
     pub js_errors: bool,
+    /// Fetch images (`docs/design/js.md` §7 "Images", `bl-49f1`). Requires
+    /// `--js`; without it no image request is ever sent.
+    pub images: bool,
     pub out: View,
     /// Request headers, in argv order. Sent with the page request and with
     /// same-origin `--css` subfetches; see `fetch`.
@@ -32,6 +36,7 @@ pub enum CliError {
     BadHeader(String),
     HeadersWithFile,
     JsErrorsWithoutJs,
+    ImagesWithoutJs,
     NoUrl,
     NoOut,
     ExtraPositional(String),
@@ -43,7 +48,7 @@ impl CliError {
     }
 }
 
-pub const USAGE: &str = "usage: frot <url> [-H \"Name: value\"] [--css] [--js] [--js-errors] --out <dom|text|ax|links|forms|bboxes|meta>";
+pub const USAGE: &str = "usage: frot <url> [-H \"Name: value\"] [--css] [--js] [--js-errors] [--images] --out <dom|text|ax|links|forms|bboxes|meta>";
 
 fn view_list() -> String {
     View::ALL
@@ -80,6 +85,7 @@ impl std::fmt::Display for CliError {
             CliError::JsErrorsWithoutJs => {
                 write!(f, "--js-errors requires --js\n{}", USAGE)
             }
+            CliError::ImagesWithoutJs => write!(f, "--images requires --js\n{}", USAGE),
             CliError::NoUrl => write!(f, "missing <url>\n{}", USAGE),
             CliError::NoOut => write!(f, "missing --out <view>\n{}", USAGE),
             CliError::ExtraPositional(s) => write!(f, "unexpected argument: {}\n{}", s, USAGE),
@@ -100,6 +106,15 @@ fn parse_header(raw: &str) -> Result<(String, String), CliError> {
     Ok((name.to_string(), value.trim().to_string()))
 }
 
+/// Raise a boolean flag, refusing a second occurrence.
+fn raise(flag: &mut bool, name: &str) -> Result<(), CliError> {
+    if *flag {
+        return Err(CliError::DuplicateFlag(name.into()));
+    }
+    *flag = true;
+    Ok(())
+}
+
 /// frot takes exactly one operand (the URL); a second is a usage error.
 fn take_operand(url: &mut Option<String>, a: &str) -> Result<(), CliError> {
     if url.is_some() {
@@ -118,6 +133,7 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
     let mut css = false;
     let mut js = false;
     let mut js_errors = false;
+    let mut images = false;
     let mut out: Option<View> = None;
     let mut headers: Vec<(String, String)> = Vec::new();
 
@@ -132,24 +148,10 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
             _ if operands_only => take_operand(&mut url, a)?,
             "-h" | "--help" => return Err(CliError::Help),
             "-V" | "--version" => return Err(CliError::Version),
-            "--css" => {
-                if css {
-                    return Err(CliError::DuplicateFlag("--css".into()));
-                }
-                css = true;
-            }
-            "--js" => {
-                if js {
-                    return Err(CliError::DuplicateFlag("--js".into()));
-                }
-                js = true;
-            }
-            "--js-errors" => {
-                if js_errors {
-                    return Err(CliError::DuplicateFlag("--js-errors".into()));
-                }
-                js_errors = true;
-            }
+            "--css" => raise(&mut css, a)?,
+            "--js" => raise(&mut js, a)?,
+            "--js-errors" => raise(&mut js_errors, a)?,
+            "--images" => raise(&mut images, a)?,
             "-H" | "--header" => {
                 i += 1;
                 let v = argv
@@ -193,6 +195,11 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
     if js_errors && !js {
         return Err(CliError::JsErrorsWithoutJs);
     }
+    // `--images` decides what an `<img>` does under `--js`; bare, nothing
+    // observes an image, so it would do nothing — reject it the same way.
+    if images && !js {
+        return Err(CliError::ImagesWithoutJs);
+    }
     // Under the same-origin rule headers could never be sent from a file://
     // page, and an accepted flag must do something — reject the combination.
     let is_file = url
@@ -206,6 +213,7 @@ pub fn parse(argv: &[String]) -> Result<Args, CliError> {
         css,
         js,
         js_errors,
+        images,
         out,
         headers,
     })

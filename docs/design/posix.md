@@ -53,14 +53,14 @@ comes to imply certification it does not have, so they are kept apart:
 
 The surface is fixed (`src/cli.rs`):
 
-    frot <url> [-H "Name: value"] [--css] [--js] [--js-errors] --out <view>
+    frot <url> [-H "Name: value"] [--css] [--js] [--js-errors] [--images] --out <view>
 
 - **Short options conform.** `-H` (option with a separate option-argument;
   Guidelines 3–7), `-h`, `-V` (argument-less; Guideline 3). The joined form
   `-Hvalue` is not accepted — Guideline 6 asks for the separate form, and
   frot accepts only it.
 - **Long options are a declared extension.** `--css`, `--js`, `--js-errors`,
-  `--out`, `--header`, `--help`, `--version` and the `--out=VIEW` /
+  `--images`, `--out`, `--header`, `--help`, `--version` and the `--out=VIEW` /
   `--header=H` forms are GNU-style multi-character options, outside XBD 12.2
   (which defines only single-character options). POSIX reserves `--`-prefixed
   words for implementation extension; frot uses them and says so.
@@ -73,7 +73,8 @@ The surface is fixed (`src/cli.rs`):
   through as the URL operand and fails URL parsing like any other non-URL.
 - **Errors are loud.** Unknown flag, unknown view, missing operand, missing
   `--out`, a missing option-argument, a duplicated flag, and a rejected
-  combination (`--js-errors` without `--js`; `-H` with a `file://` URL) are
+  combination (`--js-errors` or `--images` without `--js`; `-H` with a
+  `file://` URL) are
   all usage errors: exit 2, diagnostic + usage line on stderr, nothing on
   stdout (§4.3).
 - **`--` ends the options (Guideline 10).** The first `--` that is not an

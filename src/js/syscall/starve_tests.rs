@@ -41,6 +41,7 @@ pub(super) fn host(engine: &Engine, probe: Option<ProbeLog>) -> Host {
             url: "https://example.com/".into(),
             user_agent: "frot-test/1".into(),
             accept_language: "en-US,en;q=0.5".into(),
+            images: false,
         },
         counters: Counters::default(),
         subfetch: Rc::new(RefCell::new(subfetch::Subfetch::new(

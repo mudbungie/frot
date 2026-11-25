@@ -80,4 +80,5 @@ pub const FIREFOX_153_ESR: BrowserProfile = BrowserProfile {
     accept_document: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     accept_style: "text/css,*/*;q=0.1",
     accept_default: "*/*",
+    accept_image: "image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5",
 };

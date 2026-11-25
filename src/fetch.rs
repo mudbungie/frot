@@ -25,6 +25,7 @@ mod cookie;
 mod decode;
 mod dispatch;
 mod firefox_tls;
+mod intent;
 mod media;
 mod profile;
 mod request;
@@ -35,13 +36,14 @@ mod webgl;
 pub(crate) use audio::facts as audio_facts;
 pub(crate) use concurrent::fetch_many;
 pub(crate) use cookie::{CookieJar, SharedJar};
-pub(crate) use decode::decode_body;
+pub(crate) use decode::{binary_bytes, decode_body};
 #[cfg(test)]
 use dispatch::redirect_target;
 pub(crate) use dispatch::{dispatch, Request};
+pub use intent::Intent;
 pub(crate) use media::non_document;
 pub use profile::{BrowserProfile, H2Profile, TlsProfile, FIREFOX_153_ESR};
-pub use session::{FetchSession, Intent, Navigation, Reading};
+pub use session::{FetchSession, Navigation, Reading};
 pub(crate) use transport::Transport;
 pub(crate) use webgl::facts as webgl_facts;
 
@@ -119,10 +121,10 @@ pub(crate) fn build_transport() -> Transport {
     Transport::new(firefox_tls::webpki_roots())
 }
 
-/// Read a `file://` document. No response, so no status and no headers;
-/// charset comes from the `<meta>` sniff (or UTF-8), same as a header-less
-/// HTTP response.
-pub(crate) fn fetch_file(url: &url::Url) -> Result<FetchResult, FetchError> {
+/// Read a `file://` resource for `intent`. No response, so no status and no
+/// headers; a text body's charset comes from the `<meta>` sniff (or UTF-8), same
+/// as a header-less HTTP response, and an image's bytes are kept whole.
+pub(crate) fn fetch_file(url: &url::Url, intent: Intent) -> Result<FetchResult, FetchError> {
     let path = url.to_file_path().map_err(|()| {
         FetchError::new(kinds::FETCH_URL, format!("not a local file path: {}", url))
     })?;
@@ -132,7 +134,7 @@ pub(crate) fn fetch_file(url: &url::Url) -> Result<FetchResult, FetchError> {
     check_body_len(len)?;
     let bytes = std::fs::read(&path)
         .map_err(|e| FetchError::new(kinds::FETCH_FILE, format!("{}: {}", path.display(), e)))?;
-    let (body, charset) = decode_body(&bytes, None);
+    let (body, charset) = decode::body(intent, &bytes, None);
     Ok(FetchResult {
         final_url: url.to_string(),
         status: None,

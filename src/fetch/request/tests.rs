@@ -17,6 +17,9 @@ fn value<'a>(h: &'a [(String, String)], name: &str) -> Option<&'a str> {
 
 const PAGE: &str = "https://site.example/page";
 
+/// Firefox 153.0esr's image `Accept` (identity.md §4.1 `accept_image`).
+const IMG: &str = "image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5";
+
 #[test]
 fn a_navigation_carries_the_document_set_in_firefox_order() {
     let h = derive_headers(Intent::Navigation, PAGE, PAGE, None, &[], None, None);
@@ -64,6 +67,21 @@ fn each_subresource_intent_gets_its_own_dest_mode_accept_priority() {
         (Intent::ClassicScript, "script", "no-cors", "*/*", "u=2"),
         (Intent::Module, "script", "cors", "*/*", "u=2"),
         (Intent::FetchXhr, "empty", "cors", "*/*", "u=4"),
+        // bl-49f1: an <img> in the document, then a detached or lazy one.
+        (
+            Intent::Image { background: false },
+            "image",
+            "no-cors",
+            IMG,
+            "u=4, i",
+        ),
+        (
+            Intent::Image { background: true },
+            "image",
+            "no-cors",
+            IMG,
+            "u=5, i",
+        ),
     ];
     for (intent, dest, mode, accept, prio) in table {
         let h = derive_headers(intent, PAGE, PAGE, Some(PAGE), &[], None, None);

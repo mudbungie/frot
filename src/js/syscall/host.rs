@@ -33,6 +33,9 @@ pub struct Env {
     /// `.languages` derive from *this* string (`bl-3972`, identity.md §8), the
     /// same source as the HTTP header, so the two can never disagree.
     pub accept_language: String,
+    /// `--images` (js.md §7 "Images", `bl-49f1`): whether an `<img>` request
+    /// may leave frot. Off, the image fetch syscall is not even bound.
+    pub images: bool,
 }
 
 /// The counted-no-op sink (js.md §7/§11/§10): the prelude bumps it each time the

@@ -93,6 +93,7 @@ fn main() {
             url: fetched.final_url.clone(),
             user_agent: fetch::user_agent(&[]).to_string(),
             accept_language: fetch::accept_language(&[]),
+            images: false,
         };
         let m = measure(Document::parse(&fetched.body), StyleSource::Bare, env);
         println!(

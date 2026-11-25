@@ -2,6 +2,7 @@
 //! (`is_current`) and the date arithmetic behind it, both sides of every branch.
 
 use super::*;
+use crate::fetch::Intent;
 
 /// A `SystemTime` at midnight UTC of `date`, built through the same civil-date
 /// arithmetic the tripwire uses, so the test states a calendar day, not a magic

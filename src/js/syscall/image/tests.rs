@@ -23,6 +23,12 @@ fn url(mime: &str, bytes: &[u8]) -> String {
     format!("data:{mime},{body}")
 }
 
+/// The size of the image a `data:` URL holds — the syscall's data arm.
+fn size(url: &str) -> Option<(u32, u32)> {
+    let (mime, bytes) = data::bytes(data::payload(url)?).ok()?;
+    super::size(mime, &bytes)
+}
+
 fn sized(bytes: &[u8]) -> Option<(u32, u32)> {
     size(&url("image/x", bytes))
 }

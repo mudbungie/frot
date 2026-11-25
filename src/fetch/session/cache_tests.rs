@@ -86,3 +86,23 @@ fn a_vary_only_on_accept_encoding_is_still_cached_once() {
     }
     m.assert();
 }
+
+#[test]
+fn an_image_is_bytes_and_never_shares_the_text_cache() {
+    // An image body is decoded byte for byte, so it can never re-serve — or be
+    // served — a text body cached for the same URL: both intents hit the origin,
+    // and the image keeps every byte the text decoding would have replaced.
+    let mut server = mockito::Server::new();
+    let bytes = [b'G', 0x80, 0xff, 0x00, 0xc3];
+    let m = server.mock("GET", "/i").with_body(bytes).expect(3).create();
+    let s = FetchSession::new(Vec::new());
+    let img = Intent::Image { background: false };
+    assert_eq!(
+        body(&s, &server.url(), "/i", Intent::FetchXhr),
+        "G\u{fffd}\u{fffd}\0\u{fffd}"
+    );
+    let got = body(&s, &server.url(), "/i", img);
+    assert_eq!(crate::fetch::binary_bytes(&got), bytes);
+    assert_eq!(body(&s, &server.url(), "/i", img), got);
+    m.assert();
+}

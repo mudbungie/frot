@@ -1156,6 +1156,78 @@ that, a page walking any of them read frot's implementation instead.
   on vs blocked, showed no text change on the same pages. Sending the GET is a
   separate, open decision: `bl-49f1`.
 
+  *Amended 2026-11-24 (`bl-49f1`; Mark's ruling: real image fetching behind a
+  flag, default off).* **`--images`** lets an image request leave frot. It
+  requires `--js` — bare, it is a usage error, as `--js-errors` is: without
+  `--js` nothing observes an image, so the flag would do nothing. Without it,
+  everything above holds byte for byte: no image request is ever sent. With
+  it, the rule above changes in one place — where step 2 gets the bytes — plus
+  the one deferral Firefox applies. In the order it happens:
+  1. *Which images.* Every `<img>` whose request step 1 starts — parsed,
+     created, cloned, `innerHTML`, `new Image()` — one rule, so **a beacon
+     (`new Image().src = url`) is sent.** The one exception is
+     `loading=lazy`, which Firefox defers: its request starts only once its box
+     intersects the 1280×720 viewport grown by 600 px on every side (measured
+     on 153.0esr: requested with its top at 1300 px and at −599 px, not at
+     1318 px or −601 px; `visibility:hidden` and zero-size images count,
+     `display:none` and detached ones never do). frot asks the prelude's own
+     `IntersectionObserver` with `rootMargin: 600px`, so the release is an
+     observer task like any other. A lazy image that never intersects stays
+     pending — `complete` `false`, nothing fires — as in Firefox (measured).
+  2. *The request* is a new fetch Intent, `Image`, with the headers Firefox
+     153.0esr sends (identity.md §4.1 `accept_image`, §3.20 image block):
+     `Accept: image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5`,
+     `Sec-Fetch-Dest: image`, `Sec-Fetch-Mode: no-cors`, `Sec-Fetch-Site` and
+     `Referer` by the subresource rules, the jar's cookies, `-H` same-origin
+     only, and `Priority: u=4, i` when the `<img>` is in the document and not
+     lazy as its request starts, else `u=5, i` (detached, `new Image()`, or a
+     lazy image the observer released — all measured). Never a `Range` header:
+     Firefox sends none.
+  3. *When.* An image is fetched on its task, not when `src` is set. Before
+     ending an image task the host fetches every queued image URL it has not
+     fetched yet in **one concurrent wave** — the preload-warm primitive
+     (`fetch_many`, ≤6 per host, h2 multiplexed) — so a page's N images cost
+     about one round trip, not N. Each URL is fetched once per run and its
+     outcome (a size, or a failure) is remembered; another `<img>` with that
+     URL reuses it.
+  4. *Outcome.* The whole response is read (the per-response and pooled byte
+     limits apply) and sized by the same reader as a `data:` image — raster by
+     signature, SVG only when the response declares `image/svg+xml` — plus
+     **AVIF**, which the `Accept` above advertises (never advertise what you
+     cannot speak): a hand-written ISOBMFF walk, `ftyp` brand `avif`/`avis`,
+     whole when the top-level boxes tile the file and include its `mdat` (a
+     file cut where `mdat` starts fails in Firefox too, measured), size the
+     largest `ispe` under `meta`/`iprp`/`ipco` (the primary image's in the single, alpha,
+     grid and thumbnail layouts). The HTTP status is not consulted: Firefox
+     loads a 404 that carries a whole image (measured). A size is `load` with
+     the real `naturalWidth`/`naturalHeight`; anything else — a transport
+     failure, a non-image, a truncated body — is `error`.
+  5. *Budget.* Images never compete with the script phase: image tasks first
+     run after `DOMContentLoaded`, when every parser-inserted and
+     script-inserted script has already been fetched. From then on they spend
+     the one `NET_BUDGET_MS` in task order alongside timer-driven
+     `fetch`/XHR, a wave's elapsed charged once. When the budget is spent, an
+     image not yet fetched fails (`error`) and the run reports the existing
+     `stopped: "network"` (settled `false`) — the same fact a refused fetch
+     records. No new field, and no separate image budget.
+  **Residuals (`--images`):** `srcset`/`sizes`/`<picture>` are ignored — frot
+  requests `src` where Firefox picks a candidate (`bl-0e4a`); an in-viewport
+  lazy image is released after the document's `load` (by an observer task),
+  where Firefox may release it before; the lazy margin is measured from the
+  full 1280×720 viewport, where Firefox's root excludes a classic scrollbar,
+  against the box frot's layout estimates (no CSS margins or heights,
+  `layout.md` §6), and a zero-size box at the viewport origin reads as no box
+  (the `IntersectionObserver` sentinel), so such a lazy image never loads;
+  AVIF `irot`/`imir` and JPEG EXIF orientation do not swap the size; image
+  fetches add no `PerformanceResourceTiming` entry; image tasks still run
+  ahead of zero-delay timers, where a browser's network image usually ends
+  after them. Only `<img>` is fetched: CSS `background-image`, favicons,
+  `<link rel=preload as=image>`, SVG `<image>`, `<input type=image>` and
+  `<video poster>` are not requested — none has a load outcome frot models, so
+  the difference is on the wire, not in the impression. The size reader is
+  `src/js/syscall/image.rs` (AVIF: `image/avif.rs`), the wave `src/js/subfetch/image.rs`, the rule
+  `prelude/imageload.js`.
+
 ## 8. Geometry reads — the third layout trigger
 
 VISION names JS as the third layout trigger. `offsetWidth`/`offsetHeight`/

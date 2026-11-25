@@ -35,6 +35,7 @@ use crate::fetch::{FetchError, FetchResult, FetchSession, Intent, TIMEOUT_SECS};
 use super::engine::NetBudget;
 
 pub(crate) mod data;
+mod image;
 mod post;
 mod warm;
 
@@ -85,6 +86,9 @@ pub struct Subfetch {
     budget: usize,
     refused: bool,
     timings: Vec<ResourceTiming>,
+    /// What each `<img>` URL the `--images` wave fetched turned out to be:
+    /// its size, or `None` (`image.rs`).
+    images: HashMap<String, Option<(u32, u32)>>,
 }
 
 /// A real measured subfetch (`bl-e707`), exposed to JS as a
@@ -120,6 +124,7 @@ impl Subfetch {
             budget,
             refused: false,
             timings: Vec::new(),
+            images: HashMap::new(),
         }
     }
 

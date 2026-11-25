@@ -78,6 +78,34 @@ fn js_errors_requires_js() {
 }
 
 #[test]
+fn images_requires_js() {
+    // --images only decides what an <img> does under --js; bare it is a usage
+    // error, as --js-errors is.
+    assert_eq!(
+        parse(&argv(&["https://x/", "--images", "--out", "text"])),
+        Err(CliError::ImagesWithoutJs)
+    );
+    let a = parse(&argv(&["https://x/", "--js", "--images", "--out", "text"])).unwrap();
+    assert!(a.js && a.images);
+    let b = parse(&argv(&["https://x/", "--js", "--out", "text"])).unwrap();
+    assert!(!b.images);
+    assert_eq!(
+        parse(&argv(&[
+            "https://x/",
+            "--js",
+            "--images",
+            "--images",
+            "--out",
+            "text"
+        ])),
+        Err(CliError::DuplicateFlag("--images".into()))
+    );
+    assert!(CliError::ImagesWithoutJs
+        .to_string()
+        .starts_with("--images requires --js\nusage: frot"));
+}
+
+#[test]
 fn js_errors_rejects_duplicates() {
     assert_eq!(
         parse(&argv(&[

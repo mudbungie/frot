@@ -120,7 +120,7 @@ fn the_image_members_belong_to_img_alone() {
     }
 }
 
-/// No request leaves frot for an image: assigning `src` reflects it, and a
+/// Without `--images` no request leaves frot for an image: assigning `src` reflects it, and a
 /// beacon (`new Image().src = url`) is not sent. The image fails instead, the
 /// way it does in a Firefox with images blocked (bl-91a4; imageload.rs has the
 /// rest of the rule).
@@ -132,6 +132,7 @@ fn an_image_is_never_requested() {
         url: format!("{}/page", server.url()),
         user_agent: "frot-test/1".into(),
         accept_language: "en-US,en;q=0.5".into(),
+        images: false,
     };
     let s = Session::new(
         Document::parse("<html><body><img id=a src=/a.png></body></html>"),

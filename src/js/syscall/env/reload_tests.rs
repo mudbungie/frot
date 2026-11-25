@@ -17,6 +17,7 @@ fn asked(page: &str, script: &str) -> (bool, u32) {
             url: page.into(),
             user_agent: "frot-test/1".into(),
             accept_language: "en-US,en;q=0.5".into(),
+            images: false,
         },
         &FetchSession::new(Vec::new()),
     );

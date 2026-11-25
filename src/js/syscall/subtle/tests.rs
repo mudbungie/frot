@@ -172,6 +172,7 @@ fn sess() -> Session {
         url: "https://example.com/".into(),
         user_agent: "frot-test/1".into(),
         accept_language: "en-US,en;q=0.5".into(),
+        images: false,
     };
     let s = Session::new(
         Document::parse("<html><body></body></html>"),

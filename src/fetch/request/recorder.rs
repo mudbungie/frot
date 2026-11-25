@@ -1,6 +1,6 @@
 //! Wire recorders (§12 oracle): drive the production [`Transport`] with the
 //! derived header set and assert the exact ordered header set each serializer
-//! puts on the wire, for all five intents and same-/cross-origin variants.
+//! puts on the wire, for all six intents and same-/cross-origin variants.
 //!
 //! Division of labour: `tests.rs` proves the *derivation* is correct (values
 //! against hardcoded expectations); these recorders prove the *serializers*
@@ -45,7 +45,7 @@ enum Rel {
     Cross,
 }
 
-/// The five intents across their origin variants — the acceptance matrix.
+/// The six intents across their origin variants — the acceptance matrix.
 const CASES: &[(Intent, Rel)] = &[
     (Intent::Navigation, Rel::Nav),
     (Intent::Style, Rel::Same),
@@ -56,6 +56,8 @@ const CASES: &[(Intent, Rel)] = &[
     (Intent::Module, Rel::Cross),
     (Intent::FetchXhr, Rel::Same),
     (Intent::FetchXhr, Rel::Cross),
+    (Intent::Image { background: false }, Rel::Same),
+    (Intent::Image { background: true }, Rel::Cross),
 ];
 
 /// The page (caller-`-H` anchor and, for a subresource, referrer source) for a

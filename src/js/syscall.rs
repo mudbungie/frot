@@ -35,6 +35,7 @@ mod subtle;
 mod tree;
 
 pub use host::{Console, Counters, CurrentScript, Env, Host, Log, SharedDoc};
+pub(crate) use image::size as image_size;
 pub use messages::{push as push_message, Message, Messages};
 
 /// One binding group: registers its slice of the table on the realm's globals.

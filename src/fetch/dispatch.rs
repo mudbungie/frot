@@ -8,8 +8,8 @@
 use std::time::Duration;
 
 use super::{
-    decode, decode_body, fetch_file, header_value, request, validate_url, FetchError, FetchResult,
-    Intent, SharedJar, Transport, MAX_BODY_BYTES,
+    decode, fetch_file, header_value, request, validate_url, FetchError, FetchResult, Intent,
+    SharedJar, Transport, MAX_BODY_BYTES,
 };
 use crate::envelope::kinds;
 use crate::js::ScriptBody;
@@ -60,7 +60,7 @@ pub(crate) fn dispatch(
     let parsed = validate_url(req.url)?;
     spend(hops)?;
     if parsed.scheme() == "file" {
-        return fetch_file(&parsed);
+        return fetch_file(&parsed, intent);
     }
     // The *parsed* URL's serialization, not the caller's spelling: `final`,
     // every hop's request target, the cookie/referrer decisions, and anything
@@ -97,7 +97,7 @@ pub(crate) fn dispatch(
         let Some(next) = redirect_target(resp.status, &resp.headers, &current)? else {
             let content_type = header_value(&resp.headers, "content-type");
             let bytes = decode::inflate(&resp.headers, resp.body)?;
-            let (body, charset) = decode_body(&bytes, content_type.as_deref());
+            let (body, charset) = decode::body(intent, &bytes, content_type.as_deref());
             return Ok(FetchResult {
                 final_url: current,
                 status: Some(resp.status),
