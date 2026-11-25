@@ -1465,6 +1465,7 @@ page, `about:blank`, a `data:` URL, and a local server reached as `127.0.0.1`,
 | …on `http:` to `127.0.0.1`, `127.0.0.2`, `[::1]`, `localhost`, `foo.localhost` | `true` | read |
 | …on `http:` (any other host), `about:blank`, `data:` | `false` | read |
 | its descriptor | an **own** accessor of the window: enumerable, configurable, `set === undefined`, getter `.name` `get isSecureContext`, `toString()` `function isSecureContext() {\n    [native code]\n}` | read |
+| `crossOriginIsolated`, `typeof SharedArrayBuffer` (no COOP/COEP; `bl-93e9`, 2026-11-24) | `false` — an own accessor shaped like `isSecureContext`, just before it — and `'undefined'` (`Atomics` stays an object; a shared `WebAssembly.Memory`'s buffer is still a SharedArrayBuffer). frot is never cross-origin isolated, so it answers both the same way on every page | read |
 | `Object.getOwnPropertyNames(Crypto.prototype)`, secure | `["getRandomValues","randomUUID","subtle","constructor"]` | read |
 | …insecure | `["getRandomValues","constructor"]` — **`randomUUID` is `[SecureContext]` too**; frot published it everywhere | read |
 | `typeof SubtleCrypto`, `typeof CryptoKey`, `'subtle' in crypto`, insecure | `undefined`, `undefined`, `false` | read |

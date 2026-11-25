@@ -22,6 +22,21 @@
   g.parent = g;
   g.frameElement = null;
 
+  // --- Never cross-origin isolated (bl-93e9) ----------------------------------
+  // frot sends no COOP/COEP-honouring context, so, as Firefox 153.0esr on such
+  // a page (measured): `crossOriginIsolated` is false — an own accessor of the
+  // window shaped like isSecureContext, just before it — and the
+  // SharedArrayBuffer constructor is not exposed (Atomics stays; a shared
+  // WebAssembly.Memory's buffer is still a SharedArrayBuffer).
+  Object.defineProperty(g, 'crossOriginIsolated', {
+    get: g.__frot_brand(function () {
+      return false;
+    }, 'get crossOriginIsolated'),
+    enumerable: true,
+    configurable: true,
+  });
+  delete g.SharedArrayBuffer;
+
   // --- isSecureContext (bl-b0f8) ------------------------------------------------
   // Firefox ALWAYS defines it, true or false; frot defined nothing. Shape read
   // off 153.0esr (identity.md §3.19): an OWN accessor of the window —

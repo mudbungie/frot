@@ -210,3 +210,24 @@ fn absent_apis_stay_undefined_and_window_aliases_the_global() {
         "undefined"
     );
 }
+
+/// Never cross-origin isolated (bl-93e9), as Firefox 153.0esr on a page
+/// without COOP/COEP: `crossOriginIsolated` false, an own accessor just
+/// before `isSecureContext`; no SharedArrayBuffer constructor, Atomics kept.
+#[test]
+fn a_page_is_never_cross_origin_isolated() {
+    let s = sess("https://example.com/", "ua/1");
+    let got = s
+        .eval(
+            "(function(){var d=Object.getOwnPropertyDescriptor(window,'crossOriginIsolated'),\
+             k=Object.getOwnPropertyNames(window);return [typeof SharedArrayBuffer,\
+             'SharedArrayBuffer' in window,typeof Atomics,crossOriginIsolated,!!d.get,!!d.set,\
+             d.enumerable,d.configurable,d.get.name,\
+             k.indexOf('isSecureContext')-k.indexOf('crossOriginIsolated')].join()})()",
+        )
+        .unwrap();
+    assert_eq!(
+        got,
+        "undefined,false,object,false,true,false,true,true,get crossOriginIsolated,1"
+    );
+}
