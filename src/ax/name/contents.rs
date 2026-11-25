@@ -170,7 +170,8 @@ fn node_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) 
 
 fn element_text(w: &Walk, id: NodeId, el: &Element, visited: &mut Vec<NodeId>, out: &mut String) {
     let concealed = !w.reads_hidden() && hidden(w.doc, id, el, w.styles);
-    if concealed || native::silent(&el.name) || visited.contains(&id) {
+    let silent = native::silent(&el.name) && !Styles::source_shown(w.styles, id, &el.name);
+    if concealed || silent || visited.contains(&id) {
         return;
     }
     // Not popped: once counted, a node is spent for this whole computation.

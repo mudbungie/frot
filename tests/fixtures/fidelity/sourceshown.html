@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Source elements an author displays</title>
+<style>.shown { display: block; } .inline { display: inline; }</style>
+</head>
+<body>
+<p><button>a<style style="display:block">.vis{}</style>b</button></p>
+<p>before<script class="shown">var shownScript = 1;</script>after</p>
+<p>x<style class="inline">.inl{}</style>y</p>
+<p>hidden<style>.hid{}</style>still</p>
+<div><template class="shown"><b>tplcontent</b></template>tail</div>
+</body>
+</html>

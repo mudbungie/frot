@@ -159,3 +159,13 @@ fn table_parts_are_separated_by_their_anonymous_table() {
     let html = "<div><p style='display:contents'>p1</p> <p style='display:table-cell'>p2</p></div>";
     assert_eq!(t_css(html), "p1p2");
 }
+
+/// A `<script>`/`<style>` an author displays is painted (`bl-8f60`, Chrome 158,
+/// `sourceshown.html`); undisplayed, or without a cascade, it is not.
+#[test]
+fn a_source_element_an_author_displays_is_text() {
+    let html = "<p>x<style style=display:inline>.s{}</style>y<script>var z</script></p>\
+        <p>a<script style=display:block>var b</script>c</p>";
+    assert_eq!(t_css(html), "x.s{}y\na\nvar b\nc");
+    assert_eq!(t(html), "xy\nac");
+}

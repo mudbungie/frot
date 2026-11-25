@@ -657,3 +657,17 @@ request or a slot in the gather budget. Browser fetch-priority behaviour (real
 engines do download print sheets, at low priority) is not modelled — it is
 unobservable in every frot output. Source order is otherwise untouched, so
 cascade order among the surviving sheets is unchanged.
+
+## Source elements an author displays (`bl-8f60`, 2026-11-24)
+
+`<script>`, `<style>` and `<template>` are UA-implicit `display: none`
+(`css/computed.rs` `implicit_display`), author-overridable like `[hidden]`.
+Measured in Chrome 158 (`tests/fixtures/fidelity/sourceshown.html`): a
+`<style style="display:block">` inside a button is a line of text, has a box,
+and its CSS text is part of the button's name ("a .vis{} b"); `display:inline`
+keeps it on its line ("x.inl{}y"); a displayed `<template>` has a box and no
+text (its content is not its children). So under a cascade the text view, the
+accessibility tree and name walk, and layout read the computed `display` of
+these elements instead of skipping them by tag (`Styles::source_shown`).
+Without `--css`, nothing displays them. `<noscript>` and `<title>` keep their
+tag rules.

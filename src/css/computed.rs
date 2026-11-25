@@ -184,7 +184,9 @@ fn flow(applied: &[Applied], pseudo: Option<Pseudo>) -> Flow {
 /// the suggestions stay in `text` and `ax` (`layout.md` §2.3).
 fn implicit_display(name: &str) -> Display {
     match name {
-        "datalist" | "area" | "rp" => Display::None,
+        // `<script>`/`<style>`/`<template>` are UA `display: none` too —
+        // author-overridable like the rest (`bl-8f60`).
+        "datalist" | "area" | "rp" | "script" | "style" | "template" => Display::None,
         "slot" => Display::Contents,
         "li" => Display::ListItem,
         "table" => Display::Table,

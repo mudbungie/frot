@@ -180,6 +180,14 @@ impl Styles {
         self.get(id).display == Display::None
     }
 
+    /// Whether `id`, a `<script>` or `<style>` (`name`), is one an author
+    /// displayed: its UA `display: none` lost to an author rule, so its source
+    /// text is painted and read like any other (`bl-8f60`, Chrome 158).
+    /// Never without a cascade.
+    pub fn source_shown(styles: Option<&Self>, id: NodeId, name: &str) -> bool {
+        matches!(name, "script" | "style") && styles.is_some_and(|s| !s.display_none(id))
+    }
+
     /// Computed `display` keyword for `id` (see [`ComputedStyle::display`]).
     pub fn display(&self, id: NodeId) -> Display {
         self.get(id).display

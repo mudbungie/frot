@@ -95,7 +95,8 @@ fn emit(
     let entry = doc.node(id);
     match &entry.kind {
         NodeKind::Element(el) => {
-            if SKIP_TAGS.contains(&el.name.as_str()) {
+            if SKIP_TAGS.contains(&el.name.as_str()) && !Styles::source_shown(styles, id, &el.name)
+            {
                 return;
             }
             if styles.is_some_and(|s| s.display_none(id)) {

@@ -74,7 +74,7 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
     let NodeKind::Element(el) = &entry.kind else {
         return Vec::new();
     };
-    if tags::is_source(&el.name) {
+    if tags::is_source(&el.name) && !crate::css::Styles::source_shown(styles, id, &el.name) {
         return Vec::new();
     }
     // Semantic subtree cut (`aria-hidden`/`inert`, [`ax::excluded`]) — before

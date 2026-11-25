@@ -134,7 +134,10 @@ fn inline_level(doc: &Document, id: NodeId, styles: Option<&Styles>) -> Option<b
         NodeKind::Text(t) => t
             .contains(|c: char| !c.is_ascii_whitespace())
             .then_some(true),
-        NodeKind::Element(el) if !crate::tags::is_source(&el.name) => {
+        NodeKind::Element(el)
+            if !crate::tags::is_source(&el.name)
+                || crate::css::Styles::source_shown(styles, id, &el.name) =>
+        {
             // A box out of flow is blockified and still leaves the line it
             // was written in alone: `<p><span style="float:left">f</span>t
             // </p>` is a `paragraph` (`bl-346e`).

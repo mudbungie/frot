@@ -60,8 +60,7 @@ const GLYPH_ADVANCE: i32 = 8;
 /// Chrome 158 gives it no client rects either, even as `display:block`, while
 /// a `<br>` has one (`bl-1d51`).
 const NON_RENDERED_TAGS: &[&str] = &[
-    "head", "title", "meta", "link", "base", "style", "script", "template", "noscript", "desc",
-    "wbr",
+    "head", "title", "meta", "link", "base", "noscript", "desc", "wbr",
 ];
 
 /// A box, in px, border-box, viewport coordinates with y increasing downward
