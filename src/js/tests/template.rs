@@ -28,3 +28,23 @@ fn every_template_answer_is_firefox_153s() {
         assert_eq!(&got[key], value, "{key}");
     }
 }
+
+/// `--out dom` writes what script left in a template's contents, and — as
+/// HTML serialization does — not a child appended to the template itself.
+#[test]
+fn dom_output_writes_a_templates_contents_after_script() {
+    let s = sess("<template id=t><i>parsed</i></template>");
+    s.eval(
+        "var t=document.getElementById('t');t.content.appendChild(document.createElement('u'));\
+         t.appendChild(document.createElement('s'))",
+    )
+    .unwrap();
+    let out = crate::views::dom::dom_json(&s.into_document());
+    let names: Vec<&str> = out[0]["children"][0]["children"][0]["children"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["i", "u"]);
+}

@@ -104,3 +104,22 @@ fn a_shadow_root_is_its_hosts_first_child_as_a_declarative_template() {
     assert_eq!(p["children"][0]["attrs"], json!({"shadowrootmode": "open"}));
     assert_eq!(p["children"].as_array().unwrap().len(), 1);
 }
+
+#[test]
+fn a_templates_children_are_its_contents_nested_templates_included() {
+    let doc = Document::parse(
+        "<template id=t><li>a<template><b>in</b></template></li></template><p>after</p>",
+    );
+    let out = dom_json(&doc);
+    let t = &out[0]["children"][0]["children"][0];
+    assert_eq!(
+        t,
+        &json!({"type": "element", "name": "template", "attrs": {"id": "t"},
+            "children": [{"type": "element", "name": "li", "attrs": {}, "children": [
+                {"type": "text", "value": "a"},
+                {"type": "element", "name": "template", "attrs": {},
+                    "children": [{"type": "element", "name": "b", "attrs": {},
+                        "children": [{"type": "text", "value": "in"}]}]}]}]})
+    );
+    assert_eq!(crate::views::text::text(&doc, None).trim(), "after");
+}

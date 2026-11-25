@@ -2145,6 +2145,13 @@ says otherwise.
     the same tree. A page with no shadow root serializes exactly as before;
     an ordinary `<template>`'s contents stay out of `--out dom` as they always
     were (`decide:` ball filed rather than changing it here).
+    *(2026-11-24, bl-2a85, Mark's ruling: superseded. An ordinary
+    `<template>`'s `children` in `--out dom` are its contents, as HTML
+    serialization writes them, with and without `--js`; nested templates
+    recurse the same way, and a child appended to the template itself (not
+    its `content`) is not written, as `innerHTML` does not write it. A
+    shadow root is still the host's `template` first child. Every other view
+    stays out of a template's contents: they are inert.)*
 
 ### 15.3 What this does not solve (declared residuals)
 

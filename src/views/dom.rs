@@ -14,9 +14,13 @@
 //! element carrying `shadowrootmode` (and the `shadowroot*` attributes of the
 //! options it was attached with) whose children are the root's — the form
 //! Chrome's `getHTML({serializableShadowRoots})` writes and the parser turns
-//! back into the same root (js.md §15). A page with no shadow root serializes
-//! as it always has.
+//! back into the same root (js.md §15). An ordinary `<template>`'s children
+//! are its contents, as HTML serialization writes them (js.md §15.2 item 10):
+//! the node tree's `children` of a template stay empty, but the output then
+//! reparses into the same contents, nested templates included. The views
+//! that render never enter a template's contents; only this one writes them.
 
+use crate::dom::shadow::Shadow;
 use crate::dom::{Document, NodeId, NodeKind};
 use serde_json::{json, Value};
 
@@ -24,19 +28,23 @@ pub fn dom_json(doc: &Document) -> Value {
     node_json(doc, Document::ROOT)
 }
 
+/// `id`'s children as written: a template's contents in place of its child
+/// list, a host's shadow root before its light children.
 fn children_json(doc: &Document, id: NodeId) -> Value {
-    let kids = &doc.node(id).children;
-    let shadow = doc.shadow_root(id).map(|root| shadow_json(doc, root));
+    let entry = doc.node(id);
+    let (lead, kids) = match entry.content.map(|c| (c, doc.shadow(c))) {
+        Some((root, Some(s))) => (Some(shadow_json(doc, root, s)), &entry.children),
+        Some((contents, None)) => (None, &doc.node(contents).children),
+        None => (None, &entry.children),
+    };
     Value::Array(
-        shadow
-            .into_iter()
+        lead.into_iter()
             .chain(kids.iter().map(|&c| node_json(doc, c)))
             .collect(),
     )
 }
 
-fn shadow_json(doc: &Document, root: NodeId) -> Value {
-    let s = doc.shadow(root).unwrap_or_default();
+fn shadow_json(doc: &Document, root: NodeId, s: Shadow) -> Value {
     let mut attrs = serde_json::Map::new();
     let mode = if s.closed { "closed" } else { "open" };
     attrs.insert("shadowrootmode".into(), mode.into());
