@@ -92,6 +92,8 @@ pub const SOURCE: &str = concat!(
     // prototype doc.js completes.
     include_str!("prelude/treewalker.js"),
     "\n",
+    include_str!("prelude/nodeiter.js"), // NodeIterator (bl-33df), on the walker's filter
+    "\n",
     // template.js (js.md §15): HTMLTemplateElement's `content` and its
     // declarative-shadow-root reflections, on the interface dom.js builds.
     include_str!("prelude/template.js"),

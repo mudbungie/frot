@@ -240,4 +240,6 @@
       return w;
     },
   });
+  // NodeIterator (nodeiter.js, bl-33df) filters exactly as a walker does.
+  Object.defineProperty(g, '__frot_node_filter', { value: g.__frot_brand(filter, '__frot_node_filter') });
 })(globalThis);

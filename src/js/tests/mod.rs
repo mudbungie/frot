@@ -50,6 +50,7 @@ mod message;
 mod net;
 mod netbudget;
 mod newrequired;
+mod nodeiter;
 mod perf;
 mod persona_gold;
 mod receiver;

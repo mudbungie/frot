@@ -1,0 +1,23 @@
+{
+ "proto": "nextNode previousNode detach root referenceNode pointerBeforeReferenceNode whatToShow filter constructor",
+ "ctor": "THROW TypeError:Illegal constructor.",
+ "len": "1",
+ "fresh": "r,r/true,4294967295,,[object NodeIterator],0",
+ "fwd": "r a #A ai #i !c b #B c #C",
+ "back": "#C c #B b !c #i ai #A a r|r/true",
+ "show": "r a ai b c|#A #i !c #B #C",
+ "filt": "r ai b c|r a ai c",
+ "rmRef": "#A/false>r/false>!c",
+ "rmRefBefore": "#A/true>!c/true>!c",
+ "rmLastBefore": "#C/true>#B/false>null",
+ "innerHTML": "r/false>b",
+ "moveRef": "a/false>r/false>!c",
+ "rmRoot": "a/false>#A",
+ "detach": "undefined,r",
+ "badRoot": "THROW TypeError:Document.createNodeIterator: Argument 1 does not implement interface Node.",
+ "noRoot": "THROW TypeError:Document.createNodeIterator: At least 1 argument required, but only 0 passed",
+ "nullRoot": "THROW TypeError:Document.createNodeIterator: Argument 1 is not an object.",
+ "reentrant": "THROW InvalidStateError:An attempt was made to use an object that is not, or is no longer, usable",
+ "brand": "THROW TypeError:'get root' called on an object that does not implement interface NodeIterator.",
+ "brandM": "THROW TypeError:'nextNode' called on an object that does not implement interface NodeIterator."
+}

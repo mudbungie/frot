@@ -61,7 +61,7 @@
     DocumentFragment: 'getElementById prepend append querySelector querySelectorAll children ' +
       'firstElementChild lastElementChild childElementCount',
     Document: 'getElementsByTagName getElementsByClassName createElement createElementNS ' +
-      'createDocumentFragment createTextNode createComment importNode adoptNode createEvent ' +
+      'createDocumentFragment createTextNode createComment importNode adoptNode createEvent createNodeIterator ' +
       'createTreeWalker getElementsByName ' +
       'hasFocus getElementById prepend append querySelector querySelectorAll implementation URL ' +
       'documentURI compatMode doctype documentElement referrer cookie ' +

@@ -1437,7 +1437,15 @@ contents*; and
 **`NodeIterator` / `createNodeIterator` are not built** — an iterator's
 reference node must be adjusted on every removal from the tree (DOM §6.1
 "pre-removing steps"), which is a hook on every arena detach, not a walk
-(`bl-33df`).
+(`bl-33df`). *Built 2026-11-24 (`bl-33df`, `nodeiter.js`): the document keeps the list
+of iterators it made (page state, like MutationObserver's registrations) and
+the two removal seams — `__frot_detach`, and an insert that moves a node out
+of its parent or a fragment — run the pre-removing steps first; a refused
+insert puts the iterators back. Every answer of a 22-key probe (traversal,
+whatToShow, filters, removals of the reference, its ancestor, the last node,
+an `innerHTML` replacement, a move, the root's own removal, re-entry, the
+argument and receiver errors) matches Firefox 153.0esr
+(`src/js/tests/nodeiter/`).*
 
 ### 3.19 The secure-context surface and WebCrypto's shape, read off the binary (`bl-b0f8`, 2026-11-17)
 
