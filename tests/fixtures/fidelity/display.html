@@ -100,5 +100,14 @@
 <div>ia<p style="display:inherit">ib</p>ic</div><span>ja<p style="display:inherit">jb</p>jc</span>
 <div>ka<span style="display:flex inline">kb</span>kc<span style="display:list-item block">kd</span>ke<span style="display:flow-root inline">kf</span>kg</div>
 <div>d1<dialog>shut</dialog>d2<audio>aa</audio>d3<audio style="display:block">cc</audio>d4<dialog style="display:block">forced</dialog>d5</div>
+<div style="display:flex"><span style="display:contents"><b>fx1</b><b>fy1</b></span></div>
+<div style="display:grid"><span style="display:contents"><i>gx2</i>gbare<i>gy2</i></span></div>
+<div style="display:flex"><span style="display:contents"><span style="display:contents"><em>fx3</em><em>fy3</em></span></span></div>
+<style>.pi::before{content:"pre";display:inherit} .pi::after{content:"post";display:inherit} .fp::before{content:"fpre"} .fp::after{content:"fpost"}</style>
+<div class="pi">piblock</div>
+<p>s <span class="pi">piinl</span> e</p>
+<p>s <span class="pi" style="display:inline-block">piib</span> e</p>
+<div class="fp" style="display:flex">fmid</div>
+<p>s <span class="fp" style="display:inline-grid">gmid</span> e</p>
 </body>
 </html>

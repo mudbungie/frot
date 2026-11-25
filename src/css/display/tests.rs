@@ -167,6 +167,27 @@ fn a_flex_or_grid_item_is_blockified() {
     }
     let float = "<span style='display:inline-grid;float:left'>a</span>";
     assert_eq!(display(float, "span"), Display::Grid);
+    // Through `display: contents` the children are still items (`bl-da9d`).
+    let through =
+        "<div style='display:flex'><q style='display:contents'><s style='display:contents'>\
+                   <span>a</span></s></q></div><p style='display:contents'><b>b</b></p>";
+    assert_eq!(display(through, "span"), Display::Block);
+    assert_eq!(display(through, "b"), Display::Inline);
+}
+
+/// A pseudo-element's `inherit` is its element's display, and a flex or grid
+/// container's pseudo-elements are its items (`bl-da9d`, Chrome 158).
+#[test]
+fn a_pseudo_element_inherits_its_elements_display() {
+    let doc = Document::parse(
+        "<style>i::before{content:'a';display:inherit} b::after{content:'b'}</style>\
+         <i style='display:block'>x</i><i>y</i><b style='display:inline-flex'>z</b>",
+    );
+    let s = compute(&doc);
+    let (i, b) = (doc.find_by_tag("i"), doc.find_by_tag("b")[0]);
+    assert_eq!(s.before_display(i[0]), Display::Block);
+    assert_eq!(s.before_display(i[1]), Display::Inline);
+    assert_eq!(s.after_display(b), Display::Block);
 }
 
 #[test]

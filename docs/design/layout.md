@@ -203,7 +203,10 @@ author rule says otherwise; an `<audio>` without `controls` is `display: none
 (`flex`, `inline-flex`, `grid`, `inline-grid`) is blockified as an
 out-of-flow box is: a span in a flex computes `block`, an `inline-flex` child
 `flex`, `contents` stays `contents`; so each item, and each run of bare text
-between items, is a line of `text`.
+between items, is a line of `text`. The children of a `contents` child are
+items too, and so are the container's `::before` and `::after`; a
+pseudo-element's `display: inherit` is its element's display (2026-11-24,
+`bl-da9d`).
 
 Coercion is deterministic and documented; it is not a silent failure (§6, honest
 signals).

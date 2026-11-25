@@ -108,6 +108,10 @@ pub struct ComputedStyle {
     /// element's UA-implicit display by tag. `display:none` is the
     /// [`Display::None`] variant (queried via [`Styles::display_none`]).
     pub display: Display,
+    /// Whether the children's boxes are flex or grid items: the box is a
+    /// flex or grid container, or is `display: contents` inside one, which
+    /// hands it its children (CSS Display §2.5; Chrome 158, `bl-da9d`).
+    pub items: bool,
     /// Computed `order` (flex reorder key); default `0`. Only flex layout reads
     /// it (`layout.md` §5: sort in-flow children by `(order, source index)`).
     pub order: i32,

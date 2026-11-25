@@ -54,15 +54,17 @@ pub fn reduce(
         el,
         parent.text_transform,
     );
+    let display = display(applied, el, js, parent, [shown, hidden]);
     ComputedStyle {
-        display: display(applied, el, js, parent.display, [shown, hidden]),
+        display,
+        items: display.has_items() || (display == Display::Contents && parent.items),
         order: order_value(applied),
         flex_direction: flex_direction(applied),
         visibility: visibility(applied, parent.visibility),
         before: generated(applied, Pseudo::Before, el),
         after: generated(applied, Pseudo::After, el),
-        before_display: pseudo_display(applied, Pseudo::Before),
-        after_display: pseudo_display(applied, Pseudo::After),
+        before_display: pseudo_display(applied, Pseudo::Before, display),
+        after_display: pseudo_display(applied, Pseudo::After, display),
         flow: flow(applied, None),
         unmarked: super::list::unmarked(applied, parent.unmarked),
         pseudo_out_of_flow: [Pseudo::Before, Pseudo::After]
@@ -107,7 +109,13 @@ fn flex_direction(applied: &[Applied]) -> FlexDirection {
 /// exceptions that prove it: the UA sheet marks both `display: none
 /// !important`, so they are decided *before* the author cascade is consulted
 /// and nothing can render them (Chrome 158, `bl-9dec`).
-fn display(applied: &[Applied], el: &Element, js: bool, parent: Display, ua: [bool; 2]) -> Display {
+fn display(
+    applied: &[Applied],
+    el: &Element,
+    js: bool,
+    parent: &ComputedStyle,
+    ua: [bool; 2],
+) -> Display {
     let [shown, hidden] = ua;
     let controls = el.attr("controls").is_some();
     if el.hidden_input() || (el.name == "audio" && !controls) {
@@ -116,20 +124,22 @@ fn display(applied: &[Applied], el: &Element, js: bool, parent: Display, ua: [bo
     let (dialog, open) = (el.name == "dialog", el.attr("open").is_some());
     let popover = el.attr("popover").is_some();
     let closed = !(shown || dialog && open) && (dialog || popover);
-    let display = match display_winner(applied, None, parent) {
+    let display = match display_winner(applied, None, parent.display) {
         Some(d) => d,
         None if hidden || closed || (js && el.name == "noscript") => Display::None,
         None => implicit_display(&el.name),
     };
-    display.blockified(flow(applied, None) != Flow::In || parent.has_items())
+    display.blockified(flow(applied, None) != Flow::In || parent.items)
 }
 
-/// The computed `display` of a pseudo-element's box: its own declaration,
-/// else `inline`, blockified when the pseudo-element is out of flow.
-fn pseudo_display(applied: &[Applied], pseudo: Pseudo) -> Display {
-    display_winner(applied, Some(pseudo), Display::Inline)
+/// The computed `display` of a pseudo-element's box: its own declaration
+/// (`inherit` is its element's display, `element`), else `inline`;
+/// blockified when the pseudo-element is out of flow or a flex or grid item
+/// of its element (Chrome 158, `bl-da9d`).
+fn pseudo_display(applied: &[Applied], pseudo: Pseudo, element: Display) -> Display {
+    display_winner(applied, Some(pseudo), element)
         .unwrap_or_default()
-        .blockified(flow(applied, Some(pseudo)) != Flow::In)
+        .blockified(flow(applied, Some(pseudo)) != Flow::In || element.has_items())
 }
 
 /// How the box stands in flow ([`Flow`]): absolutely positioned (`position:
@@ -209,7 +219,7 @@ fn winner<'b>(applied: &'b [Applied], pseudo: Option<Pseudo>, name: &str) -> Opt
 /// `display: revert` is kept and computes to nothing here, which leaves the
 /// caller with the user agent's value, as it asks. `display: inherit` is the
 /// `inherited` display — the parent's (Chrome 158, `bl-9dec`); a
-/// pseudo-element's is not modelled and reads as `inline`.
+/// pseudo-element's parent is its element (`bl-da9d`).
 fn display_winner(
     applied: &[Applied],
     pseudo: Option<Pseudo>,
