@@ -1,7 +1,7 @@
 //! Form-control and element states a page shows before anyone touches it:
 //! `:default`, `:indeterminate`, `:placeholder-shown` and `:defined`.
-//! Measured in Chrome 158 (`bl-2a85`); like the rest of [`super::state`] they
-//! read attributes, never script-set properties.
+//! Measured in Chrome 158 (`bl-2a85`). They read attributes, but for the
+//! checkedness and `indeterminate` a script set ([`super::checked`]).
 //!
 //! - **`:default`** — a checkbox or radio with `checked`, an option with
 //!   `selected` (not one a select picks by default), and a form's default
@@ -9,7 +9,8 @@
 //!   a disabled one. A submit button is a `<button>` whose `type` is not
 //!   `button` or `reset`, or an `<input type=submit|image>`.
 //! - **`:indeterminate`** — a `<progress>` without `value`; a radio whose group
-//!   has no radio with `checked` (a radio with no name is a group of one).
+//!   has no `:checked` radio (a radio with no name is a group of one); a
+//!   checkbox a script made `indeterminate` (`bl-ff74`).
 //! - **`:placeholder-shown`** — an `<input>` that takes a placeholder (every
 //!   type but `hidden`, the date and time types, `range`, `color`,
 //!   `checkbox`, `radio`, `file` and the buttons) or a `<textarea>`, with a
@@ -23,8 +24,9 @@
 //!   upgraded yet (js.md §15: the custom state is kept in `dom::live`). SVG
 //!   and MathML elements are defined.
 
+use super::checked::group;
 use super::lang::foreign;
-use super::state::{group, has, input_type};
+use super::state::{has, input_type};
 use crate::dom::{Document, Element, NodeId, NodeKind, WalkEvent};
 
 /// Names the custom element grammar matches but HTML reserves.
@@ -98,6 +100,7 @@ fn submit(el: &Element) -> bool {
 pub(super) fn indeterminate(doc: &Document, id: NodeId, el: &Element) -> bool {
     match (el.name.as_str(), input_type(el).as_str()) {
         ("progress", _) => !has(el, "value"),
+        ("input", "checkbox") => doc.indeterminate(id),
         ("input", "radio") => {
             let Some(mine) = group(doc, id, el) else {
                 return !has(el, "checked");
@@ -105,7 +108,8 @@ pub(super) fn indeterminate(doc: &Document, id: NodeId, el: &Element) -> bool {
             let mut checked = false;
             elements(doc, &mut |n, e| {
                 let radio = e.name == "input" && input_type(e) == "radio";
-                checked |= radio && has(e, "checked") && group(doc, n, e) == Some(mine);
+                checked |=
+                    radio && group(doc, n, e) == Some(mine) && super::checked::checked(doc, n, e);
             });
             !checked
         }

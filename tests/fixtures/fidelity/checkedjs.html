@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Control state a script writes</title>
+<style>
+b::after { content: " no"; }
+:checked + b::after { content: " yes"; }
+:indeterminate + b::after { content: " mixed"; }
+:default + b::after { content: " default"; }
+:checked:default + b::after { content: " yes default"; }
+#sel:has(#o3:checked) + b::after, #sel2:has(#p1:checked) + b::after, #mul:has(#m2:checked) + b::after { content: " yes"; }
+</style>
+</head>
+<body>
+<p><input type="checkbox" id="c1"><b>c1</b> <input type="checkbox" id="c2" checked><b>c2</b> <input type="checkbox" id="c3"><b>c3</b> <input type="checkbox" id="c4" checked><b>c4</b></p>
+<p><input type="radio" name="g" id="r1" checked><b>r1</b> <input type="radio" name="g" id="r2"><b>r2</b> <input type="radio" name="g" id="r3"><b>r3</b></p>
+<p><input type="radio" name="h" id="s1"><b>s1</b> <input type="radio" name="h" id="s2"><b>s2</b> <input type="radio" name="k" id="t1" checked><b>t1</b></p>
+<select id="sel"><option id="o1" selected>o1</option><option id="o2">o2</option><option id="o3">o3</option></select><b>sel</b>
+<select id="sel2"><option id="p1">p1</option><option id="p2" selected>p2</option></select><b>sel2</b>
+<select id="mul" multiple><option id="m1" selected>m1</option><option id="m2">m2</option></select><b>mul</b>
+<p id="out"></p>
+<script>
+var $ = function (id) { return document.getElementById(id); };
+$('c1').checked = true;
+$('c2').checked = false;
+$('c3').indeterminate = true;
+$('c4').indeterminate = true;
+$('r2').checked = true;
+$('s1').checked = true;
+$('t1').checked = false;
+$('o3').selected = true;
+$('p2').selected = false;
+$('m2').selected = true;
+var log = [];
+['c1', 'c2', 'c3', 'r1', 'r2', 's1', 't1', 'o1', 'o3', 'p1', 'p2', 'm1', 'm2'].forEach(function (id) {
+  var el = $(id);
+  var prop = el.tagName === 'OPTION' ? 'selected' : 'checked';
+  var dflt = el.tagName === 'OPTION' ? 'defaultSelected' : 'defaultChecked';
+  log.push(id + ' ' + el[prop] + ' ' + el.hasAttribute(prop) + ' ' + el[dflt]);
+});
+log.push('c3i ' + $('c3').indeterminate + ' ' + $('c3').hasAttribute('indeterminate'));
+$('out').textContent = log.join(', ');
+</script>
+</body>
+</html>

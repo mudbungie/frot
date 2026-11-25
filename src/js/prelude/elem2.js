@@ -165,10 +165,26 @@
       },
     };
   }
-  tagdef('Input', 'checked', reflectBool('checked'));
-  tagdef('Option', 'selected', reflectBool('selected'));
+  // Checkedness, selectedness and `indeterminate` are state, not attributes:
+  // the arena keeps what a script sets (dom/live.rs, bl-ff74), and the
+  // attribute is the default — `defaultChecked`, `defaultSelected`.
+  function live(native) {
+    return {
+      get: function () {
+        return native(slots(this).id);
+      },
+      set: function (v) {
+        native(slots(this).id, !!v);
+      },
+    };
+  }
+  tagdef('Input', 'defaultChecked', reflectBool('checked'));
+  tagdef('Input', 'checked', live(g.__frot_picked));
   tagdef('Details', 'open', reflectBool('open'));
   tagdef('Button Select OptGroup Option Link Input TextArea FieldSet Style', 'disabled', reflectBool('disabled'));
+  tagdef('Input', 'indeterminate', live(g.__frot_indeterminate));
+  tagdef('Option', 'defaultSelected', reflectBool('selected'));
+  tagdef('Option', 'selected', live(g.__frot_picked));
   tagdef('Button Select Output LI Progress Data Option Input TextArea Meter Param', 'value', value());
   tagdef('Output Input TextArea', 'defaultValue', value());
   // `type` is a plain reflected string, from elem.js's one maker (bl-d313).

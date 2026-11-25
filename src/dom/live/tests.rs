@@ -24,3 +24,15 @@ fn state_is_set_and_cleared_per_element() {
     doc.set_modal(dialog, false);
     assert!(!doc.popover_open(div) && !doc.modal(dialog));
 }
+
+#[test]
+fn checkedness_and_indeterminate_are_per_element() {
+    let mut doc = Document::parse("<input><input>");
+    let [a, b] = [doc.find_by_tag("input")[0], doc.find_by_tag("input")[1]];
+    assert_eq!(doc.picked(a), None);
+    doc.set_picked(a, true);
+    doc.set_picked(a, false);
+    doc.set_indeterminate(b, true);
+    assert_eq!((doc.picked(a), doc.picked(b)), (Some(false), None));
+    assert!(doc.indeterminate(b) && !doc.indeterminate(a));
+}

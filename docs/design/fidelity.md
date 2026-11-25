@@ -563,7 +563,9 @@ caption, `bl-c5a6` unnamed form/region roles, `bl-0794` titled term). And
 case; `focusjs` and `autofocusjs` — focus, popovers and dialogs a script
 moves (`bl-bc6d`); and `display` — one line per `display` value in `text`, names,
 paragraphs and boxes (`bl-e3a0`, layout.md §2). And (2026-11-22) `tables` — the
-data-table signals Chrome reads and the `<th>` header axis (`bl-7f3a`).
+data-table signals Chrome reads and the `<th>` header axis (`bl-7f3a`). And
+(2026-11-24) `checkedjs` — checkedness, selectedness and `indeterminate` a
+script sets (`bl-ff74`).
 
 **What the first recording found.** 51 ledger rows over 10 pages × 5 channels.
 `links` and `forms`: zero deltas. `text`: zero deltas outside the two

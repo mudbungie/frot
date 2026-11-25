@@ -66,3 +66,23 @@ fn a_popover_is_shown_hidden_and_toggled_by_script() {
     );
     assert_eq!(got, "pi 1 0 true false true false NotSupportedError");
 }
+
+/// Checkedness, selectedness and `indeterminate` are state, not attributes
+/// (`bl-ff74`; Chrome 158, `tests/fixtures/fidelity/checkedjs.html`).
+#[test]
+fn checked_selected_and_indeterminate_are_state() {
+    let got = sess(
+        "<!DOCTYPE html><html><body><input type=radio name=g id=r1 checked>\
+         <input type=radio name=g id=r2><input type=checkbox id=c>\
+         <select><option id=o1 selected>1<option id=o2>2</select></body></html>",
+    )
+    .eval(
+        "(function(){var $=function(i){return document.getElementById(i)};\
+         $('r2').checked=1;$('o2').selected='yes';$('c').indeterminate=true;\
+         return [$('r1').checked,$('r1').defaultChecked,$('r2').checked,$('r2').hasAttribute('checked'),\
+         $('o1').selected,$('o1').defaultSelected,$('o2').selected,$('c').indeterminate,\
+         $('c').matches(':indeterminate'),$('r2').matches(':checked')].join(' ')})()",
+    )
+    .unwrap();
+    assert_eq!(got, "false true true false false true true true true true");
+}

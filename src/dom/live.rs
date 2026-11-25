@@ -1,6 +1,7 @@
 //! Page state a script sets without leaving a mark in the tree (`bl-bc6d`):
-//! where focus is, which popovers and modal dialogs are shown, and which
-//! elements a custom element definition has upgraded (js.md §15). It lives
+//! where focus is, which popovers and modal dialogs are shown, which
+//! elements a custom element definition has upgraded (js.md §15), and the
+//! checkedness, selectedness and `indeterminate` a script gave a control. It lives
 //! in the arena beside the nodes, so the one document the views, the cascade
 //! and the JS host share carries it — nothing global, nothing cached in JS.
 //! The JS host writes it (`focus()`, `blur()`, `showModal()`, `close()`,
@@ -40,6 +41,12 @@ pub struct Live {
     /// Elements whose custom element state is "custom": constructed by
     /// their definition (`:defined`).
     custom: BTreeSet<NodeId>,
+    /// The checkedness of an `<input>` or selectedness of an `<option>` a
+    /// script set — HTML's dirty flag (`bl-ff74`); absent, the attribute
+    /// rules (`css/checked.rs`).
+    picked: Vec<(NodeId, bool)>,
+    /// Checkboxes a script made `indeterminate`.
+    indeterminate: Vec<NodeId>,
 }
 
 impl Document {
@@ -110,6 +117,29 @@ impl Document {
     /// Mark the dialog `id` modal or not.
     pub fn set_modal(&mut self, id: NodeId, modal: bool) {
         toggle(&mut self.live.modals, id, modal);
+        self.generation += 1;
+    }
+}
+
+impl Document {
+    /// The checkedness or selectedness a script set on `id`, if it did.
+    pub fn picked(&self, id: NodeId) -> Option<bool> {
+        self.live.picked.iter().find(|p| p.0 == id).map(|p| p.1)
+    }
+
+    pub fn set_picked(&mut self, id: NodeId, on: bool) {
+        self.live.picked.retain(|p| p.0 != id);
+        self.live.picked.push((id, on));
+        self.generation += 1;
+    }
+
+    /// Whether a script set `indeterminate` on `id`.
+    pub fn indeterminate(&self, id: NodeId) -> bool {
+        self.live.indeterminate.contains(&id)
+    }
+
+    pub fn set_indeterminate(&mut self, id: NodeId, on: bool) {
+        toggle(&mut self.live.indeterminate, id, on);
         self.generation += 1;
     }
 }

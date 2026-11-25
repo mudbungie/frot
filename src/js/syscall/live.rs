@@ -7,7 +7,7 @@ use rquickjs::function::Opt;
 use rquickjs::{Ctx, Function};
 
 use super::Host;
-use crate::css::{focusable, focused_element};
+use crate::css::{focusable, focused_element, pick, picked};
 use crate::dom::live::Focus;
 
 pub(super) fn install<'js>(
@@ -47,6 +47,26 @@ pub(super) fn install<'js>(
                 d.borrow_mut().set_popover(id, open);
             }
             d.borrow().popover_open(id)
+        }
+    });
+    // `checked` / `selected` (`bl-ff74`): read, or set and read back.
+    bind!(ctx, g, "__frot_picked", {
+        let d = doc.clone();
+        move |id: u32, on: Opt<bool>| {
+            if let Some(on) = on.0 {
+                pick(&mut d.borrow_mut(), id, on);
+            }
+            let doc = d.borrow();
+            doc.element(id).is_some_and(|el| picked(&doc, id, el))
+        }
+    });
+    bind!(ctx, g, "__frot_indeterminate", {
+        let d = doc.clone();
+        move |id: u32, on: Opt<bool>| {
+            if let Some(on) = on.0 {
+                d.borrow_mut().set_indeterminate(id, on);
+            }
+            d.borrow().indeterminate(id)
         }
     });
     bind!(ctx, g, "__frot_modal", {

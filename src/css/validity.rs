@@ -19,8 +19,9 @@
 //! - **The value's own constraints** ([`value`]): type, `pattern`, range and
 //!   step mismatches, all skipped for an empty value.
 
+use super::checked::{group, selected};
 use super::control::elements;
-use super::state::{disabled, group, has, input_type, required, selected};
+use super::state::{disabled, has, input_type, required};
 use crate::dom::{Document, Element, NodeId, NodeKind, WalkEvent};
 
 mod value;

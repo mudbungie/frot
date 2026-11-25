@@ -154,7 +154,13 @@ Chrome 158 and is held in `tests/fixtures/fidelity/state.html` and
   attribute as written, which split one group in two); an option its select
   picks: with `multiple`, each one with `selected`; otherwise the last one
   with `selected`, else — in a drop-down, not a list box (`size` above 1) —
-  the first that is neither `disabled` nor in a disabled `<optgroup>`.
+  the first that is neither `disabled` nor in a disabled `<optgroup>`. Each
+  until a script sets the `checked` or `selected` property, which is state
+  in the arena, not an attribute (`bl-ff74`, `src/css/checked.rs`): checking
+  a radio unchecks its group, selecting an option in a select without
+  `multiple` deselects the rest, and a checkbox a script made
+  `indeterminate` is not `:checked`. `defaultChecked`, `defaultSelected` and
+  `:default` keep reading the attribute.
 - **`:disabled`** — a button, input, select, textarea or fieldset with
   `disabled`, or inside a disabled `<fieldset>` other than in its first
   `<legend>` child; an option or optgroup with `disabled`, in a disabled
@@ -186,11 +192,12 @@ Chrome 158 and is held in `tests/fixtures/fidelity/state.html` and
   first `<summary>` of a `<details>`, `<iframe>`, media with `controls`, an
   integer `tabindex`, a `contenteditable` host.
 
-Everything else here reads the tree's attributes. `input.checked = true` and
-`option.selected = true` write the attribute in frot (`bl-ff74`); an
+Everything else here reads the tree's attributes. An
 `autofocus` element hidden only by a stylesheet still counts as focused, and
 a script running mid-parse already sees the autofocus element
 (`bl-4248`); a modal dialog does not make the page inert (`bl-2dcd`).
+(**Superseded 2026-11-24, `bl-ff74`:** this paragraph said
+`input.checked = true` and `option.selected = true` wrote the attribute.)
 (**Superseded 2026-11-22, `bl-bc6d`:** this paragraph said `el.focus()` and
 `showModal()` were not seen, and `:popover-open` / `:modal` were always
 false.)
@@ -199,8 +206,9 @@ false.)
   every `<video>` and `<audio>`; **`:muted`** — one with `muted`.
 - **`:default`, `:indeterminate`, `:placeholder-shown`, `:defined`**
   (`bl-2a85`; `src/css/control.rs`, whose module doc holds the rules): the
-  checked, selected and default-button controls; a valueless `<progress>` and
-  a radio group nobody checked; a text-taking control with a `placeholder`
+  checked, selected and default-button controls; a valueless `<progress>`, a
+  radio group nobody checked and a checkbox a script made `indeterminate`
+  (`bl-ff74`); a text-taking control with a `placeholder`
   and an empty (sanitized) value; every element but an HTML one with a
   custom element name or an `is` attribute — frot registers none. *(Since
   2026-11-24, `bl-688d`: a custom element a definition has upgraded is
