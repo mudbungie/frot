@@ -254,25 +254,6 @@
     return e;
   }
 
-  // An event-handler IDL accessor (`onchange`/`onclick`/…): enumerable, native,
-  // defaults null, settable, and never firing (the silence is each capability's
-  // declared residual). One maker for the same reason `domError` is one — four
-  // modules shape these (permissions, worker, screen, idb) and four copies of an
-  // accessor pair is four chances for one of them to drift out of Firefox's shape.
-  function onEvent(proto, key) {
-    Object.defineProperty(proto, key, {
-      get: brand(function () {
-        var fn = slots(this)[key];
-        return fn === undefined ? null : fn;
-      }, 'get ' + key),
-      set: brand(function (fn) {
-        slots(this)[key] = typeof fn === 'function' ? fn : null;
-      }, 'set ' + key),
-      enumerable: true,
-      configurable: true,
-    });
-  }
-
   // Expose them as NON-enumerable globals: the persona/capability modules
   // reach them, but a page walking `Object.keys(window)`/`for..in` never sees
   // them (the raw `__frot_*` syscalls' enumerability is a separate, documented
@@ -281,7 +262,6 @@
     ['__frot_brand', brand],
     ['__frot_iface', iface],
     ['__frot_domerror', domError],
-    ['__frot_onevent', onEvent],
     ['__frot_iface_seal', sealInterfaces],
     ['__frot_extends', extend],
     ['__frot_new', requireNew],

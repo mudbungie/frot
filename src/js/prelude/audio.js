@@ -96,8 +96,8 @@
   // so `ctx.oncomplete = e => e.renderedBuffer` (the fingerprintjs shape) works.
   var CompletionEvent = klass('OfflineAudioCompletionEvent', function (inst, args) {
     var o = args[1] || {};
+    g.__frot_event_init(inst, args[0], o);
     var st = slots(inst);
-    st.type = String(args[0]);
     st.renderedBuffer = o.renderedBuffer === undefined ? null : o.renderedBuffer;
   });
   Object.setPrototypeOf(CompletionEvent.prototype, g.Event.prototype);
@@ -114,8 +114,9 @@
     st.state = 'closed';
     var self = this;
     Promise.resolve().then(function () {
-      var cb = self.oncomplete;
-      if (typeof cb === 'function') cb(new CompletionEvent('complete', { renderedBuffer: buf }));
+      var ev = new CompletionEvent('complete', { renderedBuffer: buf });
+      slots(ev).trusted = true;
+      g.__frot_dispatch(self, ev);
     });
     return Promise.resolve(buf);
   }, 'startRendering');

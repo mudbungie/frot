@@ -160,13 +160,11 @@
       g.__frot_onevent(XHRTarget.prototype, k);
     }
   );
-  // An event the browser raises on an XHR: its `on<type>` handler, then its
-  // listeners — so `onload` and `addEventListener('loadend', …)` both hear it.
+  // An event the browser raises on an XHR: dispatched, so `onload` (a
+  // listener in its registration place) and `addEventListener` both hear it.
   function emit(xhr, Ctor, type) {
     var ev = new Ctor(type);
     slots(ev).trusted = true;
-    var handler = slots(xhr)['on' + type];
-    if (typeof handler === 'function') handler.call(xhr, ev);
     xhr.dispatchEvent(ev);
   }
 

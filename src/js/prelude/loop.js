@@ -227,27 +227,13 @@
     g.__frot_slots(ev).trusted = true;
     return ev;
   }
-  // A property handler the host calls after the listeners (event handler
-  // attributes as listeners are bl-93c8); its throw is reported likewise.
-  function handler(host, ev) {
-    var on = host['on' + ev.type.toLowerCase()];
-    if (typeof on === 'function')
-      try {
-        on.call(host, ev);
-      } catch (e) {
-        g.__frot_report_exception(e);
-      }
-  }
-
   // readyState transition (js.md §4.4): the field advances loading ->
   // 'interactive' (immediately before DOMContentLoaded) -> 'complete' (before
   // load); each transition fires readystatechange at the document (it does not
   // bubble), so readyState-polling init and older loaders unblock.
   function setReadyState(state) {
     g.__frot_slots(g.document).readyState = state;
-    var ev = trusted('readystatechange');
-    dispatch(g.document, ev);
-    handler(g.document, ev);
+    dispatch(g.document, trusted('readystatechange'));
   }
 
   // Host lifecycle fire (§4.4 / §5), as HTML fires them: DOMContentLoaded at
@@ -259,9 +245,7 @@
       dispatch(g.document, trusted(name, { bubbles: true }));
     } else {
       setReadyState('complete');
-      var ev = trusted(name);
-      dispatch(g, ev, g.document);
-      handler(g, ev);
+      dispatch(g, trusted(name), g.document);
     }
     return 0;
   };

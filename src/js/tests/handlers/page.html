@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html><head><title>t</title><script>var IMGLOG = [];</script></head><body>
+<div id=host></div>
+<form id=f name=ff action="/act"><input id=q name=qq onclick="RES = [typeof qq, typeof elements, typeof action, typeof title, id, typeof createElement, typeof event, typeof ff, this === document.getElementById('q'), typeof f].join()"></form>
+<button id=nb onclick="RES = [typeof elements, typeof action, typeof createElement, typeof qq].join()">b</button>
+<p id=pp onclick="PLOG.push('a')">p</p>
+<img id=i1 src="/nope.png" onerror="IMGLOG.push('err:' + event.type + ':' + this.id + ':' + event.isTrusted)" onload="IMGLOG.push('load')">
+<img id=i2 src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="IMGLOG.push('load:' + this.id)">
+<img id=i3 src="/nope2.png" onerror="return (((">
+</body></html>

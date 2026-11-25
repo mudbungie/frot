@@ -3,7 +3,7 @@
 // (react-router carries its own typeof-guarded fallback), so absence is a
 // ReferenceError that kills the route render into the app's error boundary.
 // Signals inherit EventTarget, riding events.js's one listener registry;
-// abort() flips state once, then fires onabort and the 'abort' listeners.
+// abort() flips state once, then fires 'abort' (onabort among its listeners).
 // Runs after events.js (needs g.EventTarget / g.Event) and loop.js (the virtual-clock
 // setTimeout for AbortSignal.timeout). Deliberate residual: no subfetch
 // integration — frot's network policy is once-then-frozen (js.md §6), nothing
@@ -48,19 +48,14 @@
   attrs(Signal.prototype, ['aborted', 'reason']);
   g.__frot_onevent(Signal.prototype, 'onabort');
 
-  // The one place a signal flips: state moves, then the handler, then the
-  // listeners — the delivery order a real signal has.
+  // The one place a signal flips: state moves, then 'abort' is dispatched —
+  // `onabort` runs in its registration place among the listeners (measured).
   function doAbort(sig, reason) {
     var st = slots(sig);
     if (st.aborted) return;
     st.aborted = true;
     st.reason = reason;
-    var ev = new g.Event('abort');
-    if (typeof sig.onabort === 'function')
-      try {
-        sig.onabort.call(sig, ev);
-      } catch (e) {}
-    sig.dispatchEvent(ev);
+    sig.dispatchEvent(new g.Event('abort'));
   }
   // A pre-aborted signal: the same flip, minus the dispatch nobody can be
   // listening for yet — one path, not a second hand-set of the two slots.

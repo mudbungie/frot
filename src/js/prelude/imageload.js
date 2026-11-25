@@ -87,13 +87,6 @@
     var ev = new g.Event(st.size ? 'load' : 'error');
     slots(ev).trusted = true; // the browser raised it, not the page
     g.__frot_dispatch(img, ev);
-    var on = img['on' + ev.type];
-    if (typeof on === 'function')
-      try {
-        on.call(img, ev);
-      } catch (e) {
-        g.__frot_report_exception(e);
-      }
     settle(st, st.size ? null : invalid('Invalid encoded image data.'));
     return 0;
   });

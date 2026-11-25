@@ -149,24 +149,16 @@
     raise(ev);
   }
   // A window `error` event, as the error accounting sees it (js.md §10):
-  // dispatched, then `window.onerror(message, filename, lineno, colno, error)`,
-  // whose `true` handles it; unhandled, it counts toward js.errors. React ≥16
-  // reports caught render errors through `reportError`, which lands here too.
+  // dispatched — `window.onerror` is one of its listeners (handlers.js), and
+  // its `true` cancels it — and, not canceled, counted toward js.errors. React
+  // ≥16 reports caught render errors through `reportError`, which lands here.
   function raise(ev) {
     var was = reporting;
     reporting = true;
     try {
-      dispatch(g, ev);
-      var st = slots(ev), handled = st.defaultPrevented;
-      if (typeof g.onerror === 'function') {
-        try {
-          if (g.onerror(ev.message, ev.filename, ev.lineno, ev.colno, ev.error) === true) handled = true;
-        } catch (x) {
-          g.__frot_report_error(String(x));
-        }
-      }
-      if (!handled) g.__frot_report_error(ev.message != null ? String(ev.message) : '');
-      return !st.defaultPrevented;
+      var ok = dispatch(g, ev);
+      if (ok) g.__frot_report_error(ev.message != null ? String(ev.message) : '');
+      return ok;
     } finally {
       reporting = was;
     }
@@ -177,6 +169,7 @@
   function invoke(object, ev, st, phase, capturePass) {
     st.currentTarget = object;
     st.eventPhase = phase;
+    g.__frot_handler_discover(object, st.type);
     var list = listeners(object, st.type).slice();
     for (var i = 0; i < list.length && !st.stopNow; i++) {
       var l = list[i];
@@ -228,6 +221,24 @@
   // reporting, for loop.js's `reportError` and a page-dispatched window
   // `error`. Non-enumerable like every `__frot_*` helper, branded so their
   // source never shows.
+  // The registry itself, for handlers.js: an event handler is a listener
+  // entry it places (at the end, or first for a parsed attribute) and takes
+  // back, never one a page can name to removeEventListener.
+  var registry = {
+    add: function (target, type, callback, first) {
+      var e = { callback: callback, capture: false, once: false, passive: false, removed: false };
+      var list = listeners(target, type);
+      if (first) list.unshift(e);
+      else list.push(e);
+      return e;
+    },
+    remove: function (target, type, e) {
+      var list = listeners(target, type), i = list.indexOf(e);
+      if (i >= 0) list.splice(i, 1);
+      e.removed = true;
+    },
+  };
+  Object.defineProperty(g, '__frot_registry', { value: registry, configurable: true });
   [['__frot_dispatch', dispatch], ['__frot_report_exception', report], ['__frot_raise_error', raise]].forEach(function (p) {
     Object.defineProperty(g, p[0], { value: brand(p[1], p[0]), configurable: true, writable: true });
   });

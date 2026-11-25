@@ -45,14 +45,17 @@
   // are. One pass here instead of a definition order threaded through a dozen
   // files; `tests/fixtures/js/dom-interfaces.json` holds the measured lists a
   // test checks every prototype against.
+  // GlobalEventHandlers (handlers.js), whose `onerror` the binary lists last:
+  // after `dataset` on an element, after the other handlers on a document.
+  var ON = g.__frot_handler_names.replace(' onerror', '');
   var ORDER = {
     Element: 'getAttributeNames getAttribute getAttributeNS toggleAttribute setAttribute setAttributeNS ' +
       'removeAttribute removeAttributeNS hasAttribute hasAttributes closest matches getElementsByTagName ' +
       'getElementsByClassName getBoundingClientRect remove prepend append querySelector querySelectorAll ' +
       'localName tagName id className classList attributes clientWidth clientHeight innerHTML outerHTML ' +
       'children',
-    HTMLElement: 'focus blur style offsetTop offsetLeft offsetWidth offsetHeight dataset',
-    SVGElement: 'focus blur style dataset',
+    HTMLElement: 'focus blur style offsetTop offsetLeft offsetWidth offsetHeight ' + ON + ' dataset onerror',
+    SVGElement: 'focus blur style ' + ON + ' dataset onerror',
     CharacterData: 'remove data length',
     DocumentFragment: 'getElementById prepend append querySelector querySelectorAll children',
     Document: 'getElementsByTagName getElementsByClassName createElement createElementNS ' +
@@ -61,7 +64,7 @@
       'hasFocus getElementById prepend append querySelector querySelectorAll implementation ' +
       'compatMode doctype documentElement cookie ' +
       'readyState body head scripts defaultView onreadystatechange currentScript hidden ' +
-      'visibilityState activeElement children',
+      'visibilityState activeElement ' + ON + ' onerror children',
     HTMLLinkElement: 'disabled href rel relList type',
     HTMLLIElement: 'value type',
     HTMLParamElement: 'value type',

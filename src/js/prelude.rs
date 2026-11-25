@@ -90,6 +90,10 @@ pub const SOURCE: &str = concat!(
     "\n",
     include_str!("prelude/events.js"),
     "\n",
+    // handlers.js (bl-93c8): the on* handlers over that registry, before every
+    // module that gives an interface one through `__frot_onevent`.
+    include_str!("prelude/handlers.js"),
+    "\n",
     // doc.js (bl-6da7): the `document` object's members, split off elem2.js
     // on the seam that file already named.
     include_str!("prelude/doc.js"),

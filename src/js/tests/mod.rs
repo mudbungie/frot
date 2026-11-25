@@ -28,6 +28,7 @@ mod filereader;
 mod focus;
 mod fragment;
 mod frame;
+mod handlers;
 mod idle;
 mod image;
 mod imageload;

@@ -343,6 +343,33 @@ Consequences of the repo's hard rules:
   inside that reporting is counted bare, never re-reported. Declared
   residual: the `ErrorEvent`'s `filename`/`lineno`/`colno` are `''`/0 (the
   engine's errors carry no script URL).
+- **Event handlers are listeners in their place (`bl-93c8`, 2026-11-24).**
+  `handlers.js`, measured on Firefox 153.0esr (`src/js/tests/handlers/`).
+  The `on*` IDL attributes (GlobalEventHandlers on `HTMLElement`,
+  `SVGElement`, `Document` and the window's own properties; the
+  WindowEventHandlers on the window and, forwarding to it, on body/frameset)
+  are one maker — the same `__frot_onevent` every other interface's
+  `onmessage`/`onabort`/`onload` uses — over the one registry: a handler is a
+  listener entry placed when first set non-null and removed when set to null
+  or a primitive (an object is kept, and never called if not callable). The
+  content attribute is the same handler with source text for a value: set or
+  changed through `setAttribute` it takes (or keeps) its place; removed when
+  present it gives it up — except a body/frameset's forwarded one, which
+  Firefox leaves on the window. It compiles on first use into
+  `function on<type>(event) {\n<text>\n}` (`(event, source, lineno, colno,
+  error)` for the window's `onerror`) with the element, its form owner and
+  its document on the scope chain and the element (the window, for a
+  forwarded one) as `this`; a syntax error is reported and leaves `null`.
+  Returning `false` cancels — `true`, for `window.onerror` handed a reported
+  exception's five arguments. A **parsed** attribute (the document's, or
+  `innerHTML`'s) was set before any script could listen, so it is found on
+  first read or first dispatch of its type and takes the front of the list —
+  no scan of the document at start. Every manual `on<type>.call` the host
+  made (lifecycle, images, XHR, AbortSignal, `window.onerror` in the error
+  accounting) is gone: the dispatch runs them, in registration order (an
+  `onabort` set after a listener now runs after it, as measured). Only events
+  frot fires run a handler (§11): `<img onerror>` and `<body onload>` do;
+  `onclick` stays inert because nothing clicks.
 
 ## 4. What runs, and when
 
@@ -1102,7 +1129,10 @@ that, a page walking any of them read frot's implementation instead.
      `currentSrc` is the URL, `load` fires. Anything else — every network URL,
      a non-image or truncated `data:` URL, `src=""` — **fails**: size 0, `error`
      fires. Both events are trusted, do not bubble, and run listeners and then
-     the element's `onload`/`onerror` property. `decode()` settles with the
+     the element's `onload`/`onerror` property. *(2026-11-24, `bl-810b`/
+     `bl-93c8`: they take the one dispatch path — captured by document and,
+     for `error`, window — and the property, or an `onerror=` attribute, is a
+     listener in its registration place, §3.)* `decode()` settles with the
      request (`EncodingError` "Invalid image request." with no `src` or when a
      new `src` abandons it, "Invalid encoded image data." when it fails).
   3. The document's `load` waits for its images, as a browser's does: the host
