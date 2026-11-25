@@ -1,13 +1,13 @@
 use crate::css::{compute, Display, FlexDirection, Styles, Visibility};
 use crate::dom::Document;
 
-fn styles(html: &str) -> (Document, Styles) {
+pub(super) fn styles(html: &str) -> (Document, Styles) {
     let doc = Document::parse(html);
     let s = compute(&doc);
     (doc, s)
 }
 
-fn first_tag(doc: &Document, tag: &str) -> u32 {
+pub(super) fn first_tag(doc: &Document, tag: &str) -> u32 {
     *doc.find_by_tag(tag).first().expect("tag present")
 }
 
@@ -16,66 +16,6 @@ fn display_none_via_style_element() {
     let (doc, s) = styles("<style>p{display:none}</style><p>x</p><div>y</div>");
     assert!(s.display_none(first_tag(&doc, "p")));
     assert!(!s.display_none(first_tag(&doc, "div")));
-}
-
-#[test]
-fn hidden_attribute_is_ua_display_none_and_author_overridable() {
-    // HTML's UA sheet: `[hidden] { display: none }` (`bl-eeb4`). Its value is
-    // noise — `hidden` is a boolean attribute.
-    let (doc, s) = styles("<div hidden>x</div>");
-    assert!(s.display_none(first_tag(&doc, "div")));
-    let (doc, s) = styles("<div hidden='until-found'>x</div>");
-    assert!(s.display_none(first_tag(&doc, "div")));
-    // UA origin loses to any author or inline declaration.
-    let (doc, s) = styles("<style>div{display:block}</style><div hidden>x</div>");
-    assert!(!s.display_none(first_tag(&doc, "div")));
-    let (doc, s) = styles("<div hidden style='display:block'>x</div>");
-    assert!(!s.display_none(first_tag(&doc, "div")));
-}
-
-#[test]
-fn hidden_input_is_ua_display_none_and_not_author_overridable() {
-    // The other half of the UA "hidden elements" block, and the `!important`
-    // one (`bl-a189`): wordpress.org's six `type=hidden` inputs get no boxes in
-    // Chrome, whatever the page's CSS says.
-    let (doc, s) = styles("<input type=hidden>");
-    assert!(s.display_none(first_tag(&doc, "input")));
-    let (doc, s) = styles("<input type=HIDDEN>");
-    assert!(s.display_none(first_tag(&doc, "input")));
-    let (doc, s) = styles("<style>input{display:block}</style><input type=hidden>");
-    assert!(s.display_none(first_tag(&doc, "input")));
-    let (doc, s) = styles("<input type=hidden style='display:block'>");
-    assert!(s.display_none(first_tag(&doc, "input")));
-    // Every other input type still renders.
-    let (doc, s) = styles("<input type=text>");
-    assert!(!s.display_none(first_tag(&doc, "input")));
-}
-
-#[test]
-fn datalist_is_ua_display_none_and_author_overridable() {
-    // The one tag in the UA-implicit display map that computes `none`
-    // (`datalist { display: none }`, `bl-66ed`). Measured as a *declaration*
-    // rather than a structure: the author rule below makes Chrome paint the
-    // suggestions, list them in `innerText`, and stop ignoring them in AX.
-    let (doc, s) = styles("<datalist id=dl><option value=alpha>Alpha</option></datalist>");
-    assert!(s.display_none(first_tag(&doc, "datalist")));
-    // Its options are ordinary block boxes; only the parent's `none` hides them.
-    assert_eq!(s.display(first_tag(&doc, "option")), Display::Block);
-    let (doc, s) = styles("<style>datalist{display:block}</style><datalist id=dl>x</datalist>");
-    assert!(!s.display_none(first_tag(&doc, "datalist")));
-    let (doc, s) = styles("<datalist id=dl style='display:block'>x</datalist>");
-    assert!(!s.display_none(first_tag(&doc, "datalist")));
-}
-
-#[test]
-fn select_subtree_ua_display_matches_chrome() {
-    // `<option>`/`<optgroup>` compute `block`, `<select>` `inline-block` —
-    // which frot has no variant for, so it is the inline-level default
-    // (`layout.md` §2.4; `bl-66ed`).
-    let (doc, s) = styles("<select><optgroup label=G><option>a</option></optgroup></select>");
-    assert_eq!(s.display(first_tag(&doc, "option")), Display::Block);
-    assert_eq!(s.display(first_tag(&doc, "optgroup")), Display::Block);
-    assert_eq!(s.display(first_tag(&doc, "select")), Display::Inline);
 }
 
 #[test]

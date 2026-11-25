@@ -159,7 +159,8 @@ fn resolve(
             });
         }
     }
-    reduce(&applied, el, parent, js, doc.popover_open(id))
+    let hidden = el.hidden() && !super::lang::foreign(doc, id);
+    reduce(&applied, el, parent, js, doc.popover_open(id), hidden)
 }
 
 #[cfg(test)]
@@ -167,6 +168,9 @@ mod tests;
 
 #[cfg(test)]
 mod details_tests;
+
+#[cfg(test)]
+mod ua_tests;
 
 #[cfg(test)]
 mod media_tests;
