@@ -27,6 +27,7 @@ mod encoding;
 mod envgold;
 mod equal;
 mod evloop;
+mod evparse;
 mod facade;
 mod filereader;
 mod focus;

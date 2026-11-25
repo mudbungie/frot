@@ -4,12 +4,16 @@
 use super::{Report, Session};
 use crate::envelope::JsStop;
 
-/// The settle loop (§5): `DOMContentLoaded`, the image tasks `load` waits for
-/// (`prelude/imageload.js`), `load`, then the virtual-clock timers until none is
-/// due before the horizon. Each step is one host-driven macrotask (microtasks
-/// drain between, in the engine); a budget trip stops the loop, unsettled.
+/// The settle loop (§5): the end of parsing (`interactive`) and the timers
+/// already due by then (`bl-9f4c`), `DOMContentLoaded`, the image tasks `load`
+/// waits for (`prelude/imageload.js`), `load`, then the virtual-clock timers
+/// until none is due before the horizon. Each step is one host-driven macrotask
+/// (microtasks drain between, in the engine); a budget trip stops the loop,
+/// unsettled.
 pub(super) fn run(session: &Session, report: &mut Report) {
-    let _ = fire(session, "DOMContentLoaded", report)
+    let _ = fire(session, "interactive", report)
+        && drain(session, "__frot_next_timer(true)", report)
+        && fire(session, "DOMContentLoaded", report)
         && drain(session, "__frot_next_image()", report)
         && fire(session, "load", report)
         && drain(session, "__frot_next_timer()", report);

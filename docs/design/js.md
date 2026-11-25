@@ -500,6 +500,22 @@ during parse. So:
    from the event loop into the script queue. *(Superseded 2026-11-24,
    `bl-a86b`, decided by Mark: "yes" — the last sentence is reversed. A script
    inserted at any time runs, inside the unchanged §5 budgets; §4.7.)*
+   *(2026-11-24, `bl-9f4c`: the end of parsing is a turn of the loop. When
+   the parser's scripts are done, `readyState` becomes `'interactive'` (its
+   `readystatechange` fires), then every timer already due on the clock — a
+   0 ms timer, Firefox's un-nested one being due at once, always is — runs,
+   oldest due first, each followed by the inserted scripts it queued; then
+   `DOMContentLoaded`, the image tasks, `load` and the rest of §5. What those
+   timers set, and an interval's next turn, waits for `load`. Measured on
+   Firefox 153.0esr, three runs each, identical: a head script's `setTimeout(f,
+   0)` reads `'interactive'` and runs before `DOMContentLoaded`, a 5 ms one
+   after `load` (`js::tests::evparse`). It fits the instant-fetch model: the
+   turn is the loop's, not the network's. What it does not reach, declared: a
+   timer that Firefox runs *during* a blocking script's fetch (readyState
+   `'loading'`), since frot's fetch takes no time; and module/`defer` scripts,
+   which frot runs in source order among the classic ones where Firefox runs
+   them after the last classic script, at `'interactive'` (`bl-39a7`).)*
+
 5. **`document.write` throws** (counted). Post-parse `write` implies reopening
    the document — semantics frot will not fake. Ad-tech long-tail is a
    non-goal.

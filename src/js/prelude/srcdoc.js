@@ -29,6 +29,7 @@
     g.__frot_children(parsed).forEach(function (kid) {
       g.__frot_insert_child(id, kid, null);
     });
+    g.__frot_fire('interactive');
     g.__frot_fire('DOMContentLoaded');
     g.__frot_fire('load');
   }

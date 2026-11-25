@@ -123,12 +123,14 @@
   // --- Timer queue ----------------------------------------------------------
   // Dues are on the agent's clock; each timer runs with its own window as `this`.
   var timers = shared.timers;
+  // `at` is when the page asked for it to be due, before the 1 ms step (an
+  // un-nested 0 ms timer is due at once in Firefox): what `__frot_mark_due` reads.
   function schedule(cb, delay, args, interval) {
     if (typeof cb !== 'function') return 0;
-    delay = +delay;
-    delay = delay > 1 ? delay : 1;
+    var now = shared.observe(), asked = +delay > 0 ? +delay : 0;
     var id = shared.nextId++;
-    timers.push({ id: id, due: shared.observe() + delay, cb: cb, args: args, interval: interval, self: g });
+    timers.push({ id: id, due: now + Math.max(asked, 1), at: now + asked, cb: cb, args: args,
+      interval: interval, self: g });
     return id;
   }
   function clear(id) {
@@ -145,9 +147,7 @@
     return schedule(cb, delay, rest(arguments), 0);
   };
   g.setInterval = function (cb, delay) {
-    delay = +delay;
-    delay = delay > 1 ? delay : 1;
-    return schedule(cb, delay, rest(arguments), delay);
+    return schedule(cb, delay, rest(arguments), +delay > 1 ? +delay : 1);
   };
   g.clearTimeout = clear;
   g.clearInterval = clear;
@@ -199,7 +199,8 @@
   // clock to it; reschedule intervals (dropping any that step past the horizon).
   // Returns -1 when nothing is due (the loop is settled), else the callback's
   // error count (0 or 1) — a throw is counted and the loop continues (§5).
-  g.__frot_next_timer = function () {
+  // `early` (bl-9f4c) runs only the timers `__frot_mark_due` marked, each once.
+  g.__frot_next_timer = function (early) {
     if (perf.before) perf.before();
     var best = -1;
     // Earliest due first; at the same instant an ordinary timer beats an idle
@@ -208,9 +209,11 @@
       return a.due < b.due || (a.due === b.due && !a.idle && !!b.idle);
     }
     for (var i = 0; i < timers.length; i++)
-      if (timers[i].due <= HORIZON && (best < 0 || before(timers[i], timers[best]))) best = i;
+      if (timers[i].due <= HORIZON && (!early || timers[i].early)
+        && (best < 0 || before(timers[i], timers[best]))) best = i;
     if (best < 0) return -1;
     var t = timers[best];
+    t.early = false;
     // Jump the observable clock forward to at least the timer's due time — the
     // virtual offset (§5). Timers still fire immediately in host wall time; only
     // the *reading* jumps, so performance.now() >= the scheduled delay.
@@ -247,7 +250,7 @@
     return ev;
   }
   // readyState transition (js.md §4.4): the field advances loading ->
-  // 'interactive' (immediately before DOMContentLoaded) -> 'complete' (before
+  // 'interactive' (when the parser's scripts are done) -> 'complete' (before
   // load); each transition fires readystatechange at the document (it does not
   // bubble), so readyState-polling init and older loaders unblock.
   function setReadyState(state) {
@@ -258,9 +261,17 @@
   // Host lifecycle fire (§4.4 / §5), as HTML fires them: DOMContentLoaded at
   // the document, bubbling (so the window hears it on the way up); `load` at
   // the window with the document as its target (the legacy target override).
+  // `interactive` is the end of parsing (bl-9f4c): the readyState change, then
+  // every ordinary timer already due on the clock — or asked for 0 ms — is
+  // marked to run before DOMContentLoaded, as in Firefox (measured, js.md §5).
   g.__frot_fire = function (name) {
-    if (name === 'DOMContentLoaded') {
-      setReadyState('interactive');
+    if (name === 'interactive') {
+      setReadyState(name);
+      var now = shared.observe();
+      timers.forEach(function (t) {
+        t.early = !t.idle && t.at <= now;
+      });
+    } else if (name === 'DOMContentLoaded') {
       dispatch(g.document, trusted(name, { bubbles: true }));
       g.__frot_autofocus(); // after the handlers: they still see <body> (bl-4248)
     } else {

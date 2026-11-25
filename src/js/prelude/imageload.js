@@ -206,10 +206,12 @@
     settle(st, st.size ? null : invalid('Invalid encoded image data.'));
     return 0;
   });
-  // Image tasks are due now, so they run ahead of any timer.
+  // Image tasks are due now, so they run ahead of any timer — but not ahead of
+  // DOMContentLoaded: the timers due at the end of parsing (`early`) are not
+  // the image's turn.
   var nextTimer = g.__frot_next_timer;
-  seam('__frot_next_timer', function () {
-    return queue.length ? g.__frot_next_image() : nextTimer();
+  seam('__frot_next_timer', function (early) {
+    return queue.length && !early ? g.__frot_next_image() : nextTimer(early);
   });
 
   // What image.js publishes on HTMLImageElement.prototype, by node id.
