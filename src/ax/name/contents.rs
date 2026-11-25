@@ -124,38 +124,31 @@ pub fn referenced_name(doc: &Document, id: NodeId, styles: Option<&Styles>) -> S
 }
 
 /// `::before` + every child's contribution + `::after`. Generated content
-/// exists only under a cascade: the author's, else the UA's own for a `<q>`
-/// ([`native::quotes`]).
+/// exists only under a cascade: its strings, after any quote mark it
+/// inserts ([`native::quotes`]).
 fn children_text(w: &Walk, id: NodeId, visited: &mut Vec<NodeId>, out: &mut String) {
-    let ua = w.styles.and_then(|_| native::quotes(w.doc, id));
-    let (open, close) = ua.unwrap_or(("", ""));
     let inline = Display::Inline;
-    let (before, after) = w.styles.map_or((inline, inline), |s| {
-        (s.before_display(id), s.after_display(id))
-    });
-    generated(
-        out,
-        w.styles.and_then(|s| s.before(id)).unwrap_or(open),
-        before,
-    );
+    let [mut before, mut after] = [(String::new(), inline), (String::new(), inline)];
+    if let Some(s) = w.styles {
+        let (open, close) = native::quotes(w.doc, id, s);
+        before = (open + s.before(id).unwrap_or(""), s.before_display(id));
+        after = (close + s.after(id).unwrap_or(""), s.after_display(id));
+    }
+    generated(out, &before.0, before.1);
     for c in w.doc.ax_children(id) {
         node_text(w, c, visited, out);
     }
-    generated(
-        out,
-        w.styles.and_then(|s| s.after(id)).unwrap_or(close),
-        after,
-    );
+    generated(out, &after.0, after.1);
 }
 
 /// Generated text, spaced off like an element's when its box is not a plain
 /// inline one: `::after { content: "A"; display: block }` on "Bgen" is
 /// "Bgen A" (Chrome 158).
 fn generated(out: &mut String, text: &str, display: Display) {
-    if display.inline() {
-        out.push_str(text);
-    } else {
-        fence(out, text);
+    match display {
+        Display::None => {}
+        d if d.inline() => out.push_str(text),
+        _ => fence(out, text),
     }
 }
 

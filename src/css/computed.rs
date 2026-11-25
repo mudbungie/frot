@@ -73,6 +73,11 @@ pub fn reduce(
         pseudo_transform: [Pseudo::Before, Pseudo::After]
             .map(|p| transform.pseudo(ranked(applied, Some(p), "text-transform"))),
         paint: super::Paint::of(applied, el, &parent.paint),
+        quotes: super::Quotes::of(applied, &parent.quotes),
+        quoted: [Pseudo::Before, Pseudo::After].map(|p| {
+            let shown = display_winner(applied, Some(p), Display::Inline) != Some(Display::None);
+            super::quote::inserts(applied, p, el.name == "q", shown)
+        }),
         text: None,
     }
 }

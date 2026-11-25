@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quote marks in names</title>
+<style>
+.n1 q::before{content:none} .n2 q::after{content:none} .s q::before{content:"X"} .oq q::before{content:open-quote "Y"}
+.dn q::before{display:none} .qn q{quotes:none} .qc q{quotes:"<" ">" "[" "]"} .meyer q:before, .meyer q:after{content:'';content:none}
+.mn q::before{content:normal} .e q::before{content:""}
+</style></head><body>
+<h2 class="n1">a<q>t1</q>c</h2>
+<h2 class="n2">a<q>t2</q>c</h2>
+<h2 class="s">a<q>t3</q>c</h2>
+<h2 class="oq">a<q>t4</q>c</h2>
+<h2 class="dn">a<q>t5</q>c</h2>
+<h2 class="qn">a<q>t6</q>c</h2>
+<h2 class="qc">a<q>t7<q>in</q></q>c</h2>
+<h2 class="meyer">a<q>t8</q>c</h2>
+<h2 class="mn">a<q>t9</q>c</h2>
+<h2 class="e">a<q>t10</q>c</h2>
+<h2 lang="fr">a<q>fr</q>c</h2>
+<h2 lang="de">a<q>de</q>c</h2>
+<h2 lang="ja">a<q>ja</q>c</h2>
+<h2 lang="ru">a<q>ru</q>c</h2>
+<h2 lang="es">a<q>es</q>c</h2>
+<h2 lang="zh">a<q>zh</q>c</h2>
+<h2 lang="en-GB">a<q>gb</q>c</h2>
+<h2 lang="pl">a<q>pl</q>c</h2>
+<h2 lang="it">a<q>it</q>c</h2>
+<h2 lang="nl">a<q>nl</q>c</h2>
+<h2 lang="xx">a<q>xx</q>c</h2>
+<h2 lang="fr-CA">a<q>frca</q>c</h2>
+<h2 lang="de-CH">a<q>dech</q>c</h2>
+<h2 lang="pt-BR">a<q>ptbr</q>c</h2>
+<h2 lang="fr">a<q>o<q>i</q></q>c</h2>
+<h2>a<q>o<q>in<q>3</q></q>o</q>c</h2>
+<h2 lang="de">a<q>o<q>in<q>3</q></q>o</q>c</h2>
+<h2 lang="zh-Hant-TW">a<q>zht</q>c</h2>
+<h2 lang="zh-TW">a<q>ztw</q>c</h2>
+<h2 lang="HU">a<q>o<q>i</q></q>c</h2>
+<div hidden><q>hidden open</q></div>
+<h2>a<q>after hidden</q>c</h2>
+</body></html>

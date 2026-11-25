@@ -286,8 +286,9 @@ selector holding an unsupported piece at any depth (`p:is(:has(b))`) throws
 paragraph gave `p:is(:hover)` as the selector that throws.)
 
 **Properties.** `display`, `visibility` (inherited), `content` on
-`::before`/`::after`, `flex-direction`, `order` and `text-transform`
-(inherited). (**Amended 2026-11-22, `bl-e48d`:** `text-transform` was not in
+`::before`/`::after`, `flex-direction`, `order`, `text-transform`
+(inherited) and `quotes` (inherited; read only for the quote marks of an
+accessible name, `src/css/quote.rs`, 2026-11-24, `bl-73ee`). (**Amended 2026-11-22, `bl-e48d`:** `text-transform` was not in
 this list; Mark ruled that the case text is painted in is part of what `text`
 and `ax` claim, as it is of Chrome's `innerText` and accessible names.)
 (**Amended 2026-11-24, `bl-08c6`:** `position` and `float` were read and not

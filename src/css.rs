@@ -30,6 +30,7 @@ mod paint;
 mod parse;
 mod pseudo;
 mod query;
+mod quote;
 mod selector;
 mod selparse;
 mod shadow;
@@ -46,9 +47,10 @@ pub use control::{custom as custom_name, takes_placeholder};
 pub use display::Display;
 pub use focus::{focusable, focused_element};
 pub use import::imports;
-pub use lang::foreign;
+pub use lang::{foreign, language};
 pub use paint::Paint;
 pub use query::{matches_any, query_all, UnsupportedSelector};
+pub use quote::Quotes;
 pub use state::editable;
 pub use transform::{Case, TextTransform};
 
@@ -144,6 +146,11 @@ pub struct ComputedStyle {
     pub pseudo_transform: [TextTransform; 2],
     /// What the data-table test reads of a cell or row ([`Paint`]).
     pub paint: Paint,
+    /// Computed (inherited) `quotes` ([`Quotes`]).
+    pub quotes: Quotes,
+    /// Whether the `::before` and the `::after` box insert a quote mark
+    /// (`quote.rs`).
+    pub quoted: [bool; 2],
     /// A text node's characters as painted, when a transform changed them.
     pub text: Option<String>,
 }
@@ -229,6 +236,16 @@ impl Styles {
     /// Border sides, background and `empty-cells` of `id` ([`Paint`]).
     pub fn paint(&self, id: NodeId) -> &Paint {
         &self.get(id).paint
+    }
+
+    /// Computed `quotes` of `id`.
+    pub fn quotes(&self, id: NodeId) -> &Quotes {
+        &self.get(id).quotes
+    }
+
+    /// Whether `id`'s `::before` and `::after` insert a quote mark.
+    pub fn quoted(&self, id: NodeId) -> [bool; 2] {
+        self.get(id).quoted
     }
 
     /// Whether `id`'s box is out of flow ([`ComputedStyle::flow`]).

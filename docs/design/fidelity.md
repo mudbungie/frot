@@ -565,7 +565,10 @@ moves (`bl-bc6d`); and `display` — one line per `display` value in `text`, nam
 paragraphs and boxes (`bl-e3a0`, layout.md §2). And (2026-11-22) `tables` — the
 data-table signals Chrome reads and the `<th>` header axis (`bl-7f3a`). And
 (2026-11-24) `checkedjs` — checkedness, selectedness and `indeterminate` a
-script sets (`bl-ff74`).
+script sets (`bl-ff74`). And
+(2026-11-24) `quotes` — the quote marks a `<q>` gives a name: `quotes`,
+author `content`, the document-wide depth and the language's marks
+(`bl-73ee`, `src/css/quote.rs`).
 
 **What the first recording found.** 51 ledger rows over 10 pages × 5 channels.
 `links` and `forms`: zero deltas. `text`: zero deltas outside the two

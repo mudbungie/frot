@@ -92,16 +92,25 @@ fn a_frame_says_its_title_and_a_canvas_its_fallback() {
 }
 
 /// The UA's quote marks are generated content, so they exist under a cascade
-/// only, and an author `::before` replaces the opening one.
+/// only. Chrome 158 (`bl-73ee`): the inner pair repeats below the second
+/// level, an author `::before` replaces the opening mark, and a close mark
+/// with nothing open says nothing — unless an earlier `<q>` left one open.
 #[test]
 fn a_q_is_quoted_under_a_cascade() {
     assert_eq!(name("a<q>quote</q>c", true), "a\u{201c}quote\u{201d}c");
     let nested = "a<q>o<q>in<q>3</q></q>o</q>c";
-    let want = "a\u{201c}o\u{2018}in\u{201c}3\u{201d}\u{2019}o\u{201d}c";
+    let want = "a\u{201c}o\u{2018}in\u{2018}3\u{2019}\u{2019}o\u{201d}c";
     assert_eq!(name(nested, true), want);
     assert_eq!(name("a<q>quote</q>c", false), "aquotec");
     let authored = "<style>q::before{content:'<'}</style>a<q>x</q>c";
-    assert_eq!(name(authored, true), "a<x\u{201d}c");
+    assert_eq!(name(authored, true), "a<xc");
+    // A `<q>` left open earlier — its `::after` gone — deepens this one, and
+    // one with no box counts for nothing.
+    let open = "<style>.o::after{content:none}</style>\
+                <span hidden><q>h</q></span><q class=o>o</q>a<q>x</q>c";
+    assert_eq!(name(open, true), "\u{201c}oa\u{2018}x\u{2019}c");
+    let quoted = "<style>q::before{content:open-quote '+'}</style><q lang=fr>x</q>";
+    assert_eq!(name(quoted, true), "\u{ab}+x\u{bb}");
 }
 
 /// `bl-346e`, Chrome 158: a box out of flow is blockified, so it is spaced

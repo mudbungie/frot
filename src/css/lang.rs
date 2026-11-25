@@ -26,10 +26,15 @@
 use super::selector::ancestors;
 use crate::dom::{Document, Element, NodeId, NodeKind, WalkEvent};
 
+/// The element's language, as written ([module docs](self)).
+pub fn language(doc: &Document, id: NodeId) -> Option<String> {
+    let own = chain(doc, id).find_map(|(_, e)| e.attr("lang"));
+    own.map(str::to_owned).or_else(|| default(doc))
+}
+
 /// `:lang(range)`, `range` lower-cased.
 pub(super) fn lang(doc: &Document, id: NodeId, range: &str) -> bool {
-    let own = chain(doc, id).find_map(|(_, e)| e.attr("lang"));
-    let Some(tag) = own.map(str::to_owned).or_else(|| default(doc)) else {
+    let Some(tag) = language(doc, id) else {
         return false;
     };
     let tag = tag.to_ascii_lowercase();

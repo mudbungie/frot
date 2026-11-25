@@ -6,6 +6,7 @@
 //! per element. `<optgroup>`/`<option>` answer through [`super::super::label_attr`],
 //! the single home of what an option says (`bl-4093`).
 
+use crate::css::Styles;
 use crate::dom::{Document, Element, NodeId, NodeKind, WalkEvent};
 use crate::tags;
 
@@ -118,21 +119,47 @@ pub fn atomic(doc: &Document, id: NodeId, el: &Element) -> bool {
     }
 }
 
-/// The quote marks a `<q>` generates around its contents — the UA sheet's
-/// `q::before { content: open-quote }` — which Chrome reads into a name
-/// (`a<q>quote</q>c` is "a“quote”c", `bl-3fc9`). Double at the outer level and
-/// single inside another `<q>`; these are the English marks, whatever `lang`
-/// says.
-pub fn quotes(doc: &Document, id: NodeId) -> Option<(&'static str, &'static str)> {
-    let is_q = |n: NodeId| matches!(&doc.node(n).kind, NodeKind::Element(e) if e.name == "q");
-    let depth = std::iter::successors(Some(id), |&n| doc.node(n).parent)
-        .filter(|&n| is_q(n))
-        .count();
-    match (is_q(id), depth % 2) {
-        (false, _) => None,
-        (true, 1) => Some(("\u{201c}", "\u{201d}")),
-        (true, _) => Some(("\u{2018}", "\u{2019}")),
+/// The quote marks an element's `::before` and `::after` insert — a `<q>`'s
+/// by the UA sheet — which Chrome reads into a name (`a<q>quote</q>c` is
+/// "a“quote”c", `bl-3fc9`). The depth is the document's, counted in tree
+/// order over every rendered box that opens or closes a quote: an open mark
+/// takes the pair at the depth and deepens it, a close mark returns a level
+/// and takes that pair's close — none at depth zero — so an earlier `<q>`
+/// left open deepens a later one (Chrome 158, `css/quote.rs`, `bl-73ee`).
+pub fn quotes(doc: &Document, id: NodeId, styles: &Styles) -> (String, String) {
+    let (mut depth, mut open, mut close) = (0usize, String::new(), String::new());
+    if styles.quoted(id) == [false; 2] {
+        return (open, close);
     }
+    let mut skipped: Option<NodeId> = None;
+    let pair = |n: NodeId, d: usize| {
+        let lang = crate::css::language(doc, n);
+        styles.quotes(n).pair(d, lang.as_deref())
+    };
+    doc.walk(None, &mut |ev, entry| {
+        if !matches!(entry.kind, NodeKind::Element(_)) {
+            return;
+        }
+        match ev {
+            WalkEvent::Exit(n) if skipped == Some(n) => skipped = None,
+            _ if skipped.is_some() => {}
+            WalkEvent::Enter(n) if styles.display_none(n) => skipped = Some(n),
+            WalkEvent::Enter(n) if styles.quoted(n)[0] => {
+                if n == id {
+                    open = pair(n, depth).0;
+                }
+                depth += 1;
+            }
+            WalkEvent::Exit(n) if styles.quoted(n)[1] && depth > 0 => {
+                depth -= 1;
+                if n == id {
+                    close = pair(n, depth).1;
+                }
+            }
+            _ => {}
+        }
+    });
+    (open, close)
 }
 
 /// The replaced-element and embedded-control alternatives. `alt=""` is an
