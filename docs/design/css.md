@@ -195,7 +195,11 @@ Chrome 158 and is held in `tests/fixtures/fidelity/state.html` and
 Everything else here reads the tree's attributes. An
 `autofocus` element hidden only by a stylesheet still counts as focused, and
 a script running mid-parse already sees the autofocus element
-(`bl-4248`); a modal dialog does not make the page inert (`bl-2dcd`).
+(`bl-4248`). (**Superseded 2026-11-24, `bl-2dcd`:** this sentence ended "a
+modal dialog does not make the page inert". It does now — nothing outside
+the topmost modal dialog takes focus or has an accessibility node — and
+showing a popover light-dismisses the others, as `src/dom/live/top.rs`
+states.)
 (**Superseded 2026-11-24, `bl-ff74`:** this paragraph said
 `input.checked = true` and `option.selected = true` wrote the attribute.)
 (**Superseded 2026-11-22, `bl-bc6d`:** this paragraph said `el.focus()` and

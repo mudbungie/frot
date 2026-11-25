@@ -9,6 +9,9 @@
 //! and `<noscript>` ([`tags::is_source`]) are skipped entirely, as are subtrees excluded by
 //! `aria-hidden`/`inert` ([`crate::ax::hidden`]).
 //!
+//! While a modal dialog is open, only what is inside the topmost one has
+//! nodes: the rest of the page is inert (`dom/live/top.rs`, `bl-2dcd`).
+//!
 //! A `<p>` whose box holds no line — empty, or with a block-level child —
 //! contributes no node either, and nor does such a table `<caption>`
 //! ([`lineless`]).
@@ -82,6 +85,17 @@ fn build(doc: &Document, id: NodeId, styles: Option<&Styles>, in_layout_table: b
     }
     if styles.is_some_and(|s| s.display_none(id)) {
         return Vec::new();
+    }
+    // Behind a modal dialog the page is inert (`bl-2dcd`): no node, except
+    // that the dialog's own ancestors pass their children through.
+    if let Some(m) = doc.top_modal().filter(|&m| !doc.inside(id, m)) {
+        if !doc.inside(m, id) {
+            return Vec::new();
+        }
+        let below = doc.ax_children(id);
+        return below
+            .flat_map(|c| build(doc, c, styles, in_layout_table))
+            .collect();
     }
     // A `<table>` re-classifies the nearest-table context (nesting resets, so a
     // data table inside a layout table keeps its structure); other elements

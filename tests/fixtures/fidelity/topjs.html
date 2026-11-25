@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The top layer a script builds</title>
+</head>
+<body>
+<p>outside text <a href="x.html">outside link</a> <input id="out" aria-label="outside input"></p>
+<div popover id="a1">auto one</div>
+<div popover id="a2">auto two <div popover id="a3">nested auto</div></div>
+<div popover="manual" id="m1">manual one</div>
+<div popover="hint" id="h1">hint one <div popover id="a4">auto in hint</div></div>
+<div popover="hint" id="h2">hint two</div>
+<div popover="bogus" id="b1">bogus</div>
+<div popover="AUTO" id="a5">upper auto</div>
+<main><dialog id="d"><button id="db">in dialog</button></dialog></main>
+<p id="log"></p>
+<script>
+var $ = function (i) { return document.getElementById(i); };
+var open = function (i) { return i + ' ' + $(i).matches(':popover-open'); };
+var L = [];
+$('m1').showPopover();
+$('a1').showPopover();
+$('a2').showPopover();
+$('a3').showPopover();
+L.push(open('a1'), open('a2'), open('a3'));
+$('h1').showPopover();
+L.push(open('a3'));
+$('h2').showPopover();
+L.push(open('h1'), open('h2'));
+$('a1').showPopover();
+L.push(open('h2'), open('a2'));
+$('h1').showPopover();
+$('a4').showPopover();
+L.push(open('h1'), open('a1'));
+$('b1').showPopover();
+$('a5').showPopover();
+L.push(open('b1'), open('a4'), open('h1'));
+$('a1').showPopover();
+$('d').showModal();
+L.push(open('a1'), open('m1'), open('b1'));
+$('out').focus();
+L.push('active ' + document.activeElement.id);
+$('log').textContent = L.join(', ');
+</script>
+</body>
+</html>

@@ -43,8 +43,10 @@ pub(super) fn install<'js>(
     bind!(ctx, g, "__frot_popover", {
         let d = doc.clone();
         move |id: u32, open: Opt<Option<bool>>| {
-            if let Some(open) = open.0.flatten() {
-                d.borrow_mut().set_popover(id, open);
+            match open.0.flatten() {
+                Some(true) => d.borrow_mut().show_popover(id),
+                Some(false) => d.borrow_mut().set_popover(id, false),
+                None => {}
             }
             d.borrow().popover_open(id)
         }
@@ -71,7 +73,10 @@ pub(super) fn install<'js>(
     });
     bind!(ctx, g, "__frot_modal", {
         let d = doc.clone();
-        move |id: u32, modal: bool| d.borrow_mut().set_modal(id, modal)
+        move |id: u32, modal: bool| match modal {
+            true => d.borrow_mut().show_modal(id),
+            false => d.borrow_mut().set_modal(id, false),
+        }
     });
     Ok(())
 }

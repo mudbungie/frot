@@ -81,8 +81,10 @@
   // Opening runs the dialog focusing steps, measured in Chrome 158: the first
   // `autofocus` descendant that can take focus, else the first descendant
   // that can, else the dialog itself.
-  function focusDialog(dialog) {
-    slots(dialog).returnFocus = g.__frot_focused();
+  // `back` is where focus was before: read before a modal makes the page
+  // behind it inert (bl-2dcd), which takes focus from it.
+  function focusDialog(dialog, back) {
+    slots(dialog).returnFocus = back;
     var inside = Array.prototype.slice.call(dialog.querySelectorAll('*'));
     var auto = inside.filter(function (el) {
       return el.hasAttribute('autofocus');
@@ -96,13 +98,14 @@
     show: function show() {
       if (this.hasAttribute('open')) return;
       this.setAttribute('open', '');
-      focusDialog(this);
+      focusDialog(this, g.__frot_focused());
     },
     showModal: function showModal() {
       if (this.hasAttribute('open')) return;
+      var back = g.__frot_focused();
       this.setAttribute('open', '');
       g.__frot_modal(id(this), true);
-      focusDialog(this);
+      focusDialog(this, back);
     },
     close: function close(value) {
       if (!this.hasAttribute('open')) return;

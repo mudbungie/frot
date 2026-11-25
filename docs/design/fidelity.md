@@ -568,7 +568,9 @@ data-table signals Chrome reads and the `<th>` header axis (`bl-7f3a`). And
 script sets (`bl-ff74`). And
 (2026-11-24) `quotes` — the quote marks a `<q>` gives a name: `quotes`,
 author `content`, the document-wide depth and the language's marks
-(`bl-73ee`, `src/css/quote.rs`).
+(`bl-73ee`, `src/css/quote.rs`). And
+(2026-11-24) `topjs` — popover light dismiss and the inert page behind a
+modal dialog (`bl-2dcd`).
 
 **What the first recording found.** 51 ledger rows over 10 pages × 5 channels.
 `links` and `forms`: zero deltas. `text`: zero deltas outside the two

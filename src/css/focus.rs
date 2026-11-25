@@ -93,7 +93,9 @@ pub fn focusable(doc: &Document, id: NodeId, el: &Element) -> bool {
         .and_then(|t| t.trim().parse::<i32>().ok());
     let focusable = kind || tabindex.is_some() || editing(el) == Some(true);
     let mut chain = std::iter::once((id, el)).chain(ancestors(doc, id));
-    focusable && !chain.any(|(n, e)| has(e, "hidden") || has(e, "inert") || doc.concealed(n))
+    let inert =
+        |(n, e): (NodeId, &Element)| has(e, "hidden") || has(e, "inert") || doc.concealed(n);
+    focusable && !doc.blocked(id) && !chain.any(inert)
 }
 
 /// Whether `id` is in the document: its parent chain ends on the document

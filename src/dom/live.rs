@@ -168,5 +168,10 @@ fn toggle(list: &mut Vec<NodeId>, id: NodeId, on: bool) {
     }
 }
 
+mod top;
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod top_tests;

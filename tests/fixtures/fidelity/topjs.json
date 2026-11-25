@@ -1,0 +1,67 @@
+{
+ "stamp": {
+  "chrome": "158.0.8127.88",
+  "flags": [
+    "--headless=new",
+    "--hide-scrollbars",
+    "--disable-gpu",
+    "--disable-extensions",
+    "--disable-background-networking",
+    "--no-first-run",
+    "--no-default-browser-check"
+  ],
+  "viewport": [
+    1280,
+    720
+  ],
+  "virtual_time_ms": 10000,
+  "date": "2026-11-24",
+  "base": "http://fidelity.invalid/corpus/",
+  "recipe": [
+    "--css",
+    "--js"
+  ],
+  "bytes": {
+    "topjs.html": "4d0c947ac0af155fe330d0eef8f431627ee22b842fd83bebea8aadcfd96ffa1f"
+  }
+},
+ "text": "outside text outside link \n\nmanual one\nbogus\nin dialog\n\na1 false, a2 true, a3 true, a3 true, h1 false, h2 true, h2 false, a2 false, h1 true, a1 false, b1 true, a4 false, h1 false, a1 false, m1 true, b1 true, active db",
+ "links": [
+  {"tag":"a","href":"http://fidelity.invalid/corpus/x.html","text":"outside link"}
+ ],
+ "forms": [],
+ "boxes": [
+  {"tag":"html","rects":1},
+  {"tag":"head","rects":0},
+  {"tag":"meta","rects":0},
+  {"tag":"title","rects":0},
+  {"tag":"body","rects":1},
+  {"tag":"p","rects":1},
+  {"tag":"a","rects":1},
+  {"tag":"input","rects":1},
+  {"tag":"div","rects":0},
+  {"tag":"div","rects":0},
+  {"tag":"div","rects":0},
+  {"tag":"div","rects":1},
+  {"tag":"div","rects":0},
+  {"tag":"div","rects":0},
+  {"tag":"div","rects":0},
+  {"tag":"div","rects":1},
+  {"tag":"div","rects":0},
+  {"tag":"main","rects":1},
+  {"tag":"dialog","rects":1},
+  {"tag":"button","rects":1},
+  {"tag":"p","rects":1},
+  {"tag":"script","rects":0}
+ ],
+ "ax": [
+  {"nodeId":"4","ignored":false,"role":{"type":"internalRole","value":"RootWebArea"},"chromeRole":{"type":"internalRole","value":144},"name":{"type":"computedString","value":"The top layer a script builds","sources":[{"type":"relatedElement","attribute":"aria-labelledby"},{"type":"attribute","attribute":"aria-label"},{"type":"attribute","attribute":"aria-label","superseded":true},{"type":"relatedElement","value":{"type":"computedString","value":"The top layer a script builds"},"nativeSource":"title"}]},"properties":[{"name":"focusable","value":{"type":"booleanOrUndefined","value":true}},{"name":"focused","value":{"type":"booleanOrUndefined","value":true}},{"name":"url","value":{"type":"string","value":"http://fidelity.invalid/corpus/topjs.html"}}],"childIds":["16"],"backendDOMNodeId":4},
+  {"nodeId":"16","ignored":true,"ignoredReasons":[{"name":"activeModalDialog","value":{"type":"idref","relatedNodes":[{"backendDOMNodeId":13,"idref":"d"}]}}],"role":{"type":"role","value":"none"},"chromeRole":{"type":"internalRole","value":0},"parentId":"4","childIds":["22","13"],"backendDOMNodeId":16},
+  {"nodeId":"22","ignored":true,"ignoredReasons":[{"name":"activeModalDialog","value":{"type":"idref","relatedNodes":[{"backendDOMNodeId":13,"idref":"d"}]}}],"role":{"type":"role","value":"none"},"chromeRole":{"type":"internalRole","value":0},"parentId":"16","childIds":[],"backendDOMNodeId":22},
+  {"nodeId":"13","ignored":false,"role":{"type":"role","value":"dialog"},"chromeRole":{"type":"internalRole","value":35},"name":{"type":"computedString","value":"","sources":[{"type":"relatedElement","attribute":"aria-labelledby"},{"type":"attribute","attribute":"aria-label"},{"type":"attribute","attribute":"title"}]},"properties":[{"name":"focusable","value":{"type":"booleanOrUndefined","value":true}},{"name":"modal","value":{"type":"boolean","value":true}}],"parentId":"16","childIds":["14"],"backendDOMNodeId":13},
+  {"nodeId":"14","ignored":false,"role":{"type":"role","value":"button"},"chromeRole":{"type":"internalRole","value":9},"name":{"type":"computedString","value":"in dialog","sources":[{"type":"relatedElement","attribute":"aria-labelledby"},{"type":"attribute","attribute":"aria-label"},{"type":"relatedElement","nativeSource":"label"},{"type":"contents","value":{"type":"computedString","value":"in dialog"}},{"type":"attribute","attribute":"title","superseded":true}]},"properties":[{"name":"invalid","value":{"type":"token","value":"false"}},{"name":"focusable","value":{"type":"booleanOrUndefined","value":true}},{"name":"focused","value":{"type":"booleanOrUndefined","value":true}}],"parentId":"13","childIds":["33"],"backendDOMNodeId":14},
+  {"nodeId":"33","ignored":false,"role":{"type":"internalRole","value":"StaticText"},"chromeRole":{"type":"internalRole","value":158},"name":{"type":"computedString","value":"in dialog","sources":[{"type":"contents","value":{"type":"computedString","value":"in dialog"}}]},"properties":[],"parentId":"14","childIds":["-1000000003"],"backendDOMNodeId":33},
+  {"nodeId":"-1000000003","ignored":false,"role":{"type":"internalRole","value":"InlineTextBox"},"chromeRole":{"type":"internalRole","value":101},"name":{"type":"computedString","value":"in dialog"},"properties":[],"parentId":"33","childIds":[]}
+ ],
+ "ua_shadow": [40,22]
+}
