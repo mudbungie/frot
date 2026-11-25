@@ -126,7 +126,7 @@ fn chain(doc: &Document, id: NodeId) -> impl Iterator<Item = (NodeId, &Element)>
 
 /// Whether the element at `id` is an SVG or MathML element: an `<svg>` or a
 /// `<math>`, or inside one with no `<foreignObject>` between.
-pub(super) fn foreign(doc: &Document, id: NodeId) -> bool {
+pub fn foreign(doc: &Document, id: NodeId) -> bool {
     for (n, e) in chain(doc, id) {
         match e.name.as_str() {
             "svg" | "math" => return true,

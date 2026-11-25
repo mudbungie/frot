@@ -17,7 +17,8 @@
 //! - an element with a role of its own keeps it (`<em autofocus>` is
 //!   `emphasis`), and so do the elements Blink makes `generic` on purpose —
 //!   an unnamed `<section>`, an `<a>` without `href`, a `<summary>` outside
-//!   `<details>`, `<slot>`, SVG's `<g>`.
+//!   `<details>`, SVG's `<g>` (a `<slot>` is no box, `display:contents`,
+//!   until a stylesheet gives it one — then it is a group, `bl-4bc5`).
 //!
 //! `popover` does it too, and with no condition on the box (`bl-cf7b`,
 //! Chrome 158): a shown `<div popover>`, an empty `<span popover>` and one
@@ -36,13 +37,47 @@ use crate::ax::tree::lineless;
 use crate::css::{Display, Styles};
 use crate::dom::{Document, Element, NodeId};
 
-/// The elements measured to take the rule: those with no role and no
-/// handling of their own in Blink. A custom element — any name with a `-`
-/// (`<x-el>`) — takes it too (`bl-824c`).
-const PLAIN: &[&str] = &[
-    "acronym", "b", "bdi", "bdo", "big", "blink", "center", "cite", "data", "div", "font", "i",
-    "kbd", "listing", "nobr", "picture", "pre", "q", "samp", "small", "span", "strike", "tt", "u",
-    "var", "xmp",
+/// The HTML elements with no role that still do not take the rule: Blink
+/// handles each its own way (`LabelText`, `Abbr`, `Canvas`, `Video`, a
+/// plugin, a frame, a ruby part, an inert template, …). Measured in Chrome
+/// 158 with `autofocus` and `display:block` on each (`bl-4bc5`). Every other
+/// HTML element that reaches the rule takes it — a `<div>`, a `<b>`, an
+/// obsolete `<center>`, `<marquee>`, `<keygen>` or `<applet>`, a `<source>`,
+/// `<track>`, `<param>` or `<slot>` given a box, a custom element, and an
+/// element HTML does not know (`<unknownel>`, Blink's `HTMLUnknownElement`).
+/// An SVG or MathML element never does ([`crate::css::foreign`]).
+const UNMARKED: &[&str] = &[
+    "abbr",
+    "audio",
+    "base",
+    "br",
+    "canvas",
+    "col",
+    "colgroup",
+    "embed",
+    "fencedframe",
+    "frame",
+    "frameset",
+    "head",
+    "html",
+    "iframe",
+    "label",
+    "legend",
+    "link",
+    "map",
+    "meta",
+    "noembed",
+    "noscript",
+    "object",
+    "rp",
+    "rt",
+    "ruby",
+    "script",
+    "style",
+    "template",
+    "title",
+    "video",
+    "wbr",
 ];
 
 /// `Some("group")` when `el` is a plain container the rule applies to, and
@@ -60,7 +95,7 @@ pub fn group(
     styles: Option<&Styles>,
 ) -> Option<&'static str> {
     let has = |name: &str| el.attr(name).is_some();
-    if !PLAIN.contains(&el.name.as_str()) && !el.name.contains('-') {
+    if UNMARKED.contains(&el.name.as_str()) || crate::css::foreign(doc, id) {
         return None;
     }
     let display = Display::of(styles, id, &el.name);

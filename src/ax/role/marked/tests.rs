@@ -175,6 +175,35 @@ fn popover_makes_a_plain_container_a_group() {
     }
 }
 
+/// An element HTML does not know takes the rule; one Blink handles its own
+/// way, and an SVG or MathML element, does not (`bl-4bc5`).
+#[test]
+fn unknown_elements_take_the_rule() {
+    for (html, want) in [
+        (
+            "<unknownel autofocus style='display:block'>x</unknownel>",
+            "group",
+        ),
+        (
+            "<applet autofocus style='display:block'>x</applet>",
+            "group",
+        ),
+        (
+            "<menuitem autofocus style='display:block'>x</menuitem>",
+            "group",
+        ),
+        ("<p>a <img2 autofocus>x</img2></p>", "paragraph"),
+        ("<label autofocus style='display:block'>x</label>", ""),
+        ("<abbr autofocus style='display:block'>x</abbr>", ""),
+        (
+            "<svg><foo autofocus style='display:block'>x</foo></svg>",
+            "img",
+        ),
+    ] {
+        assert_eq!(outline(html), want, "{html}");
+    }
+}
+
 /// An `inline list-item` box is a list item too, inline everywhere else
 /// (`bl-90c1`, Chrome 158).
 #[test]

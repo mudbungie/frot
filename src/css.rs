@@ -46,6 +46,7 @@ pub use control::{custom as custom_name, takes_placeholder};
 pub use display::Display;
 pub use focus::{focusable, focused_element};
 pub use import::imports;
+pub use lang::foreign;
 pub use paint::Paint;
 pub use query::{matches_any, query_all, UnsupportedSelector};
 pub use state::editable;
