@@ -50,6 +50,7 @@ mod reflect;
 mod scriptmode;
 mod shadow;
 mod srcdoc;
+mod streams;
 mod subtle;
 mod template;
 mod title;

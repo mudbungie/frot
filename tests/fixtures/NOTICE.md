@@ -90,6 +90,8 @@ App code: **MIT** — © 2025 Innei
 | `js/env-contract.html`, `js/persona-navigator.html`, `js/script-mode.html` | Hand-authored here | frot's own `MIT OR Apache-2.0` |
 | `js/dom-move.html` | Hand-authored here — a minimized DOM-move reproduction; it models the *pattern* a live page hit, and reproduces none of its markup (`VERSIONS.md`) | frot's own `MIT OR Apache-2.0` |
 | `js/dom-interfaces.json` | **DERIVED** — a measurement recorded by this project: the DOM interface names, member names and descriptor shapes a Firefox 153.0esr binary reports for its own objects (`docs/design/identity.md` §3.21). Names and facts only; no Mozilla source text | frot's own `MIT OR Apache-2.0` |
+| `js/streams-probe.js` | Hand-authored here — the calls whose Firefox answers `streams-firefox153.json` records (`docs/design/js.md` §16) | frot's own `MIT OR Apache-2.0` |
+| `js/streams-firefox153.json` | **DERIVED** — a measurement recorded by this project: what Firefox 153.0esr answers to each call in `streams-probe.js` (`docs/design/js.md` §16). Values and messages only; no Mozilla source text | frot's own `MIT OR Apache-2.0` |
 | `needs/*.html` | Hand-authored here (`needs/README.md`) | frot's own `MIT OR Apache-2.0` |
 | `fidelity/*.html`, `fidelity/*.css`, `fidelity/*.js` | Hand-authored here, one page per defect class (a `.js` is a script a page loads) (`docs/design/fidelity.md` §4) | frot's own `MIT OR Apache-2.0` |
 | `fidelity/*.json` | **DERIVED** — recorded from the pages above by `scripts/fidelity-record`; the stamp in each names the Chrome version and date | frot's own `MIT OR Apache-2.0` |

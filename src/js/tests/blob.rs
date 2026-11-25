@@ -34,10 +34,10 @@ fn settle(s: &Session, expr: &str) -> String {
 #[test]
 fn blob_is_firefox_shaped() {
     let s = page();
-    // `stream` is the one member of the binary's prototype frot does not have.
+    // Every member of the binary's prototype, `stream` (bl-96f7) included.
     assert_eq!(
         caught(&s, "Object.getOwnPropertyNames(Blob.prototype)"),
-        "slice,text,arrayBuffer,bytes,size,type,constructor"
+        "slice,stream,text,arrayBuffer,bytes,size,type,constructor"
     );
     assert_eq!(
         caught(

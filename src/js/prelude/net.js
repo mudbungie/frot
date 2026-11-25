@@ -23,6 +23,9 @@
   // formdata.js's serializer, taken off the global: a page never sees it.
   var multipart = g.__frot_multipart;
   delete g.__frot_multipart;
+  // response.js's maker for a fetched Response, taken off the global here.
+  var make = g.__frot_respond;
+  delete g.__frot_respond;
 
   // A Request-like input exposes `.url`; anything else is stringified.
   function absolute(input) {
@@ -67,65 +70,6 @@
     return null;
   }
 
-  // --- Headers: the case-insensitive read subset the shim answers -------------
-  // Measured order: append, delete, get, getSetCookie, has, set, entries, keys,
-  // values, forEach. frot answers `get` and `has`; the rest are absent rather
-  // than faked, so feature detection sees what frot can actually do.
-  var Headers = iface('Headers', null, function (inst, args) {
-    var m = Object.create(null);
-    var pairs = args[0] || [];
-    for (var i = 0; i < pairs.length; i++)
-      m[String(pairs[i][0]).toLowerCase()] = pairs[i][1];
-    slots(inst).m = m;
-  });
-  ops(Headers.prototype, {
-    get: function get(n) {
-      var m = slots(this).m;
-      n = String(n).toLowerCase();
-      return n in m ? m[n] : null;
-    },
-    has: function has(n) {
-      return String(n).toLowerCase() in slots(this).m;
-    },
-  });
-
-  // --- Response: the read subset over a frozen body ---------------------------
-  // Measured order: clone, arrayBuffer, blob, bytes, formData, json, text, then
-  // type, url, redirected, status, ok, statusText, headers, body, bodyUsed.
-  // `new Response(body)` is 200 / ok / statusText '' — measured on the binary,
-  // where a fresh Response reports status 200 and type 'default'.
-  var Response = iface('Response', null, function (inst, args) {
-    var r = args[0];
-    var st = slots(inst);
-    var given = r !== null && typeof r === 'object' && 'status' in r;
-    st.ok = given ? !!r.ok : true;
-    st.status = given ? r.status : 200;
-    st.statusText = '';
-    st.url = given ? r.url : '';
-    st.headers = new Headers(given ? r.headers : []);
-    st.bodyUsed = false;
-    st.body = given ? r.body : (r === undefined ? null : String(r));
-  });
-  ops(Response.prototype, {
-    clone: function clone() {
-      return new Response({
-        ok: this.ok, status: this.status, url: this.url, body: slots(this).body,
-        headers: [],
-      });
-    },
-    json: function json() {
-      var body = slots(this).body;
-      // A parse error rejects the promise (executor throw), as the spec requires.
-      return new Promise(function (resolve) {
-        resolve(JSON.parse(body));
-      });
-    },
-    text: function text() {
-      return Promise.resolve(slots(this).body);
-    },
-  });
-  attrs(Response.prototype, ['url', 'status', 'ok', 'statusText', 'headers', 'bodyUsed']);
-
   // A Request owns nothing either; measured prototype puts `method` and `url`
   // among the attributes, method first.
   var Request = iface('Request', null, function (inst, args) {
@@ -141,7 +85,7 @@
       return Promise.reject(new TypeError('frot: only GET and POST requests are supported'));
     var r = dispatch(m, absolute(input), init && init.body, contentType(init && init.headers));
     if (r.error) return Promise.reject(new TypeError(r.error));
-    return Promise.resolve(new Response(r));
+    return Promise.resolve(make(r));
   };
 
   // --- XMLHttpRequest: a synchronous GET subset (§6: the loop is single-

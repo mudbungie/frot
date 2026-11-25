@@ -5,7 +5,7 @@
 // error message were READ off Firefox 153.0esr (identity.md §3.20).
 //
 // Declared short of Firefox (identity.md §11):
-// - no `stream()` — frot has no ReadableStream;
+// - `stream()` is streamxform.js's (bl-96f7), added once streams exist;
 // - a blob: URL is minted but nothing can LOAD it: `fetch`/XHR of one fails as
 //   a network error, and `new Worker(blobURL)` — the usual reason to make one —
 //   constructs and never runs, the standing Worker residual (worker.js);

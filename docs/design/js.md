@@ -2315,3 +2315,85 @@ in `prelude/event.js` (its second half), under the one dispatch path (events.js,
 
 Not built: `relatedTarget` retargeting (frot raises no pointer or focus
 events, §11) and the touch target list.
+
+## 16. Streams (`bl-96f7`, 2026-11-24)
+
+Cloudflare's managed challenge on medium.com and npmjs.com reads
+`ReadableStream.prototype` from a timer and, finding nothing, throws and never
+answers (challenge.md §11.7). Under the standing ruling (identity.md §10:
+match what the server requires, a real implementation, not a costume) frot
+builds the WHATWG Streams standard as its abstract operations say.
+
+### 16.1 What Firefox 153.0esr has (measured)
+
+Read on the identity.md §3.19 rig, as page scripts in the page's own realm:
+`ReadableStream` (with `from`, `values` and `[Symbol.asyncIterator]` the same
+function), `ReadableStreamDefaultReader`, `ReadableStreamDefaultController`,
+`ReadableByteStreamController`, `ReadableStreamBYOBReader`,
+`ReadableStreamBYOBRequest`, `WritableStream` and its writer and controller,
+`TransformStream` and its controller, `ByteLengthQueuingStrategy`,
+`CountQueuingStrategy`, `TextEncoderStream`, `TextDecoderStream`,
+`CompressionStream`, `DecompressionStream`. `Response.body` and
+`Blob.prototype.stream()` are **byte** streams (a BYOB reader works on both).
+Three facts a reading of the standard would get wrong:
+
+- **A transformer's `cancel` is never read.** Firefox 153 implements
+  TransformStream as the standard stood before that member: cancelling the
+  readable side errors the writable side with the reason, and `abort` errors
+  the readable side; nothing of the transformer's is called.
+- **A piped abort cancels the source before it aborts the destination.**
+- **Error messages are Gecko's**, several without the `Interface.member:`
+  prefix (`Stream is closed or closing`, `Releasing lock`, `Canceled Locked
+  Stream`, `Can not close locked stream`, `Terminating the stream`).
+
+The oracle is not a table typed from these readings: 147 calls
+(`tests/fixtures/js/streams-probe.js` — every interface's members, lengths and
+descriptors, then constructor conversions, reads, BYOB fills, backpressure,
+pipes with each option, tee, iteration, transforms, text streams, `Response`
+and `Blob` bodies) were run in Firefox and their answers captured verbatim in
+`tests/fixtures/js/streams-firefox153.json`. `js::tests::streams` runs the
+same file in frot and requires the same answer for every key but the three
+residuals below.
+
+### 16.2 The design, in the order it happens
+
+1. **One set of abstract operations, shared by nine prelude files** through a
+   `__frot_streams` object that `response.js`, their last user, removes:
+   `streams.js` (queues, strategies, the stream's state, the default
+   controller), `streamread.js` (the ReadableStream interface and both
+   readers), `streambyte.js`/`streambyob.js` (the byte controller and BYOB
+   request), `streamwrite.js`/`streamwriter.js` (WritableStream's state
+   machine and its writer), `streampipe.js` (pipeTo, pipeThrough, tee),
+   `streamiter.js` (async iteration, `from`, then `locked`, last as measured),
+   `streamxform.js` (TransformStream, the strategies, the text streams,
+   `Blob.stream`). Every internal slot is in brand.js's one WeakMap: an
+   instance owns nothing.
+2. **Promises are the loop's.** A stream runs on promise reactions only — no
+   timer, no host call — so it lives inside the §5 microtask drain and the
+   run's one compute budget like any page code.
+3. **A body is bytes until a page asks for a stream.** A `Response` keeps the
+   text frot fetched (or the `BodyInit` it was built from) as bytes; the
+   first read of `body` makes a byte stream that holds them as one chunk.
+   Every reader method (`text`, `json`, `arrayBuffer`, `bytes`, `blob`) reads
+   through that stream, so `bodyUsed` is simply the stream's "disturbed" and a
+   locked or read body refuses as Firefox does; `clone` tees. A `Response`
+   built from a string, a Blob, a `URLSearchParams` or a `FormData` carries
+   the Content-Type Firefox gives it.
+4. **Async iteration runs its steps at once when nothing is in flight.**
+   QuickJS does not await `return()` when a `for await` loop breaks; Firefox
+   does, so by the loop's next line the reader is released. Running the
+   return steps synchronously when no `next()` is pending gives the same
+   observable state.
+
+### 16.3 What this does not solve (declared residuals)
+
+- `TextDecoderStream` decodes UTF-8 only — `encoding.js`'s refusal of every
+  other label (identity.md §11), so `new TextDecoderStream('latin1')` throws
+  where Firefox answers `windows-1252`.
+- `CompressionStream`/`DecompressionStream` are absent: a deflate codec is a
+  dependency or a codec written here, neither earned by a measured page.
+- `Response` still has no `formData`, `type` or `redirected`, and ignores its
+  `init` argument; `AbortSignal` (abort.js) still reports
+  `[object EventTarget]`.
+- Chunking: a body or a blob is one chunk; Firefox splits large ones. Both are
+  legal schedules of the standard.

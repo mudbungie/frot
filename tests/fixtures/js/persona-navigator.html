@@ -1047,7 +1047,8 @@
 
   shape('Headers', Headers.prototype, 'get,has,constructor');
   shape('Response', Response.prototype,
-    'clone,json,text,url,status,ok,statusText,headers,bodyUsed,constructor');
+    'clone,arrayBuffer,blob,bytes,json,text,url,status,ok,statusText,headers,body,bodyUsed,' +
+    'constructor');
   var res = new Response('body');
   ownsNothing('Response', res);
   eq('iface:response-status', res.status, 200);

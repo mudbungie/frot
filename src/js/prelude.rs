@@ -169,6 +169,17 @@ pub const SOURCE: &str = concat!(
     // EventTarget and loop.js's virtual-clock setTimeout.
     include_str!("prelude/abort.js"),
     "\n",
+    // Streams (bl-96f7, js.md §16): the core, then its parts, in the order
+    // each names; after abort.js and blob.js, before response.js.
+    include_str!("prelude/streams.js"),
+    include_str!("prelude/streamread.js"),
+    include_str!("prelude/streambyte.js"),
+    include_str!("prelude/streambyob.js"),
+    include_str!("prelude/streamwrite.js"),
+    include_str!("prelude/streamwriter.js"),
+    include_str!("prelude/streampipe.js"),
+    include_str!("prelude/streamiter.js"),
+    include_str!("prelude/streamxform.js"),
     // Focus management (bl-3a36): activeElement + focus()/blur() — after
     // events.js, because moving focus dispatches blur/focus through
     // Node.dispatchEvent.
@@ -205,6 +216,7 @@ pub const SOURCE: &str = concat!(
     // net.js — next — takes off the global for `fetch`/XHR request bodies.
     include_str!("prelude/formdata.js"),
     "\n",
+    include_str!("prelude/response.js"),
     include_str!("prelude/net.js"),
     "\n",
     // IndexedDB (bl-8dde): coherent IDBFactory + interface-zoo presence, no
