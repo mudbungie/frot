@@ -39,18 +39,14 @@ pub(super) fn child_orders(doc: &Document, styles: &Styles) -> Vec<Option<Vec<No
         .collect()
 }
 
-/// Flex container `id`'s in-flow child elements in reading order (design §5):
-/// its rendered element children (`display:none`/non-rendered and every
-/// non-element child excluded) sorted by `(order, source index)` — a stable sort
+/// Flex container `id`'s in-flow items in reading order (design §5): its
+/// rendered element children ([`gather`]; `display:none`/non-rendered and
+/// every non-element child excluded) sorted by `(order, source index)` — a stable sort
 /// by `order` keeps equal-`order` items in source order — then reversed for a
 /// `row-reverse`/`column-reverse` `flex-direction`.
 pub(super) fn child_order(doc: &Document, styles: &Styles, id: NodeId) -> Vec<NodeId> {
-    let mut items: Vec<NodeId> = doc
-        .flat_children(id)
-        .iter()
-        .copied()
-        .filter(|&c| is_rendered_element(doc, c, styles))
-        .collect();
+    let mut items = Vec::new();
+    gather(doc, styles, id, &mut items);
     items.sort_by_key(|&c| styles.order(c));
     if matches!(
         styles.flex_direction(id),
@@ -59,6 +55,23 @@ pub(super) fn child_order(doc: &Document, styles: &Styles, id: NodeId) -> Vec<No
         items.reverse();
     }
     items
+}
+
+/// The flex items under `id`: its rendered element children, a
+/// `display:contents` child standing aside for its own (`bl-1b08`, Chrome
+/// 158: the children of a contents child are the container's items, sorted by
+/// `order` with the rest).
+fn gather(doc: &Document, styles: &Styles, id: NodeId, items: &mut Vec<NodeId>) {
+    for &c in doc.flat_children(id).iter() {
+        if !is_rendered_element(doc, c, styles) {
+            continue;
+        }
+        if styles.display(c) == Display::Contents {
+            gather(doc, styles, c, items);
+        } else {
+            items.push(c);
+        }
+    }
 }
 
 /// Lay out flex container `id` at `(x, y)` with main-axis extent `w`, store its

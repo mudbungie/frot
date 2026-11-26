@@ -542,6 +542,9 @@ What remains is the reorder primitive and its one consumer:
 - **`child_order` rule** (the whole reorder surface in P3): sort a flex
   container's in-flow children by `(order value, source index)`; if
   `flex-direction` is `row-reverse`/`column-reverse`, reverse the result.
+  *(2026-11-24, `bl-1b08`: a `display:contents` child is not an item — its
+  own children are, recursively, sorted with the rest and placed as items;
+  Chrome 158, `tests/fixtures/fidelity/flexcontents.html`.)*
 - **`--out bboxes`** walks a flex container's children in `child_order`, so its
   array is in visual reading order (§7). The fidelity oracle compares only
   which elements paint on that channel, not their order (`fidelity.md` §3.1),

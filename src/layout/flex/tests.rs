@@ -224,3 +224,19 @@ fn inline_flex_gets_child_order_but_is_not_block_placed() {
         }
     );
 }
+
+#[test]
+fn a_display_contents_child_stands_aside_for_its_children() {
+    // bl-1b08 (Chrome 158): the contents span's children are the container's
+    // items, sorted by `order` with the rest — and placed left to right so.
+    let (doc, layout) = lay(
+        "<div style=\"display:flex\"><span style=\"display:contents\">\
+         <b style=\"order:2\">B</b><i>I</i><em style=\"display:none\">x</em></span>\
+         <u style=\"order:1\">U</u></div>",
+    );
+    let (b, i, u) = (id(&doc, "b"), id(&doc, "i"), id(&doc, "u"));
+    assert_eq!(layout.child_order(id(&doc, "div")), vec![i, u, b]);
+    let x = |n| layout.rect(n).unwrap().x;
+    assert!(x(i) < x(u) && x(u) < x(b));
+    assert_eq!(layout.rect(id(&doc, "span")), None);
+}
