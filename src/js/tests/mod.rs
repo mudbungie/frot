@@ -21,6 +21,7 @@ mod composed;
 mod cssom;
 mod currentscript;
 mod customel;
+mod delegates;
 mod dispatch;
 mod docnode;
 mod domiface;

@@ -72,8 +72,7 @@
   });
   g.__frot_ifaceattrs(P, {
     activeElement: function () {
-      var f = g.__frot_focused();
-      return f !== null && f !== undefined && g.__frot_tree_root(f) === slots(this).id ? wrap(f) : null;
+      return wrap(g.__frot_active(slots(this).id));
     },
   });
 

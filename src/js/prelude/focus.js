@@ -26,8 +26,9 @@
   }
 
   g.__frot_ifaceattrs(g.Document.prototype, {
+    // The focused element, or the host whose shadow tree holds it.
     activeElement: function () {
-      return wrap(g.__frot_focused()) || this.body;
+      return wrap(g.__frot_active(g.__frot_document)) || this.body;
     },
   });
   // Popovers: shown by script only, hidden by the UA rule until then.
@@ -61,16 +62,19 @@
   // On HTMLElement.prototype and, separately, SVGElement.prototype (measured).
   [g.HTMLElement.prototype, g.SVGElement.prototype].forEach(function (proto) {
     g.__frot_ifaceops(proto, {
+      // A host whose shadow root delegates focus passes it on (js.md §15.11).
       focus: function focus() {
         var prev = g.__frot_focused();
-        if (prev === id(this) || !g.__frot_focus(id(this))) return;
+        if (prev === id(this)) return;
+        var to = g.__frot_focus(id(this));
+        if (to === undefined || to === prev) return;
         if (prev !== null && prev !== undefined) emit(wrap(prev), 'blur'); // the loser first
-        emit(this, 'focus');
+        emit(wrap(to), 'focus');
       },
+      // Such a host gives up focus its shadow tree holds, too.
       blur: function blur() {
-        if (g.__frot_focused() !== id(this)) return;
-        g.__frot_blur();
-        emit(this, 'blur');
+        var was = g.__frot_blur(id(this));
+        if (was !== undefined) emit(wrap(was), 'blur');
       },
     });
   });

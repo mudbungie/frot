@@ -2239,7 +2239,7 @@ Attacked before building, per the house rule. Each is filed, none is built:
   in a shadow tree propagates to its shadow root and stops there, composed
   or not, and nothing is retargeted — filed as its own ball.)* *(2026-11-25:
   built, §15.7.)*
-- **Focus delegation** (`delegatesFocus`), **form-associated custom
+- **Focus delegation** (`delegatesFocus`; *built 2026-11-25, §15.11*), **form-associated custom
   elements** and **`ElementInternals`** (`attachInternals` stays absent —
   *built 2026-11-25, §15.6*), **scoped
   registries**, **manual slot assignment** (`slot.assign()`; *built 2026-11-25, §15.9*), the
@@ -2531,6 +2531,35 @@ Declared: **`Document.parseHTMLUnsafe`** is absent — Firefox answers a new
 defined element `setHTMLUnsafe` makes** is upgraded at once by frot, as
 `innerHTML`'s is; Firefox upgrades it a task later without its
 `connectedCallback` (measured), which frot does not copy.
+
+### 15.11 Focus in shadow trees and `delegatesFocus` (`bl-326a`, 2026-11-25)
+
+Measured on Firefox 153.0esr (identity.md §3.19 rig, `js/tests/delegates/`,
+12 answers):
+
+- **Focus may be inside a shadow tree.** An element there that can take
+  focus takes it (`focused_element` asks whether it is connected
+  shadow-including, as `Document::connected` does).
+- **`host.focus()`** on a host whose shadow root delegates focus focuses its
+  *focus delegate*: where focus already is, when that is inside its shadow
+  tree (then nothing changes and no event fires); else its first
+  `autofocus` element that can take focus; else its first element that can,
+  in tree order; with none, nothing happens. A host that does not delegate
+  is focused itself, if it can be (`css::focus_target`).
+- **`blur()`** on a delegating host takes focus from inside its shadow tree;
+  on any other host it does nothing unless the host itself is focused
+  (`css::blur_target`).
+- **`document.activeElement`** and **`shadowRoot.activeElement`** answer
+  the focused element retargeted into their own tree — the host whose
+  shadow tree holds it — or `null` (a root) / `body` (the document) when
+  focus is not in or under that tree (`css::active_in`).
+- **`:focus`** matches the focused element and every host whose shadow tree
+  holds it, delegating or not; **`:focus-within`** climbs through shadow
+  roots to their hosts.
+
+Not built: focus events stay plain `Event`s — not composed, no
+`relatedTarget`, no `focusin`/`focusout` (`bl-25e4`); `autofocus` inside a
+shadow tree is not looked for at load.
 
 ## 16. Streams (`bl-96f7`, 2026-11-24)
 

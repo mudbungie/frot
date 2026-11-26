@@ -7,7 +7,7 @@ use rquickjs::function::Opt;
 use rquickjs::{Ctx, Function};
 
 use super::Host;
-use crate::css::{focusable, focused_element, pick, picked};
+use crate::css::{active_in, blur_target, focus_target, focused_element, pick, picked};
 use crate::dom::live::Focus;
 
 pub(super) fn install<'js>(
@@ -20,20 +20,20 @@ pub(super) fn install<'js>(
         let d = doc.clone();
         move || focused_element(&d.borrow())
     });
-    // Focus `id` if it can take focus — or, `force`d, a dialog with nothing
-    // focusable inside, which takes focus itself; answers whether it took it.
+    // Focus `id` — or the element a host delegates focus to — if it can take
+    // it, or, `force`d, a dialog with nothing focusable inside, which takes
+    // focus itself; answers the element focused, `undefined` when none.
     bind!(ctx, g, "__frot_focus", {
         let d = doc.clone();
         move |id: u32, force: Opt<bool>| {
             let doc = d.borrow();
-            let can = doc.element(id).is_some_and(|el| {
-                focusable(&doc, id, el) || (force.0 == Some(true) && el.name == "dialog")
-            });
+            let dialog = doc.element(id).is_some_and(|el| el.name == "dialog");
+            let to = focus_target(&doc, id).or((force.0 == Some(true) && dialog).then_some(id));
             drop(doc);
-            if can {
-                d.borrow_mut().set_focus(Focus::On(id));
+            if let Some(to) = to {
+                d.borrow_mut().set_focus(Focus::On(to));
             }
-            can
+            to
         }
     });
     // The autofocus flush (`bl-4248`), which the host runs once, after
@@ -42,9 +42,28 @@ pub(super) fn install<'js>(
         let (d, geo) = (doc.clone(), h.geo.clone());
         move || geo.borrow().settle_autofocus(&mut d.borrow_mut())
     });
+    // `activeElement` of the document or a shadow root.
+    bind!(ctx, g, "__frot_active", {
+        let d = doc.clone();
+        move |root: u32| active_in(&d.borrow(), root)
+    });
+    // Take focus away — from `id`, only if `id.blur()` takes it ([`blur_target`]);
+    // answers the element that lost it.
     bind!(ctx, g, "__frot_blur", {
         let d = doc.clone();
-        move || d.borrow_mut().set_focus(Focus::Off)
+        move |id: Opt<u32>| {
+            let doc = d.borrow();
+            let was = match id.0 {
+                Some(id) => blur_target(&doc, id),
+                None => focused_element(&doc),
+            };
+            let off = id.0.is_none() || was.is_some();
+            drop(doc);
+            if off {
+                d.borrow_mut().set_focus(Focus::Off);
+            }
+            was
+        }
     });
     bind!(ctx, g, "__frot_popover", {
         let d = doc.clone();

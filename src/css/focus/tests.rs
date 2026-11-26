@@ -160,3 +160,12 @@ fn the_flush_skips_a_candidate_the_styles_hide() {
     settle_autofocus(&mut doc, None, false);
     assert_eq!(doc.focus(), Focus::Auto);
 }
+
+#[test]
+fn only_an_element_is_a_focus_target() {
+    let doc = Document::parse("<p id=p>text</p>");
+    let p = doc.element_by_id("p").unwrap();
+    let text = doc.node(p).children[0];
+    assert_eq!(crate::css::focus_target(&doc, text), None);
+    assert_eq!(crate::css::focus_target(&doc, p), None);
+}

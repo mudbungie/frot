@@ -46,7 +46,9 @@ pub use cascade::{compute, compute_bare, compute_with};
 pub use checked::{pick, picked};
 pub use control::{custom as custom_name, takes_placeholder};
 pub use display::Display;
-pub use focus::{focusable, focused_element, settle_autofocus};
+pub use focus::{
+    active_in, blur_target, focus_target, focusable, focused_element, settle_autofocus,
+};
 pub use import::imports;
 pub use lang::{foreign, language};
 pub use paint::Paint;

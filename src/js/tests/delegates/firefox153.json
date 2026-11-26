@@ -1,0 +1,14 @@
+{
+ "initial": "body null null false false false true",
+ "hostFocus": "d di1 null true true true",
+ "inner": "di1 true [object HTMLElement] di1",
+ "again": "d di2 null true true true",
+ "noDelegate": "n null null false false true true",
+ "innerOfPlain": "n null ni false false true true ni",
+ "nothing": "plain null null false false true plain",
+ "autofocus": "a ai2",
+ "blurHost": "body null",
+ "innerBlur": "body",
+ "blurPlainHost": "n ni",
+ "focusPlainHostInside": "n null"
+}

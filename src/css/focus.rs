@@ -53,21 +53,86 @@ pub fn focused_element(doc: &Document) -> Option<NodeId> {
     match doc.focus() {
         Focus::On(id) => doc
             .element(id)
-            .filter(|el| connected(doc, id) && (focusable(doc, id, el) || el.name == "dialog"))
+            .filter(|el| doc.connected(id) && (focusable(doc, id, el) || el.name == "dialog"))
             .map(|_| id),
         Focus::Off | Focus::Auto => None,
     }
 }
 
-/// `:focus` / `:focus-visible`: `id` is the focused element.
+/// `:focus` / `:focus-visible`: `id` is the focused element, or a host
+/// whose shadow tree holds it (Firefox 153, js.md §15.11).
 pub fn focused(doc: &Document, id: NodeId) -> bool {
-    focused_element(doc) == Some(id)
+    focused_element(doc).is_some_and(|f| f == id || inside(doc, id, f, false))
 }
 
-/// `:focus-within`: `id` is the focused element or holds it.
+/// `:focus-within`: `id` is the focused element or holds it, through shadow
+/// roots to their hosts.
 pub fn focus_within(doc: &Document, id: NodeId) -> bool {
-    let within = |f| std::iter::successors(Some(f), |&n| doc.node(n).parent).any(|n| n == id);
-    focused_element(doc).is_some_and(within)
+    focused_element(doc).is_some_and(|f| outward(doc, f).any(|n| n == id))
+}
+
+/// `n`, then each node holding it: a parent, or a shadow root's host.
+fn outward(doc: &Document, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+    std::iter::successors(Some(n), |&n| {
+        doc.node(n).parent.or_else(|| doc.shadow(n).map(|s| s.host))
+    })
+}
+
+/// Whether focus at `f` is inside the shadow tree of `host` — one whose
+/// shadow root delegates focus, when `delegating`.
+fn inside(doc: &Document, host: NodeId, f: NodeId, delegating: bool) -> bool {
+    let root = doc.shadow_root(host);
+    let delegates = root
+        .and_then(|r| doc.shadow(r))
+        .is_some_and(|s| s.delegates_focus);
+    (delegates || !delegating) && outward(doc, f).any(|n| Some(n) == root)
+}
+
+/// What `id.blur()` takes focus from: the focused element when it is `id`,
+/// or inside the shadow tree of `id` whose root delegates focus.
+pub fn blur_target(doc: &Document, id: NodeId) -> Option<NodeId> {
+    focused_element(doc).filter(|&f| f == id || inside(doc, id, f, true))
+}
+
+/// Where `id.focus()` puts focus (HTML "focus delegate"; Firefox 153, js.md
+/// §15.11): for a host whose shadow root delegates focus, where focus already
+/// is when that is inside it, else its first `autofocus` element that can
+/// take focus, else its first that can, in tree order; for any other
+/// element, itself if it can take focus.
+pub fn focus_target(doc: &Document, id: NodeId) -> Option<NodeId> {
+    let el = doc.element(id)?;
+    let root = doc
+        .shadow_root(id)
+        .filter(|&r| doc.shadow(r).is_some_and(|s| s.delegates_focus));
+    let Some(root) = root else {
+        return focusable(doc, id, el).then_some(id);
+    };
+    let now = focused_element(doc).filter(|&f| inside(doc, id, f, true));
+    let mut cands = Vec::new();
+    doc.walk(Some(root), &mut |ev, entry| {
+        if let (WalkEvent::Enter(n), NodeKind::Element(e)) = (ev, &entry.kind) {
+            if focusable(doc, n, e) {
+                cands.push((n, has(e, "autofocus")));
+            }
+        }
+    });
+    let auto = cands.iter().find(|c| c.1).or(cands.first());
+    now.or(auto.map(|c| c.0))
+}
+
+/// `activeElement` of the document or shadow root `root`: the focused
+/// element, or the host in `root`'s tree whose shadow tree holds it (DOM
+/// "retarget").
+pub fn active_in(doc: &Document, root: NodeId) -> Option<NodeId> {
+    let f = focused_element(doc)?;
+    let mut n = f;
+    loop {
+        let top = doc.tree_root(n);
+        if top == root {
+            return Some(n);
+        }
+        n = doc.shadow(top)?.host;
+    }
 }
 
 /// Whether `el` can take focus where it stands: a button, select or textarea
@@ -97,12 +162,6 @@ pub fn focusable(doc: &Document, id: NodeId, el: &Element) -> bool {
     let inert =
         |(n, e): (NodeId, &Element)| has(e, "hidden") || has(e, "inert") || doc.concealed(n);
     focusable && !doc.blocked(id) && !chain.any(inert)
-}
-
-/// Whether `id` is in the document: its parent chain ends on the document
-/// node.
-fn connected(doc: &Document, id: NodeId) -> bool {
-    std::iter::successors(Some(id), |&n| doc.node(n).parent).any(|n| n == Document::ROOT)
 }
 
 #[cfg(test)]
