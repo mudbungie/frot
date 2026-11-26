@@ -2387,6 +2387,34 @@ pages vary run to run by more than some of the differences).
   Web constructor then throws at `attachInternals`, which frot does not have
   (`bl-be13`, the next wall; filed, not chased, per the ruling's scope).
 
+*Remeasured 2026-11-25, after §15.6–15.11 (`bl-be13`, `bl-9872`,
+`bl-352f`, `bl-f432`, `bl-326a`, `bl-c1a3`).* Release builds of `a1ee372`
+("before", the end of `bl-aff4`) and `a238ab7` ("after"), the same hour, one
+egress, `--js --js-errors`, two runs per cell; a range where the runs
+differed (shoelace.style and redhat.com stop on the network budget, which
+moves run to run).
+
+| page | `js.errors` before → after | `text` bytes | `ax` nodes | next wall |
+|---|---|---|---|---|
+| lit.dev | 37 → 0 | 5630 → 5630 | 195 → 195 | none on the page; no error |
+| material-web.dev | 32 → 1 | 603 → 603 | 45 → 16 | `DOMParser` (the template-shadowroot ponyfill's feature test, `bl-f7f0`) |
+| shoelace.style | 2–5 → 8 | 5628 → 5628 | 332 → 332 | the network budget (`@hotwired/turbo` from a CDN refused) |
+| redhat.com/en | 125 → 20–22 | 11707 → 11707 | 536 → 536–539 | `performance.mark` (`bl-95e5`); then the network budget on the RHDS element modules |
+
+- **lit.dev and material-web.dev**: every `attachInternals` throw is gone.
+  material-web.dev's AX tree *shrinks* because its components now run: the
+  nav drawer is collapsible below 1500 px (`matchMedia("(max-width:
+  1500px)")`) and Lit renders its `<aside>` `inert`, as it does in a 1280 px
+  Chrome; the 45 nodes before were the drawer of a page whose scripts had
+  failed.
+- **redhat.com** (Red Hat Design System, Lit): 100+ errors were the
+  `attachInternals`/`ElementInternals` wall; what remains is
+  `performance.mark` in three inline scripts and modules the network budget
+  refuses.
+- **shoelace.style**: its text and tree do not move; its extra errors are
+  modules that now load far enough to reach the CDN fetches the budget
+  refuses — the budget, not a missing API, is its wall.
+
 ### 15.6 `ElementInternals` and form-associated custom elements (`bl-be13`, 2026-11-25)
 
 Material Web and Lit's form controls call `this.attachInternals()` in their
