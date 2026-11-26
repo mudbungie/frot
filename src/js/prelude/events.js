@@ -156,6 +156,8 @@
 
   // Inner invoke (DOM §2.9): `object`'s listeners for this pass, cloned first
   // so a listener added during dispatch waits for the next one.
+  var current;
+  Object.defineProperty(g, '__frot_current_event', { value: function () { return current; } });
   function invoke(entry, ev, st, phase, capturePass) {
     var object = entry.item;
     st.target = entry.target;
@@ -168,6 +170,8 @@
       if (l.removed || l.capture !== capturePass) continue;
       if (l.once) remove(object, st.type, l.callback, l.capture);
       st.passive = l.passive;
+      var outer = current;
+      current = ev; // `window.event` while a listener runs (window.js)
       try {
         var cb = l.callback;
         if (typeof cb === 'function') cb.call(object, ev);
@@ -179,6 +183,7 @@
       } catch (e) {
         report(e);
       }
+      current = outer;
       st.passive = false;
     }
   }

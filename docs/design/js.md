@@ -436,6 +436,19 @@ Consequences of the repo's hard rules:
   node passes by its chain's interface names. Measured in
   `src/js/tests/brandck/`; the other interfaces are `bl-9df0`.
 
+- **The window's everyday members (`bl-d8f7`, 2026-11-24).** `window.js`,
+  measured on Firefox 153.0esr (`src/js/tests/winmembers/`), the top of
+  `bl-b47e`'s ranking: `name`/`status` (strings kept per window),
+  `origin`/`opener`/`event` ([Replaceable]; `event` is the event a listener
+  is running for, set by `events.js`'s inner invoke), `structuredClone`
+  (message.js's algorithm), and the methods a person-less, unscrolled,
+  single-window browser answers at once — `alert` undefined, `confirm`
+  false, `prompt` null (a dismissed dialog), `open` null (a blocked popup),
+  `close`/`focus`/`blur`/`stop`/`print`/`scroll`/`scrollTo`/`scrollBy`
+  nothing. `getSelection()` (and `document.getSelection()`) is one
+  `Selection` that is always empty: only the members an empty selection
+  answers are built (Range is not).
+
 ## 4. What runs, and when
 
 Parsing already happened (html5ever ran to completion); frot never executes

@@ -14,9 +14,8 @@ const CAPTURE: &str = include_str!("window/firefox153.json");
 /// Keys frot answers differently, each a declared residual, with what frot
 /// answers: the window's named properties are not built — a Proxy there makes
 /// quickjs drop every ReferenceError (`window.js`; `bl-de60`) — so every
-/// named lookup misses, `shadow`'s element-id `alert` among them (frot has no
-/// `alert` either); the inert named properties object refuses a definition
-/// in quickjs's words; and the window's own `window`/`self`/`document`/
+/// named lookup misses (`shadow`'s deleted own property finds no element);
+/// the inert named properties object refuses a definition in quickjs's words; and the window's own `window`/`self`/`document`/
 /// `location`/`top` are data properties where Firefox's are accessors
 /// (`bl-065f`).
 const DECLARED: [(&str, &str); 9] = [
@@ -31,7 +30,7 @@ const DECLARED: [(&str, &str); 9] = [
         "THROW TypeError:cannot read property 'length' of undefined",
     ),
     ("namedLive", "undefined,false,undefined"),
-    ("shadow", "undefined,5,false"),
+    ("shadow", "function,5,false"),
     ("iframeNamed", "false,undefined"),
     ("defPP", "TypeError:object is not extensible"),
     (

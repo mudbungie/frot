@@ -51,6 +51,14 @@
     return out;
   }
 
+  // The window's own structuredClone (bl-d8f7), over the same algorithm.
+  g.structuredClone = g.__frot_brand(function structuredClone(value) {
+    if (!arguments.length) {
+      throw new TypeError('structuredClone: At least 1 argument required, but only 0 passed');
+    }
+    return clone(value, new Map());
+  }, 'structuredClone');
+
   // --- MessageEvent ----------------------------------------------------------
   function isPort(p) {
     return p instanceof g.MessagePort;
