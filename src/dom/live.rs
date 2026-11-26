@@ -54,6 +54,8 @@ pub struct Live {
     picked: Vec<(NodeId, bool)>,
     /// Checkboxes a script made `indeterminate`.
     indeterminate: Vec<NodeId>,
+    /// Each slot's manually assigned nodes ([`assign`]).
+    manual: Vec<(NodeId, Vec<NodeId>)>,
     /// What elements' `ElementInternals` set ([`internals`]).
     internals: Vec<(NodeId, internals::Internals)>,
 }
@@ -186,6 +188,7 @@ fn toggle(list: &mut Vec<NodeId>, id: NodeId, on: bool) {
     }
 }
 
+mod assign;
 pub mod internals;
 mod top;
 

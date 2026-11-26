@@ -163,6 +163,20 @@
         return n.nodeType === 1;
       });
     },
+    // Manual assignment (js.md §15.9): the arena keeps each slot's list and
+    // answers the slots whose list changed, which are signalled.
+    assign: function assign() {
+      var ids = Array.prototype.map.call(arguments, function (n, i) {
+        if (!(n instanceof g.Element || n instanceof g.Text)) {
+          throw new TypeError('HTMLSlotElement.assign: Argument ' + (i + 1) +
+            ' could not be converted to any of: Element, Text.');
+        }
+        return slots(n).id;
+      });
+      g.__frot_assign(slots(this).id, ids).forEach(function (s) {
+        g.__frot_signal_slot(s);
+      });
+    },
   });
   reflect(g.HTMLSlotElement.prototype, 'name', 'name');
 
@@ -209,8 +223,25 @@
       return around(r[0], r[1], raw, a);
     }, '__frot_' + name);
   }
+  // Firefox parses markup into place: a slot the markup parser made with
+  // fallback children is signalled when it reaches a shadow tree.
+  var parsed = new Set();
+  var parse = { f: g.__frot_fragment };
+  g.__frot_fragment = brand(function (html, context, roots) {
+    var f = parse.f(html, context, roots);
+    parsed.add(f);
+    return f;
+  }, '__frot_fragment');
+  function fallback(s) {
+    return g.__frot_children(s).some(function (c) {
+      var k = g.__frot_kind(c);
+      return k === 'element' || k === 'text';
+    });
+  }
   seam('insert_child', function (a) {
-    return g.__frot_slot_scope(a[0], a[1]);
+    var r = g.__frot_slot_scope(a[0], a[1]);
+    if (parsed.delete(a[1]) && r[0].length) r[1] = r[1].concat(g.__frot_query(a[1], 'slot').filter(fallback));
+    return r;
   });
   seam('detach', function (a) {
     return g.__frot_slot_scope(null, a[0]);

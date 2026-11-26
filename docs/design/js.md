@@ -2242,7 +2242,7 @@ Attacked before building, per the house rule. Each is filed, none is built:
 - **Focus delegation** (`delegatesFocus`), **form-associated custom
   elements** and **`ElementInternals`** (`attachInternals` stays absent —
   *built 2026-11-25, §15.6*), **scoped
-  registries**, **manual slot assignment** (`slot.assign()`), the
+  registries**, **manual slot assignment** (`slot.assign()`; *built 2026-11-25, §15.9*), the
   **`slotchange`** event (*built 2026-11-25, §15.8*), **`::part`/`exportparts`**, **`:host-context()`**,
   and `setHTMLUnsafe`/`parseHTMLUnsafe` (which admit declarative shadow roots
   from script; *`setHTMLUnsafe` built 2026-11-25, §15.10*).
@@ -2486,6 +2486,31 @@ by asking it around each tree mutation — the slots of the shadow trees the
 mutation can touch, before and after — and `observer.js` delivers the
 signals in its microtask. Slots declared by the parser before any script
 ran are never signalled for what the parse assigned them.
+
+### 15.9 Manual slot assignment (`bl-f432`, 2026-11-25)
+
+Measured on Firefox 153.0esr (identity.md §3.19 rig, `js/tests/assign/`, 21
+steps with the `slotchange`s each made). In a shadow root attached with
+`slotAssignment: "manual"` (or `shadowrootslotassignment=manual`) nothing is
+assigned by name. `slot.assign(...nodes)` (elements and text only; anything
+else is a `TypeError`, "Argument N could not be converted to any of:
+Element, Text.") gives the slot its *manually assigned nodes*: each once, in
+the order given, taken from any other slot that had them. A slot's assigned
+nodes are those of its list that are children of its tree's host, in the
+list's order — so a node moved out of the host and back is assigned again,
+and a slot removed and reinserted keeps its list. A node's `assignedSlot` is
+the slot in its parent host's shadow tree whose list holds it. In a
+named-assignment root the list is kept but ignored. `assign()` signals each
+slot whose list it changed (one that lost a node first, then the slot
+itself), whether or not what it shows changed; the same list again signals
+nothing.
+
+The lists are live state (`dom::live::assign`); `Document::assigned` and
+`assigned_slot` read them for a manual root, so the flat tree, the views and
+§15.8's change detection follow without more. **Firefox's parse into
+place**, kept: a slot the markup parser made (`innerHTML`, `setHTMLUnsafe`)
+with fallback children is signalled when it reaches a shadow tree, assigned
+or not.
 
 ### 15.10 `setHTMLUnsafe` (`bl-c1a3`, 2026-11-25)
 

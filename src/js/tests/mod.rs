@@ -11,6 +11,7 @@ use super::{run, Bounds, Env, Report, Session, StyleSource};
 use crate::dom::Document;
 use crate::fetch::FetchSession;
 
+mod assign;
 mod attr;
 mod audioctx;
 mod blob;

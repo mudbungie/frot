@@ -71,6 +71,11 @@ pub(super) fn install<'js>(
         let d = doc.clone();
         move |parent: Option<u32>, node: u32| d.borrow().slot_scope(parent, node)
     });
+    // `slot.assign(...nodes)`: answers the slots whose manual list changed.
+    bind!(ctx, g, "__frot_assign", {
+        let d = doc.clone();
+        move |slot: u32, nodes: Vec<u32>| d.borrow_mut().assign(slot, &nodes)
+    });
     bind!(ctx, g, "__frot_assigned_slot", {
         let d = doc.clone();
         move |id: u32| d.borrow().assigned_slot(id)

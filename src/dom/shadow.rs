@@ -156,8 +156,9 @@ impl Document {
     }
 
     /// The slot `id` is assigned to: the first `<slot>` in its parent's shadow
-    /// tree whose `name` is `id`'s `slot` attribute (`''` for text). Only an
-    /// element or text child of a host with a named-assignment root has one.
+    /// tree whose `name` is `id`'s `slot` attribute (`''` for text) — in a
+    /// manual-assignment root, the slot whose manually assigned nodes hold it.
+    /// Only an element or text child of a host has one.
     pub fn assigned_slot(&self, id: NodeId) -> Option<NodeId> {
         let (root, shadow) = self.hosted(self.node(id).parent?)?;
         let want = match &self.node(id).kind {
@@ -166,7 +167,8 @@ impl Document {
             _ => return None,
         };
         if shadow.manual {
-            return None;
+            let mut slots = self.slots_in(root).into_iter();
+            return slots.find(|&s| self.manually_assigned(s).contains(&id));
         }
         self.slots_in(root)
             .into_iter()
@@ -174,12 +176,18 @@ impl Document {
     }
 
     /// The nodes assigned to the slot `slot`, in tree order: the children of
-    /// its tree's host whose assigned slot it is. Empty for a slot in no
-    /// shadow tree.
+    /// its tree's host whose assigned slot it is — in a manual-assignment
+    /// root, its manually assigned nodes that are the host's children, in
+    /// the order given (Firefox 153). Empty for a slot in no shadow tree.
     pub fn assigned(&self, slot: NodeId) -> Vec<NodeId> {
         let Some(s) = self.shadow(self.tree_root(slot)) else {
             return Vec::new();
         };
+        if s.manual {
+            let mut nodes = self.manually_assigned(slot).to_vec();
+            nodes.retain(|&n| self.node(n).parent == Some(s.host));
+            return nodes;
+        }
         self.node(s.host)
             .children
             .iter()
