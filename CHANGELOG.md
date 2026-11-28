@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.9](https://github.com/mudbungie/frot/compare/v0.0.8...v0.0.9) - 2026-11-28
+
+### Changes
+
+- AGENTS.md 'The gate': a plain commit on work/<id> is leak-scan only; the full gate runs at bl close (ops bl-07d8) [bl-83da]
+
 ## [0.0.8](https://github.com/mudbungie/frot/compare/v0.0.7...v0.0.8) - 2026-11-25
 
 ### Changes
