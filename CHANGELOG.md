@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.8](https://github.com/mudbungie/frot/compare/v0.0.7...v0.0.8) - 2026-11-25
+
+### Changes
+
+- a display:contents child of a flex container is placed as one flex item; Chrome makes its children the items [bl-1b08]
+
 ## [0.0.7](https://github.com/mudbungie/frot/compare/v0.0.6...v0.0.7) - 2026-11-25
 
 ### Changes
